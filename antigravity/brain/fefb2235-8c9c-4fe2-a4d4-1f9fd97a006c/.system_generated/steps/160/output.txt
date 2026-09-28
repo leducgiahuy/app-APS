@@ -1,0 +1,15 @@
+The following changes were made by the replace_file_content tool to: C:\Users\GiaWyy\.gemini\antigravity\scratch\aps-project-manager\frontend\src\modules\gantt\GanttPage.jsx. If relevant, proactively run terminal commands to execute this code for the USER. Don't ask for permission.
+[diff_block_start]
+@@ -207,7 +207,8 @@
+         notes: '',
+         color: '#0284c7',
+         dependencies: [],
+-        speed: 'on_time'
++        speed: 'on_time',
++        insertAfterId: ''
+       });
+       setShowAddTaskModal(false);
+     }
+[diff_block_end]
+
+Please note that the above snippet only shows the MODIFIED lines from the last change. It shows up to 3 lines of unchanged lines before and after the modified lines. The actual file contents may have many more lines not shown.

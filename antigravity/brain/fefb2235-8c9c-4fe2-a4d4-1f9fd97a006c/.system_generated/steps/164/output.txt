@@ -1,0 +1,56 @@
+The following changes were made by the replace_file_content tool to: C:\Users\GiaWyy\.gemini\antigravity\scratch\aps-project-manager\frontend\src\modules\gantt\GanttPage.jsx. If relevant, proactively run terminal commands to execute this code for the USER. Don't ask for permission.
+[diff_block_start]
+@@ -367,10 +367,10 @@
+ 
+         {/* Khung cuộn ngang chứa cả Bảng bên trái + Biểu đồ bên phải */}
+         <div className="overflow-x-auto relative max-h-[700px] overflow-y-auto">
+-          <div className="flex" style={{ width: `${620 + ganttWidth}px`, minWidth: '100%' }}>
++          <div className="flex" style={{ width: `${680 + ganttWidth}px`, minWidth: '100%' }}>
+             
+             {/* ================= KHUNG TRÁI: BẢNG DỮ LIỆU CÔNG VIỆC (ĐÓNG BĂNG FREEZE) ================= */}
+-            <div className="w-[620px] flex-shrink-0 sticky left-0 z-30 bg-white dark:bg-slate-900 border-r-2 border-slate-300 dark:border-slate-700 shadow-lg">
++            <div className="w-[680px] flex-shrink-0 sticky left-0 z-30 bg-white dark:bg-slate-900 border-r-2 border-slate-300 dark:border-slate-700 shadow-lg">
+               
+               {/* Header Bảng Bên Trái */}
+               <div
+@@ -383,7 +383,7 @@
+                 <div className="w-20 text-center py-2 px-1 border-r border-slate-200 dark:border-slate-700">KẾT THÚC</div>
+                 <div className="w-14 text-center py-2 px-1 border-r border-slate-200 dark:border-slate-700">NGÀY</div>
+                 <div className="w-24 py-2 px-2 border-r border-slate-200 dark:border-slate-700">GHI CHÚ</div>
+-                <div className="w-10 text-center py-2 px-1">XÓA</div>
++                <div className="w-20 text-center py-2 px-1">THAO TÁC</div>
+               </div>
+ 
+               {/* Danh Sách Các Hàng Công Việc (Tên dự án và công việc nằm bên trái) */}
+@@ -455,11 +455,25 @@
+                         {item.notes || '-'}
+                       </div>
+ 
+-                      {/* Cột Xóa Công Việc */}
+-                      <div className="w-10 text-center py-1 px-1">
++                      {/* Cột Thao Tác (Di chuyển lên/xuống & Xóa) */}
++                      <div className="w-20 flex items-center justify-center gap-0.5 py-1 px-1">
++                        <button
++                          onClick={() => moveGanttItem(item.id, 'up')}
++                          className="p-1 rounded text-slate-400 hover:text-sky-500 hover:bg-sky-50 dark:hover:bg-slate-800 transition-colors"
++                          title="Di chuyển lên trên"
++                        >
++                          <ChevronUp className="w-3.5 h-3.5" />
++                        </button>
++                        <button
++                          onClick={() => moveGanttItem(item.id, 'down')}
++                          className="p-1 rounded text-slate-400 hover:text-sky-500 hover:bg-sky-50 dark:hover:bg-slate-800 transition-colors"
++                          title="Di chuyển xuống dưới"
++                        >
++                          <ChevronDown className="w-3.5 h-3.5" />
++                        </button>
+                         <button
+                           onClick={() => deleteGanttItem(item.id)}
+-                          className="p-1 rounded text-slate-300 hover:text-rose-500 transition-colors"
++                          className="p-1 rounded text-slate-300 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                           title="Xóa công việc này"
+                         >
+                           <Trash2 className="w-3.5 h-3.5" />
+[diff_block_end]
+
+Please note that the above snippet only shows the MODIFIED lines from the last change. It shows up to 3 lines of unchanged lines before and after the modified lines. The actual file contents may have many more lines not shown.

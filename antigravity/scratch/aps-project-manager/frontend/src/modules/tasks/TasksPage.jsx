@@ -1,0 +1,725 @@
+import React, { useState } from 'react';
+import { useApp } from '../../context/AppContext';
+import {
+  CheckSquare,
+  Clock,
+  Flame,
+  Plus,
+  Calendar,
+  AlertCircle,
+  CheckCircle2,
+  Hourglass,
+  Layers,
+  Building,
+  User,
+  Trash2,
+  TrendingUp,
+  Tag
+} from 'lucide-react';
+
+export default function TasksPage() {
+  const {
+    tasks,
+    employees,
+    projects,
+    overtimes,
+    addTask,
+    updateTask,
+    deleteTask,
+    addOvertime,
+    deleteOvertime
+  } = useApp();
+
+  // Tab chuyển đổi: 'tasks' (Phân công) hoặc 'ot' (Tăng ca)
+  const [activeSubTab, setActiveSubTab] = useState('tasks');
+
+  // Trạng thái mở modal
+  const [showTaskModal, setShowTaskModal] = useState(false);
+  const [showOtModal, setShowOtModal] = useState(false);
+
+  // Form phân công task
+  const [taskForm, setTaskForm] = useState({
+    projectId: 'proj-1',
+    phase: 'A. THIẾT KẾ XÂY DỰNG',
+    code: '',
+    title: '',
+    employeeId: employees[0]?.id || '',
+    startDate: '2026-11-05',
+    endDate: '2026-11-09',
+    estimatedDays: 4,
+    priority: 'normal',
+    notes: ''
+  });
+
+  // Form đăng ký tăng ca (OT)
+  const [otForm, setOtForm] = useState({
+    taskId: '',
+    employeeId: employees[0]?.id || '',
+    hours: 2,
+    date: '2026-11-06',
+    reason: ''
+  });
+
+  // Xử lý gửi Form Task
+  const handleTaskSubmit = async (e) => {
+    e.preventDefault();
+    if (!taskForm.title || !taskForm.employeeId) return;
+    const success = await addTask(taskForm);
+    if (success) {
+      setTaskForm({
+        projectId: 'proj-1',
+        phase: 'A. THIẾT KẾ XÂY DỰNG',
+        code: '',
+        title: '',
+        employeeId: employees[0]?.id || '',
+        startDate: '2026-11-05',
+        endDate: '2026-11-09',
+        estimatedDays: 4,
+        priority: 'normal',
+        notes: ''
+      });
+      setShowTaskModal(false);
+    }
+  };
+
+  // Xử lý gửi Form Tăng ca
+  const handleOtSubmit = async (e) => {
+    e.preventDefault();
+    if (!otForm.employeeId || !otForm.hours) return;
+    const success = await addOvertime(otForm);
+    if (success) {
+      setOtForm({
+        taskId: '',
+        employeeId: employees[0]?.id || '',
+        hours: 2,
+        date: new Date().toISOString().split('T')[0],
+        reason: ''
+      });
+      setShowOtModal(false);
+    }
+  };
+
+  // Đổi trạng thái tiến độ nhanh (Sớm / Đúng hạn / Chậm)
+  const handleSpeedChange = (taskId, newSpeed) => {
+    updateTask(taskId, { speedStatus: newSpeed });
+  };
+
+  // Đổi tiến độ %
+  const handleProgressChange = (taskId, newProgress) => {
+    updateTask(taskId, { progress: Number(newProgress) });
+  };
+
+  return (
+    <div className="space-y-6">
+      
+      {/* Thanh chuyển đổi 2 Mục: Phân công task & Đăng ký tăng ca */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <button
+            onClick={() => setActiveSubTab('tasks')}
+            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all ${
+              activeSubTab === 'tasks'
+                ? 'bg-sky-600 text-white shadow-md shadow-sky-600/25'
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+            }`}
+          >
+            <CheckSquare className="w-4 h-4" />
+            <span>Mục 1: Phân Công Công Việc</span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] bg-white/20 font-mono">
+              {tasks.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveSubTab('ot')}
+            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all ${
+              activeSubTab === 'ot'
+                ? 'bg-amber-500 text-white shadow-md shadow-amber-500/25'
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+            }`}
+          >
+            <Flame className="w-4 h-4" />
+            <span>Mục 2: Đăng Ký Tăng Ca (OT)</span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] bg-white/20 font-mono">
+              {overtimes.length}
+            </span>
+          </button>
+        </div>
+
+        {/* Nút hành động tương ứng */}
+        {activeSubTab === 'tasks' ? (
+          <button
+            onClick={() => setShowTaskModal(true)}
+            className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-semibold text-sm shadow-md transition-all flex-shrink-0"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Tạo Task Công Việc Mới</span>
+          </button>
+        ) : (
+          <button
+            onClick={() => setShowOtModal(true)}
+            className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-white font-semibold text-sm shadow-md transition-all flex-shrink-0"
+          >
+            <Flame className="w-4 h-4" />
+            <span>Đăng Ký Ca Tăng Ca Mới</span>
+          </button>
+        )}
+      </div>
+
+      {/* ================= NỘI DUNG MỤC 1: PHÂN CÔNG CÔNG VIỆC ================= */}
+      {activeSubTab === 'tasks' && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-4">
+            {tasks.map((task) => {
+              // Tìm thông tin nhân sự đảm nhận
+              const assignee = employees.find(e => e.id === task.employeeId);
+              const standardHours = assignee?.standardHours || 8;
+
+              // Định nghĩa màu trạng thái nhanh/chậm
+              const speedStyles = {
+                early: { label: 'Hoàn thành sớm', bg: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' },
+                on_time: { label: 'Đúng hạn', bg: 'bg-sky-500/10 text-sky-500 border-sky-500/20' },
+                delayed: { label: 'Chậm trễ / Quá hạn', bg: 'bg-rose-500/10 text-rose-500 border-rose-500/20 animate-pulse' }
+              };
+
+              const speedInfo = speedStyles[task.speedStatus] || speedStyles.on_time;
+
+              return (
+                <div
+                  key={task.id}
+                  className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-all space-y-4"
+                >
+                  {/* Hàng 1: Dự án, Giai đoạn, Độ ưu tiên, Nút xóa */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="font-bold text-sky-600 dark:text-sky-400 flex items-center gap-1">
+                        <Building className="w-3.5 h-3.5" />
+                        {task.projectName}
+                      </span>
+                      <span className="text-slate-300 dark:text-slate-700">•</span>
+                      <span className="font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                        <Layers className="w-3.5 h-3.5 text-slate-400" />
+                        {task.phase}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`text-[11px] font-bold px-2.5 py-1 rounded-full border ${speedInfo.bg}`}
+                      >
+                        {speedInfo.label}
+                      </span>
+
+                      {task.priority === 'urgent' && (
+                        <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-rose-500/10 text-rose-500 border border-rose-500/20">
+                          Khẩn cấp
+                        </span>
+                      )}
+
+                      <button
+                        onClick={() => deleteTask(task.id)}
+                        className="p-1 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                        title="Xóa công việc"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Hàng 2: Tên công việc & Người đảm nhận */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center">
+                    
+                    {/* Tên công việc */}
+                    <div className="lg:col-span-5">
+                      <div className="flex items-center gap-2">
+                        {task.code && (
+                          <span className="px-2 py-0.5 rounded bg-sky-500/10 text-sky-600 dark:text-sky-400 font-mono font-bold text-xs flex-shrink-0">
+                            {task.code}
+                          </span>
+                        )}
+                        <h4 className="font-bold text-base text-slate-900 dark:text-white">
+                          {task.title}
+                        </h4>
+                      </div>
+                      {task.notes && (
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 italic">
+                          Ghi chú: {task.notes}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* HIỂN THỊ TÊN NHÂN SỰ & THỜI GIAN LÀM 1 NGÀY (8h/ngày) */}
+                    <div className="lg:col-span-4 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <img
+                          src={assignee?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80'}
+                          alt={task.employeeName}
+                          className="w-10 h-10 rounded-xl object-cover border border-slate-200 dark:border-slate-700"
+                        />
+                        <div>
+                          <p className="text-xs font-bold text-slate-900 dark:text-white">
+                            {task.employeeName}
+                          </p>
+                          <p className="text-[11px] text-sky-600 dark:text-sky-400">
+                            {assignee?.title || 'Kỹ sư công trình'}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Thông số ca làm việc chuẩn 1 ngày */}
+                      <div className="text-right">
+                        <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                          Ca chuẩn
+                        </span>
+                        <span className="text-xs font-black text-slate-800 dark:text-slate-200">
+                          {standardHours}h / ngày
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* THỜI GIAN DỰ KIẾN CỦA TASK (NGÀY / GIỜ) */}
+                    <div className="lg:col-span-3 flex flex-col justify-center space-y-1">
+                      <div className="flex items-center justify-between text-xs text-slate-500">
+                        <span>Thời gian dự kiến:</span>
+                        <span className="font-bold text-slate-900 dark:text-white">
+                          {task.estimatedDays} ngày ({task.estimatedHours}h)
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px] text-slate-400">
+                        <span>Thời hạn:</span>
+                        <span>{task.startDate} → {task.endDate}</span>
+                      </div>
+                    </div>
+
+                  </div>
+
+                  {/* Hàng 3: Điều khiển tiến độ (%) & Tình trạng nhanh/chậm */}
+                  <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    
+                    {/* Thanh tiến độ */}
+                    <div className="w-full sm:w-1/2 flex items-center gap-3">
+                      <span className="text-xs font-semibold text-slate-500">Tiến độ:</span>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={task.progress || 0}
+                        onChange={(e) => handleProgressChange(task.id, e.target.value)}
+                        className="flex-1 accent-sky-600 h-2 bg-slate-200 dark:bg-slate-700 rounded-lg cursor-pointer"
+                      />
+                      <span className="text-xs font-mono font-bold text-sky-600 dark:text-sky-400 w-10 text-right">
+                        {task.progress || 0}%
+                      </span>
+                    </div>
+
+                    {/* Chọn nhanh tốc độ: Sớm / Đúng hạn / Chậm */}
+                    <div className="flex items-center gap-1.5 w-full sm:w-auto justify-end">
+                      <span className="text-xs text-slate-400 mr-1">Đánh giá:</span>
+                      <button
+                        onClick={() => handleSpeedChange(task.id, 'early')}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors ${
+                          task.speedStatus === 'early'
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/30'
+                        }`}
+                      >
+                        Làm sớm
+                      </button>
+                      <button
+                        onClick={() => handleSpeedChange(task.id, 'on_time')}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors ${
+                          task.speedStatus === 'on_time'
+                            ? 'bg-sky-600 text-white'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-sky-50 dark:hover:bg-sky-950/30'
+                        }`}
+                      >
+                        Đúng hạn
+                      </button>
+                      <button
+                        onClick={() => handleSpeedChange(task.id, 'delayed')}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors ${
+                          task.speedStatus === 'delayed'
+                            ? 'bg-rose-600 text-white'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-rose-50 dark:hover:bg-rose-950/30'
+                        }`}
+                      >
+                        Chậm trễ
+                      </button>
+                    </div>
+
+                  </div>
+
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ================= NỘI DUNG MỤC 2: ĐĂNG KÝ TĂNG CA (OVERTIME) ================= */}
+      {activeSubTab === 'ot' && (
+        <div className="space-y-4">
+          
+          {/* Bảng Thống Kê Giờ Tăng Ca */}
+          <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-x-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
+                <Flame className="w-5 h-5 text-amber-500" />
+                Danh Sách Ca Làm Thêm Giờ (Overtime - OT) Được Phê Duyệt
+              </h3>
+              <span className="text-xs font-bold text-amber-500 bg-amber-500/10 px-3 py-1 rounded-full">
+                Tổng cộng: {overtimes.reduce((sum, o) => sum + (Number(o.hours) || 0), 0)} giờ OT
+              </span>
+            </div>
+
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-400 text-xs uppercase font-semibold">
+                  <th className="py-3 px-3">Nhân sự thực hiện</th>
+                  <th className="py-3 px-3">Công việc gấp cần hoàn thành</th>
+                  <th className="py-3 px-3">Số giờ tăng ca</th>
+                  <th className="py-3 px-3">Ngày tăng ca</th>
+                  <th className="py-3 px-3">Lý do thực hiện</th>
+                  <th className="py-3 px-3">Người phê duyệt</th>
+                  <th className="py-3 px-3">Trạng thái</th>
+                  <th className="py-3 px-3">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300 text-xs">
+                {overtimes.map((ot) => (
+                  <tr key={ot.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                    <td className="py-3 px-3 font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-sky-500/10 text-sky-500 flex items-center justify-center font-bold text-xs">
+                        {ot.employeeName.charAt(0)}
+                      </div>
+                      {ot.employeeName}
+                    </td>
+                    <td className="py-3 px-3 font-medium text-sky-600 dark:text-sky-400">
+                      {ot.taskTitle}
+                    </td>
+                    <td className="py-3 px-3">
+                      <span className="font-bold text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded">
+                        +{ot.hours} giờ
+                      </span>
+                    </td>
+                    <td className="py-3 px-3 text-slate-500">{ot.date}</td>
+                    <td className="py-3 px-3 italic">{ot.reason}</td>
+                    <td className="py-3 px-3 text-slate-500">{ot.approvedBy}</td>
+                    <td className="py-3 px-3">
+                      <span className="font-bold text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                        Đã duyệt
+                      </span>
+                    </td>
+                    <td className="py-3 px-3">
+                      <button
+                        type="button"
+                        onClick={() => deleteOvertime(ot.id)}
+                        title="Xóa phiếu tăng ca"
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+        </div>
+      )}
+
+      {/* MODAL 1: TẠO TASK CÔNG VIỆC MỚI */}
+      {showTaskModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-xl p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <CheckSquare className="w-5 h-5 text-sky-600" />
+                Phân Công Công Việc Mới Cho Nhân Viên
+              </h3>
+              <button
+                onClick={() => setShowTaskModal(false)}
+                className="text-slate-400 hover:text-white font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleTaskSubmit} className="space-y-3.5">
+              
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                    Dự Án Xây Dựng *
+                  </label>
+                  <select
+                    value={taskForm.projectId}
+                    onChange={(e) => setTaskForm({ ...taskForm, projectId: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs focus:ring-2 focus:ring-sky-500"
+                  >
+                    {projects.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                    Giai Đoạn Công Trình *
+                  </label>
+                  <select
+                    value={taskForm.phase}
+                    onChange={(e) => setTaskForm({ ...taskForm, phase: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs focus:ring-2 focus:ring-sky-500"
+                  >
+                    <option value="A. THIẾT KẾ XÂY DỰNG">A. THIẾT KẾ XÂY DỰNG</option>
+                    <option value="B. XIN PHÉP / PHÁP LÝ">B. XIN PHÉP / PHÁP LÝ</option>
+                    <option value="C. MỜI THẦU THI CÔNG">C. MỜI THẦU THI CÔNG</option>
+                    <option value="D. THI CÔNG CÔNG TRÌNH">D. THI CÔNG CÔNG TRÌNH</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-1">
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                    Mã STT / WBS
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="VD: A1.3 (để trống tự sinh)"
+                    value={taskForm.code}
+                    onChange={(e) => setTaskForm({ ...taskForm, code: e.target.value })}
+                    className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-sky-600 focus:ring-2 focus:ring-sky-500"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                    Tên Công Việc Cụ Thể Trong Dự Án *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="VD: Kiểm tra bản vẽ kết cấu móng và hố pit"
+                    value={taskForm.title}
+                    onChange={(e) => setTaskForm({ ...taskForm, title: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-sky-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                    Người Đảm Nhận *
+                  </label>
+                  <select
+                    value={taskForm.employeeId}
+                    onChange={(e) => setTaskForm({ ...taskForm, employeeId: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs focus:ring-2 focus:ring-sky-500"
+                  >
+                    {employees.map(e => (
+                      <option key={e.id} value={e.id}>
+                        {e.name} ({e.title} - {e.standardHours || 8}h/ngày)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                    Ước Tính Số Ngày Làm Việc
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={taskForm.estimatedDays}
+                    onChange={(e) => setTaskForm({ ...taskForm, estimatedDays: Number(e.target.value) })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs focus:ring-2 focus:ring-sky-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                    Ngày Bắt Đầu
+                  </label>
+                  <input
+                    type="date"
+                    value={taskForm.startDate}
+                    onChange={(e) => setTaskForm({ ...taskForm, startDate: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                    Ngày Kết Thúc Dự Kiến
+                  </label>
+                  <input
+                    type="date"
+                    value={taskForm.endDate}
+                    onChange={(e) => setTaskForm({ ...taskForm, endDate: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                  Ghi Chú Tiến Độ / GATE Kiểm Soát
+                </label>
+                <input
+                  type="text"
+                  placeholder="VD: GATE 2: Nghiệm thu cùng Chủ đầu tư"
+                  value={taskForm.notes}
+                  onChange={(e) => setTaskForm({ ...taskForm, notes: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowTaskModal(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs shadow-md shadow-sky-600/20"
+                >
+                  Xác Nhận Phân Công
+                </button>
+              </div>
+
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2: TẠO CA TĂNG CA (OVERTIME) */}
+      {showOtModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-lg p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Flame className="w-5 h-5 text-amber-500" />
+                Đăng Ký Ca Tăng Ca (OT) - Công Việc Khẩn Cấp
+              </h3>
+              <button
+                onClick={() => setShowOtModal(false)}
+                className="text-slate-400 hover:text-white font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleOtSubmit} className="space-y-3.5">
+              
+              <div>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                  Nhân Sự Tăng Ca *
+                </label>
+                <select
+                  value={otForm.employeeId}
+                  onChange={(e) => setOtForm({ ...otForm, employeeId: e.target.value })}
+                  className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium"
+                >
+                  {employees.map(e => (
+                    <option key={e.id} value={e.id}>
+                      {e.name} - {e.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                  Gắn Với Công Việc Khẩn Cấp Cần Đẩy Nhanh Tiến Độ
+                </label>
+                <select
+                  value={otForm.taskId}
+                  onChange={(e) => setOtForm({ ...otForm, taskId: e.target.value })}
+                  className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
+                >
+                  <option value="">-- Tăng ca đột xuất tại hiện trường --</option>
+                  {tasks.map(t => (
+                    <option key={t.id} value={t.id}>
+                      [{t.phase.split('.')[0]}] {t.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                    Số Giờ Tăng Ca Dự Kiến *
+                  </label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="0.5"
+                    max="8"
+                    required
+                    value={otForm.hours}
+                    onChange={(e) => setOtForm({ ...otForm, hours: Number(e.target.value) })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                    Ngày Làm Thêm Giờ
+                  </label>
+                  <input
+                    type="date"
+                    value={otForm.date}
+                    onChange={(e) => setOtForm({ ...otForm, date: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                  Lý Do Cần Tăng Ca Gấp
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="VD: Cần kịp nộp hồ sơ xin phép xây dựng trước cuối tuần"
+                  value={otForm.reason}
+                  onChange={(e) => setOtForm({ ...otForm, reason: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowOtModal(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-white font-bold text-xs shadow-md shadow-amber-500/20"
+                >
+                  Xác Nhận Đăng Ký OT
+                </button>
+              </div>
+
+            </form>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}

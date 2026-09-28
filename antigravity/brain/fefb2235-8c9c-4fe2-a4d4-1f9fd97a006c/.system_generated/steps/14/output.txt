@@ -1,0 +1,12 @@
+
+The command exited with code 1.
+Output:
+v24.21.0
+npm : File C:\Program Files\nodejs\npm.ps1 cannot be loaded because running scripts is disabled on this system. For 
+more information, see about_Execution_Policies at https:/go.microsoft.com/fwlink/?LinkID=135170.
+At line:1 char:62
++ $env:PATH = "C:\Program Files\nodejs;" + $env:PATH; node -v; npm -v
++                                                              ~~~
+    + CategoryInfo          : SecurityError: (:) [], PSSecurityException
+    + FullyQualifiedErrorId : UnauthorizedAccess
+

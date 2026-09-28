@@ -1,0 +1,8 @@
+
+The command exited with code 0.
+Output:
+Restored db.json successfully!
+Projects: 4
+GanttItems: 32
+Tasks: 7
+

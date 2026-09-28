@@ -1,0 +1,81 @@
+
+The command exited with code 0.
+Output:
+<truncated 1 lines>
+c�ng tr�nh\\\",\\n      \\\"team\\\": \\\"Ban Ch? Huy\\\",\\n      \\\"phone\\\": \\\"0912.345.678\\\",\\n      
+\\\"email\\\": \\\"hung.tq@apsvietnam.vn\\\",\\n      \\\"standardHours\\\": 8,\\n      \\\"isOnSite\\\": true,\\n     
+ \\\"checkInTime\\\": \\\"07:15\\\",\\n      \\\"avatar\\\": 
+\\\"https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80\\\"\\n    },\\n    
+{\\n      \\\"id\\\": \\\"emp-2\\\",\\n      \\\"code\\\": \\\"NV-002\\\",\\n      \\\"name\\\": \\\"L� Ho�ng 
+Long\\\",\\n      \\\"title\\\": \\\"K? su Gi�m s�t X�y d?ng\\\",\\n      \\\"team\\\": \\\"K? Thu?t Hi?n 
+Tru?ng\\\",\\n      \\\"phone\\\": \\\"0934.567.890\\\",\\n      \\\"email\\\": \\\"long.lh@apsvietnam.vn\\\",\\n      
+\\\"standardHours\\\": 8,\\n      \\\"isOnSite\\\": true,\\n      \\\"checkInTime\\\": \\\"07:30\\\",\\n      
+\\\"avatar\\\": 
+\\\"https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&auto=format&fit=crop&q=80\\\"\\n    
+\n<truncated 24236 bytes>","Description":"\"Create JSON database seed file with real construction data matching user sp
+ecifications\"","Overwrite":"true","TargetFile":"\"C:\\\\Users\\\\GiaWyy\\\\.gemini\\\\antigravity\\\\scratch\\\\aps-pr
+oject-manager\\\\backend\\\\data\\\\db.json\"","toolAction":"\"Creating seed database\"","toolSummary":"\"Create 
+db.json\""}}],"truncated_fields":["tool_calls"]}
+C:\Users\GiaWyy\.gemini\antigravity\brain\fefb2235-8c9c-4fe2-a4d4-1f9fd97a006c\.system_generated\logs\transcript.jsonl:
+200:{"step_index":199,"source":"MODEL","type":"GENERIC","status":"DONE","created_at":"2026-09-28T03:45:46Z","content":"
+Created At: 2026-09-28T10:45:46+07:00\nCompleted At: 2026-09-28T10:45:46+07:00\nFile Path: 
+`file:///C:/Users/GiaWyy/.gemini/antigravity/scratch/aps-project-manager/backend/data/db.json`\nTotal Lines: 
+836\nTotal Bytes: 23359\nShowing lines 1 to 60\nThe following code has been modified to include a line number before 
+every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code 
+should remove the line number, colon, and leading space.\n1: {\n2:   \"projects\": [\n3:     {\n4:       \"id\": 
+\"proj-1\",\n5:       \"code\": \"APS-2026-HQ\",\n6:       \"name\": \"D? AN XAY D?NG TRUNG TAM CONG NGH? APS VI?T 
+NAM\",\n7:       \"description\": \"T? h?p van ph�ng k? thu?t & trung t�m gi?i ph�p t? d?ng h�a c�ng tr�nh APS\",\n8:  
+     \"location\": \"Khu C�ng Ngh? Cao H�a L?c, H� N?i\",\n9:       \"manager\": \"Tr?n Qu?c Hung\",\n10:       
+\"startDate\": \"2026-11-01\",\n11:       \"endDate\": \"2027-07-02\",\n12:       \"status\": \"in_progress\",\n13:    
+   \"progress\": 45\n14:     },\n15:     {\n16:       \"id\": \"proj-2\",\n17:       \"code\": \"APS-2026-DN\",\n18:   
+    \"name\": \"CHI NHANH KHO V?N & K? THU?T APS DA N?NG\",\n19:       \"description\": \"Kho thi?t b? v� xu?ng l?p 
+r�p linh ki?n t? d?ng h�a\",\n20:       \"location\": \"KCN H�a Kh�nh, D� N?ng\",\n21:       \"manager\": \"L� Ho�ng 
+Long\",\n22:       \"startDate\": \"2026-12-01\",\n23:       \"endDate\": \"2027-08-15\",\n24:       \"status\": 
+\"planning\",\n25:       \"progress\": 20\n26:     }\n27:   ],\n28:   \"employees\": [\n29:     {\n30:       \"id\": 
+\"emp-1\",\n31:       \"code\": \"NV-001\",\n32:       \"name\": \"Tr?n Qu?c Hung\",\n33:       \"title\": \"Ch? huy 
+tru?ng c�ng tr�nh\",\n34:       \"team\": \"Ban Ch? Huy\",\n35:       \"phone\": \"0912.345.678\",\n36:       
+\"email\": \"hung.tq@apsvietnam.vn\",\n37:       \"standardHours\": 8,\n38:       \"isOnSite\": true,\n39:       
+\"checkInTime\": \"07:15\",\n40:       \"avatar\": 
+\"https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80\"\n41:     },\n42:     
+{\n43:       \"id\": \"emp-2\",\n44:       \"code\": \"NV-002\",\n45:       \"name\": \"L� Ho�ng Long\",\n46:       
+\"title\": \"K? su Gi�m s�t X�y d?ng\",\n47:       \"team\": \"K? Thu?t Hi?n Tru?ng\",\n48:       \"phone\": 
+\"0934.567.890\",\n49:       \"email\": \"long.lh@apsvietnam.vn\",\n50:       \"standardHours\": 8,\n51:       
+\"isOnSite\": true,\n52:       \"checkInTime\": \"07:30\",\n53:       \"avatar\": 
+\"https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&auto=format&fit=crop&q=80\"\n54:     },\n55:     
+{\n56:       \"id\": \"emp-3\",\n57:       \"code\": \"NV-003\",\n58:       \"name\": \"Ph?m Th? Thu Trang\",\n59:     
+  \"title\": \"Chuy�n vi�n Ph�p ly & H? so\",\n60:       \"team\": \"Ban Ph�p Ly\",\nThe above content does NOT show 
+the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call 
+this tool again to view those lines.\n"}
+C:\Users\GiaWyy\.gemini\antigravity\brain\fefb2235-8c9c-4fe2-a4d4-1f9fd97a006c\.system_generated\logs\transcript.jsonl:
+267:{"step_index":266,"source":"MODEL","type":"GENERIC","status":"DONE","created_at":"2026-09-28T03:51:07Z","content":"
+Created At: 2026-09-28T10:51:07+07:00\nCompleted At: 2026-09-28T10:51:07+07:00\nFile Path: 
+`file:///C:/Users/GiaWyy/.gemini/antigravity/scratch/aps-project-manager/backend/data/db.json`\nTotal Lines: 
+836\nTotal Bytes: 23359\nShowing lines 1 to 60\nThe following code has been modified to include a line number before 
+every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code 
+should remove the line number, colon, and leading space.\n1: {\n2:   \"projects\": [\n3:     {\n4:       \"id\": 
+\"proj-1\",\n5:       \"code\": \"APS-2026-HQ\",\n6:       \"name\": \"D? AN XAY D?NG TRUNG TAM CONG NGH? APS VI?T 
+NAM\",\n7:       \"description\": \"T? h?p van ph�ng k? thu?t & trung t�m gi?i ph�p t? d?ng h�a c�ng tr�nh APS\",\n8:  
+     \"location\": \"Khu C�ng Ngh? Cao H�a L?c, H� N?i\",\n9:       \"manager\": \"Tr?n Qu?c Hung\",\n10:       
+\"startDate\": \"2026-11-01\",\n11:       \"endDate\": \"2027-07-02\",\n12:       \"status\": \"in_progress\",\n13:    
+   \"progress\": 45\n14:     },\n15:     {\n16:       \"id\": \"proj-2\",\n17:       \"code\": \"APS-2026-DN\",\n18:   
+    \"name\": \"CHI NHANH KHO V?N & K? THU?T APS DA N?NG\",\n19:       \"description\": \"Kho thi?t b? v� xu?ng l?p 
+r�p linh ki?n t? d?ng h�a\",\n20:       \"location\": \"KCN H�a Kh�nh, D� N?ng\",\n21:       \"manager\": \"L� Ho�ng 
+Long\",\n22:       \"startDate\": \"2026-12-01\",\n23:       \"endDate\": \"2027-08-15\",\n24:       \"status\": 
+\"planning\",\n25:       \"progress\": 20\n26:     }\n27:   ],\n28:   \"employees\": [\n29:     {\n30:       \"id\": 
+\"emp-1\",\n31:       \"code\": \"NV-001\",\n32:       \"name\": \"Tr?n Qu?c Hung\",\n33:       \"title\": \"Ch? huy 
+tru?ng c�ng tr�nh\",\n34:       \"team\": \"Ban Ch? Huy\",\n35:       \"phone\": \"0912.345.678\",\n36:       
+\"email\": \"hung.tq@apsvietnam.vn\",\n37:       \"standardHours\": 8,\n38:       \"isOnSite\": true,\n39:       
+\"checkInTime\": \"07:15\",\n40:       \"avatar\": 
+\"https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80\"\n41:     },\n42:     
+{\n43:       \"id\": \"emp-2\",\n44:       \"code\": \"NV-002\",\n45:       \"name\": \"L� Ho�ng Long\",\n46:       
+\"title\": \"K? su Gi�m s�t X�y d?ng\",\n47:       \"team\": \"K? Thu?t Hi?n Tru?ng\",\n48:       \"phone\": 
+\"0934.567.890\",\n49:       \"email\": \"long.lh@apsvietnam.vn\",\n50:       \"standardHours\": 8,\n51:       
+\"isOnSite\": true,\n52:       \"checkInTime\": \"07:30\",\n53:       \"avatar\": 
+\"https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&auto=format&fit=crop&q=80\"\n54:     },\n55:     
+{\n56:       \"id\": \"emp-3\",\n57:       \"code\": \"NV-003\",\n58:       \"name\": \"Ph?m Th? Thu Trang\",\n59:     
+  \"title\": \"Chuy�n vi�n Ph�p ly & H? so\",\n60:       \"team\": \"Ban Ph�p Ly\",\nThe above content does NOT show 
+the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call 
+this tool again to view those lines.\n"}
+
+
+

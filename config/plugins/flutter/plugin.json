@@ -1,0 +1,29 @@
+{
+  "name": "flutter",
+  "displayName": "Dart and Flutter",
+  "version": "1.0.5",
+  "description": "Official plugin for Dart and Flutter that installs Flutter/Dart Skills, Rules, Custom Agents, and Dart MCP server for building natively compiled, visually stunning applications for mobile, web, desktop, and embedded devices from a single codebase",
+  "logo": "https://www.gstatic.com/images/branding/productlogos/flutter/v6/192px.svg",
+  "suggestedPrompts": [
+    "Build a responsive Flutter layout that adapts across mobile, tablet, and desktop form factors",
+    "Write a widget test using WidgetTester to verify UI rendering and user interactions",
+    "Audit my app for accessibility",
+    "Diagnose and fix layout overflows or constraint issues in this Flutter widget"
+  ],
+  "author": {
+    "name": "Flutter Team",
+    "url": "https://flutter.dev"
+  },
+  "keywords": [
+    "dart",
+    "flutter",
+    "mobile",
+    "web",
+    "desktop",
+    "app development",
+    "ui"
+  ],
+  "homepage": "https://flutter.dev",
+  "repository": "https://github.com/flutter/agent-plugins",
+  "license": "BSD-3-Clause"
+}

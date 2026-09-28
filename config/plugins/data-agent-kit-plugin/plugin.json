@@ -1,0 +1,21 @@
+{
+  "name": "data-agent-kit-plugin",
+  "displayName": "Data Agent Kit",
+  "version": "0.7.0",
+  "description": "This plugin provides a specialized suite of skills for data engineers and database practitioners working on Google Cloud. It acts as an expert assistant, allowing you to use natural language prompts in your preferred coding agent to architect complex data pipelines, transform data with dbt, write Spark and BigQuery SQL notebooks, and orchestrate end-to-end workflows across GCP's data ecosystem.",
+  "logo": "https://www.gstatic.com/images/branding/productlogos/google_cloud_2026/v1/web-96dp/logo_google_cloud_2026_color_2x_web_96dp.png",
+  "author": {
+    "name": "Google LLC"
+  },
+  "license": "Apache-2.0",
+  "keywords": [
+    "gcp",
+    "data",
+    "bigquery",
+    "dbt",
+    "spark",
+    "spanner",
+    "alloydb",
+    "cloud-sql"
+  ]
+}

@@ -1,0 +1,81 @@
+The following changes were made by the replace_file_content tool to: C:\Users\GiaWyy\.gemini\antigravity\scratch\aps-project-manager\backend\src\models\db.js. If relevant, proactively run terminal commands to execute this code for the USER. Don't ask for permission.
+[diff_block_start]
+@@ -6,24 +6,64 @@
+ const __dirname = path.dirname(__filename);
+ const DB_FILE = path.join(__dirname, '../../data/db.json');
+ 
+-// Đọc dữ liệu từ file db.json
++let cachedDb = null;
++const SEED_FILE = path.join(__dirname, '../../data/seed.json');
++
++// Đọc dữ liệu từ file db.json (có cache bộ nhớ & dự phòng seed.json an toàn)
+ export function readDb() {
+   try {
+-    const raw = fs.readFileSync(DB_FILE, 'utf-8');
+-    return JSON.parse(raw);
+-  } catch (error) {
+-    console.error('Lỗi khi đọc file db.json:', error);
+-    return { projects: [], employees: [], tasks: [], overtimes: [], ganttItems: [] };
+-  }
+-}
+-
+-// Lưu dữ liệu vào file db.json
++    if (fs.existsSync(DB_FILE)) {
++      const raw = fs.readFileSync(DB_FILE, 'utf-8');
++      if (raw && raw.trim().length > 10) {
++        const parsed = JSON.parse(raw);
++        if (parsed && Array.isArray(parsed.projects) && Array.isArray(parsed.ganttItems) && parsed.ganttItems.length > 0) {
++          cachedDb = parsed;
++          return parsed;
++        }
++      }
++    }
++  } catch (error) {
++    console.error('Lỗi khi đọc file db.json:', error.message);
++  }
++
++  // Sử dụng cache trong RAM nếu có
++  if (cachedDb && cachedDb.ganttItems && cachedDb.ganttItems.length > 0) {
++    return cachedDb;
++  }
++
++  // Fallback an toàn tới seed.json nếu db.json trống hoặc bị lỗi
++  try {
++    if (fs.existsSync(SEED_FILE)) {
++      const rawSeed = fs.readFileSync(SEED_FILE, 'utf-8');
++      const seedObj = JSON.parse(rawSeed);
++      cachedDb = seedObj;
++      fs.writeFileSync(DB_FILE, JSON.stringify(seedObj, null, 2), 'utf-8');
++      return seedObj;
++    }
++  } catch (seedErr) {
++    console.error('Lỗi khi nạp seed.json:', seedErr.message);
++  }
++
++  return cachedDb || { projects: [], employees: [], tasks: [], overtimes: [], ganttItems: [] };
++}
++
++// Lưu dữ liệu vào file db.json an toàn
+ export function writeDb(data) {
+   try {
++    if (!data) return false;
++    // Bảo vệ không để mảng ganttItems hoặc projects bị xóa rỗng vô ý
++    if ((!data.ganttItems || data.ganttItems.length === 0) && cachedDb && cachedDb.ganttItems && cachedDb.ganttItems.length > 0) {
++      data.ganttItems = cachedDb.ganttItems;
++    }
++    if ((!data.projects || data.projects.length === 0) && cachedDb && cachedDb.projects && cachedDb.projects.length > 0) {
++      data.projects = cachedDb.projects;
++    }
++
++    cachedDb = data;
+     fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf-8');
+     return true;
+   } catch (error) {
+-    console.error('Lỗi khi ghi file db.json:', error);
++    console.error('Lỗi khi ghi file db.json:', error.message);
+     return false;
+   }
+ }
+[diff_block_end]
+
+Please note that the above snippet only shows the MODIFIED lines from the last change. It shows up to 3 lines of unchanged lines before and after the modified lines. The actual file contents may have many more lines not shown.

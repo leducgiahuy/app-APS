@@ -1,0 +1,6 @@
+
+The command exited with code 0.
+Output:
+First 8 Gantt codes: A, A1, A1.1, A1.2, A1.3, A1.4, A2, A2.1
+Emp-2 taskCount: 4
+

@@ -1,0 +1,145 @@
+
+The command exited with code 0.
+Output:
+<truncated 1 lines>
+                     "tasks":  [
+                                   "@{id=task-1; title=Th?ng nh?t d?u v�o - Kick-off scope TKXD; status=completed}",
+                                   "@{id=G-A2.5; title=CDT ph� duy?t TMB / QHM; status=completed}",
+                                   "@{id=G-A3.3; title=CDT ph� duy?t BCNCKT / BCKTKT; status=pending}",
+                                   "@{id=G-B5; title=Th�ng b�o kh?i c�ng; status=pending}",
+                                   "@{id=G-C4; title=Thuong th?o \u0026 Ky k?t h?p d?ng; status=pending}"
+                               ],
+                     "totalOtHours":  0
+                 },
+                 {
+                     "id":  "emp-2",
+                     "code":  "NV-002",
+                     "name":  "L� Ho�ng Long",
+                     "title":  "K? su Gi�m s�t X�y d?ng",
+                     "team":  "K? Thu?t Hi?n Tru?ng",
+                     "phone":  "0934.567.890",
+                     "email":  "long.lh@apsvietnam.vn",
+                     "standardHours":  8,
+                     "isOnSite":  false,
+                     "checkInTime":  null,
+                     "avatar":  "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120\u0026auto=format\u0026fit=crop\u0026q=80",
+                     "taskCount":  3,
+                     "tasks":  [
+                                   "@{id=task-3; title=L?p B�o c�o nghi�n c?u kh? thi (g?m TKCS); status=in_progress}",
+                                   "@{id=G-A3; title=B�o c�o nghi�n c?u kh? thi; status=in_progress}",
+                                   "@{id=G-A3.2; title=Ki?m tra n?i b? v� ho�n thi?n h? so; status=in_progress}"
+                               ],
+                     "totalOtHours":  3.5
+                 },
+                 {
+                     "id":  "emp-3",
+                     "code":  "NV-003",
+                     "name":  "Ph?m Th? Thu Trang",
+                     "title":  "Chuy�n vi�n Ph�p ly \u0026 H? so",
+                     "team":  "Ban Ph�p Ly",
+                     "phone":  "0945.678.901",
+                     "email":  "trang.pt@apsvietnam.vn",
+                     "standardHours":  8,
+                     "isOnSite":  false,
+                     "checkInTime":  null,
+                     "avatar":  "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=120\u0026auto=format\u0026fit=crop\u0026q=80",
+                     "taskCount":  4,
+                     "tasks":  [
+                                   "@{id=task-5; title=M�i tru?ng - DTM / GPMT c�ng tr�nh; status=in_progress}",
+                                   "@{id=G-B1; title=M�i tru?ng - DTM / GPMT; status=in_progress}",
+                                   "@{id=G-B3; title=Th?m tra / Th?m d?nh BCNCKT; status=pending}",
+                                   "@{id=G-B4; title=Gi?y ph�p x�y d?ng (GPXD); status=pending}"
+                               ],
+                     "totalOtHours":  0
+                 },
+                 {
+                     "id":  "emp-4",
+                     "code":  "NV-004",
+                     "name":  "D?ng Van Nam",
+                     "title":  "K? su Kh?o s�t \u0026 D?a ch?t",
+                     "team":  "Kh?o S�t D?a Ch?t",
+                     "phone":  "0967.890.123",
+                     "email":  "nam.dv@apsvietnam.vn",
+                     "standardHours":  8,
+                     "isOnSite":  true,
+                     "checkInTime":  "06:45",
+                     "avatar":  "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120\u0026auto=format\u0026fit=crop\u0026q=80",
+                     "taskCount":  5,
+                     "tasks":  [
+                                   "@{id=task-2; title=Kh?o s�t hi?n tr?ng m?t b?ng c�ng tru?ng; status=completed}",
+                                   "@{id=G-A1; title=Chu?n b? \u0026 kh?o s�t hi?n tr?ng; status=completed}",
+                                   "@{id=G-A1.2; title=Kh?o s�t hi?n tr?ng m?t b?ng; status=completed}",
+                                   "@{id=G-A2.1; title=D?nh v? h? khoan kh?o s�t d?a ch?t; status=completed}",
+                                   "@{id=G-A2.2; title=Khoan KSDC + l?p b�o c�o DCCT; status=completed}"
+                               ],
+                     "totalOtHours":  4
+                 },
+                 {
+                     "id":  "emp-5",
+                     "code":  "NV-005",
+                     "name":  "Nguy?n Th? Ng?c Anh",
+                     "title":  "K? su Thi?t k? Ki?n tr�c",
+                     "team":  "Tu V?n Thi?t K?",
+                     "phone":  "0978.901.234",
+                     "email":  "anh.ntn@apsvietnam.vn",
+                     "standardHours":  8,
+                     "isOnSite":  false,
+                     "checkInTime":  null,
+                     "avatar":  "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=120\u0026auto=format\u0026fit=crop\u0026q=80",
+                     "taskCount":  4,
+                     "tasks":  [
+                                   "@{id=task-6; title=Thi?t k? y tu?ng v� CDT ph� duy?t; status=completed}",
+                                   "@{id=G-A2; title=Y tu?ng - Quy ho?ch t?ng m?t b?ng; status=completed}",
+                                   "@{id=G-A2.4; title=Quy ho?ch t?ng m?t b?ng; status=completed}",
+                                   "@{id=G-A4; title=B?n v? thi?t k? thi c�ng (BVTC); status=pending}"
+                               ],
+                     "totalOtHours":  0
+                 },
+                 {
+                     "id":  "emp-6",
+                     "code":  "NV-006",
+                     "name":  "Vu Th�nh D?t",
+                     "title":  "K? su Co Di?n M\u0026E \u0026 PCCC",
+                     "team":  "Co Di?n \u0026 PCCC",
+                     "phone":  "0989.012.345",
+                     "email":  "dat.vt@apsvietnam.vn",
+                     "standardHours":  8,
+                     "isOnSite":  true,
+                     "checkInTime":  "07:45",
+                     "avatar":  "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=120\u0026auto=format\u0026fit=crop\u0026q=80",
+                     "taskCount":  2,
+                     "tasks":  [
+                                   "@{id=task-4; title=Th?m duy?t PCCC c�ng tr�nh x�y d?ng; status=in_progress}",
+                                   "@{id=G-B2; title=PCCC c�ng tr�nh x�y d?ng; status=in_progress}"
+                               ],
+                     "totalOtHours":  2
+                 },
+                 {
+                     "id":  "emp-7",
+                     "code":  "NV-007",
+                     "name":  "B�i C�ng Minh",
+                     "title":  "Chuy�n vi�n D?u th?u \u0026 D? to�n",
+                     "team":  "D?u Th?u \u0026 H?p D?ng",
+                     "phone":  "0901.234.567",
+                     "email":  "minh.bc@apsvietnam.vn",
+                     "standardHours":  8,
+                     "isOnSite":  false,
+                     "checkInTime":  null,
+                     "avatar":  "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=120\u0026auto=format\u0026fit=crop\u0026q=80",
+                     "taskCount":  4,
+                     "tasks":  [
+                                   "@{id=task-7; title=Chu?n b? h? so m?i th?u (HSMT); status=pending}",
+                                   "@{id=G-C1; title=Chu?n b? h? so m?i th?u; status=pending}",
+                                   "@{id=G-C2; title=Nh� th?u chu?n b? HSDT; status=pending}",
+                                   "@{id=G-C3; title=D�nh gi� so b? \u0026 k? thu?t; status=pending}"
+                               ],
+                     "totalOtHours":  0
+                 }
+             ],
+    "meta":  {
+                 "total":  7,
+                 "onSiteCount":  3,
+                 "standardHoursPerPerson":  8
+             }
+}
+

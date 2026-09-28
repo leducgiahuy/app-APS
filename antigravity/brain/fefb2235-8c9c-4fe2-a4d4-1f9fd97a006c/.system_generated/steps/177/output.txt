@@ -1,0 +1,27 @@
+
+The command exited with code 0.
+Output:
+{
+    "success":  true,
+    "message":  "Da th�m c�ng vi?c \"Kh?o s?t b? sung hi?n tr?ng d?a ch?t ng?m\" (A1.3) v�o d�ng v? tr� ti?n d?",
+    "data":  {
+                 "id":  "G-1790566411177",
+                 "code":  "A1.3",
+                 "title":  "Kh?o s?t b? sung hi?n tr?ng d?a ch?t ng?m",
+                 "isGroup":  false,
+                 "color":  "#38bdf8",
+                 "unit":  "TK",
+                 "startDate":  "2026-11-06",
+                 "endDate":  "2026-11-07",
+                 "days":  2,
+                 "assignee":  "D?ng Van Nam",
+                 "notes":  "Kh?o s?t sau A1.2",
+                 "status":  "in_progress",
+                 "speed":  "on_time",
+                 "progress":  0,
+                 "dependencies":  [
+                                      "G-A1.2"
+                                  ]
+             }
+}
+

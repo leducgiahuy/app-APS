@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "gemini-api-docs": {
+      "serverUrl": "https://gemini-api-docs-mcp.dev",
+      "tools": {
+        "gemini_search_docs": {
+          "eager": true
+        },
+        "gemini_get_doc": {
+          "eager": true
+        }
+      }
+    }
+  }
+}

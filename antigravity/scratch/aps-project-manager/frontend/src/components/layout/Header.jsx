@@ -1,0 +1,167 @@
+import React from 'react';
+import { useApp } from '../../context/AppContext';
+import {
+  Menu,
+  Sun,
+  Moon,
+  Clock,
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  RotateCcw,
+  Sparkles,
+  Building
+} from 'lucide-react';
+
+export default function Header() {
+  const {
+    activeTab,
+    theme,
+    toggleTheme,
+    currentTime,
+    selectedDate,
+    goToPrevDay,
+    goToNextDay,
+    goToToday,
+    setMobileMenuOpen
+  } = useApp();
+
+  // Tiêu đề tương ứng từng trang
+  const pageTitles = {
+    hr: {
+      title: 'Quản Lý Nhân Sự & Điểm Danh Công Trường',
+      sub: 'Theo dõi sự hiện diện, thời gian thực, ca làm và số lượng công việc được giao'
+    },
+    tasks: {
+      title: 'Phân Công Công Việc & Đăng Ký Tăng Ca (OT)',
+      sub: 'Giao task cho nhân sự, kiểm soát định mức 8h/ngày và ca làm thêm giờ gấp'
+    },
+    gantt: {
+      title: 'Tiến Độ Dự Án & Biểu Đồ Gantt Công Trình',
+      sub: 'Phân rã WBS, liên kết phụ thuộc Finish-to-Start (FS), mốc nghỉ lễ và trạng thái sớm/chậm'
+    },
+    dashboard: {
+      title: 'Thống Kê & Báo Cáo Hiệu Suất Tổng Quan',
+      sub: 'Đo lường tiến độ các công việc, nhân viên đảm nhận và tỷ lệ hoàn thành'
+    }
+  };
+
+  const currentInfo = pageTitles[activeTab] || pageTitles.hr;
+
+  // Format ngày tháng tiếng Việt
+  const formatVietnameseDate = (date) => {
+    const days = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+    const dayName = days[date.getDay()];
+    const dd = String(date.getDate()).padStart(2, '0');
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const yyyy = date.getFullYear();
+    return `${dayName}, ${dd}/${mm}/${yyyy}`;
+  };
+
+  // Format giờ thực: HH:mm:ss
+  const formatTime = (date) => {
+    return date.toLocaleTimeString('vi-VN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    });
+  };
+
+  return (
+    <header className="sticky top-0 z-30 h-20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-colors">
+      <div className="h-full px-4 sm:px-6 flex items-center justify-between gap-4">
+        
+        {/* Phần bên trái: Nút Menu Mobile + Tiêu đề trang */}
+        <div className="flex items-center gap-3.5 min-w-0">
+          <button
+            onClick={() => setMobileMenuOpen(true)}
+            className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 lg:hidden flex-shrink-0"
+          >
+            <Menu className="w-6 h-6" />
+          </button>
+
+          <div className="min-w-0">
+            <h1 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white truncate">
+              {currentInfo.title}
+            </h1>
+            <p className="text-xs text-slate-500 dark:text-slate-400 hidden sm:block truncate">
+              {currentInfo.sub}
+            </p>
+          </div>
+        </div>
+
+        {/* Phần bên phải: Đồng hồ số Real-time + Bộ chọn ngày + Theme Toggle + User Badge */}
+        <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+          
+          {/* Đồng hồ số chạy theo thời gian thực (Real-time Clock) */}
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 text-sky-600 dark:text-sky-400 font-mono font-bold text-xs sm:text-sm shadow-inner">
+            <Clock className="w-4 h-4 animate-spin" style={{ animationDuration: '6s' }} />
+            <span>{formatTime(currentTime)}</span>
+          </div>
+
+          {/* Bộ điều khiển ngày tháng (Lùi ngày, Hôm nay, Tiến ngày) */}
+          <div className="hidden md:flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+            <button
+              onClick={goToPrevDay}
+              title="Lùi 1 ngày"
+              className="p-1 rounded-lg text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-white dark:hover:bg-slate-700 transition-colors"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+
+            <span className="px-2 text-xs font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap">
+              {formatVietnameseDate(selectedDate)}
+            </span>
+
+            <button
+              onClick={goToNextDay}
+              title="Tiến 1 ngày"
+              className="p-1 rounded-lg text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-white dark:hover:bg-slate-700 transition-colors"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+
+            <button
+              onClick={goToToday}
+              title="Trở về hôm nay"
+              className="ml-1 px-2 py-0.5 rounded-lg text-[11px] font-bold bg-sky-600 text-white hover:bg-sky-500 transition-colors"
+            >
+              Hôm nay
+            </button>
+          </div>
+
+          {/* Nút chuyển đổi giao diện Light/Dark Mode */}
+          <button
+            onClick={toggleTheme}
+            className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 transition-all duration-200"
+            title={theme === 'dark' ? 'Chuyển sang chế độ Sáng' : 'Chuyển sang chế độ Tối'}
+          >
+            {theme === 'dark' ? (
+              <Sun className="w-4 h-4 text-amber-400 animate-spin" style={{ animationDuration: '20s' }} />
+            ) : (
+              <Moon className="w-4 h-4 text-slate-700" />
+            )}
+          </button>
+
+          {/* Badge nhận diện người dùng: IT Phần Cứng - APS VN */}
+          <div className="flex items-center gap-2 pl-2 border-l border-slate-200 dark:border-slate-700">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-600 text-white font-bold flex items-center justify-center text-xs shadow-md">
+              IT
+            </div>
+            <div className="hidden xl:flex flex-col text-left">
+              <span className="text-xs font-bold text-slate-800 dark:text-slate-200 leading-tight">
+                IT Phần Cứng
+              </span>
+              <span className="text-[10px] text-sky-600 dark:text-sky-400 font-medium">
+                APS Việt Nam
+              </span>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </header>
+  );
+}

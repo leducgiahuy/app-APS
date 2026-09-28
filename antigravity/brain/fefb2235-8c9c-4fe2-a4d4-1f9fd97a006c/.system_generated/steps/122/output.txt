@@ -1,0 +1,5 @@
+
+The command exited with code 0.
+Output:
+A -> A1 -> A1.1 -> A1.2 -> A1.3 -> A2 -> A2.1 -> L1 -> B1 -> C1
+

@@ -1,0 +1,27 @@
+
+The command exited with code 0.
+Output:
+{
+    "success":  true,
+    "message":  "Da th�m c�ng vi?c \"Ki?m tra cao d? n?n m?ng\" (A1.3) v�o d�ng v? tr� ti?n d? v� d?ng b? sang danh s�ch nhi?m v?",
+    "data":  {
+                 "id":  "G-1790567841664",
+                 "code":  "A1.3",
+                 "title":  "Ki?m tra cao d? n?n m?ng",
+                 "isGroup":  false,
+                 "color":  "#0284c7",
+                 "unit":  "TK",
+                 "startDate":  "2026-11-06",
+                 "endDate":  "2026-11-08",
+                 "days":  3,
+                 "assignee":  "Tr?n Qu?c Hung",
+                 "notes":  "Ki?m tra th?c d?a",
+                 "status":  "in_progress",
+                 "speed":  "on_time",
+                 "progress":  0,
+                 "dependencies":  [
+                                      "G-A1.2"
+                                  ]
+             }
+}
+

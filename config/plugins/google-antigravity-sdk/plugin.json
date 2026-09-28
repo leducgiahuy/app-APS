@@ -1,0 +1,17 @@
+{
+  "name": "google-antigravity-sdk",
+  "displayName": "Google Antigravity SDK",
+  "version": "0.0.9",
+  "description": "Using the Google Antigravity Python SDK to build AI agents",
+  "logo": "https://www.gstatic.com/antigravity/logos/antigravity-icon__full-color.png",
+  "author": {
+    "name": "Google"
+  },
+  "license": "Apache-2.0",
+  "keywords": [
+    "antigravity",
+    "sdk",
+    "agents",
+    "gemini"
+  ]
+}

@@ -1,0 +1,11 @@
+Task: fefb2235-8c9c-4fe2-a4d4-1f9fd97a006c/task-60
+Status: RUNNING
+Log: C:\Users\GiaWyy\.gemini\antigravity\brain\fefb2235-8c9c-4fe2-a4d4-1f9fd97a006c\.system_generated\tasks\task-60.log
+Log output:
+=======================================================
+🚀 APS Vietnam Backend Server đang chạy tại:
+👉 http://localhost:5000
+👉 API Endpoint: http://localhost:5000/api
+=======================================================
+
+Last progress: 4s ago

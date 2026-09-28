@@ -1,0 +1,6 @@
+
+The command exited with code 0.
+Output:
+33: const [selectedProjectId, setSelectedProjectId] = useState(projects[0]?.id || 'proj-1');
+289: value={selectedProjectId}
+

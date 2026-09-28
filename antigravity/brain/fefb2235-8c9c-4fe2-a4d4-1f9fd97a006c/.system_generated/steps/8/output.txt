@@ -1,0 +1,16 @@
+
+The command exited with code 0.
+Output:
+Python was not found; run without arguments to install from the Microsoft Store, or disable this shortcut from Settings > Apps > Advanced app settings > App execution aliases.
+py : The term 'py' is not recognized as the name of a cmdlet, function, script file, or operable program. Check the 
+spelling of the name, or if a path was included, verify that the path is correct and try again.
+At line:1 char:19
++ python --version; py --version; where.exe node; where.exe npm; where. ...
++                   ~~
+    + CategoryInfo          : ObjectNotFound: (py:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+ 
+INFO: Could not find files for the given pattern(s).
+INFO: Could not find files for the given pattern(s).
+C:\Users\GiaWyy\AppData\Local\Microsoft\WindowsApps\python.exe
+

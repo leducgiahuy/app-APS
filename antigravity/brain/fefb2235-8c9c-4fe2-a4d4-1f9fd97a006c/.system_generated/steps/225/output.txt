@@ -1,0 +1,119 @@
+The following changes were made by the replace_file_content tool to: C:\Users\GiaWyy\.gemini\antigravity\scratch\aps-project-manager\frontend\src\modules\gantt\GanttPage.jsx. If relevant, proactively run terminal commands to execute this code for the USER. Don't ask for permission.
+[diff_block_start]
+@@ -125,11 +125,12 @@
+     return ganttItems;
+   }, [ganttItems, phaseFilter]);
+ 
+-  // Chiều cao mỗi dòng trong bảng & biểu đồ
++  // Chiều cao mỗi dòng trong bảng & biểu đồ (khóa cứng pixel để không bị lệch)
+   const ROW_HEIGHT = 44;
+-  const HEADER_HEIGHT = 50;
+-
+-  // Tính tọa độ vị trí (x, width) của từng thanh Gantt
++  const HEADER_HEIGHT = 52;
++  const BAR_HEIGHT = 24;
++
++  // Tính tọa độ vị trí (x, width, y) của từng thanh Gantt
+   const taskCoordinates = useMemo(() => {
+     const coords = {};
+     filteredGanttItems.forEach((item, index) => {
+@@ -139,8 +139,10 @@
+       const durationDays = Math.max(1, (eDate - sDate) / (1000 * 60 * 60 * 24) + 1);
+ 
+       const x = offsetDays * pxPerDay;
+-      const width = Math.max(14, durationDays * pxPerDay);
+-      const y = HEADER_HEIGHT + index * ROW_HEIGHT + (ROW_HEIGHT - 26) / 2;
++      const width = Math.max(16, durationDays * pxPerDay);
++      // Tọa độ Y chính xác căn giữa từng dòng 44px
++      const y = HEADER_HEIGHT + index * ROW_HEIGHT + (ROW_HEIGHT - BAR_HEIGHT) / 2;
++      const centerY = HEADER_HEIGHT + index * ROW_HEIGHT + ROW_HEIGHT / 2;
+ 
+       coords[item.id] = {
+         x,
+@@ -147,7 +147,7 @@
+         width,
+-        height: 26,
++        height: BAR_HEIGHT,
+         endX: x + width,
+-        centerY: y + 13,
++        centerY,
+         item
+       };
+     });
+@@ -154,34 +154,47 @@
+   }, [filteredGanttItems, timelineStart, pxPerDay]);
+ 
+-  // Tạo đường cong mũi tên phụ thuộc Finish-to-Start (FS)
++  // Tạo đường cong mũi tên phụ thuộc Finish-to-Start (FS) - TỰ ĐỘNG NỐI TỪ TASK TRƯỚC XUỐNG
+   const dependencyLines = useMemo(() => {
+     const lines = [];
+-    filteredGanttItems.forEach((item) => {
+-      if (item.dependencies && item.dependencies.length > 0) {
+-        item.dependencies.forEach((depId) => {
+-          const from = taskCoordinates[depId];
+-          const to = taskCoordinates[item.id];
+-          if (from && to) {
+-            // Điểm bắt đầu: mép phải của thanh task trước (Finish)
+-            const startX = from.endX;
+-            const startY = from.centerY;
+-            // Điểm kết thúc: mép trái của thanh task sau (Start)
+-            const targetX = to.x;
+-            const targetY = to.centerY;
+-
+-            // Đường cong Bezier hoặc Step nối từ đuôi trước sang đầu sau
+-            const midX = startX + 16;
+-            const pathData = `M ${startX} ${startY} L ${midX} ${startY} L ${midX} ${targetY} L ${targetX} ${targetY}`;
+-
+-            lines.push({
+-              key: `${depId}->${item.id}`,
+-              path: pathData,
+-              targetX,
+-              targetY
+-            });
+-          }
+-        });
++    filteredGanttItems.forEach((item, toIndex) => {
++      let deps = Array.isArray(item.dependencies) ? [...item.dependencies] : [];
++
++      // Nếu là công việc con và chưa có liên kết, tự động nối từ công việc đứng ngay trước đó
++      if (deps.length === 0 && !item.isGroup && toIndex > 0) {
++        const prevItem = filteredGanttItems[toIndex - 1];
++        if (prevItem && !prevItem.isGroup) {
++          deps = [prevItem.id];
++        }
+       }
++
++      deps.forEach((depId) => {
++        const from = taskCoordinates[depId];
++        const to = taskCoordinates[item.id];
++        if (from && to) {
++          const startX = from.endX;
++          const startY = from.centerY;
++          const targetX = to.x;
++          const targetY = to.centerY;
++
++          let pathData = '';
++          if (targetX >= startX) {
++            const midX = startX + 12;
++            pathData = `M ${startX} ${startY} L ${midX} ${startY} L ${midX} ${targetY} L ${targetX} ${targetY}`;
++          } else {
++            const loopX = startX + 10;
++            const approachX = targetX - 10;
++            const stepY = startY + (targetY > startY ? 14 : -14);
++            pathData = `M ${startX} ${startY} L ${loopX} ${startY} L ${loopX} ${stepY} L ${approachX} ${stepY} L ${approachX} ${targetY} L ${targetX} ${targetY}`;
++          }
++
++          lines.push({
++            key: `${depId}->${item.id}`,
++            path: pathData,
++            targetX,
++            targetY
++          });
++        }
++      });
+     });
+     return lines;
+   }, [filteredGanttItems, taskCoordinates]);
+[diff_block_end]
+
+Please note that the above snippet only shows the MODIFIED lines from the last change. It shows up to 3 lines of unchanged lines before and after the modified lines. The actual file contents may have many more lines not shown.

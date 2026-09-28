@@ -1,0 +1,15 @@
+
+The command exited with code 0.
+Output:
+
+C:\Users\GiaWyy\AppData\Roaming\Antigravity\bin
+C:\Program Files (x86)\Common Files\Intel\Shared Files\cpp\bin\Intel64
+C:\Program Files\dotnet\
+C:\Program Files\PuTTY\
+C:\Program Files\Git\cmd
+C:\Users\GiaWyy\AppData\Local\Microsoft\WindowsApps
+C:\Users\GiaWyy\AppData\Local\Programs\cursor\resources\app\bin
+C:\Users\GiaWyy\AppData\Local\Programs\Microsoft VS Code\bin
+
+
+

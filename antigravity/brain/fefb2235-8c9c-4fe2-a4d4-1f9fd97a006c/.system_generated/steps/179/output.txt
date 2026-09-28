@@ -1,0 +1,14 @@
+
+The command exited with code 0.
+Output:
+A: THI?T K? XAY D?NG
+A1: Chu?n b? & kh?o s�t hi?n tr?ng
+A1.1: Th?ng nh?t d?u v�o - Kick-off scope TKXD
+A1.2: Kh?o s�t hi?n tr?ng m?t b?ng
+A1.3: Kh?o s?t b? sung hi?n tr?ng d?a ch?t ng?m
+A2: Y tu?ng - Quy ho?ch t?ng m?t b?ng
+A2.1: D?nh v? h? khoan kh?o s�t d?a ch?t
+A2.2: Khoan KSDC + l?p b�o c�o DCCT
+A2.3: Thi?t k? y tu?ng v� CDT ph� duy?t
+A2.4: Quy ho?ch t?ng m?t b?ng
+

@@ -1,0 +1,18 @@
+
+The command exited with code 0.
+Output:
+
+> frontend@0.0.0 build
+> vite build
+
+vite v8.3.1 building client environment for production...
+transforming...
+✓ 1893 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   1.13 kB │ gzip:  0.67 kB
+dist/assets/index-BKlFQ_VF.css   31.65 kB │ gzip:  6.24 kB
+dist/assets/index-CgyAec0e.js   319.99 kB │ gzip: 89.40 kB
+
+✓ built in 1.44s
+

@@ -1,0 +1,46 @@
+The following changes were made by the replace_file_content tool to: C:\Users\GiaWyy\.gemini\antigravity\scratch\aps-project-manager\frontend\src\modules\tasks\TasksPage.jsx. If relevant, proactively run terminal commands to execute this code for the USER. Don't ask for permission.
+[diff_block_start]
+@@ -40,11 +40,12 @@
+   const [taskForm, setTaskForm] = useState({
+     projectId: 'proj-1',
+     phase: 'A. THIẾT KẾ XÂY DỰNG',
++    code: '',
+     title: '',
+     employeeId: employees[0]?.id || '',
+-    startDate: new Date().toISOString().split('T')[0],
+-    endDate: new Date(Date.now() + 3 * 86400000).toISOString().split('T')[0],
+-    estimatedDays: 3,
++    startDate: '2026-11-05',
++    endDate: '2026-11-09',
++    estimatedDays: 4,
+     priority: 'normal',
+     notes: ''
+   });
+@@ -53,7 +53,7 @@
+     taskId: '',
+     employeeId: employees[0]?.id || '',
+     hours: 2,
+-    date: new Date().toISOString().split('T')[0],
++    date: '2026-11-06',
+     reason: ''
+   });
+ 
+@@ -65,11 +65,12 @@
+       setTaskForm({
+         projectId: 'proj-1',
+         phase: 'A. THIẾT KẾ XÂY DỰNG',
++        code: '',
+         title: '',
+         employeeId: employees[0]?.id || '',
+-        startDate: new Date().toISOString().split('T')[0],
+-        endDate: new Date(Date.now() + 3 * 86400000).toISOString().split('T')[0],
+-        estimatedDays: 3,
++        startDate: '2026-11-05',
++        endDate: '2026-11-09',
++        estimatedDays: 4,
+         priority: 'normal',
+         notes: ''
+       });
+[diff_block_end]
+
+Please note that the above snippet only shows the MODIFIED lines from the last change. It shows up to 3 lines of unchanged lines before and after the modified lines. The actual file contents may have many more lines not shown.

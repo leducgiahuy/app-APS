@@ -1,0 +1,113 @@
+The following changes were made by the replace_file_content tool to: C:\Users\GiaWyy\.gemini\antigravity\scratch\aps-project-manager\backend\src\controllers\projectController.js. If relevant, proactively run terminal commands to execute this code for the USER. Don't ask for permission.
+[diff_block_start]
+@@ -102,11 +102,102 @@
+   };
+ 
+   db.projects.push(newProject);
+-  writeDb(db);
+-
+-  return res.status(201).json({
+-    success: true,
+-    message: 'Tạo dự án mới thành công',
++
++  // Tự động khởi tạo ngay hàng Dự Án gốc và các giai đoạn khởi đầu trên bảng Gantt
++  const startD = new Date(newProject.startDate);
++  const endD = new Date(newProject.endDate);
++  const totalDays = Math.max(1, Math.round((endD - startD) / (1000 * 60 * 60 * 24)) + 1);
++
++  const rootItem = {
++    id: `G-${newProject.id}`,
++    projectId: newProject.id,
++    code: newProject.code,
++    title: newProject.name,
++    isGroup: true,
++    color: '#0284c7',
++    unit: 'BQL',
++    startDate: newProject.startDate,
++    endDate: newProject.endDate,
++    days: totalDays,
++    assignee: newProject.manager,
++    notes: newProject.location || 'Dự án mới tạo',
++    status: 'planning',
++    speed: 'on_time',
++    progress: 0,
++    dependencies: []
++  };
++
++  const phaseA = {
++    id: `G-${newProject.id}-A`,
++    projectId: newProject.id,
++    code: 'A',
++    title: 'A. THIẾT KẾ XÂY DỰNG',
++    isGroup: true,
++    color: '#0284c7',
++    unit: 'TK',
++    startDate: newProject.startDate,
++    endDate: newProject.endDate,
++    days: Math.round(totalDays * 0.4),
++    assignee: newProject.manager,
++    notes: 'Giai đoạn thiết kế',
++    status: 'planning',
++    speed: 'on_time',
++    progress: 0,
++    dependencies: []
++  };
++
++  const taskA1 = {
++    id: `G-${newProject.id}-A1`,
++    projectId: newProject.id,
++    code: 'A1',
++    title: 'Khảo sát hiện trạng & Lập nhiệm vụ thiết kế',
++    isGroup: false,
++    color: '#38bdf8',
++    unit: 'TK',
++    startDate: newProject.startDate,
++    endDate: new Date(startD.getTime() + 7 * 86400000).toISOString().split('T')[0],
++    days: 7,
++    assignee: newProject.manager,
++    notes: 'Khởi động dự án mới',
++    status: 'in_progress',
++    speed: 'on_time',
++    progress: 0,
++    dependencies: []
++  };
++
++  if (!db.ganttItems) db.ganttItems = [];
++  db.ganttItems.push(rootItem, phaseA, taskA1);
++
++  // Tạo luôn 1 task trong db.tasks cho nhân sự phụ trách
++  const empNameNorm = (newProject.manager || '').trim().toLowerCase();
++  const emp = db.employees.find(e => e.name.trim().toLowerCase() === empNameNorm) || db.employees[0];
++  if (!db.tasks) db.tasks = [];
++  db.tasks.push({
++    id: `task-${Date.now()}`,
++    ganttId: taskA1.id,
++    projectId: newProject.id,
++    projectName: newProject.name,
++    phase: 'A. THIẾT KẾ XÂY DỰNG',
++    code: 'A1',
++    title: taskA1.title,
++    employeeId: emp ? emp.id : 'emp-1',
++    employeeName: emp ? emp.name : newProject.manager,
++    startDate: taskA1.startDate,
++    endDate: taskA1.endDate,
++    estimatedHours: 56,
++    estimatedDays: 7,
++    status: 'in_progress',
++    speedStatus: 'on_time',
++    priority: 'high',
++    progress: 0,
++    notes: 'Nhiệm vụ khởi động dự án'
++  });
++
++  writeDb(db);
++
++  return res.status(201).json({
++    success: true,
++    message: `Đã tạo dự án "${newProject.name}" thành công và hiển thị tiến độ ban đầu lên bảng`,
+     data: newProject
+   });
+ }
+[diff_block_end]
+
+Please note that the above snippet only shows the MODIFIED lines from the last change. It shows up to 3 lines of unchanged lines before and after the modified lines. The actual file contents may have many more lines not shown.

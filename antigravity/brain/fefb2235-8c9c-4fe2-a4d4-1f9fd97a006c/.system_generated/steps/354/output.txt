@@ -1,0 +1,8 @@
+
+The command exited with code 0.
+Output:
+Projects: 2
+Employees: 7
+Tasks: 7
+GanttItems: 30
+

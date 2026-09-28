@@ -1,0 +1,28 @@
+
+The command exited with code 0.
+Output:
+{
+    "success":  true,
+    "message":  "Ph�n c�ng nhi?m v? th�nh c�ng v� da d?ng b? sang bi?u d? Gantt (A1.4)",
+    "data":  {
+                 "id":  "task-1790567858226",
+                 "ganttId":  "G-1790567858226",
+                 "projectId":  "proj-1",
+                 "projectName":  "D? AN XAY D?NG TRUNG TAM CONG NGH? APS VI?T NAM",
+                 "phase":  "A. THI?T K? X?Y D?NG",
+                 "code":  "A1.4",
+                 "title":  "Nghi?m thu h? m?ng giai do?n 1",
+                 "employeeId":  "emp-2",
+                 "employeeName":  "L� Ho�ng Long",
+                 "startDate":  "2026-11-09",
+                 "endDate":  "2026-11-12",
+                 "estimatedHours":  32,
+                 "estimatedDays":  4,
+                 "status":  "in_progress",
+                 "speedStatus":  "on_time",
+                 "priority":  "high",
+                 "progress":  0,
+                 "notes":  "GATE 1"
+             }
+}
+

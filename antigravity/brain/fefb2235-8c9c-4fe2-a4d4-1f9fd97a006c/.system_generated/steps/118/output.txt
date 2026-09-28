@@ -1,0 +1,20 @@
+You have 2 background task(s) currently running:
+{
+  "taskId": "fefb2235-8c9c-4fe2-a4d4-1f9fd97a006c/task-60",
+  "toolName": "run_command",
+  "toolSummary": "Test backend server launch",
+  "description": "Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass; $env:PATH = \"C:\\Program Files\\nodejs;\" + $env:PATH; node src/server.js",
+  "startTime": "2026-09-28T02:53:07.264382600Z",
+  "stepIndex": 60,
+  "logUri": "file:///C:/Users/GiaWyy/.gemini/antigravity/brain/fefb2235-8c9c-4fe2-a4d4-1f9fd97a006c/.system_generated/tasks/task-60.log"
+}
+{
+  "taskId": "fefb2235-8c9c-4fe2-a4d4-1f9fd97a006c/task-99",
+  "toolName": "run_command",
+  "toolSummary": "Start frontend server",
+  "description": "Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass; $env:PATH = \"C:\\Program Files\\nodejs;\" + $env:PATH; npm run dev",
+  "startTime": "2026-09-28T02:56:52.983263400Z",
+  "stepIndex": 99,
+  "logUri": "file:///C:/Users/GiaWyy/.gemini/antigravity/brain/fefb2235-8c9c-4fe2-a4d4-1f9fd97a006c/.system_generated/tasks/task-99.log",
+  "isDaemon": true
+}

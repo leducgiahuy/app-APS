@@ -1,0 +1,19 @@
+{
+  "name": "android-cli-plugin",
+  "displayName": "Android CLI",
+  "version": "1.0.15985488",
+  "description": "Core tools and knowledge required to develop for Android",
+  "logo": "https://www.gstatic.com/images/branding/productlogos/android/v2/192px.svg",
+  "author": {
+    "name": "Android developer tools team"
+  },
+  "license": "Apache-2.0",
+  "keywords": [
+    "android",
+    "mobile",
+    "device",
+    "sdk",
+    "journeys",
+    "device"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "name": "google_maps_platform",
+  "displayName": "Google Maps Platform",
+  "version": "1.0.0",
+  "description": "Integration skill and tools for Google Maps Platform APIs",
+  "logo": "https://www.gstatic.com/images/branding/productlogos/maps_2025/v1/web-96dp/logo_maps_2025_color_2x_web_96dp.png",
+  "author": {
+    "name": "Google Maps Platform"
+  },
+  "license": "Apache-2.0",
+  "keywords": [
+    "maps",
+    "places",
+    "routes"
+  ]
+}

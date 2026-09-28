@@ -1,0 +1,15 @@
+The following changes were made by the replace_file_content tool to: C:\Users\GiaWyy\.gemini\antigravity\scratch\aps-project-manager\ARCHITECTURE.md. If relevant, proactively run terminal commands to execute this code for the USER. Don't ask for permission.
+[diff_block_start]
+@@ -101,7 +101,8 @@
+ | `DELETE` | `/api/tasks/:id` | Xóa công việc khỏi danh sách |
+ | `POST` | `/api/overtimes` | Đăng ký ca làm việc tăng ca (OT) cho công việc gấp |
+ | `GET` | `/api/gantt` | Lấy danh sách WBS và các thanh tiến độ Gantt |
+-| `POST` | `/api/gantt` | Thêm công việc vào tiến độ dự án (kèm liên kết FS) |
++| `POST` | `/api/gantt` | Thêm công việc vào tiến độ dự án (tự động phân cấp WBS như A1.3 sau A1.2) |
++| `PATCH` | `/api/gantt/:id/move` | Di chuyển vị trí công việc lên trên (up) hoặc xuống dưới (down) |
+ | `DELETE` | `/api/gantt/:id` | Xóa công việc khỏi biểu đồ Gantt |
+ | `GET` | `/api/projects` | Lấy danh sách dự án xây dựng |
+ | `POST` | `/api/projects` | Tạo dự án mới |
+[diff_block_end]
+
+Please note that the above snippet only shows the MODIFIED lines from the last change. It shows up to 3 lines of unchanged lines before and after the modified lines. The actual file contents may have many more lines not shown.

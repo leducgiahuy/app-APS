@@ -1,0 +1,54 @@
+The following changes were made by the replace_file_content tool to: C:\Users\GiaWyy\.gemini\antigravity\scratch\aps-project-manager\frontend\src\context\AppContext.jsx. If relevant, proactively run terminal commands to execute this code for the USER. Don't ask for permission.
+[diff_block_start]
+@@ -226,12 +226,12 @@
+     }
+   };
+ 
+-  // Hành động: Thêm công việc vào Gantt
++  // Hành động: Thêm công việc vào Gantt (Tự động chèn theo WBS hoặc theo vị trí đã chọn)
+   const addGanttItem = async (itemData) => {
+     try {
+-      await api.createGanttItem(itemData);
+-      showToast('Thêm công việc vào tiến độ Gantt thành công');
+-      refreshAllData();
++      const res = await api.createGanttItem(itemData);
++      showToast(res.message || 'Thêm công việc vào tiến độ thành công');
++      await refreshAllData();
+       return true;
+     } catch (err) {
+       showToast(err.message || 'Lỗi khi thêm vào Gantt', 'error');
+@@ -238,6 +238,23 @@
+     }
+   };
+ 
++  // Hành động: Di chuyển công việc lên / xuống (Reorder)
++  const moveGanttItem = async (id, direction) => {
++    try {
++      const res = await api.moveGanttItem(id, direction);
++      if (res.data) {
++        setGanttItems(res.data);
++      } else {
++        await refreshAllData();
++      }
++      showToast(res.message || 'Đã cập nhật thứ tự công việc');
++      return true;
++    } catch (err) {
++      showToast('Lỗi khi đổi thứ tự', 'error');
++      return false;
++    }
++  };
++
+   // Hành động: Xóa công việc khỏi Gantt
+   const deleteGanttItem = async (id) => {
+     if (!window.confirm('Bạn có chắc chắn muốn xóa hạng mục này khỏi tiến độ?')) return;
+@@ -285,6 +285,7 @@
+         addOvertime,
+         addProject,
+         addGanttItem,
++        moveGanttItem,
+         deleteGanttItem
+       }}
+     >
+[diff_block_end]
+
+Please note that the above snippet only shows the MODIFIED lines from the last change. It shows up to 3 lines of unchanged lines before and after the modified lines. The actual file contents may have many more lines not shown.
