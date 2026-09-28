@@ -1,5 +1,7 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
+import DateInput from '../../components/DateInput';
+import { formatDateVi, inclusiveDays } from '../../utils/date';
 import {
   CalendarRange,
   Plus,
@@ -22,6 +24,7 @@ import {
 export default function GanttPage() {
   const {
     ganttItems,
+    tasks,
     projects,
     employees,
     addGanttItem,
@@ -65,6 +68,30 @@ export default function GanttPage() {
     insertAfterId: ''
   });
 
+  const updateDateRange = (setter, field, value) => {
+    setter(current => {
+      const next = { ...current, [field]: value };
+      if (next.startDate && next.endDate && next.endDate < next.startDate) {
+        if (field === 'startDate') next.endDate = value;
+        else next.startDate = value;
+      }
+      next.days = inclusiveDays(next.startDate, next.endDate);
+      return next;
+    });
+  };
+
+  const projectIdForItem = (item) => item.projectId || tasks.find(task => task.ganttId === item.id)?.projectId;
+
+  useEffect(() => {
+    if (projects.length === 0) return;
+    setSelectedProjectId(current => current === 'ALL' || projects.some(project => project.id === current)
+      ? current
+      : projects[0].id);
+    setTaskForm(current => projects.some(project => project.id === current.projectId)
+      ? current
+      : { ...current, projectId: projects[0].id });
+  }, [projects]);
+
   // Form tạo dự án
   const [projectForm, setProjectForm] = useState({
     name: '',
@@ -80,11 +107,11 @@ export default function GanttPage() {
   const filteredGanttItems = useMemo(() => {
     const projectItems = selectedProjectId === 'ALL'
       ? ganttItems
-      : ganttItems.filter(g => (g.projectId || 'proj-1') === selectedProjectId);
+      : ganttItems.filter(g => projectIdForItem(g) === selectedProjectId);
 
     if (phaseFilter === 'ALL') return projectItems;
     return projectItems.filter(g => g.code.startsWith(phaseFilter));
-  }, [ganttItems, phaseFilter, selectedProjectId]);
+  }, [ganttItems, tasks, phaseFilter, selectedProjectId]);
 
   // Tính toán thời gian bắt đầu và kết thúc tổng thể của Gantt
   // Khung thời gian linh hoạt: bao phủ từ tháng sớm nhất đến tháng muộn nhất của dự án
@@ -286,7 +313,7 @@ export default function GanttPage() {
 
   const handleEditOpen = (item) => {
     setEditingItem(item);
-    setEditForm({ startDate: item.startDate, endDate: item.endDate, days: item.days || 1 });
+    setEditForm({ startDate: item.startDate, endDate: item.endDate, days: inclusiveDays(item.startDate, item.endDate) });
   };
 
   const handleEditSubmit = async (e) => {
@@ -393,7 +420,11 @@ export default function GanttPage() {
 
           {/* Nút Thêm Công Việc Cho Dự Án */}
           <button
-            onClick={() => setShowAddTaskModal(true)}
+            onClick={() => {
+              const projectId = selectedProjectId === 'ALL' ? projects[0]?.id : selectedProjectId;
+              setTaskForm(current => ({ ...current, projectId: projectId || '', dependencies: [] }));
+              setShowAddTaskModal(true);
+            }}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-md shadow-sky-600/20 transition-all flex-shrink-0"
           >
             <Plus className="w-3.5 h-3.5" />
@@ -515,12 +546,12 @@ export default function GanttPage() {
 
                       {/* Cột Bắt Đầu */}
                       <div className="w-20 min-w-[80px] text-center py-1 px-1 text-[11px] border-r border-slate-100 dark:border-slate-800 text-slate-500 shrink-0">
-                        {item.startDate ? item.startDate.slice(5).replace('-', '/') : '-'}
+                        {formatDateVi(item.startDate) || '-'}
                       </div>
 
                       {/* Cột Kết Thúc */}
                       <div className="w-20 min-w-[80px] text-center py-1 px-1 text-[11px] border-r border-slate-100 dark:border-slate-800 text-slate-500 shrink-0">
-                        {item.endDate ? item.endDate.slice(5).replace('-', '/') : '-'}
+                        {formatDateVi(item.endDate) || '-'}
                       </div>
 
                       {/* Cột Ngày (Duration) */}
@@ -795,21 +826,19 @@ export default function GanttPage() {
               <div className="grid grid-cols-2 gap-3">
                 <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                   Ngày bắt đầu
-                  <input
-                    type="date"
+                  <DateInput
                     required
                     value={editForm.startDate}
-                    onChange={(e) => setEditForm({ ...editForm, startDate: e.target.value })}
+                    onChange={(value) => updateDateRange(setEditForm, 'startDate', value)}
                     className="mt-1 w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
                   />
                 </label>
                 <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                   Ngày kết thúc
-                  <input
-                    type="date"
+                  <DateInput
                     required
                     value={editForm.endDate}
-                    onChange={(e) => setEditForm({ ...editForm, endDate: e.target.value })}
+                    onChange={(value) => updateDateRange(setEditForm, 'endDate', value)}
                     className="mt-1 w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
                   />
                 </label>
@@ -821,7 +850,7 @@ export default function GanttPage() {
                   min="1"
                   required
                   value={editForm.days}
-                  onChange={(e) => setEditForm({ ...editForm, days: Number(e.target.value) })}
+                  readOnly
                   className="mt-1 w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold"
                 />
               </label>
@@ -953,7 +982,7 @@ export default function GanttPage() {
                   <select
                     required
                     value={taskForm.projectId}
-                    onChange={(e) => setTaskForm({ ...taskForm, projectId: e.target.value })}
+                    onChange={(e) => setTaskForm({ ...taskForm, projectId: e.target.value, dependencies: [] })}
                     className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
                   >
                     {projects.map(project => (
@@ -989,7 +1018,7 @@ export default function GanttPage() {
                     className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
                   >
                     <option value="">-- Không có liên kết FS --</option>
-                    {ganttItems.map(g => (
+                    {ganttItems.filter(g => projectIdForItem(g) === taskForm.projectId).map(g => (
                       <option key={g.id} value={g.id}>[{g.code}] {g.title}</option>
                     ))}
                   </select>
@@ -1001,11 +1030,10 @@ export default function GanttPage() {
                   <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
                     Ngày Bắt Đầu
                   </label>
-                  <input
-                    type="date"
+                  <DateInput
                     required
                     value={taskForm.startDate}
-                    onChange={(e) => setTaskForm({ ...taskForm, startDate: e.target.value })}
+                    onChange={(value) => updateDateRange(setTaskForm, 'startDate', value)}
                     className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
                   />
                 </div>
@@ -1014,11 +1042,10 @@ export default function GanttPage() {
                   <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
                     Ngày Kết Thúc
                   </label>
-                  <input
-                    type="date"
+                  <DateInput
                     required
                     value={taskForm.endDate}
-                    onChange={(e) => setTaskForm({ ...taskForm, endDate: e.target.value })}
+                    onChange={(value) => updateDateRange(setTaskForm, 'endDate', value)}
                     className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
                   />
                 </div>
@@ -1031,7 +1058,7 @@ export default function GanttPage() {
                     type="number"
                     min="1"
                     value={taskForm.days}
-                    onChange={(e) => setTaskForm({ ...taskForm, days: Number(e.target.value) })}
+                    readOnly
                     className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold"
                   />
                 </div>

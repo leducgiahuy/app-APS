@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import DateInput from '../../components/DateInput';
+import { formatDateVi, inclusiveDays } from '../../utils/date';
 import {
   CheckSquare,
   Clock,
@@ -39,17 +41,25 @@ export default function TasksPage() {
 
   // Form phân công task
   const [taskForm, setTaskForm] = useState({
-    projectId: 'proj-1',
+    projectId: projects[0]?.id || '',
     phase: 'A. THIẾT KẾ XÂY DỰNG',
     code: '',
     title: '',
     employeeId: employees[0]?.id || '',
     startDate: '2026-11-05',
     endDate: '2026-11-09',
-    estimatedDays: 4,
+    estimatedDays: 5,
     priority: 'normal',
     notes: ''
   });
+
+  // Projects load asynchronously; keep the form selection tied to a real project.
+  useEffect(() => {
+    if (projects.length === 0) return;
+    setTaskForm(current => projects.some(project => project.id === current.projectId)
+      ? current
+      : { ...current, projectId: projects[0].id });
+  }, [projects]);
 
   // Form đăng ký tăng ca (OT)
   const [otForm, setOtForm] = useState({
@@ -63,23 +73,38 @@ export default function TasksPage() {
   // Xử lý gửi Form Task
   const handleTaskSubmit = async (e) => {
     e.preventDefault();
-    if (!taskForm.title || !taskForm.employeeId) return;
-    const success = await addTask(taskForm);
+    const projectId = projects.some(project => project.id === taskForm.projectId)
+      ? taskForm.projectId
+      : projects[0]?.id;
+    if (!taskForm.title || !taskForm.employeeId || !projectId) return;
+    const success = await addTask({ ...taskForm, projectId });
     if (success) {
       setTaskForm({
-        projectId: 'proj-1',
+        projectId: projects[0]?.id || '',
         phase: 'A. THIẾT KẾ XÂY DỰNG',
         code: '',
         title: '',
         employeeId: employees[0]?.id || '',
         startDate: '2026-11-05',
         endDate: '2026-11-09',
-        estimatedDays: 4,
+        estimatedDays: 5,
         priority: 'normal',
         notes: ''
       });
       setShowTaskModal(false);
     }
+  };
+
+  const updateTaskDate = (field, value) => {
+    setTaskForm(current => {
+      const next = { ...current, [field]: value };
+      if (next.startDate && next.endDate && next.endDate < next.startDate) {
+        if (field === 'startDate') next.endDate = value;
+        else next.startDate = value;
+      }
+      next.estimatedDays = inclusiveDays(next.startDate, next.endDate);
+      return next;
+    });
   };
 
   // Xử lý gửi Form Tăng ca
@@ -287,7 +312,7 @@ export default function TasksPage() {
                       </div>
                       <div className="flex items-center justify-between text-[11px] text-slate-400">
                         <span>Thời hạn:</span>
-                        <span>{task.startDate} → {task.endDate}</span>
+                        <span>{formatDateVi(task.startDate)} → {formatDateVi(task.endDate)}</span>
                       </div>
                     </div>
 
@@ -402,7 +427,7 @@ export default function TasksPage() {
                         +{ot.hours} giờ
                       </span>
                     </td>
-                    <td className="py-3 px-3 text-slate-500">{ot.date}</td>
+                    <td className="py-3 px-3 text-slate-500">{formatDateVi(ot.date)}</td>
                     <td className="py-3 px-3 italic">{ot.reason}</td>
                     <td className="py-3 px-3 text-slate-500">{ot.approvedBy}</td>
                     <td className="py-3 px-3">
@@ -535,7 +560,7 @@ export default function TasksPage() {
                     type="number"
                     min="1"
                     value={taskForm.estimatedDays}
-                    onChange={(e) => setTaskForm({ ...taskForm, estimatedDays: Number(e.target.value) })}
+                    readOnly
                     className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs focus:ring-2 focus:ring-sky-500"
                   />
                 </div>
@@ -546,10 +571,9 @@ export default function TasksPage() {
                   <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
                     Ngày Bắt Đầu
                   </label>
-                  <input
-                    type="date"
+                  <DateInput
                     value={taskForm.startDate}
-                    onChange={(e) => setTaskForm({ ...taskForm, startDate: e.target.value })}
+                    onChange={(value) => updateTaskDate('startDate', value)}
                     className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
                   />
                 </div>
@@ -558,10 +582,9 @@ export default function TasksPage() {
                   <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
                     Ngày Kết Thúc Dự Kiến
                   </label>
-                  <input
-                    type="date"
+                  <DateInput
                     value={taskForm.endDate}
-                    onChange={(e) => setTaskForm({ ...taskForm, endDate: e.target.value })}
+                    onChange={(value) => updateTaskDate('endDate', value)}
                     className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
                   />
                 </div>
@@ -676,10 +699,9 @@ export default function TasksPage() {
                   <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
                     Ngày Làm Thêm Giờ
                   </label>
-                  <input
-                    type="date"
+                  <DateInput
                     value={otForm.date}
-                    onChange={(e) => setOtForm({ ...otForm, date: e.target.value })}
+                    onChange={(value) => setOtForm({ ...otForm, date: value })}
                     className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
                   />
                 </div>

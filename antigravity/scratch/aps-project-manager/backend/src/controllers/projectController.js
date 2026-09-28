@@ -152,9 +152,13 @@ export function deleteProject(req, res) {
 // Lấy danh sách hạng mục cho biểu đồ Gantt
 export function getGanttItems(req, res) {
   const db = readDb();
+  const tasksByGanttId = new Map((db.tasks || []).filter(task => task.ganttId).map(task => [task.ganttId, task]));
   return res.json({
     success: true,
-    data: db.ganttItems || []
+    data: (db.ganttItems || []).map(item => ({
+      ...item,
+      projectId: item.projectId || tasksByGanttId.get(item.id)?.projectId
+    }))
   });
 }
 
@@ -162,7 +166,7 @@ export function getGanttItems(req, res) {
 export function updateGanttItem(req, res) {
   const db = readDb();
   const { id } = req.params;
-  const { startDate, endDate, days } = req.body;
+  const { startDate, endDate } = req.body;
   const item = (db.ganttItems || []).find(ganttItem => ganttItem.id === id);
 
   if (!item) {
@@ -171,26 +175,67 @@ export function updateGanttItem(req, res) {
 
   const nextStartDate = startDate || item.startDate;
   const nextEndDate = endDate || item.endDate;
-  const start = new Date(nextStartDate);
-  const end = new Date(nextEndDate);
-  if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) {
+  const startTimestamp = Date.parse(`${nextStartDate}T00:00:00Z`);
+  const endTimestamp = Date.parse(`${nextEndDate}T00:00:00Z`);
+  if (!Number.isFinite(startTimestamp) || !Number.isFinite(endTimestamp) || endTimestamp < startTimestamp) {
     return res.status(400).json({ success: false, message: 'Khoảng thời gian không hợp lệ' });
   }
 
-  const calculatedDays = days ? Number(days) : Math.max(1, Math.round((end - start) / 86400000) + 1);
+  const calculatedDays = Math.floor((endTimestamp - startTimestamp) / 86400000) + 1;
+  const previousEndDate = item.endDate;
+  const previousEndTimestamp = Date.parse(`${previousEndDate}T00:00:00Z`);
+  const nextEndTimestamp = Date.parse(`${nextEndDate}T00:00:00Z`);
+  const shiftDays = Math.round((nextEndTimestamp - previousEndTimestamp) / 86400000);
   item.startDate = nextStartDate;
   item.endDate = nextEndDate;
   item.days = calculatedDays;
+
+  const linkedTaskFor = ganttId => (db.tasks || []).find(task => task.ganttId === ganttId);
+  const projectIdOf = ganttItem => ganttItem.projectId || linkedTaskFor(ganttItem.id)?.projectId || 'proj-1';
+  const sameProjectItems = (db.ganttItems || []).filter(ganttItem => projectIdOf(ganttItem) === projectIdOf(item));
+  const successorIds = new Map();
+  sameProjectItems.forEach((ganttItem, index) => {
+    const dependencies = Array.isArray(ganttItem.dependencies) && ganttItem.dependencies.length
+      ? ganttItem.dependencies
+      : (!ganttItem.isGroup && index > 0 ? [sameProjectItems[index - 1].id] : []);
+    dependencies.forEach(dependencyId => {
+      if (!successorIds.has(dependencyId)) successorIds.set(dependencyId, []);
+      successorIds.get(dependencyId).push(ganttItem.id);
+    });
+  });
+
+  const shiftedIds = new Set();
+  if (shiftDays !== 0) {
+    const pending = [...(successorIds.get(id) || [])];
+    while (pending.length) {
+      const successorId = pending.shift();
+      if (successorId === id || shiftedIds.has(successorId)) continue;
+      shiftedIds.add(successorId);
+      pending.push(...(successorIds.get(successorId) || []));
+    }
+    shiftedIds.forEach(successorId => {
+      const successor = sameProjectItems.find(ganttItem => ganttItem.id === successorId);
+      if (!successor) return;
+      const shiftDate = dateValue => {
+        const shifted = new Date(`${dateValue}T00:00:00Z`);
+        shifted.setUTCDate(shifted.getUTCDate() + shiftDays);
+        return shifted.toISOString().slice(0, 10);
+      };
+      successor.startDate = shiftDate(successor.startDate);
+      successor.endDate = shiftDate(successor.endDate);
+    });
+  }
 
   (db.tasks || []).forEach(task => {
     const linkedById = task.ganttId === id;
     const linkedLegacyTask = !task.ganttId && task.title === item.title &&
       (!item.projectId || !task.projectId || task.projectId === item.projectId);
-    if (linkedById || linkedLegacyTask) {
-      task.startDate = nextStartDate;
-      task.endDate = nextEndDate;
-      task.estimatedDays = calculatedDays;
-      task.estimatedHours = calculatedDays * 8;
+    const shiftedWithGantt = task.ganttId && shiftedIds.has(task.ganttId);
+    if (linkedById || linkedLegacyTask || shiftedWithGantt) {
+      task.startDate = linkedById || linkedLegacyTask ? nextStartDate : (db.ganttItems.find(ganttItem => ganttItem.id === task.ganttId)?.startDate || task.startDate);
+      task.endDate = linkedById || linkedLegacyTask ? nextEndDate : (db.ganttItems.find(ganttItem => ganttItem.id === task.ganttId)?.endDate || task.endDate);
+      task.estimatedDays = linkedById || linkedLegacyTask ? calculatedDays : Math.floor((Date.parse(`${task.endDate}T00:00:00Z`) - Date.parse(`${task.startDate}T00:00:00Z`)) / 86400000) + 1;
+      task.estimatedHours = task.estimatedDays * 8;
     }
   });
 
@@ -214,7 +259,6 @@ export function createGanttItem(req, res) {
     unit,
     startDate,
     endDate,
-    days,
     assignee,
     notes,
     color,
@@ -227,9 +271,17 @@ export function createGanttItem(req, res) {
     return res.status(400).json({ success: false, message: 'Vui lòng nhập đầy đủ tên công việc, ngày bắt đầu và ngày kết thúc' });
   }
 
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-  const calculatedDays = days ? Number(days) : Math.max(1, Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1);
+  const project = (db.projects || []).find(item => item.id === projectId);
+  if (!project) {
+    return res.status(400).json({ success: false, message: 'Vui lòng chọn một dự án đang tồn tại' });
+  }
+
+  const startTimestamp = Date.parse(`${startDate}T00:00:00Z`);
+  const endTimestamp = Date.parse(`${endDate}T00:00:00Z`);
+  if (!Number.isFinite(startTimestamp) || !Number.isFinite(endTimestamp) || endTimestamp < startTimestamp) {
+    return res.status(400).json({ success: false, message: 'Khoảng thời gian không hợp lệ' });
+  }
+  const calculatedDays = Math.floor((endTimestamp - startTimestamp) / 86400000) + 1;
 
   const formattedCode = code ? String(code).trim() : `T${db.ganttItems.length + 1}`;
   const newGanttId = `G-${Date.now()}`;
@@ -250,14 +302,19 @@ export function createGanttItem(req, res) {
   let autoDependencies = Array.isArray(dependencies) ? [...dependencies] : [];
   if (autoDependencies.length === 0 && !isGroup) {
     // Tự động liên kết tới công việc đứng ngay trước đó để vẽ đường nối xuống
-    if (insertIdx >= 0 && db.ganttItems[insertIdx]) {
-      autoDependencies.push(db.ganttItems[insertIdx].id);
-    }
+    const previousInProject = db.ganttItems
+      .slice(0, insertIdx + 1)
+      .filter(item => {
+        const linkedTask = (db.tasks || []).find(task => task.ganttId === item.id);
+        return (item.projectId || linkedTask?.projectId || 'proj-1') === project.id;
+      })
+      .at(-1);
+    if (previousInProject) autoDependencies.push(previousInProject.id);
   }
 
   const newItem = {
     id: newGanttId,
-    projectId: projectId || 'proj-1',
+    projectId: project.id,
     code: formattedCode,
     title,
     isGroup: Boolean(isGroup),
@@ -294,12 +351,11 @@ export function createGanttItem(req, res) {
     else if (upperCode.startsWith('C')) phaseName = 'C. MỜI THẦU THI CÔNG';
     else if (upperCode.startsWith('L')) phaseName = 'L. NGHỈ LỄ VIỆT NAM';
 
-    const project = db.projects.find(p => p.id === newItem.projectId);
     const matchedTask = {
       id: `task-${Date.now()}`,
       ganttId: newItem.id,
       projectId: newItem.projectId,
-      projectName: project?.name || 'DỰ ÁN XÂY DỰNG TRUNG TÂM CÔNG NGHỆ APS VIỆT NAM',
+      projectName: project.name,
       phase: phaseName,
       title: newItem.title,
       code: newItem.code,

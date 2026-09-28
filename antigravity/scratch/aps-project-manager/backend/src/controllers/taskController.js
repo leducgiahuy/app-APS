@@ -25,14 +25,12 @@ export function createTask(req, res) {
   const db = readDb();
   const {
     projectId,
-    projectName,
     phase,
     code,
     title,
     employeeId,
     startDate,
     endDate,
-    estimatedDays,
     priority,
     notes
   } = req.body;
@@ -45,14 +43,21 @@ export function createTask(req, res) {
   const emp = db.employees.find(e => e.id === employeeId);
   const employeeName = emp ? emp.name : 'Chưa phân công';
 
-  // Tìm tên dự án nếu có
-  let projName = projectName;
-  if (!projName && projectId) {
-    const proj = db.projects.find(p => p.id === projectId);
-    if (proj) projName = proj.name;
+  // Treat the project ID as the source of truth so stale client state cannot
+  // attach a new task to a deleted project or retain its old display name.
+  const project = (db.projects || []).find(p => p.id === projectId);
+  if (!project) {
+    return res.status(400).json({ success: false, message: 'Vui lòng chọn một dự án đang tồn tại' });
   }
 
-  const days = Number(estimatedDays) || 1;
+  const taskStartDate = startDate || new Date().toISOString().slice(0, 10);
+  const taskEndDate = endDate || taskStartDate;
+  const startTimestamp = Date.parse(`${taskStartDate}T00:00:00Z`);
+  const endTimestamp = Date.parse(`${taskEndDate}T00:00:00Z`);
+  if (!Number.isFinite(startTimestamp) || !Number.isFinite(endTimestamp) || endTimestamp < startTimestamp) {
+    return res.status(400).json({ success: false, message: 'Khoảng thời gian công việc không hợp lệ' });
+  }
+  const days = Math.floor((endTimestamp - startTimestamp) / 86400000) + 1;
   const hours = days * 8; // 8 tiếng / ngày chuẩn
 
   // Sinh mã WBS tự động nếu chưa có
@@ -73,15 +78,15 @@ export function createTask(req, res) {
   const newTask = {
     id: `task-${Date.now()}`,
     ganttId: newGanttId,
-    projectId: projectId || 'proj-1',
-    projectName: projName || 'DỰ ÁN XÂY DỰNG TRUNG TÂM CÔNG NGHỆ APS VIỆT NAM',
+    projectId: project.id,
+    projectName: project.name,
     phase: phase || 'A. THIẾT KẾ XÂY DỰNG',
     code: wbsCode,
     title,
     employeeId,
     employeeName,
-    startDate: startDate || new Date().toISOString().split('T')[0],
-    endDate: endDate || new Date().toISOString().split('T')[0],
+    startDate: taskStartDate,
+    endDate: taskEndDate,
     estimatedHours: hours,
     estimatedDays: days,
     status: 'in_progress',
@@ -111,7 +116,10 @@ export function createTask(req, res) {
   // Tự động tìm công việc đứng trước để nối đường mũi tên FS
   let lastItemInPhase = null;
   for (let i = db.ganttItems.length - 1; i >= 0; i--) {
-    if (db.ganttItems[i].code.startsWith(wbsCode.charAt(0))) {
+    const gantt = db.ganttItems[i];
+    const linkedTask = (db.tasks || []).find(task => task.ganttId === gantt.id);
+    const ganttProjectId = gantt.projectId || linkedTask?.projectId || 'proj-1';
+    if (ganttProjectId === project.id && gantt.code.startsWith(wbsCode.charAt(0))) {
       lastItemInPhase = db.ganttItems[i];
       break;
     }
@@ -119,6 +127,7 @@ export function createTask(req, res) {
 
   const newGanttItem = {
     id: newGanttId,
+    projectId: project.id,
     code: wbsCode,
     title,
     isGroup: false,

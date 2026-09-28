@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import { formatDateVi } from '../../utils/date';
 import {
   BarChart3,
   Building,
@@ -231,7 +232,7 @@ export default function DashboardPage() {
                           {t.estimatedDays} ngày ({t.estimatedHours}h)
                         </span>
                         <span className="text-[10px] text-slate-400 block">
-                          {t.startDate} → {t.endDate}
+                          {formatDateVi(t.startDate)} → {formatDateVi(t.endDate)}
                         </span>
                       </div>
                     </td>
