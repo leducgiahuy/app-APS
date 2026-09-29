@@ -22,6 +22,10 @@ export default function DateInput({ value, onChange, className = '', required = 
   const openPicker = () => {
     const picker = pickerRef.current;
     if (!picker) return;
+    // Keep the picker input empty so the browser opens at the real current
+    // month. Never overwrite it with a temporary date: it is shared by the
+    // controlled start/end date fields and can otherwise leak into form state.
+    picker.value = '';
     if (typeof picker.showPicker === 'function') picker.showPicker();
     else picker.click();
   };
@@ -44,14 +48,19 @@ export default function DateInput({ value, onChange, className = '', required = 
       <input
         ref={pickerRef}
         type="date"
-        value={value || ''}
         min={min}
         max={max}
         tabIndex={-1}
         aria-hidden="true"
         onChange={(event) => {
-          onChange(event.target.value);
-          setDraft(formatDateVi(event.target.value));
+          const selectedDate = event.target.value;
+          if (selectedDate) {
+            onChange(selectedDate);
+            setDraft(formatDateVi(selectedDate));
+          }
+          // This input only launches the native calendar. Clear its transient
+          // value so opening another date field cannot alter that field's value.
+          event.target.value = '';
         }}
         className="pointer-events-none absolute right-9 top-1/2 h-px w-px -translate-y-1/2 opacity-0"
       />

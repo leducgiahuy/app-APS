@@ -58,7 +58,8 @@ export function createTask(req, res) {
     return res.status(400).json({ success: false, message: 'Khoảng thời gian công việc không hợp lệ' });
   }
   const days = Math.floor((endTimestamp - startTimestamp) / 86400000) + 1;
-  const hours = days * 8; // 8 tiếng / ngày chuẩn
+  const standardHours = Number(emp?.standardHours) || 8;
+  const hours = days * standardHours;
 
   // Sinh mã WBS tự động nếu chưa có
   let wbsCode = code ? String(code).trim() : '';
@@ -185,7 +186,8 @@ export function updateTask(req, res) {
   if (endDate !== undefined) task.endDate = endDate;
   if (estimatedDays !== undefined) {
     task.estimatedDays = Number(estimatedDays);
-    task.estimatedHours = task.estimatedDays * 8;
+    const standardHours = Number(db.employees.find(employee => employee.id === task.employeeId)?.standardHours) || 8;
+    task.estimatedHours = task.estimatedDays * standardHours;
   }
 
   if (task.progress === 100) {

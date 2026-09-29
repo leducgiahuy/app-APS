@@ -29,3 +29,30 @@ export function shiftIsoDate(isoDate, days) {
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
 }
+
+export function scheduledProgress(task, hoursPerDay = 8, now = new Date()) {
+  if (task?.status === 'completed') return 100;
+  const days = inclusiveDays(task?.startDate, task?.endDate);
+  const [, startYear, startMonth, startDay] = String(task?.startDate || '').match(/^(\d{4})-(\d{2})-(\d{2})$/) || [];
+  const start = startYear ? new Date(Number(startYear), Number(startMonth) - 1, Number(startDay)).getTime() : NaN;
+  if (!Number.isFinite(start)) return Math.max(0, Math.min(100, Number(task?.progress) || 0));
+
+  const totalPlannedHours = days * (Number(hoursPerDay) || 8);
+  const elapsedDays = Math.max(0, Math.min(days, (now.getTime() - start) / 86400000));
+  const elapsedPlannedHours = elapsedDays * (Number(hoursPerDay) || 8);
+  return Math.max(0, Math.min(100, Math.floor((elapsedPlannedHours / totalPlannedHours) * 100)));
+}
+
+export function isTaskOverdue(task, now = new Date()) {
+  if (!task?.endDate || task.status === 'completed') return false;
+  const [, year, month, day] = String(task.endDate).match(/^(\d{4})-(\d{2})-(\d{2})$/) || [];
+  if (!year) return false;
+  const endExclusive = new Date(Number(year), Number(month) - 1, Number(day) + 1).getTime();
+  return Number.isFinite(endExclusive) && now.getTime() >= endExclusive;
+}
+
+export function isTaskActiveOnDate(task, date) {
+  if (!task?.startDate || !task?.endDate || !date) return false;
+  const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  return task.startDate <= dateKey && task.endDate >= dateKey;
+}

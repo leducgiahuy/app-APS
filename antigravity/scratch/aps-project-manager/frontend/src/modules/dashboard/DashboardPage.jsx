@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { formatDateVi } from '../../utils/date';
+import { formatDateVi, scheduledProgress, isTaskOverdue } from '../../utils/date';
 import {
   BarChart3,
   Building,
@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 
 export default function DashboardPage() {
-  const { stats, projects, tasks, employees } = useApp();
+  const { stats, projects, tasks, employees, currentTime } = useApp();
 
   // Bộ lọc dự án trong bảng thống kê
   const [selectedProjectId, setSelectedProjectId] = useState('ALL');
@@ -191,6 +191,9 @@ export default function DashboardPage() {
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
               {filteredTasks.map((t) => {
                 const assignee = employees.find(e => e.id === t.employeeId);
+                const progress = scheduledProgress(t, assignee?.standardHours || 8, currentTime);
+                const overdue = isTaskOverdue(t, currentTime);
+                const progressColor = t.status === 'completed' ? 'bg-emerald-500' : overdue ? 'bg-rose-500' : progress >= 80 ? 'bg-amber-500' : 'bg-sky-600';
 
                 return (
                   <tr key={t.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
@@ -240,11 +243,13 @@ export default function DashboardPage() {
                     {/* Tiến độ % */}
                     <td className="py-3 px-3 text-center">
                       <div className="flex flex-col items-center">
-                        <span className="font-bold text-xs">{t.progress || 0}%</span>
+                        <span className={`font-bold text-xs ${overdue ? 'text-rose-600 dark:text-rose-400' : progress >= 80 && t.status !== 'completed' ? 'text-amber-600 dark:text-amber-400' : ''}`}>
+                          {progress}%{overdue ? ' · Quá hạn' : progress >= 80 && t.status !== 'completed' ? ' · Sắp hết hạn' : ''}
+                        </span>
                         <div className="w-16 h-1 bg-slate-200 dark:bg-slate-700 rounded-full mt-1">
                           <div
-                            className="h-full bg-sky-600 rounded-full"
-                            style={{ width: `${t.progress || 0}%` }}
+                            className={`h-full rounded-full transition-all ${progressColor}`}
+                            style={{ width: `${progress}%` }}
                           />
                         </div>
                       </div>

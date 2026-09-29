@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import DateInput from '../../components/DateInput';
-import { formatDateVi, inclusiveDays } from '../../utils/date';
+import { formatDateVi, inclusiveDays, scheduledProgress, isTaskOverdue, isTaskActiveOnDate } from '../../utils/date';
 import {
   CheckSquare,
   Clock,
@@ -25,6 +25,8 @@ export default function TasksPage() {
     employees,
     projects,
     overtimes,
+    currentTime,
+    selectedDate,
     addTask,
     updateTask,
     deleteTask,
@@ -38,6 +40,7 @@ export default function TasksPage() {
   // Trạng thái mở modal
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [showOtModal, setShowOtModal] = useState(false);
+  const tasksForSelectedDate = tasks.filter(task => isTaskActiveOnDate(task, selectedDate));
 
   // Form phân công task
   const [taskForm, setTaskForm] = useState({
@@ -129,10 +132,7 @@ export default function TasksPage() {
     updateTask(taskId, { speedStatus: newSpeed });
   };
 
-  // Đổi tiến độ %
-  const handleProgressChange = (taskId, newProgress) => {
-    updateTask(taskId, { progress: Number(newProgress) });
-  };
+  const handleCompleteTask = (taskId) => updateTask(taskId, { status: 'completed', progress: 100 });
 
   return (
     <div className="space-y-6">
@@ -151,7 +151,7 @@ export default function TasksPage() {
             <CheckSquare className="w-4 h-4" />
             <span>Mục 1: Phân Công Công Việc</span>
             <span className="px-2 py-0.5 rounded-full text-[10px] bg-white/20 font-mono">
-              {tasks.length}
+              {tasksForSelectedDate.length}
             </span>
           </button>
 
@@ -195,10 +195,20 @@ export default function TasksPage() {
       {activeSubTab === 'tasks' && (
         <div className="space-y-4">
           <div className="grid grid-cols-1 gap-4">
-            {tasks.map((task) => {
+            {tasksForSelectedDate.length > 0 ? tasksForSelectedDate.map((task) => {
               // Tìm thông tin nhân sự đảm nhận
               const assignee = employees.find(e => e.id === task.employeeId);
               const standardHours = assignee?.standardHours || 8;
+              const progress = scheduledProgress(task, standardHours, currentTime);
+              const isOverdue = isTaskOverdue(task, currentTime);
+              const isNearDeadline = progress >= 80 && task.status !== 'completed';
+              const progressColor = task.status === 'completed'
+                ? 'bg-emerald-500'
+                : isOverdue
+                  ? 'bg-rose-500'
+                  : isNearDeadline
+                    ? 'bg-amber-500'
+                    : 'bg-sky-600';
 
               // Định nghĩa màu trạng thái nhanh/chậm
               const speedStyles = {
@@ -324,16 +334,11 @@ export default function TasksPage() {
                     {/* Thanh tiến độ */}
                     <div className="w-full sm:w-1/2 flex items-center gap-3">
                       <span className="text-xs font-semibold text-slate-500">Tiến độ:</span>
-                      <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        value={task.progress || 0}
-                        onChange={(e) => handleProgressChange(task.id, e.target.value)}
-                        className="flex-1 accent-sky-600 h-2 bg-slate-200 dark:bg-slate-700 rounded-lg cursor-pointer"
-                      />
-                      <span className="text-xs font-mono font-bold text-sky-600 dark:text-sky-400 w-10 text-right">
-                        {task.progress || 0}%
+                      <div className="flex-1 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}>
+                        <div className={`h-full rounded-full transition-all duration-500 ${progressColor}`} style={{ width: `${progress}%` }} />
+                      </div>
+                      <span className={`text-xs font-mono font-bold w-10 text-right ${isOverdue ? 'text-rose-600 dark:text-rose-400' : isNearDeadline ? 'text-amber-600 dark:text-amber-400' : 'text-sky-600 dark:text-sky-400'}`}>
+                        {progress}%
                       </span>
                     </div>
 
@@ -370,13 +375,33 @@ export default function TasksPage() {
                       >
                         Chậm trễ
                       </button>
+                      {task.status !== 'completed' && (
+                        <button
+                          onClick={() => handleCompleteTask(task.id)}
+                          className="ml-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-500 transition-colors"
+                        >
+                          Hoàn thành
+                        </button>
+                      )}
                     </div>
 
                   </div>
 
+                  {(isOverdue || isNearDeadline) && task.status !== 'completed' && (
+                    <p role="status" className={`-mt-2 text-xs font-semibold ${isOverdue ? 'text-rose-600 dark:text-rose-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                      {isOverdue
+                        ? 'Đã hết thời gian dự kiến. Hãy cập nhật trạng thái hoàn thành.'
+                        : 'Task sắp hết thời gian dự kiến. Hãy theo dõi và xác nhận khi hoàn thành.'}
+                    </p>
+                  )}
+
                 </div>
               );
-            })}
+            }) : (
+              <div className="p-8 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 text-center text-sm text-slate-500 dark:text-slate-400">
+                Không có task nào được phân công vào ngày {formatDateVi(`${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`)}.
+              </div>
+            )}
           </div>
         </div>
       )}

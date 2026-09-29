@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import DateInput from '../../components/DateInput';
-import { formatDateVi, inclusiveDays } from '../../utils/date';
+import { formatDateVi, inclusiveDays, scheduledProgress, isTaskOverdue } from '../../utils/date';
 import {
   CalendarRange,
   Plus,
@@ -21,12 +21,36 @@ import {
   Pencil
 } from 'lucide-react';
 
+// Danh sách 64 đơn vị cấp tỉnh theo yêu cầu (giai đoạn 2004–2008).
+const VIETNAM_PROVINCES_AND_CITIES = [
+  'An Giang', 'Bà Rịa - Vũng Tàu', 'Bạc Liêu', 'Bắc Giang', 'Bắc Kạn', 'Bắc Ninh',
+  'Bến Tre', 'Bình Định', 'Bình Dương', 'Bình Phước', 'Bình Thuận', 'Cà Mau',
+  'Thành phố Cần Thơ', 'Cao Bằng', 'Thành phố Đà Nẵng', 'Đắk Lắk', 'Đắk Nông',
+  'Điện Biên', 'Đồng Nai', 'Đồng Tháp', 'Gia Lai', 'Hà Giang', 'Hà Nam',
+  'Thành phố Hà Nội', 'Hà Tây', 'Hà Tĩnh', 'Hải Dương', 'Thành phố Hải Phòng',
+  'Hậu Giang', 'Hòa Bình', 'Hưng Yên', 'Khánh Hòa', 'Kiên Giang', 'Kon Tum',
+  'Lai Châu', 'Lâm Đồng', 'Lạng Sơn', 'Lào Cai', 'Long An', 'Nam Định',
+  'Nghệ An', 'Ninh Bình', 'Ninh Thuận', 'Phú Thọ', 'Phú Yên', 'Quảng Bình',
+  'Quảng Nam', 'Quảng Ngãi', 'Quảng Ninh', 'Quảng Trị', 'Sóc Trăng', 'Sơn La',
+  'Tây Ninh', 'Thái Bình', 'Thái Nguyên', 'Thanh Hóa', 'Thừa Thiên - Huế',
+  'Tiền Giang', 'Trà Vinh', 'Tuyên Quang', 'Vĩnh Long', 'Vĩnh Phúc', 'Yên Bái',
+  'Thành phố Hồ Chí Minh'
+];
+
+const normalizeLocationSearch = (value) => String(value || '')
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .replace(/[đĐ]/g, 'd')
+  .toLocaleLowerCase('vi');
+
 export default function GanttPage() {
   const {
     ganttItems,
     tasks,
     projects,
     employees,
+    currentTime,
+    sidebarCollapsed,
     addGanttItem,
     moveGanttItem,
     deleteGanttItem,
@@ -47,6 +71,8 @@ export default function GanttPage() {
   // Trạng thái modal
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
   const [showAddProjectModal, setShowAddProjectModal] = useState(false);
+  const [locationSuggestionsOpen, setLocationSuggestionsOpen] = useState(false);
+  const [locationSearch, setLocationSearch] = useState('');
   const [editingItem, setEditingItem] = useState(null);
   const [editForm, setEditForm] = useState({ startDate: '', endDate: '', days: 1 });
 
@@ -102,6 +128,9 @@ export default function GanttPage() {
     startDate: '2026-11-01',
     endDate: '2027-07-02'
   });
+  const matchingLocations = VIETNAM_PROVINCES_AND_CITIES.filter(location =>
+    normalizeLocationSearch(location).includes(normalizeLocationSearch(locationSearch.trim()))
+  );
 
   // Lọc theo dự án trước khi tính timeline và vẽ các thanh Gantt.
   const filteredGanttItems = useMemo(() => {
@@ -183,9 +212,10 @@ export default function GanttPage() {
 
   // Chiều cao mỗi dòng trong bảng & biểu đồ (khóa cứng pixel để không bao giờ bị lệch)
   const ROW_HEIGHT = 44;
-  const HEADER_HEIGHT = 52;
+  const HEADER_HEIGHT = zoomLevel === 'day' ? 76 : 52;
   const BAR_HEIGHT = 24;
   const LEFT_PANEL_WIDTH = 792;
+  const chartBodyHeight = Math.max(sidebarCollapsed ? 360 : 200, filteredGanttItems.length * ROW_HEIGHT + 20);
 
   // Tính tọa độ vị trí (x, width, y) của từng thanh Gantt bên trong SVG (bắt đầu từ y = 0)
   const taskCoordinates = useMemo(() => {
@@ -475,7 +505,9 @@ export default function GanttPage() {
         </div>
 
         {/* Khung cuộn ngang chứa cả Bảng bên trái + Biểu đồ bên phải */}
-        <div className="overflow-x-auto relative isolate max-h-[700px] overflow-y-auto">
+        <div className={`overflow-x-auto relative isolate overflow-y-auto ${
+          sidebarCollapsed ? 'max-h-[calc(100vh-220px)]' : 'max-h-[700px]'
+        }`}>
           <div className="flex" style={{ width: `${LEFT_PANEL_WIDTH + ganttWidth}px`, minWidth: '100%' }}>
             
             {/* ================= KHUNG TRÁI: BẢNG DỮ LIỆU CÔNG VIỆC (ĐÓNG BĂNG FREEZE) ================= */}
@@ -483,7 +515,8 @@ export default function GanttPage() {
               
               {/* Header Bảng Bên Trái - Khóa cứng 52px */}
               <div
-                className="sticky top-0 z-50 bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider h-[52px] min-h-[52px] max-h-[52px] box-border"
+                className="sticky top-0 z-50 bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider box-border"
+                style={{ height: `${HEADER_HEIGHT}px`, minHeight: `${HEADER_HEIGHT}px`, maxHeight: `${HEADER_HEIGHT}px` }}
               >
                 <div className="w-14 min-w-[56px] text-center py-2 px-1 border-r border-slate-200 dark:border-slate-700 shrink-0">STT</div>
                 <div className="w-[240px] min-w-[240px] max-w-[240px] py-2 px-3 border-r border-slate-200 dark:border-slate-700 whitespace-nowrap truncate shrink-0">CÔNG VIỆC TRONG DỰ ÁN</div>
@@ -496,7 +529,7 @@ export default function GanttPage() {
               </div>
 
               {/* Danh Sách Các Hàng Công Việc (Khóa cứng 44px mỗi dòng) */}
-              <div>
+              <div style={{ minHeight: `${chartBodyHeight}px` }}>
                 {filteredGanttItems.map((item) => {
                   const isGroup = item.isGroup;
                   const isHoliday = item.status === 'holiday';
@@ -608,29 +641,42 @@ export default function GanttPage() {
               
               {/* Header Tháng & Tuần của Biểu Đồ Gantt - Khóa cứng 52px */}
               <div
-                className="sticky top-0 z-30 bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex h-[52px] min-h-[52px] max-h-[52px] box-border"
-                style={{ width: `${ganttWidth}px` }}
+                className="sticky top-0 z-30 bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex box-border"
+                style={{ width: `${ganttWidth}px`, height: `${HEADER_HEIGHT}px`, minHeight: `${HEADER_HEIGHT}px`, maxHeight: `${HEADER_HEIGHT}px` }}
               >
                 {monthColumns.map((col, idx) => (
                   <div
                     key={idx}
-                    className="border-r border-slate-200 dark:border-slate-700 flex flex-col justify-center items-center px-1 text-center select-none"
+                    className={`border-r border-slate-200 dark:border-slate-700 flex flex-col items-center text-center select-none overflow-hidden ${zoomLevel === 'day' ? 'justify-start px-0' : 'justify-center px-1'}`}
                     style={{ width: `${col.width}px` }}
                   >
-                    <span className="font-extrabold text-xs text-sky-600 dark:text-sky-400">
+                    <span className={`font-extrabold text-xs text-sky-600 dark:text-sky-400 ${zoomLevel === 'day' ? 'flex h-[28px] min-h-[28px] items-center' : ''}`}>
                       {col.label}
                     </span>
-                    <span className="text-[10px] text-slate-400 font-mono">
-                      Tuần 1-4
-                    </span>
+                    {zoomLevel === 'day' ? (
+                      <div className="flex h-6 min-h-6 w-full border-t border-slate-200 dark:border-slate-700">
+                        {Array.from({ length: Math.round(col.width / pxPerDay) }, (_, dayIndex) => (
+                          <div
+                            key={dayIndex + 1}
+                            className="flex h-full shrink-0 items-center justify-center border-r border-slate-200/80 text-[9px] font-medium leading-none text-slate-500 last:border-r-0 dark:border-slate-700 dark:text-slate-400"
+                            style={{ width: `${pxPerDay}px` }}
+                            title={`${dayIndex + 1} · ${col.label}`}
+                          >
+                            {dayIndex + 1}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-[10px] text-slate-400 font-mono">Tuần 1-4</span>
+                    )}
                   </div>
                 ))}
               </div>
 
               {/* Lưới Nền (Grid Lines) */}
               <div
-                className="absolute inset-0 top-[52px] pointer-events-none flex"
-                style={{ width: `${ganttWidth}px`, height: `${filteredGanttItems.length * ROW_HEIGHT}px` }}
+                className="absolute inset-x-0 pointer-events-none flex"
+                style={{ width: `${ganttWidth}px`, height: `${chartBodyHeight}px`, top: `${HEADER_HEIGHT}px` }}
               >
                 {monthColumns.map((col, idx) => (
                   <div
@@ -644,7 +690,7 @@ export default function GanttPage() {
               {/* KHUNG VẼ THANH GANTT & ĐƯỜNG MŨI TÊN FS BẰNG SVG CHÍNH XÁC */}
               <svg
                 width={ganttWidth}
-                height={Math.max(200, filteredGanttItems.length * ROW_HEIGHT + 20)}
+                height={chartBodyHeight}
                 className="relative z-0 block"
               >
                 <defs>
@@ -714,6 +760,11 @@ export default function GanttPage() {
 
                   const isGroup = item.isGroup;
                   const isHoliday = item.status === 'holiday';
+                  const linkedTask = tasks.find(task => task.ganttId === item.id);
+                  const assignee = employees.find(employee => employee.id === linkedTask?.employeeId || employee.name === item.assignee);
+                  const progressTask = linkedTask || item;
+                  const progress = scheduledProgress(progressTask, assignee?.standardHours || 8, currentTime);
+                  const overdue = isTaskOverdue(progressTask, currentTime);
 
                   // Chọn màu gradient
                   let fillColor = 'url(#grad-sky)';
@@ -763,6 +814,22 @@ export default function GanttPage() {
                         />
                       )}
 
+                      {!isGroup && progress > 0 && (
+                        <rect
+                          x={coord.x}
+                          y={coord.y}
+                          width={coord.width * progress / 100}
+                          height={coord.height}
+                          rx="6"
+                          ry="6"
+                          fill={overdue ? '#ef4444' : progress >= 80 && progressTask.status !== 'completed' ? '#f59e0b' : '#10b981'}
+                          fillOpacity="0.78"
+                          className="pointer-events-none transition-all duration-500"
+                        >
+                          <title>{`Tiến độ theo thời gian: ${progress}%${overdue ? ' · Quá hạn' : ''}`}</title>
+                        </rect>
+                      )}
+
                       {/* Nhãn trên thanh hoặc cạnh thanh: Tên người đảm nhận, thời gian, tăng ca */}
                       <text
                         x={coord.endX + 8}
@@ -781,6 +848,12 @@ export default function GanttPage() {
                         )}
                         {item.speed === 'delayed' && (
                           <tspan fill="#ef4444" fontWeight="bold"> [Chậm]</tspan>
+                        )}
+                        {overdue && (
+                          <tspan fill="#ef4444" fontWeight="bold"> [Quá hạn]</tspan>
+                        )}
+                        {!overdue && progress >= 80 && progressTask.status !== 'completed' && (
+                          <tspan fill="#f59e0b" fontWeight="bold"> [Sắp hết hạn]</tspan>
                         )}
                       </text>
 
@@ -1144,17 +1217,66 @@ export default function GanttPage() {
                   />
                 </div>
 
-                <div>
+                <div className="relative">
                   <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
                     Địa Điểm
                   </label>
                   <input
                     type="text"
-                    placeholder="Hòa Lạc, Hà Nội"
+                    placeholder="Tìm tỉnh hoặc thành phố"
                     value={projectForm.location}
-                    onChange={(e) => setProjectForm({ ...projectForm, location: e.target.value })}
+                    autoComplete="off"
+                    role="combobox"
+                    aria-expanded={locationSuggestionsOpen && matchingLocations.length > 0}
+                    aria-controls="project-location-options"
+                    onFocus={() => {
+                      setLocationSearch('');
+                      setLocationSuggestionsOpen(true);
+                    }}
+                    onChange={(e) => {
+                      setLocationSearch(e.target.value);
+                      setProjectForm({ ...projectForm, location: e.target.value });
+                      setLocationSuggestionsOpen(true);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') setLocationSuggestionsOpen(false);
+                      if (e.key === 'Enter' && locationSuggestionsOpen && matchingLocations.length > 0) {
+                        e.preventDefault();
+                        setProjectForm({ ...projectForm, location: matchingLocations[0] });
+                        setLocationSearch('');
+                        setLocationSuggestionsOpen(false);
+                      }
+                    }}
+                    onBlur={() => setTimeout(() => {
+                      setLocationSearch('');
+                      setLocationSuggestionsOpen(false);
+                    }, 120)}
                     className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
                   />
+                  {locationSuggestionsOpen && matchingLocations.length > 0 && (
+                    <ul
+                      id="project-location-options"
+                      role="listbox"
+                      className="absolute z-50 mt-1 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-xl dark:border-slate-700 dark:bg-slate-800"
+                    >
+                      {matchingLocations.map(location => (
+                        <li key={location} role="option" aria-selected={projectForm.location === location}>
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => {
+                              setProjectForm({ ...projectForm, location });
+                              setLocationSearch('');
+                              setLocationSuggestionsOpen(false);
+                            }}
+                            className="w-full px-3 py-2 text-left text-xs text-slate-700 hover:bg-sky-50 hover:text-sky-700 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-sky-300"
+                          >
+                            {location}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               </div>
 

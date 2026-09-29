@@ -17,6 +17,7 @@ export function AppProvider({ children }) {
 
   // Ngày được chọn trên thanh điều hướng ngày
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [dateFollowsToday, setDateFollowsToday] = useState(true);
 
   // Trạng thái thu gọn Sidebar
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -38,6 +39,17 @@ export function AppProvider({ children }) {
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3500);
+  };
+
+  const announceAutoCheckout = (response) => {
+    const endedIds = response?.meta?.autoCheckedOutIds || [];
+    if (!endedIds.length) return;
+    const endedNames = (response.data || [])
+      .filter(employee => endedIds.includes(employee.id))
+      .map(employee => employee.name);
+    if (endedNames.length) {
+      showToast(`Đã đủ giờ ca làm. ${endedNames.join(', ')} đã được tự động kết thúc ca; trạng thái đã chuyển về “Vào công trường”.`, 'info');
+    }
   };
 
   // Cập nhật Dark Mode trên HTML root element
@@ -62,8 +74,19 @@ export function AppProvider({ children }) {
     return () => clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+    if (!dateFollowsToday) return;
+    setSelectedDate(previous => {
+      if (previous.getFullYear() === currentTime.getFullYear() &&
+          previous.getMonth() === currentTime.getMonth() &&
+          previous.getDate() === currentTime.getDate()) return previous;
+      return new Date(currentTime.getFullYear(), currentTime.getMonth(), currentTime.getDate());
+    });
+  }, [currentTime, dateFollowsToday]);
+
   // Điều hướng ngày: Hôm trước, Hôm nay, Hôm sau
   const goToPrevDay = () => {
+    setDateFollowsToday(false);
     setSelectedDate(prev => {
       const d = new Date(prev);
       d.setDate(d.getDate() - 1);
@@ -72,6 +95,7 @@ export function AppProvider({ children }) {
   };
 
   const goToNextDay = () => {
+    setDateFollowsToday(false);
     setSelectedDate(prev => {
       const d = new Date(prev);
       d.setDate(d.getDate() + 1);
@@ -80,7 +104,14 @@ export function AppProvider({ children }) {
   };
 
   const goToToday = () => {
+    setDateFollowsToday(true);
     setSelectedDate(new Date());
+  };
+
+  const selectDate = (date) => {
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) return;
+    setDateFollowsToday(false);
+    setSelectedDate(new Date(date.getFullYear(), date.getMonth(), date.getDate()));
   };
 
   // Tải toàn bộ dữ liệu từ Backend
@@ -96,6 +127,7 @@ export function AppProvider({ children }) {
       ]);
 
       if (empRes?.data) setEmployees(empRes.data);
+      announceAutoCheckout(empRes);
       if (taskRes?.data) {
         setTasks(taskRes.data.tasks || []);
         setOvertimes(taskRes.data.overtimes || []);
@@ -115,23 +147,28 @@ export function AppProvider({ children }) {
     refreshAllData();
   }, []);
 
+  // Poll the employee endpoint while shifts are active. The backend persists
+  // automatic check-out as soon as each employee reaches their daily hours.
+  useEffect(() => {
+    if (!employees.some(employee => employee.isOnSite && employee.checkInAt)) return undefined;
+    const timer = setInterval(async () => {
+      try {
+        const response = await api.getEmployees();
+        if (response?.data) setEmployees(response.data);
+        announceAutoCheckout(response);
+      } catch (error) {
+        console.warn('Không thể đồng bộ trạng thái ca làm:', error.message);
+      }
+    }, 15000);
+    return () => clearInterval(timer);
+  }, [employees]);
+
   // Hành động: Chuyển trạng thái điểm danh nhân sự (On-site / Vắng mặt)
   const toggleOnSite = async (id) => {
     try {
       const res = await api.toggleOnSite(id);
       showToast(res.message || 'Cập nhật trạng thái thành công');
-      // Cập nhật state trực tiếp
-      setEmployees(prev => prev.map(emp => {
-        if (emp.id === id) {
-          const newStatus = !emp.isOnSite;
-          return {
-            ...emp,
-            isOnSite: newStatus,
-            checkInTime: newStatus ? new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : null
-          };
-        }
-        return emp;
-      }));
+      if (res.data) setEmployees(prev => prev.map(emp => emp.id === id ? { ...emp, ...res.data } : emp));
     } catch (err) {
       showToast('Lỗi khi cập nhật trạng thái', 'error');
     }
@@ -314,6 +351,7 @@ export function AppProvider({ children }) {
         currentTime,
         selectedDate,
         setSelectedDate,
+        selectDate,
         goToPrevDay,
         goToNextDay,
         goToToday,

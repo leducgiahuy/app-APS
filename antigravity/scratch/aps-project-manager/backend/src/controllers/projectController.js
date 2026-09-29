@@ -122,16 +122,26 @@ export function deleteProject(req, res) {
     return res.status(404).json({ success: false, message: 'Không tìm thấy dự án' });
   }
 
-  const matchesProject = item => item.projectId === id || (!item.projectId && id === 'proj-1');
-  const projectGanttIds = new Set((db.ganttItems || []).filter(matchesProject).map(item => item.id));
-  const deletedTaskIds = new Set();
+  const projectName = db.projects[projectIndex].name;
+  const allTasks = db.tasks || [];
+  const allGanttItems = db.ganttItems || [];
+  const taskByGanttId = new Map(allTasks.filter(task => task.ganttId).map(task => [task.ganttId, task]));
+  const taskBelongsToProject = task => task.projectId === id ||
+    (!task.projectId && task.projectName === projectName);
+  const ganttBelongsToProject = item => {
+    const linkedTask = taskByGanttId.get(item.id);
+    return item.projectId === id ||
+      linkedTask?.projectId === id ||
+      (!item.projectId && linkedTask?.projectName === projectName) ||
+      (!item.projectId && !linkedTask && id === 'proj-1');
+  };
+  const projectGanttIds = new Set(allGanttItems.filter(ganttBelongsToProject).map(item => item.id));
+  const deletedTaskIds = new Set(allTasks
+    .filter(task => taskBelongsToProject(task) || projectGanttIds.has(task.ganttId))
+    .map(task => task.id));
 
-  db.ganttItems = (db.ganttItems || []).filter(item => !matchesProject(item));
-  db.tasks = (db.tasks || []).filter(task => {
-    const belongsToProject = matchesProject(task) || projectGanttIds.has(task.ganttId);
-    if (belongsToProject) deletedTaskIds.add(task.id);
-    return !belongsToProject;
-  });
+  db.ganttItems = allGanttItems.filter(item => !projectGanttIds.has(item.id));
+  db.tasks = allTasks.filter(task => !deletedTaskIds.has(task.id));
   db.overtimes = (db.overtimes || []).filter(overtime => !deletedTaskIds.has(overtime.taskId));
   db.ganttItems.forEach(item => {
     if (Array.isArray(item.dependencies)) {
@@ -145,7 +155,9 @@ export function deleteProject(req, res) {
   return res.json({
     success: true,
     message: `Đã xóa dự án "${removedProject.name}" và toàn bộ dữ liệu liên quan`,
-    data: removedProject
+    data: removedProject,
+    deletedGanttIds: [...projectGanttIds],
+    deletedTaskIds: [...deletedTaskIds]
   });
 }
 
@@ -206,6 +218,10 @@ export function updateGanttItem(req, res) {
 
   const shiftedIds = new Set();
   if (shiftDays !== 0) {
+    const sourceIndex = sameProjectItems.findIndex(ganttItem => ganttItem.id === id);
+    // Move every later row in the same project so the planned spacing between
+    // consecutive tasks stays intact, including rows with an explicit FS link.
+    sameProjectItems.slice(sourceIndex + 1).forEach(ganttItem => shiftedIds.add(ganttItem.id));
     const pending = [...(successorIds.get(id) || [])];
     while (pending.length) {
       const successorId = pending.shift();
@@ -235,7 +251,8 @@ export function updateGanttItem(req, res) {
       task.startDate = linkedById || linkedLegacyTask ? nextStartDate : (db.ganttItems.find(ganttItem => ganttItem.id === task.ganttId)?.startDate || task.startDate);
       task.endDate = linkedById || linkedLegacyTask ? nextEndDate : (db.ganttItems.find(ganttItem => ganttItem.id === task.ganttId)?.endDate || task.endDate);
       task.estimatedDays = linkedById || linkedLegacyTask ? calculatedDays : Math.floor((Date.parse(`${task.endDate}T00:00:00Z`) - Date.parse(`${task.startDate}T00:00:00Z`)) / 86400000) + 1;
-      task.estimatedHours = task.estimatedDays * 8;
+      const standardHours = Number(db.employees.find(employee => employee.id === task.employeeId)?.standardHours) || 8;
+      task.estimatedHours = task.estimatedDays * standardHours;
     }
   });
 
@@ -363,7 +380,7 @@ export function createGanttItem(req, res) {
       employeeName: emp ? emp.name : newItem.assignee,
       startDate: newItem.startDate,
       endDate: newItem.endDate,
-      estimatedHours: newItem.days * 8,
+      estimatedHours: newItem.days * (Number(emp?.standardHours) || 8),
       estimatedDays: newItem.days,
       status: 'in_progress',
       speedStatus: newItem.speed || 'on_time',

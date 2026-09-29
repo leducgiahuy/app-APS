@@ -6,9 +6,48 @@ import { readDb, writeDb } from '../models/db.js';
  * và số lượng task được giao cho từng người (đồng bộ 2 chiều với Gantt & Task).
  */
 
+function migrateLegacyCheckIn(emp, now) {
+  if (!emp.isOnSite || emp.checkInAt) return false;
+  const match = String(emp.checkInTime || '').match(/(\d{1,2}):(\d{2})/);
+  const checkedIn = new Date(now);
+  if (match) checkedIn.setHours(Number(match[1]), Number(match[2]), 0, 0);
+  if (checkedIn > now) checkedIn.setDate(checkedIn.getDate() - 1);
+  emp.checkInAt = checkedIn.toISOString();
+  return true;
+}
+
+function closeExpiredShifts(db, now = new Date()) {
+  const autoCheckedOutIds = [];
+  let changed = false;
+
+  (db.employees || []).forEach(emp => {
+    if (migrateLegacyCheckIn(emp, now)) changed = true;
+    if (!emp.isOnSite || !emp.checkInAt) return;
+
+    const standardHours = Number(emp.standardHours) > 0 ? Number(emp.standardHours) : 8;
+    const checkInTimestamp = Date.parse(emp.checkInAt);
+    const shiftEndTimestamp = checkInTimestamp + standardHours * 60 * 60 * 1000;
+    if (!Number.isFinite(checkInTimestamp) || now.getTime() < shiftEndTimestamp) return;
+
+    const shiftEnd = new Date(shiftEndTimestamp);
+    emp.isOnSite = false;
+    emp.lastShiftCheckInAt = emp.checkInAt;
+    emp.lastShiftCheckOutAt = shiftEnd.toISOString();
+    emp.lastShiftCheckOutTime = shiftEnd.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+    emp.checkInAt = null;
+    emp.checkInTime = null;
+    autoCheckedOutIds.push(emp.id);
+    changed = true;
+  });
+
+  if (changed) writeDb(db);
+  return autoCheckedOutIds;
+}
+
 // Lấy danh sách toàn bộ nhân sự kèm số task đang phụ trách
 export function getEmployees(req, res) {
   const db = readDb();
+  const autoCheckedOutIds = closeExpiredShifts(db);
   const tasks = db.tasks || [];
   const ganttItems = db.ganttItems || [];
   const overtimes = db.overtimes || [];
@@ -30,6 +69,8 @@ export function getEmployees(req, res) {
           assignedTasks.push({
             id: g.id,
             title: g.title,
+          startDate: g.startDate,
+          endDate: g.endDate,
             status: g.status || 'in_progress',
             speedStatus: g.speed || 'on_time'
           });
@@ -46,7 +87,13 @@ export function getEmployees(req, res) {
     return {
       ...emp,
       taskCount: assignedTasks.length,
-      tasks: assignedTasks.map(t => ({ id: t.id, title: t.title, status: t.status })),
+      tasks: assignedTasks.map(t => ({
+        id: t.id,
+        title: t.title,
+        status: t.status,
+        startDate: t.startDate,
+        endDate: t.endDate
+      })),
       totalOtHours: Math.round(totalOtHours * 10) / 10
     };
   });
@@ -57,7 +104,8 @@ export function getEmployees(req, res) {
     meta: {
       total: employeesWithStats.length,
       onSiteCount: employeesWithStats.filter(e => e.isOnSite).length,
-      standardHoursPerPerson: 8
+      standardHoursPerPerson: 8,
+      autoCheckedOutIds
     }
   });
 }
@@ -80,8 +128,9 @@ export function createEmployee(req, res) {
     phone: phone || 'Đang cập nhật',
     email: email || '',
     standardHours: Number(standardHours) || 8,
-    isOnSite: true,
-    checkInTime: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+    isOnSite: false,
+    checkInAt: null,
+    checkInTime: null,
     avatar: `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80`
   };
 
@@ -105,10 +154,16 @@ export function toggleOnSite(req, res) {
     return res.status(404).json({ success: false, message: 'Không tìm thấy nhân sự' });
   }
 
+  const now = new Date();
   emp.isOnSite = !emp.isOnSite;
   if (emp.isOnSite) {
-    emp.checkInTime = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+    emp.checkInAt = now.toISOString();
+    emp.checkInTime = now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
   } else {
+    emp.lastShiftCheckInAt = emp.checkInAt || null;
+    emp.lastShiftCheckOutAt = now.toISOString();
+    emp.lastShiftCheckOutTime = now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+    emp.checkInAt = null;
     emp.checkInTime = null;
   }
 

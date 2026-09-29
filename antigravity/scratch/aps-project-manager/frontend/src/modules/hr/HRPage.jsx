@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import { isTaskActiveOnDate } from '../../utils/date';
 import {
   Users,
   UserCheck,
@@ -21,6 +22,7 @@ import {
 export default function HRPage() {
   const {
     employees,
+    tasks: allTasks,
     toggleOnSite,
     addEmployee,
     deleteEmployee,
@@ -193,6 +195,11 @@ export default function HRPage() {
       {/* Lưới danh sách nhân sự (Personnel Cards Grid) */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
         {filteredEmployees.map((emp) => {
+          const activeTasks = allTasks.filter(task => {
+            const assignedById = task.employeeId === emp.id;
+            const assignedByName = (task.employeeName || '').trim().toLowerCase() === emp.name.trim().toLowerCase();
+            return (assignedById || assignedByName) && isTaskActiveOnDate(task, selectedDate);
+          });
           return (
             <div
               key={emp.id}
@@ -248,14 +255,14 @@ export default function HRPage() {
                       Công việc phụ trách:
                     </span>
                     <span className="font-bold text-sky-600 dark:text-sky-400 px-2 py-0.5 rounded-full bg-sky-500/10">
-                      {emp.taskCount || 0} task
+                      {activeTasks.length} task
                     </span>
                   </div>
 
                   {/* Danh sách các task dưới dạng tag */}
-                  {emp.tasks && emp.tasks.length > 0 ? (
+                  {activeTasks.length > 0 ? (
                     <div className="mt-2 space-y-1">
-                      {emp.tasks.map((t, idx) => (
+                      {activeTasks.map((t, idx) => (
                         <div
                           key={idx}
                           className="text-[11px] text-slate-700 dark:text-slate-300 truncate flex items-center gap-1.5"

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 import {
   Menu,
@@ -20,6 +20,7 @@ export default function Header() {
     toggleTheme,
     currentTime,
     selectedDate,
+    selectDate,
     goToPrevDay,
     goToNextDay,
     goToToday,
@@ -47,6 +48,15 @@ export default function Header() {
   };
 
   const currentInfo = pageTitles[activeTab] || pageTitles.hr;
+  const dayPickerRef = useRef(null);
+  const selectedDateValue = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
+
+  const openDayPicker = () => {
+    const picker = dayPickerRef.current;
+    if (!picker) return;
+    if (typeof picker.showPicker === 'function') picker.showPicker();
+    else picker.click();
+  };
 
   // Format ngày tháng tiếng Việt
   const formatVietnameseDate = (date) => {
@@ -110,9 +120,29 @@ export default function Header() {
               <ChevronLeft className="w-4 h-4" />
             </button>
 
-            <span className="px-2 text-xs font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap">
-              {formatVietnameseDate(selectedDate)}
-            </span>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={openDayPicker}
+                title="Mở lịch để chọn ngày"
+                className="inline-flex items-center gap-1.5 px-2 text-xs font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap hover:text-sky-600 dark:hover:text-sky-400"
+              >
+                <Calendar className="w-3.5 h-3.5" />
+                {formatVietnameseDate(selectedDate)}
+              </button>
+              <input
+                ref={dayPickerRef}
+                type="date"
+                value={selectedDateValue}
+                onChange={(event) => {
+                  const [year, month, day] = event.target.value.split('-').map(Number);
+                  if (year && month && day) selectDate(new Date(year, month - 1, day));
+                }}
+                tabIndex={-1}
+                aria-hidden="true"
+                className="pointer-events-none absolute left-1/2 top-1/2 h-px w-px -translate-x-1/2 -translate-y-1/2 opacity-0"
+              />
+            </div>
 
             <button
               onClick={goToNextDay}
