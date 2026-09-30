@@ -1,4 +1,4 @@
-import React from 'react';
+import { useEffect } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
@@ -7,54 +7,46 @@ import HRPage from './modules/hr/HRPage';
 import TasksPage from './modules/tasks/TasksPage';
 import GanttPage from './modules/gantt/GanttPage';
 import DashboardPage from './modules/dashboard/DashboardPage';
+import LoginPage from './modules/auth/LoginPage';
+import AccountPage from './modules/auth/AccountPage';
+import AdminActivityPage from './modules/auth/AdminActivityPage';
+import { hasAuthSession } from './modules/auth/authSession';
+import { getCurrentUser } from './modules/auth/authSession';
 
 function MainLayout() {
   const { activeTab, sidebarCollapsed } = useApp();
-
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col transition-colors duration-200">
-      
-      {/* 1. Sidebar bên trái (Collapsible trên Desktop & Drawer trên Mobile) */}
+    <div className="app-shell min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col transition-colors duration-200">
       <Sidebar />
-
-      {/* 2. Khung nội dung chính tự căn chỉnh theo kích thước Sidebar */}
-      <div
-        className={`flex-1 flex flex-col transition-all duration-300 ${
-          sidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72'
-        }`}
-      >
-        {/* Header trên cùng (Đồng hồ số thời gian thực, Chọn ngày, Light/Dark mode) */}
+      <div className={`flex-1 flex flex-col transition-all duration-300 ${sidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72'}`}>
         <Header />
-
-        {/* Nội dung trang theo từng phân hệ */}
-        <main className={`flex-1 w-full animate-fade-in ${
-          activeTab === 'gantt' && sidebarCollapsed
-            ? 'max-w-none mx-0 p-3 sm:p-4 lg:p-5'
-            : 'p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto'
-        }`}>
+        <main className={`flex-1 w-full animate-fade-in ${activeTab === 'gantt' && sidebarCollapsed ? 'max-w-none mx-0 p-3 sm:p-4 lg:p-5' : 'p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto'}`}>
           {activeTab === 'hr' && <HRPage />}
           {activeTab === 'tasks' && <TasksPage />}
           {activeTab === 'gantt' && <GanttPage />}
           {activeTab === 'dashboard' && <DashboardPage />}
+          {activeTab === 'activity' && getCurrentUser()?.role === 'admin' && <AdminActivityPage />}
         </main>
-
-        {/* Footer ghi nhận bản quyền APS Việt Nam */}
-        <footer className="py-4 px-6 border-t border-slate-200 dark:border-slate-800 text-center text-xs text-slate-400">
-          <p>© 2026 CÔNG TY GIẢI PHÁP CHÂU Á THÁI BÌNH DƯƠNG VIỆT NAM (APS VIỆT NAM) - CỔNG QUẢN LÝ DỰ ÁN & NHÂN SỰ CÔNG TRƯỜNG</p>
-        </footer>
+        <footer className="py-4 px-6 border-t border-slate-200 dark:border-slate-800 text-center text-xs text-slate-400">© 2026 APS Việt Nam · Quản lý dự án và nhân sự công trường</footer>
       </div>
-
-      {/* Thông báo dạng Toast nổi bật */}
       <Toast />
-
     </div>
   );
 }
 
 export default function App() {
-  return (
-    <AppProvider>
-      <MainLayout />
-    </AppProvider>
-  );
+  const isLoginRoute = window.location.pathname === '/login';
+  const isAccountRoute = window.location.pathname === '/account';
+  const isAuthenticated = hasAuthSession();
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', localStorage.getItem('aps_theme') === 'dark');
+    if (!isAuthenticated && (!isLoginRoute || isAccountRoute)) window.location.replace('/login');
+    if (isAuthenticated && isLoginRoute) window.location.replace('/');
+  }, [isAuthenticated, isLoginRoute, isAccountRoute]);
+
+  if (isAccountRoute && isAuthenticated) return <AccountPage />;
+  if (isLoginRoute && !isAuthenticated) return <LoginPage />;
+  if (!isAuthenticated) return null;
+  return <AppProvider><MainLayout /></AppProvider>;
 }

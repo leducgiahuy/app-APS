@@ -5,14 +5,15 @@ import {
   CheckSquare,
   CalendarRange,
   BarChart3,
+  Activity,
   ChevronLeft,
   ChevronRight,
-  HardHat,
   X,
   Building2,
   Clock,
   ShieldCheck
 } from 'lucide-react';
+import { getCurrentUser } from '../../modules/auth/authSession';
 
 export default function Sidebar() {
   const {
@@ -29,6 +30,7 @@ export default function Sidebar() {
   // Đếm số lượng nhanh cho badge menu
   const onSiteCount = employees.filter(e => e.isOnSite).length;
   const inProgressTaskCount = tasks.filter(t => t.status === 'in_progress').length;
+  const isAdmin = getCurrentUser()?.role === 'admin';
 
   const menuItems = [
     {
@@ -61,6 +63,17 @@ export default function Sidebar() {
     }
   ];
 
+  // Chỉ thêm trang nhật ký vào menu của phiên quản trị viên.
+  if (isAdmin) {
+    menuItems.push({
+      id: 'activity',
+      label: 'Nhật Ký Hoạt Động',
+      icon: Activity,
+      badge: 'ADMIN',
+      badgeColor: 'bg-amber-500/10 text-amber-700 border-amber-500/20',
+    });
+  }
+
   const handleSelectTab = (tabId) => {
     setActiveTab(tabId);
     setMobileMenuOpen(false);
@@ -86,19 +99,9 @@ export default function Sidebar() {
         {/* Header của Sidebar: Logo APS Vietnam */}
         <div className="h-18 flex items-center justify-between px-4 border-b border-slate-200 dark:border-slate-800">
           <div className="flex items-center gap-3 overflow-hidden">
-            <div className="flex items-center justify-center w-11 h-11 rounded-xl bg-gradient-to-tr from-sky-600 to-blue-700 text-white shadow-md shadow-sky-500/20 flex-shrink-0">
-              <HardHat className="w-6 h-6 animate-pulse" />
-            </div>
-            {!sidebarCollapsed && (
-              <div className="flex flex-col truncate">
-                <span className="font-black text-lg tracking-wider text-slate-900 dark:text-white uppercase flex items-center gap-1">
-                  APS <span className="text-sky-600 dark:text-sky-400">VIETNAM</span>
-                </span>
-                <span className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                  Giải Pháp Châu Á Thái Bình Dương
-                </span>
-              </div>
-            )}
+            {!sidebarCollapsed
+              ? <img className="aps-sidebar-logo" src="/aps-logo.svg" alt="APS Việt Nam · Project Management" />
+              : <span className="aps-sidebar-symbol" aria-label="APS">APS</span>}
           </div>
 
           {/* Nút đóng trên mobile */}

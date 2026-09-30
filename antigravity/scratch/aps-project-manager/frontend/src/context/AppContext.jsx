@@ -1,16 +1,26 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { api } from '../api';
+import { recordActivity } from '../modules/auth/authSession';
 
 const AppContext = createContext();
 
 export function AppProvider({ children }) {
   // Theme Light/Dark Mode
   const [theme, setTheme] = useState(() => {
-    return localStorage.getItem('aps_theme') || 'dark';
+    return localStorage.getItem('aps_theme') || 'light';
   });
 
   // Tab điều hướng chính
   const [activeTab, setActiveTab] = useState('hr'); // 'hr', 'tasks', 'gantt', 'dashboard'
+  const previousTab = useRef('');
+
+  // Ghi nhận màn hình được mở để admin xem lịch sử sử dụng từng phân hệ.
+  useEffect(() => {
+    if (previousTab.current !== activeTab) {
+      recordActivity('module.view', `Mở phân hệ ${activeTab}.`);
+    }
+    previousTab.current = activeTab;
+  }, [activeTab]);
 
   // Thời gian thực (Real-time Clock chạy từng giây)
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -80,6 +90,7 @@ export function AppProvider({ children }) {
 
   useEffect(() => {
     if (!dateFollowsToday) return;
+    // eslint-disable-next-line react/set-state-in-effect
     setSelectedDate(previous => {
       if (previous.getFullYear() === currentTime.getFullYear() &&
           previous.getMonth() === currentTime.getMonth() &&
@@ -154,6 +165,7 @@ export function AppProvider({ children }) {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react/set-state-in-effect
     refreshAllData();
   }, []);
 
@@ -180,16 +192,11 @@ export function AppProvider({ children }) {
   const toggleOnSite = async (id) => {
     try {
       const res = await api.toggleOnSite(id);
-      if (res.data?.isOnSite && res.data.checkInAt) {
-        const checkIn = new Date(res.data.checkInAt);
-        const time = checkIn.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-        const date = checkIn.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
-        showToast(`Vào ca thành công lúc ${time}, ngày ${date}`);
-      } else {
-        showToast(res.message || 'Đã rời công trường');
-      }
-      await refreshAllData();
-    } catch (err) {
+      const employee = employees.find(item => item.id === id);
+      recordActivity('employee.attendance', `${employee?.name || id}: ${res.data?.isOnSite ? 'có mặt tại công trường' : 'cập nhật điểm danh'}.`);
+      showToast(res.message || 'Cập nhật trạng thái thành công');
+      if (res.data) setEmployees(prev => prev.map(emp => emp.id === id ? { ...emp, ...res.data } : emp));
+    } catch {
       showToast('Lỗi khi cập nhật trạng thái', 'error');
     }
   };
@@ -207,7 +214,8 @@ export function AppProvider({ children }) {
   // Hành động: Thêm nhân sự mới
   const addEmployee = async (employeeData) => {
     try {
-      const res = await api.createEmployee(employeeData);
+      await api.createEmployee(employeeData);
+      recordActivity('employee.create', `Thêm nhân sự ${employeeData.name || 'mới'}.`);
       showToast('Thêm nhân sự mới thành công');
       refreshAllData();
       return true;
@@ -221,10 +229,12 @@ export function AppProvider({ children }) {
   const deleteEmployee = async (id) => {
     if (!window.confirm('Bạn có chắc chắn muốn xóa nhân sự này?')) return;
     try {
+      const employee = employees.find(item => item.id === id);
       await api.deleteEmployee(id);
+      recordActivity('employee.delete', `Xóa nhân sự ${employee?.name || id}.`);
       showToast('Đã xóa nhân sự thành công');
       setEmployees(prev => prev.filter(e => e.id !== id));
-    } catch (err) {
+    } catch {
       showToast('Lỗi khi xóa nhân sự', 'error');
     }
   };
@@ -233,6 +243,7 @@ export function AppProvider({ children }) {
   const addTask = async (taskData) => {
     try {
       await api.createTask(taskData);
+      recordActivity('task.create', `Tạo công việc ${taskData.title || 'mới'}.`);
       showToast('Phân công công việc thành công');
       refreshAllData();
       return true;
@@ -246,10 +257,11 @@ export function AppProvider({ children }) {
   const updateTask = async (id, data) => {
     try {
       await api.updateTask(id, data);
+      recordActivity('task.update', `Cập nhật công việc ${tasks.find(item => item.id === id)?.title || id}.`);
       showToast('Cập nhật tiến độ thành công');
       refreshAllData();
       return true;
-    } catch (err) {
+    } catch {
       showToast('Lỗi khi cập nhật công việc', 'error');
       return false;
     }
@@ -259,10 +271,12 @@ export function AppProvider({ children }) {
   const deleteTask = async (id) => {
     if (!window.confirm('Bạn có chắc chắn muốn xóa công việc này?')) return;
     try {
+      const task = tasks.find(item => item.id === id);
       await api.deleteTask(id);
+      recordActivity('task.delete', `Xóa công việc ${task?.title || id}.`);
       showToast('Đã xóa công việc');
       await refreshAllData();
-    } catch (err) {
+    } catch {
       showToast('Lỗi khi xóa công việc', 'error');
     }
   };
@@ -271,6 +285,7 @@ export function AppProvider({ children }) {
   const addOvertime = async (otData) => {
     try {
       await api.createOvertime(otData);
+      recordActivity('overtime.create', `Tạo đăng ký tăng ca cho ${otData.employeeName || 'nhân sự'}.`);
       showToast('Đăng ký ca tăng ca (OT) thành công');
       refreshAllData();
       return true;
@@ -284,6 +299,7 @@ export function AppProvider({ children }) {
     if (!window.confirm('Bạn có chắc chắn muốn xóa phiếu tăng ca này không?')) return;
     try {
       await api.deleteOvertime(id);
+      recordActivity('overtime.delete', `Xóa đăng ký tăng ca ${id}.`);
       showToast('Đã xóa phiếu tăng ca');
       await refreshAllData();
     } catch (err) {
@@ -295,6 +311,7 @@ export function AppProvider({ children }) {
   const addProject = async (projectData) => {
     try {
       const res = await api.createProject(projectData);
+      recordActivity('project.create', `Tạo dự án ${projectData.name || 'mới'}.`);
       showToast('Tạo dự án mới thành công');
       await refreshAllData();
       return res.data || true;
@@ -319,7 +336,9 @@ export function AppProvider({ children }) {
   const deleteProject = async (id) => {
     if (!window.confirm('Xóa dự án sẽ xóa toàn bộ task, Gantt và OT liên quan. Bạn có chắc chắn không?')) return false;
     try {
+      const project = projects.find(item => item.id === id);
       await api.deleteProject(id);
+      recordActivity('project.delete', `Xóa dự án ${project?.name || id}.`);
       showToast('Đã xóa dự án và dữ liệu liên quan');
       await refreshAllData();
       return true;
@@ -333,6 +352,7 @@ export function AppProvider({ children }) {
   const addGanttItem = async (itemData) => {
     try {
       const res = await api.createGanttItem(itemData);
+      recordActivity('gantt.create', `Thêm hạng mục ${itemData.title || itemData.code || 'mới'} vào Gantt.`);
       showToast(res.message || 'Thêm công việc vào tiến độ thành công');
       await refreshAllData();
       return true;
@@ -345,6 +365,7 @@ export function AppProvider({ children }) {
   const updateGanttItem = async (id, data) => {
     try {
       const res = await api.updateGanttItem(id, data);
+      recordActivity('gantt.update', `Cập nhật hạng mục ${ganttItems.find(item => item.id === id)?.title || id}.`);
       showToast(res.message || 'Đã cập nhật thời gian task');
       await refreshAllData();
       return true;
@@ -358,6 +379,7 @@ export function AppProvider({ children }) {
   const moveGanttItem = async (id, direction) => {
     try {
       const res = await api.moveGanttItem(id, direction);
+      recordActivity('gantt.reorder', `Di chuyển hạng mục Gantt ${id} ${direction === 'up' ? 'lên' : 'xuống'}.`);
       if (res.data) {
         setGanttItems(res.data);
       } else {
@@ -365,7 +387,7 @@ export function AppProvider({ children }) {
       }
       showToast(res.message || 'Đã cập nhật thứ tự công việc');
       return true;
-    } catch (err) {
+    } catch {
       showToast('Lỗi khi đổi thứ tự', 'error');
       return false;
     }
@@ -375,10 +397,12 @@ export function AppProvider({ children }) {
   const deleteGanttItem = async (id) => {
     if (!window.confirm('Bạn có chắc chắn muốn xóa hạng mục này khỏi tiến độ?')) return;
     try {
+      const item = ganttItems.find(entry => entry.id === id);
       await api.deleteGanttItem(id);
+      recordActivity('gantt.delete', `Xóa hạng mục Gantt ${item?.title || id}.`);
       showToast('Đã xóa hạng mục khỏi biểu đồ Gantt');
       await refreshAllData();
-    } catch (err) {
+    } catch {
       showToast('Lỗi khi xóa hạng mục', 'error');
     }
   };
@@ -440,6 +464,7 @@ export function AppProvider({ children }) {
   );
 }
 
+// eslint-disable-next-line react/only-export-components
 export function useApp() {
   const context = useContext(AppContext);
   if (!context) {

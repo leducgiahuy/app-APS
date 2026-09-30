@@ -26,8 +26,14 @@ import {
   deleteGanttItem
 } from '../controllers/projectController.js';
 import { getStats } from '../controllers/statsController.js';
+import { clearActivityLogEntries, createActivityLogEntry, getActivityLog } from '../controllers/activityController.js';
 
 const router = express.Router();
+
+// === NHẬT KÝ HOẠT ĐỘNG ===
+router.get('/activity', getActivityLog);
+router.post('/activity', createActivityLogEntry);
+router.delete('/activity', clearActivityLogEntries);
 
 // === PHÂN HỆ 1: NHÂN SỰ & CÔNG TRƯỜNG ===
 router.get('/employees', getEmployees);

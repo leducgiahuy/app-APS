@@ -10,8 +10,11 @@ import {
   ChevronRight,
   RotateCcw,
   Sparkles,
-  Building
+  Building,
+  LogOut,
+  UserRoundPen
 } from 'lucide-react';
+import { endAuthSession, getCurrentUser } from '../../modules/auth/authSession';
 
 export default function Header() {
   const {
@@ -28,6 +31,8 @@ export default function Header() {
     goToToday,
     setMobileMenuOpen
   } = useApp();
+  const accountUser = getCurrentUser();
+  const accountInitials = accountUser?.name.split(/\s+/).slice(-2).map((part) => part[0]).join('').toUpperCase() || 'APS';
 
   // Tiêu đề tương ứng từng trang
   const pageTitles = {
@@ -46,6 +51,10 @@ export default function Header() {
     dashboard: {
       title: 'Thống Kê & Báo Cáo Hiệu Suất Tổng Quan',
       sub: 'Đo lường tiến độ các công việc, nhân viên đảm nhận và tỷ lệ hoàn thành'
+    },
+    activity: {
+      title: 'Nhật Ký Hoạt Động',
+      sub: 'Theo dõi đăng nhập, thay đổi tài khoản và thao tác dữ liệu của người dùng'
     }
   };
 
@@ -190,20 +199,44 @@ export default function Header() {
             )}
           </button>
 
-          {/* Badge nhận diện người dùng: IT Phần Cứng - APS VN */}
+          {/* Ảnh đại diện lấy trực tiếp từ hồ sơ tài khoản hiện đang đăng nhập. */}
           <div className="flex items-center gap-2 pl-2 border-l border-slate-200 dark:border-slate-700">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-600 text-white font-bold flex items-center justify-center text-xs shadow-md">
-              IT
-            </div>
+            {accountUser?.avatarData
+              ? <img src={accountUser.avatarData} alt={`Ảnh đại diện ${accountUser.name}`} className="h-10 w-10 rounded-xl object-cover border border-slate-200 dark:border-slate-600" />
+              : <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-200 dark:bg-slate-600 text-xs font-bold text-slate-700 dark:text-slate-100">{accountInitials}</div>}
             <div className="hidden xl:flex flex-col text-left">
               <span className="text-xs font-bold text-slate-800 dark:text-slate-200 leading-tight">
-                IT Phần Cứng
+                {accountUser?.name || 'Người dùng'}
               </span>
-              <span className="text-[10px] text-sky-600 dark:text-sky-400 font-medium">
-                APS Việt Nam
+              <span className="text-[10px] text-slate-500 dark:text-slate-300 font-medium">
+                {accountUser?.role === 'admin' ? 'Quản trị viên' : accountUser?.company || 'APS Việt Nam'}
               </span>
             </div>
           </div>
+
+          <a
+            href="/account"
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            title="Hồ sơ và tài khoản"
+            aria-label="Hồ sơ và tài khoản"
+          >
+            <UserRoundPen className="w-4 h-4" />
+            <span className="hidden md:inline">Tài khoản</span>
+          </a>
+
+          <button
+            type="button"
+            onClick={() => {
+              endAuthSession();
+              window.location.assign('/login');
+            }}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            title="Đăng xuất"
+            aria-label="Đăng xuất"
+          >
+            <LogOut className="w-4 h-4" />
+            <span className="hidden sm:inline">Đăng xuất</span>
+          </button>
 
         </div>
 

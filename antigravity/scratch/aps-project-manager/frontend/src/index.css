@@ -3,58 +3,123 @@
 @tailwind utilities;
 
 @layer base {
-  body {
-    @apply bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100 font-sans antialiased transition-colors duration-200;
-  }
+  html { min-width: 320px; min-height: 100%; background: #fbfaf7; }
+  body { min-width: 320px; min-height: 100vh; margin: 0; color: #202a36; background: #fbfaf7; font-family: 'Segoe UI', Arial, sans-serif; }
+  button, input { font: inherit; }
+  ::selection { color: #263441; background: #f4d991; }
 }
 
-/* Tùy chỉnh thanh cuộn cho bảng Gantt và danh sách */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+/* Tông sáng dùng nền xám sương và bề mặt trắng ngà để giảm chói khi xem lâu. */
+.app-shell {
+  --workspace: #e9eef1;
+  --surface: #fafbfb;
+  --surface-soft: #f2f5f6;
+  --surface-muted: #e5eaed;
+  --line: #d4dde2;
+  --text-main: #26343d;
+  --text-muted: #53636d;
+  --accent: #527f93;
+  background-color: var(--workspace);
+  color: var(--text-main);
+  font-family: 'Segoe UI', Arial, sans-serif;
 }
+.app-shell [class~="bg-slate-50"] { background-color: var(--workspace) !important; }
+.app-shell [class~="bg-white"] { background-color: var(--surface) !important; }
+.app-shell [class~="bg-slate-100"] { background-color: var(--surface-soft) !important; }
+.app-shell [class~="border-slate-200"], .app-shell [class~="border-slate-100"] { border-color: var(--line) !important; }
+html:not(.dark) .app-shell [class~="text-slate-900"], html:not(.dark) .app-shell [class~="text-slate-800"] { color: var(--text-main) !important; }
+html:not(.dark) .app-shell [class~="text-slate-700"], html:not(.dark) .app-shell [class~="text-slate-600"], html:not(.dark) .app-shell [class~="text-slate-500"] { color: var(--text-muted) !important; }
+html:not(.dark) .app-shell [class~="text-slate-400"] { color: #53636d !important; }
+html:not(.dark) .app-shell [class~="bg-sky-600"] { background-color: var(--accent) !important; }
+html:not(.dark) .app-shell [class~="text-sky-600"] { color: #496f83 !important; }
+.app-shell [class~="shadow-sm"], .app-shell [class~="shadow-xl"] { box-shadow: 0 2px 7px rgb(36 54 64 / 7%) !important; }
+html:not(.dark) .app-shell [class~="text-[8px]"] { font-size: 9px !important; }
+html:not(.dark) .app-shell [class~="text-[9px]"] { font-size: 11px !important; }
+html:not(.dark) .app-shell [class~="text-[10px]"] { font-size: 12px !important; }
+html:not(.dark) .app-shell [class~="text-[11px]"] { font-size: 13px !important; }
+html:not(.dark) .app-shell [class~="text-xs"] { font-size: 13px !important; }
 
-::-webkit-scrollbar-track {
-  background: transparent;
+/* Dark mode chuyển từ nền đen/xanh đậm sang xám than, với thẻ sáng hơn rõ rệt. */
+html.dark body { color: #e7ecef; background: #353c42; }
+html.dark .app-shell {
+  --workspace: #353c42;
+  --surface: #434b52;
+  --surface-soft: #3c444b;
+  --surface-muted: #4d565e;
+  --line: #56616a;
+  --text-main: #eef1f3;
+  --text-muted: #c4cdd2;
+  --accent: #7399ab;
+  background-color: var(--workspace);
+  color: var(--text-main);
+  font-family: 'Segoe UI', Arial, sans-serif;
 }
+html.dark .app-shell [class~="dark:bg-slate-950"] { background-color: var(--workspace) !important; }
+html.dark .app-shell [class~="dark:bg-slate-900"] { background-color: var(--surface) !important; }
+html.dark .app-shell [class~="dark:bg-slate-800"] { background-color: var(--surface-soft) !important; }
+html.dark .app-shell [class~="dark:bg-slate-700"] { background-color: var(--surface-muted) !important; }
+html.dark .app-shell [class*="dark:bg-slate-900/"] { background-color: var(--surface) !important; }
+html.dark .app-shell [class*="dark:bg-slate-800/"] { background-color: var(--surface-soft) !important; }
+html.dark .app-shell [class~="dark:border-slate-800"], html.dark .app-shell [class~="dark:border-slate-700"] { border-color: var(--line) !important; }
+html.dark .app-shell [class~="dark:text-white"], html.dark .app-shell [class~="dark:text-slate-100"], html.dark .app-shell [class~="dark:text-slate-200"] { color: var(--text-main) !important; }
+html.dark .app-shell [class~="dark:text-slate-300"], html.dark .app-shell [class~="dark:text-slate-400"] { color: var(--text-muted) !important; }
+html.dark .app-shell [class~="text-slate-900"], html.dark .app-shell [class~="text-slate-800"], html.dark .app-shell [class~="text-slate-700"] { color: #edf1f3 !important; }
+html.dark .app-shell [class~="text-slate-600"], html.dark .app-shell [class~="text-slate-500"] { color: #d0d8dc !important; }
+html.dark .app-shell [class~="text-slate-400"] { color: #b5c0c5 !important; }
+html.dark .app-shell [class~="bg-sky-600"], html.dark .app-shell [class~="dark:bg-sky-600"] { background-color: #527d91 !important; }
+html.dark .app-shell [class~="text-sky-600"], html.dark .app-shell [class~="dark:text-sky-400"] { color: #9bc1d2 !important; }
+html.dark .app-shell [class~="dark:bg-slate-950/50"] { background-color: rgb(53 60 66 / 65%) !important; }
+html.dark .app-shell [class~="shadow-sm"], html.dark .app-shell [class~="shadow-xl"] { box-shadow: 0 2px 8px rgb(14 20 24 / 14%) !important; }
+html.dark .app-shell [class~="text-[8px]"] { font-size: 9px !important; }
+html.dark .app-shell [class~="text-[9px]"] { font-size: 11px !important; }
+html.dark .app-shell [class~="text-[10px]"], html.dark .app-shell [class~="dark:text-[10px]"] { font-size: 12px !important; }
+html.dark .app-shell [class~="text-[11px]"], html.dark .app-shell [class~="dark:text-[11px]"] { font-size: 13px !important; }
+html.dark .app-shell [class~="text-xs"] { font-size: 13px !important; }
 
-::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 4px;
-}
+/* Trang đăng nhập và tài khoản theo cùng bảng màu để không lóa sau khi thoát dashboard. */
+html.dark .login-page, html.dark .account-page { color: #e7ecef; background: #353c42; }
+html.dark .login-panel { background: #353c42; }
+html.dark .form-wrap h1, html.dark .account-heading h1 { color: #eef1f3; }
+html.dark .form-intro, html.dark .account-heading div > span { color: #c4cdd2; }
+html.dark .input-wrap, html.dark .account-card { border-color: #56616a; background: #434b52; }
+html.dark .input-wrap input, html.dark .account-form input, html.dark .account-form select { color: #edf1f3; background: #3b434a; }
+html.dark .account-form input[readonly] { background: #343b41; }
+html.dark .field-label, html.dark .account-form label, html.dark .account-photo-controls > b { color: #e1e7e9; }
+html.dark .demo-credentials, html.dark .account-tabs { border-color: #58636a; background: #3b434a; }
+html.dark .demo-credentials code { color: #eef1f3; }
+html.dark .account-tabs button.active { color: #f1f4f5; background: #515b63; }
+html.dark .account-photo-row { border-color: #58636a; background: #3b434a; }
+html.dark .account-header { border-color: #56616a; }
+html.dark .account-back, html.dark .account-logout { border-color: #59656d; color: #d4dde1; background: #434b52; }
+html.dark .visual-panel::before { background: linear-gradient(145deg, #414b4e 0%, #4b4b43 52%, #3e4747 100%); }
+html.dark .visual-panel::after { opacity: .12; }
+html.dark .visual-caption p, html.dark .visual-caption p strong { color: #e0e7e5; }
+html.dark .visual-caption > span, html.dark .visual-top, html.dark .visual-bottom { color: #c1cbc8; }
 
-.dark ::-webkit-scrollbar-thumb {
-  background: #334155;
-}
+/* Thương hiệu APS dùng cùng wordmark ở sidebar, trang đăng nhập và trang tài khoản. */
+.aps-sidebar-logo { display: block; width: 232px; height: 58px; object-fit: contain; object-position: left center; flex: 0 0 auto; }
+.aps-sidebar-symbol { display: grid; place-items: center; width: 46px; height: 46px; border: 1px solid #d2d9dc; border-radius: 11px; color: #861b36; background: #faf7f3; font-size: 13px; font-weight: 900; letter-spacing: .04em; }
+.aps-full-logo { display: block; width: 215px; height: 58px; object-fit: contain; object-position: left center; }
+.account-brand img { display: block; width: 230px; height: 58px; object-fit: contain; object-position: left center; }
+.account-avatar-preview { display: grid; place-items: center; width: 76px; height: 76px; flex: 0 0 auto; overflow: hidden; border: 1px solid #d7dfe3; border-radius: 18px; color: #52778a; background: #e9eff1; font-size: 20px; font-weight: 800; }
+.account-avatar-preview img { width: 100%; height: 100%; object-fit: cover; }
+.account-photo-row { display: flex; align-items: center; gap: 16px; margin-bottom: 21px; padding: 15px; border: 1px solid #e4e8e7; border-radius: 11px; background: #f7f9f8; }
+.account-photo-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 9px 13px; }
+.account-photo-controls > b { width: 100%; color: #38464f; font-size: 11px; }
+.account-photo-controls > span { color: #77848a; font-size: 10px; }
+.account-photo-button, .account-photo-remove { display: inline-flex !important; flex-direction: row !important; align-items: center; gap: 6px !important; padding: 7px 10px; border: 1px solid #dce3e4; border-radius: 7px; color: #4e7182 !important; background: #fff; font: inherit; font-size: 10px !important; font-weight: 700 !important; cursor: pointer; }
+.account-photo-button input { display: none; }
+.account-photo-remove { color: #8a5750 !important; }
+.account-admin-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 22px; }
+.account-admin-action { display: inline-flex; align-items: center; gap: 8px; padding: 10px 13px; border: 1px solid #dce3e4; border-radius: 8px; color: #4f7182; background: #f8faf9; font: inherit; font-size: 10px; font-weight: 700; cursor: pointer; }
+.account-admin-profile { padding-top: 19px; border-top: 1px solid #e6e9e7; }
+html.dark .aps-sidebar-logo { padding: 2px 5px; border-radius: 8px; background: #f8f7f2; }
+html.dark .account-brand { padding: 4px 8px; border-radius: 8px; background: #f8f7f2; }
+html.dark .brand { padding: 4px 8px; border-radius: 8px; background: #f8f7f2; }
+html.dark .account-photo-row, html.dark .account-admin-action { border-color: #59656b; background: #3e474d; }
+html.dark .account-photo-controls > b { color: #e2e8ea; }
+html.dark .account-photo-controls > span { color: #c0cacf; }
+html.dark .account-photo-button, html.dark .account-photo-remove { border-color: #59656b; color: #d6e0e4 !important; background: #48525a; }
+html.dark .account-avatar-preview { border-color: #59656b; background: #4b565d; color: #d4e1e5; }
 
-::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
-}
-
-.dark ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
-}
-
-/* Đóng băng cột bảng (Freeze pane) */
-.sticky-left-0 {
-  position: sticky;
-  left: 0;
-  z-index: 20;
-}
-
-.sticky-left-stt {
-  position: sticky;
-  left: 0;
-  z-index: 21;
-}
-
-.sticky-left-task {
-  position: sticky;
-  left: 48px;
-  z-index: 20;
-}
-
-/* Smooth transition utility */
-.transition-smooth {
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-}
+@media (max-width: 700px) { .aps-full-logo { width: 180px; height: 50px; } }
