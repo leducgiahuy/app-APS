@@ -26,6 +26,7 @@ export default function HRPage() {
     overtimes,
     toggleOnSite,
     toggleBreak,
+    setActiveTask,
     addEmployee,
     deleteEmployee,
     selectedDate
@@ -214,6 +215,10 @@ export default function HRPage() {
             : '';
           const handleOnSiteAction = () => {
             if (!emp.isOnSite) {
+              if (activeTasks.length > 0 && !activeTasks.some(task => task.id === emp.activeTaskId && task.status !== 'completed')) {
+                window.alert('Hãy chọn task muốn bắt đầu trước khi vào công trường.');
+                return;
+              }
               toggleOnSite(emp.id);
               return;
             }
@@ -325,6 +330,26 @@ export default function HRPage() {
                     </div>
                   ) : (
                     <p className="mt-1 text-[11px] text-slate-400 italic">Chưa được giao task</p>
+                  )}
+                  {activeTasks.length > 0 && (
+                    <div className="mt-3 border-t border-slate-200/70 pt-2 dark:border-slate-700/70">
+                      <label className="mb-1 block text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                        Task đang thực hiện
+                      </label>
+                      <select
+                        value={activeTasks.some(task => task.id === emp.activeTaskId && task.status !== 'completed') ? emp.activeTaskId : ''}
+                        onChange={event => setActiveTask(emp.id, event.target.value)}
+                        className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-700 outline-none focus:border-sky-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                      >
+                        <option value="">-- Chọn task --</option>
+                        {activeTasks.filter(task => task.status !== 'completed').map(task => (
+                          <option key={task.id} value={task.id}>{task.code} · {task.title}</option>
+                        ))}
+                      </select>
+                      {emp.activeTaskId && !emp.isOnBreak && emp.isOnSite && (
+                        <p className="mt-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">Đang tính giờ: {emp.activeTaskTitle || activeTasks.find(task => task.id === emp.activeTaskId)?.title}</p>
+                      )}
+                    </div>
                   )}
                 </div>
 

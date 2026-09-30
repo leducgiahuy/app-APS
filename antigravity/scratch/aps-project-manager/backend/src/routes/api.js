@@ -4,6 +4,7 @@ import {
   createEmployee,
   toggleOnSite,
   toggleBreak,
+  setActiveTask,
   deleteEmployee
 } from '../controllers/hrController.js';
 import {
@@ -34,6 +35,7 @@ router.get('/employees', getEmployees);
 router.post('/employees', createEmployee);
 router.patch('/employees/:id/toggle-onsite', toggleOnSite);
 router.patch('/employees/:id/toggle-break', toggleBreak);
+router.patch('/employees/:id/active-task', setActiveTask);
 router.delete('/employees/:id', deleteEmployee);
 
 // === PHÂN HỆ 2: PHÂN CÔNG & TĂNG CA ===

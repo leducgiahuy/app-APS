@@ -234,7 +234,7 @@ export function getGanttItems(req, res) {
 export function updateGanttItem(req, res) {
   const db = readDb();
   const { id } = req.params;
-  const { startDate, endDate } = req.body;
+  const { startDate, endDate, estimatedHoursPerDay } = req.body;
   const item = (db.ganttItems || []).find(ganttItem => ganttItem.id === id);
 
   if (!item) {
@@ -256,6 +256,10 @@ export function updateGanttItem(req, res) {
   }
 
   const calculatedDays = Math.floor((endTimestamp - startTimestamp) / 86400000) + 1;
+  const requestedHoursPerDay = Number(estimatedHoursPerDay);
+  if (estimatedHoursPerDay !== undefined && (!Number.isFinite(requestedHoursPerDay) || requestedHoursPerDay <= 0)) {
+    return res.status(400).json({ success: false, message: 'Giờ làm dự kiến mỗi ngày phải lớn hơn 0' });
+  }
   const previousEndDate = item.endDate;
   const previousEndTimestamp = Date.parse(`${previousEndDate}T00:00:00Z`);
   const nextEndTimestamp = Date.parse(`${nextEndDate}T00:00:00Z`);
@@ -263,6 +267,10 @@ export function updateGanttItem(req, res) {
   item.startDate = nextStartDate;
   item.endDate = nextEndDate;
   item.days = calculatedDays;
+  if (estimatedHoursPerDay !== undefined) item.estimatedHoursPerDay = Math.round(requestedHoursPerDay * 100) / 100;
+  if (Number(item.estimatedHoursPerDay) > 0) {
+    item.estimatedHours = Math.round(Number(item.estimatedHoursPerDay) * calculatedDays * 100) / 100;
+  }
 
   const linkedTaskFor = ganttId => (db.tasks || []).find(task => task.ganttId === ganttId);
   const projectIdOf = ganttItem => ganttItem.projectId || linkedTaskFor(ganttItem.id)?.projectId || 'proj-1';
@@ -316,17 +324,25 @@ export function updateGanttItem(req, res) {
       task.estimatedDays = linkedById || linkedLegacyTask ? calculatedDays : Math.floor((Date.parse(`${task.endDate}T00:00:00Z`) - Date.parse(`${task.startDate}T00:00:00Z`)) / 86400000) + 1;
       const standardHours = Number(db.employees.find(employee => employee.id === task.employeeId)?.standardHours) || 8;
       const defaultEstimatedHours = previousEstimatedDays * standardHours;
-      if (!Number(task.estimatedHours) || Math.abs(Number(task.estimatedHours) - defaultEstimatedHours) < 0.01) {
+      if (Number(item.estimatedHoursPerDay) > 0) {
+        task.estimatedHoursPerDay = item.estimatedHoursPerDay;
+        task.estimatedHours = Math.round(Number(task.estimatedHoursPerDay) * task.estimatedDays * 100) / 100;
+      } else if (!Number(task.estimatedHours) || Math.abs(Number(task.estimatedHours) - defaultEstimatedHours) < 0.01) {
         task.estimatedHours = task.estimatedDays * standardHours;
       }
     }
   });
 
-  writeDb(db);
+  const linkedTask = (db.tasks || []).find(task => task.ganttId === id) ||
+    (db.tasks || []).find(task => !task.ganttId && task.title === item.title &&
+      (!item.projectId || !task.projectId || task.projectId === item.projectId));
+  if (!writeDb(db)) {
+    return res.status(500).json({ success: false, message: 'Không thể lưu thời gian task. Vui lòng thử lại.' });
+  }
   return res.json({
     success: true,
     message: 'Đã cập nhật thời gian và đồng bộ task được giao',
-    data: item
+    data: { item, task: linkedTask || null }
   });
 }
 
@@ -344,6 +360,7 @@ export function createGanttItem(req, res) {
     endDate,
     assignee,
     estimatedHours,
+    estimatedHoursPerDay,
     notes,
     color,
     dependencies,
@@ -372,10 +389,15 @@ export function createGanttItem(req, res) {
   const calculatedDays = Math.floor((endTimestamp - startTimestamp) / 86400000) + 1;
   const assigneeName = (assignee || 'Trần Quốc Hưng').trim().toLowerCase();
   const assignedEmployee = (db.employees || []).find(employee => employee.name.trim().toLowerCase() === assigneeName) || db.employees[0];
-  const requestedEstimatedHours = Number(estimatedHours);
-  const calculatedEstimatedHours = Number.isFinite(requestedEstimatedHours) && requestedEstimatedHours > 0
-    ? Math.round(requestedEstimatedHours * 100) / 100
-    : calculatedDays * (Number(assignedEmployee?.standardHours) || 8);
+  const dailyHoursInput = estimatedHoursPerDay ?? estimatedHours;
+  const requestedEstimatedHours = Number(dailyHoursInput);
+  if (dailyHoursInput !== undefined && (!Number.isFinite(requestedEstimatedHours) || requestedEstimatedHours <= 0)) {
+    return res.status(400).json({ success: false, message: 'Giờ làm dự kiến phải lớn hơn 0' });
+  }
+  const calculatedHoursPerDay = Number.isFinite(requestedEstimatedHours) && requestedEstimatedHours > 0
+    ? requestedEstimatedHours
+    : Number(assignedEmployee?.standardHours) || 8;
+  const calculatedEstimatedHours = Math.round(calculatedHoursPerDay * calculatedDays * 100) / 100;
 
   const formattedCode = code ? String(code).trim() : `T${db.ganttItems.length + 1}`;
   const newGanttId = `G-${Date.now()}`;
@@ -418,6 +440,7 @@ export function createGanttItem(req, res) {
     endDate,
     days: calculatedDays,
     estimatedHours: calculatedEstimatedHours,
+    estimatedHoursPerDay: calculatedHoursPerDay,
     assignee: assignee || 'Trần Quốc Hưng',
     notes: notes || '',
     status: 'in_progress',
@@ -458,6 +481,7 @@ export function createGanttItem(req, res) {
       startDate: newItem.startDate,
       endDate: newItem.endDate,
       estimatedHours: newItem.estimatedHours,
+      estimatedHoursPerDay: newItem.estimatedHoursPerDay,
       estimatedDays: newItem.days,
       status: 'in_progress',
       speedStatus: newItem.speed || 'on_time',

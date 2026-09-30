@@ -30,10 +30,16 @@ function activeOnDate(item, dateKey) {
 }
 
 function updateEmployeeTaskSessions(db, emp, startAt, endAt = null) {
+  const task = (db.tasks || []).find(item => item.id === emp.activeTaskId || item.ganttId === emp.activeTaskId);
+  const gantt = task
+    ? (db.ganttItems || []).find(item => item.id === task.ganttId)
+    : (db.ganttItems || []).find(item => item.id === emp.activeTaskId);
+  const selectedItems = [task, gantt].filter(Boolean);
+  if (selectedItems.length === 0) return false;
   const dateKey = localDateKey(new Date(startAt));
   const timestamp = Date.parse(startAt);
   const elapsedHours = endAt ? Math.max(0, (Date.parse(endAt) - timestamp) / 3600000) : 0;
-  const updateItem = item => {
+  selectedItems.forEach(item => {
     if (!isAssignedToEmployee(item, emp) || item.isGroup || item.status === 'completed' || !activeOnDate(item, dateKey)) return;
     item.attendanceTracked = true;
     item.actualWorkStartedAt ||= startAt;
@@ -43,10 +49,8 @@ function updateEmployeeTaskSessions(db, emp, startAt, endAt = null) {
     } else {
       item.workSessionStartedAt = startAt;
     }
-  };
-
-  (db.tasks || []).forEach(updateItem);
-  (db.ganttItems || []).forEach(updateItem);
+  });
+  return true;
 }
 
 function approvedOvertimeHours(db, emp, dateKey) {
@@ -59,13 +63,49 @@ function approvedOvertimeHours(db, emp, dateKey) {
 }
 
 function needsTaskSessionSync(db, emp) {
-  if (!emp.checkInAt || emp.isOnBreak) return false;
+  if (!emp.checkInAt || emp.isOnBreak || !emp.activeTaskId) return false;
   const dateKey = localDateKey(new Date(emp.checkInAt));
   const expectedSessionStart = emp.workSessionStartedAt || emp.checkInAt;
   return [...(db.tasks || []), ...(db.ganttItems || [])].some(item =>
+    (item.id === emp.activeTaskId || item.ganttId === emp.activeTaskId) &&
     !item.isGroup && item.status !== 'completed' && isAssignedToEmployee(item, emp) && activeOnDate(item, dateKey) &&
     (!item.attendanceTracked || item.workSessionStartedAt !== expectedSessionStart)
   );
+}
+
+function normalizeActiveTaskSession(db, emp, now) {
+  if (!emp.isOnSite || !emp.checkInAt) return false;
+  const nowKey = localDateKey(now);
+  const activeTask = (db.tasks || []).find(task => task.id === emp.activeTaskId);
+  const keepTask = activeTask && activeOnDate(activeTask, nowKey) && activeTask.status !== 'completed'
+    ? activeTask
+    : !emp.activeTaskId
+      ? (db.tasks || []).find(task => isAssignedToEmployee(task, emp) && activeOnDate(task, nowKey) && task.status !== 'completed' && task.workSessionStartedAt)
+      : null;
+  let changed = false;
+  if (keepTask && emp.activeTaskId !== keepTask.id) {
+    emp.activeTaskId = keepTask.id;
+    emp.activeTaskTitle = keepTask.title;
+    emp.workSessionStartedAt = keepTask.workSessionStartedAt || emp.workSessionStartedAt || emp.checkInAt;
+    changed = true;
+  }
+
+  const keepGanttId = keepTask?.ganttId;
+  [...(db.tasks || []), ...(db.ganttItems || [])].forEach(item => {
+    const isCurrent = keepTask && (item.id === keepTask.id || item.id === keepGanttId);
+    if (!isCurrent && item.workSessionStartedAt && isAssignedToEmployee(item, emp)) {
+      item.workSessionStartedAt = null;
+      changed = true;
+    }
+  });
+
+  if (emp.activeTaskId && !keepTask) {
+    emp.activeTaskId = null;
+    emp.activeTaskTitle = null;
+    emp.workSessionStartedAt = null;
+    changed = true;
+  }
+  return changed;
 }
 
 function closeExpiredShifts(db, now = new Date()) {
@@ -76,6 +116,8 @@ function closeExpiredShifts(db, now = new Date()) {
   (db.employees || []).forEach(emp => {
     if (migrateLegacyCheckIn(emp, now)) changed = true;
     if (!emp.isOnSite || !emp.checkInAt) return;
+
+    if (normalizeActiveTaskSession(db, emp, now)) changed = true;
 
     // Đồng bộ cả những ca đã vào trước khi tính năng theo dõi giờ công được cập nhật.
     if (needsTaskSessionSync(db, emp)) {
@@ -104,6 +146,8 @@ function closeExpiredShifts(db, now = new Date()) {
     emp.breakStartedAt = null;
     emp.totalBreakMs = 0;
     emp.workSessionStartedAt = null;
+    emp.activeTaskId = null;
+    emp.activeTaskTitle = null;
     emp.lastShiftCheckInAt = emp.checkInAt;
     emp.lastShiftCheckOutAt = shiftEnd.toISOString();
     emp.lastShiftCheckOutTime = shiftEnd.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
@@ -209,6 +253,8 @@ export function createEmployee(req, res) {
     breakStartedAt: null,
     totalBreakMs: 0,
     workSessionStartedAt: null,
+    activeTaskId: null,
+    activeTaskTitle: null,
     avatar: `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80`
   };
 
@@ -240,19 +286,27 @@ export function toggleOnSite(req, res) {
     emp.isOnBreak = false;
     emp.breakStartedAt = null;
     emp.totalBreakMs = 0;
-    emp.workSessionStartedAt = emp.checkInAt;
-    updateEmployeeTaskSessions(db, emp, emp.checkInAt);
+    const dateKey = localDateKey(now);
+    const task = (db.tasks || []).find(item => item.id === emp.activeTaskId);
+    if (!task || task.status === 'completed' || !isAssignedToEmployee(task, emp) || !activeOnDate(task, dateKey)) {
+      emp.activeTaskId = null;
+      emp.activeTaskTitle = null;
+    }
+    emp.workSessionStartedAt = emp.activeTaskId ? emp.checkInAt : null;
+    if (emp.activeTaskId) updateEmployeeTaskSessions(db, emp, emp.checkInAt);
   } else {
     emp.lastShiftCheckInAt = emp.checkInAt || null;
     emp.lastShiftCheckOutAt = now.toISOString();
     emp.lastShiftCheckOutTime = now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
     if (emp.workSessionStartedAt) updateEmployeeTaskSessions(db, emp, emp.workSessionStartedAt, now.toISOString());
+    emp.activeTaskId = null;
     emp.checkInAt = null;
     emp.checkInTime = null;
     emp.isOnBreak = false;
     emp.breakStartedAt = null;
     emp.totalBreakMs = 0;
     emp.workSessionStartedAt = null;
+    emp.activeTaskTitle = null;
   }
 
   writeDb(db);
@@ -276,16 +330,23 @@ export function toggleBreak(req, res) {
   const nowIso = now.toISOString();
   if (emp.isOnBreak) {
     const breakStart = Date.parse(emp.breakStartedAt || '');
+    const task = (db.tasks || []).find(item => item.id === emp.activeTaskId);
+    const dateKey = localDateKey(now);
+    if (emp.activeTaskId && (!task || task.status === 'completed' || !isAssignedToEmployee(task, emp) || !activeOnDate(task, dateKey))) {
+      return res.status(400).json({ success: false, message: 'Chọn một task đang được giao hôm nay trước khi tiếp tục làm việc' });
+    }
     if (Number.isFinite(breakStart)) {
       emp.totalBreakMs = (Number(emp.totalBreakMs) || 0) + Math.max(0, now.getTime() - breakStart);
     }
     emp.isOnBreak = false;
     emp.breakStartedAt = null;
-    emp.workSessionStartedAt = nowIso;
-    updateEmployeeTaskSessions(db, emp, nowIso);
+    emp.workSessionStartedAt = emp.activeTaskId ? nowIso : null;
+    if (emp.activeTaskId) updateEmployeeTaskSessions(db, emp, nowIso);
   } else {
-    const sessionStart = emp.workSessionStartedAt || emp.checkInAt;
-    updateEmployeeTaskSessions(db, emp, sessionStart, nowIso);
+    if (emp.activeTaskId) {
+      const sessionStart = emp.workSessionStartedAt;
+      if (sessionStart) updateEmployeeTaskSessions(db, emp, sessionStart, nowIso);
+    }
     emp.workSessionStartedAt = null;
     emp.isOnBreak = true;
     emp.breakStartedAt = nowIso;
@@ -297,6 +358,36 @@ export function toggleBreak(req, res) {
     message: emp.isOnBreak ? `${emp.name} đang tạm nghỉ` : `${emp.name} đã tiếp tục làm việc`,
     data: emp
   });
+}
+
+export function setActiveTask(req, res) {
+  const db = readDb();
+  const emp = db.employees.find(employee => employee.id === req.params.id);
+  if (!emp) return res.status(404).json({ success: false, message: 'Không tìm thấy nhân sự' });
+  const { taskId } = req.body;
+  const nextTask = (db.tasks || []).find(task => task.id === taskId);
+  if (!nextTask || !isAssignedToEmployee(nextTask, emp)) {
+    return res.status(400).json({ success: false, message: 'Task không được giao cho nhân sự này' });
+  }
+  const now = new Date();
+  const dateKey = localDateKey(now);
+  if (!activeOnDate(nextTask, dateKey) || nextTask.status === 'completed') {
+    return res.status(400).json({ success: false, message: 'Chỉ có thể chọn task chưa hoàn thành đang được giao hôm nay' });
+  }
+
+  if (emp.activeTaskId !== nextTask.id && emp.workSessionStartedAt) {
+    updateEmployeeTaskSessions(db, emp, emp.workSessionStartedAt, now.toISOString());
+  }
+  emp.activeTaskId = nextTask.id;
+  emp.activeTaskTitle = nextTask.title;
+  if (emp.isOnSite && !emp.isOnBreak) {
+    emp.workSessionStartedAt = now.toISOString();
+    updateEmployeeTaskSessions(db, emp, emp.workSessionStartedAt);
+  } else {
+    emp.workSessionStartedAt = null;
+  }
+  writeDb(db);
+  return res.json({ success: true, message: `Đã chọn công việc: ${nextTask.title}`, data: emp });
 }
 
 // Xóa nhân sự

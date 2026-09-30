@@ -111,7 +111,7 @@ export default function TasksPage() {
       window.alert(`Ngày task phải nằm trong thời gian dự án (${formatDateVi(project.startDate)} → ${formatDateVi(project.endDate)}).`);
       return;
     }
-    const success = await addTask({ ...taskForm, projectId });
+    const success = await addTask({ ...taskForm, projectId, estimatedHoursPerDay: taskForm.estimatedHours });
     if (success) {
       setTaskForm({
         projectId: projects[0]?.id || '',
@@ -137,10 +137,7 @@ export default function TasksPage() {
         else next.startDate = value;
       }
       next.estimatedDays = inclusiveDays(next.startDate, next.endDate);
-      if (!current.estimatedHoursEdited) {
-        const employee = employees.find(item => item.id === current.employeeId);
-        next.estimatedHours = next.estimatedDays * (Number(employee?.standardHours) || 8);
-      }
+      if (!current.estimatedHoursEdited) next.estimatedHours = Number(employees.find(item => item.id === current.employeeId)?.standardHours) || 8;
       return next;
     });
   };
@@ -274,7 +271,7 @@ export default function TasksPage() {
               // Tìm thông tin nhân sự đảm nhận
               const assignee = employees.find(e => e.id === task.employeeId);
               const standardHours = assignee?.standardHours || 8;
-              const progress = scheduledProgress(task, standardHours, currentTime, assignee?.isOnSite && !assignee.isOnBreak ? (assignee.workSessionStartedAt || assignee.checkInAt) : null);
+              const progress = scheduledProgress(task, standardHours, currentTime);
               const isOverdue = isTaskOverdue(task, currentTime);
               const taskSpeedStatus = getTaskSpeedStatus(task);
               const isNearDeadline = progress >= 80 && task.status !== 'completed';
@@ -388,7 +385,9 @@ export default function TasksPage() {
                       <div className="flex items-center justify-between text-xs text-slate-500">
                         <span>Thời gian dự kiến:</span>
                         <span className="font-bold text-slate-900 dark:text-white">
-                          {task.estimatedDays} ngày ({Number(task.estimatedHours) || task.estimatedDays * standardHours}h)
+                          {task.estimatedDays} ngày ({task.estimatedDays > 1
+                            ? `${Number(task.estimatedHoursPerDay) || (Number(task.estimatedHours) / task.estimatedDays) || standardHours}h/ngày, ${Number(task.estimatedHours) || task.estimatedDays * standardHours}h tổng`
+                            : `${Number(task.estimatedHours) || task.estimatedDays * standardHours}h`})
                         </span>
                       </div>
                       <div className="flex items-center justify-between text-[11px] text-slate-400">
@@ -583,7 +582,7 @@ export default function TasksPage() {
                           startDate,
                           endDate,
                           estimatedDays,
-                          estimatedHours: current.estimatedHoursEdited ? current.estimatedHours : estimatedDays * standardHours
+                          estimatedHours: current.estimatedHoursEdited ? current.estimatedHours : standardHours
                         };
                       });
                     }}
@@ -690,7 +689,7 @@ export default function TasksPage() {
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">Giờ Làm Dự Kiến (h) *</label>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">Giờ Làm Dự Kiến (h/ngày) *</label>
                 <input
                   type="number"
                   required

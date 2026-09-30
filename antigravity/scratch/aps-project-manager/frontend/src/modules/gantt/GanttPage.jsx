@@ -84,7 +84,7 @@ export default function GanttPage() {
   const [locationSuggestionsOpen, setLocationSuggestionsOpen] = useState(false);
   const [locationSearch, setLocationSearch] = useState('');
   const [editingItem, setEditingItem] = useState(null);
-  const [editForm, setEditForm] = useState({ startDate: '', endDate: '', days: 1 });
+  const [editForm, setEditForm] = useState({ startDate: '', endDate: '', days: 1, estimatedHours: 8, estimatedHoursEdited: true });
   const timelineScrollRef = useRef(null);
   const [viewportHeight, setViewportHeight] = useState(() => typeof window === 'undefined' ? 768 : window.innerHeight);
 
@@ -122,7 +122,7 @@ export default function GanttPage() {
         else next.startDate = value;
       }
       next.days = inclusiveDays(next.startDate, next.endDate);
-      if (!current.estimatedHoursEdited) next.estimatedHours = next.days * 8;
+      if (!current.estimatedHoursEdited) next.estimatedHours = 8;
       return next;
     });
   };
@@ -354,7 +354,7 @@ export default function GanttPage() {
       window.alert(`Ngày task phải nằm trong thời gian dự án (${formatDateVi(project.startDate)} → ${formatDateVi(project.endDate)}).`);
       return;
     }
-    const success = await addGanttItem(taskForm);
+    const success = await addGanttItem({ ...taskForm, estimatedHoursPerDay: taskForm.estimatedHours });
     if (success) {
       setTaskForm({
         code: '',
@@ -416,7 +416,10 @@ export default function GanttPage() {
 
   const handleEditOpen = (item) => {
     setEditingItem(item);
-    setEditForm({ startDate: item.startDate, endDate: item.endDate, days: inclusiveDays(item.startDate, item.endDate) });
+    const days = inclusiveDays(item.startDate, item.endDate);
+    const assignedEmployee = employees.find(employee => employee.name === item.assignee);
+    const estimatedHours = Number(item.estimatedHoursPerDay) || (Number(item.estimatedHours) > 0 ? Number(item.estimatedHours) / days : Number(assignedEmployee?.standardHours) || 8);
+    setEditForm({ startDate: item.startDate, endDate: item.endDate, days, estimatedHours, estimatedHoursEdited: true });
   };
 
   const handleEditSubmit = async (e) => {
@@ -426,7 +429,7 @@ export default function GanttPage() {
       window.alert(`Ngày task phải nằm trong thời gian dự án (${formatDateVi(project.startDate)} → ${formatDateVi(project.endDate)}).`);
       return;
     }
-    const success = await updateGanttItem(editingItem.id, editForm);
+    const success = await updateGanttItem(editingItem.id, { ...editForm, estimatedHoursPerDay: editForm.estimatedHours });
     if (success) setEditingItem(null);
   };
 
@@ -866,7 +869,7 @@ export default function GanttPage() {
                   const linkedTask = tasks.find(task => task.ganttId === item.id);
                   const assignee = employees.find(employee => employee.id === linkedTask?.employeeId || employee.name === item.assignee);
                   const progressTask = linkedTask || item;
-                  const progress = scheduledProgress(progressTask, assignee?.standardHours || 8, currentTime, assignee?.isOnSite && !assignee.isOnBreak ? (assignee.workSessionStartedAt || assignee.checkInAt) : null);
+                  const progress = scheduledProgress(progressTask, assignee?.standardHours || 8, currentTime);
                   const overdue = isTaskOverdue(progressTask, currentTime);
 
                   // Chọn màu gradient
@@ -943,7 +946,7 @@ export default function GanttPage() {
                         className="dark:fill-slate-300 select-none pointer-events-none"
                       >
                         {isGroup ? `${item.title} (${item.days} ngày)` : <>
-                          <tspan fill="#64748b">{item.assignee} ({item.days} ngày, {Number(item.estimatedHours) || item.days * 8}h)</tspan>
+                          <tspan fill="#64748b">{item.assignee} ({item.days} ngày{item.days > 1 ? `, ${Number(item.estimatedHoursPerDay) || Number(item.estimatedHours) / item.days || 8}h/ngày` : `, ${Number(item.estimatedHours) || item.days * 8}h`})</tspan>
                           {(item.overtimeContributions || [])
                             .filter(contribution => (contribution.employeeName || '').trim().toLowerCase() === (item.assignee || '').trim().toLowerCase())
                             .map(contribution => (
@@ -1079,6 +1082,18 @@ export default function GanttPage() {
                   className="mt-1 w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold"
                 />
               </label>
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">
+                Giờ/ngày dự kiến
+                <input
+                  type="number"
+                  min="0.25"
+                  step="0.25"
+                  required
+                  value={editForm.estimatedHours}
+                  onChange={event => setEditForm(current => ({ ...current, estimatedHours: Number(event.target.value), estimatedHoursEdited: true }))}
+                  className="mt-1 w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold"
+                />
+              </label>
               <div className="flex justify-end gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">
                 <button type="button" onClick={() => setEditingItem(null)} className="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">Hủy</button>
                 <button type="submit" className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs">Lưu thay đổi</button>
@@ -1196,7 +1211,7 @@ export default function GanttPage() {
                       const startDate = clampToProject(taskForm.startDate);
                       let endDate = clampToProject(taskForm.endDate);
                       if (endDate < startDate) endDate = startDate;
-                      setTaskForm(current => ({ ...current, projectId: e.target.value, dependencies: [], startDate, endDate, days: inclusiveDays(startDate, endDate), estimatedHours: current.estimatedHoursEdited ? current.estimatedHours : inclusiveDays(startDate, endDate) * 8 }));
+                      setTaskForm(current => ({ ...current, projectId: e.target.value, dependencies: [], startDate, endDate, days: inclusiveDays(startDate, endDate), estimatedHours: current.estimatedHoursEdited ? current.estimatedHours : 8 }));
                     }}
                     className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
                   >
@@ -1227,7 +1242,7 @@ export default function GanttPage() {
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div>
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                  <label className="h-5 whitespace-nowrap text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
                     Ngày Bắt Đầu
                   </label>
                   <DateInput
@@ -1241,7 +1256,7 @@ export default function GanttPage() {
                 </div>
 
                 <div>
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                  <label className="h-5 whitespace-nowrap text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
                     Ngày Kết Thúc
                   </label>
                   <DateInput
@@ -1255,7 +1270,7 @@ export default function GanttPage() {
                 </div>
 
                 <div>
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                  <label className="h-5 whitespace-nowrap text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
                     Số Ngày (d)
                   </label>
                   <input
@@ -1267,10 +1282,10 @@ export default function GanttPage() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                    Giờ Làm Dự Kiến (h)
+                  <label className="h-5 whitespace-nowrap text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                    Giờ/ngày dự kiến
                   </label>
-                <input
+                  <input
                     type="number"
                     min="0.25"
                     step="0.25"

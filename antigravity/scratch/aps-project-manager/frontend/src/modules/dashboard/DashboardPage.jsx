@@ -196,7 +196,7 @@ export default function DashboardPage() {
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
               {filteredTasks.map((t) => {
                 const assignee = employees.find(e => e.id === t.employeeId);
-                const progress = scheduledProgress(t, assignee?.standardHours || 8, currentTime, assignee?.isOnSite && !assignee.isOnBreak ? (assignee.workSessionStartedAt || assignee.checkInAt) : null);
+                const progress = scheduledProgress(t, assignee?.standardHours || 8, currentTime);
                 const overdue = isTaskOverdue(t, currentTime);
                 const progressColor = t.status === 'completed' ? 'bg-emerald-500' : overdue ? 'bg-rose-500' : progress >= 80 ? 'bg-amber-500' : 'bg-sky-600';
 
@@ -237,7 +237,9 @@ export default function DashboardPage() {
                     <td className="py-3 px-3 text-slate-600 dark:text-slate-400">
                       <div>
                         <span className="font-bold text-slate-800 dark:text-slate-200">
-                          {t.estimatedDays} ngày ({Number(t.estimatedHours) || t.estimatedDays * (assignee?.standardHours || 8)}h)
+                          {t.estimatedDays} ngày ({t.estimatedDays > 1
+                            ? `${Number(t.estimatedHoursPerDay) || (Number(t.estimatedHours) / t.estimatedDays) || (assignee?.standardHours || 8)}h/ngày, ${Number(t.estimatedHours) || t.estimatedDays * (assignee?.standardHours || 8)}h tổng`
+                            : `${Number(t.estimatedHours) || t.estimatedDays * (assignee?.standardHours || 8)}h`})
                         </span>
                         <span className="text-[10px] text-slate-400 block">
                           {formatDateVi(t.startDate)} → {formatDateVi(t.endDate)}
