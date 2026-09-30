@@ -33,7 +33,12 @@ export default function DashboardPage() {
     earlyTasks: tasks.filter(t => t.speedStatus === 'early').length,
     onTimeTasks: tasks.filter(t => t.speedStatus === 'on_time').length,
     totalOtHours: 9.5,
-    overallCompletionRate: 45
+    overallCompletionRate: projects.length > 0
+      ? Math.round(projects.reduce((sum, project) => {
+        const projectTasks = tasks.filter(task => task.projectId === project.id);
+        return sum + (projectTasks.length ? projectTasks.filter(task => task.status === 'completed').length / projectTasks.length * 100 : 0);
+      }, 0) / projects.length)
+      : 0
   };
 
   // Lọc danh sách công việc hiển thị trong bảng
@@ -191,7 +196,7 @@ export default function DashboardPage() {
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
               {filteredTasks.map((t) => {
                 const assignee = employees.find(e => e.id === t.employeeId);
-                const progress = scheduledProgress(t, assignee?.standardHours || 8, currentTime);
+                const progress = scheduledProgress(t, assignee?.standardHours || 8, currentTime, assignee?.isOnSite && !assignee.isOnBreak ? (assignee.workSessionStartedAt || assignee.checkInAt) : null);
                 const overdue = isTaskOverdue(t, currentTime);
                 const progressColor = t.status === 'completed' ? 'bg-emerald-500' : overdue ? 'bg-rose-500' : progress >= 80 ? 'bg-amber-500' : 'bg-sky-600';
 
@@ -232,7 +237,7 @@ export default function DashboardPage() {
                     <td className="py-3 px-3 text-slate-600 dark:text-slate-400">
                       <div>
                         <span className="font-bold text-slate-800 dark:text-slate-200">
-                          {t.estimatedDays} ngày ({t.estimatedHours}h)
+                          {t.estimatedDays} ngày ({Number(t.estimatedHours) || t.estimatedDays * (assignee?.standardHours || 8)}h)
                         </span>
                         <span className="text-[10px] text-slate-400 block">
                           {formatDateVi(t.startDate)} → {formatDateVi(t.endDate)}

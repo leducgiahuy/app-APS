@@ -87,6 +87,9 @@ export function createProject(req, res) {
   if (!name) {
     return res.status(400).json({ success: false, message: 'Vui lòng nhập tên dự án' });
   }
+  if (!startDate || !endDate || !Number.isFinite(Date.parse(`${startDate}T00:00:00Z`)) || !Number.isFinite(Date.parse(`${endDate}T00:00:00Z`)) || endDate < startDate) {
+    return res.status(400).json({ success: false, message: 'Vui lòng chọn khoảng ngày bắt đầu và kết thúc hợp lệ cho dự án' });
+  }
 
   const newProject = {
     id: `proj-${Date.now()}`,
@@ -95,8 +98,8 @@ export function createProject(req, res) {
     description: description || '',
     location: location || 'Hà Nội',
     manager: manager || 'Trần Quốc Hưng',
-    startDate: startDate || new Date().toISOString().split('T')[0],
-    endDate: endDate || '2027-12-31',
+    startDate,
+    endDate,
     status: 'planning',
     progress: 0
   };
@@ -110,6 +113,24 @@ export function createProject(req, res) {
     message: `Đã tạo dự án "${newProject.name}" thành công. Dự án hiện chưa có công việc`,
     data: newProject
   });
+}
+
+export function updateProject(req, res) {
+  const db = readDb();
+  const project = (db.projects || []).find(item => item.id === req.params.id);
+  if (!project) return res.status(404).json({ success: false, message: 'Không tìm thấy dự án' });
+
+  const { startDate, endDate } = req.body;
+  const nextStartDate = startDate || project.startDate;
+  const nextEndDate = endDate || project.endDate;
+  if (!nextStartDate || !nextEndDate || !Number.isFinite(Date.parse(`${nextStartDate}T00:00:00Z`)) || !Number.isFinite(Date.parse(`${nextEndDate}T00:00:00Z`)) || nextEndDate < nextStartDate) {
+    return res.status(400).json({ success: false, message: 'Khoảng ngày bắt đầu và kết thúc của dự án không hợp lệ' });
+  }
+
+  project.startDate = nextStartDate;
+  project.endDate = nextEndDate;
+  writeDb(db);
+  return res.json({ success: true, data: project, message: 'Đã cập nhật thời gian dự án' });
 }
 
 // Xóa dự án và toàn bộ dữ liệu liên quan.
@@ -165,12 +186,47 @@ export function deleteProject(req, res) {
 export function getGanttItems(req, res) {
   const db = readDb();
   const tasksByGanttId = new Map((db.tasks || []).filter(task => task.ganttId).map(task => [task.ganttId, task]));
+  const approvedOvertimes = (db.overtimes || []).filter(overtime => !overtime.status || overtime.status === 'approved');
   return res.json({
     success: true,
-    data: (db.ganttItems || []).map(item => ({
-      ...item,
-      projectId: item.projectId || tasksByGanttId.get(item.id)?.projectId
-    }))
+    data: (db.ganttItems || []).map(item => {
+      const linkedTasks = (db.tasks || []).filter(task => task.ganttId === item.id);
+      const matchingTasks = (db.tasks || []).filter(task =>
+        task.title?.trim().toLowerCase() === item.title?.trim().toLowerCase() &&
+        (!task.projectId || !item.projectId || task.projectId === item.projectId)
+      );
+      const taskIds = new Set([...linkedTasks, ...matchingTasks].map(task => task.id));
+      const linkedTask = linkedTasks[0] || matchingTasks[0];
+      const itemOvertimes = approvedOvertimes.filter(overtime =>
+        taskIds.has(overtime.taskId) ||
+        (taskIds.size === 0 && overtime.taskTitle?.trim().toLowerCase() === item.title?.trim().toLowerCase())
+      );
+      const overtimeContributions = Object.values(itemOvertimes.reduce((contributions, overtime) => {
+          const key = overtime.employeeId || overtime.employeeName || 'unknown';
+          if (!contributions[key]) {
+            contributions[key] = {
+              employeeId: overtime.employeeId,
+              employeeName: overtime.employeeName,
+              hours: 0
+            };
+          }
+          contributions[key].hours += Number(overtime.hours) || 0;
+          return contributions;
+        }, {})).map(contribution => ({
+          ...contribution,
+          hours: Math.round(contribution.hours * 10) / 10
+        }));
+      return {
+        ...item,
+        projectId: item.projectId || linkedTask?.projectId,
+        estimatedHours: Number(linkedTask?.estimatedHours ?? item.estimatedHours) || (Number(item.days) || 1) * 8,
+        overtimeContributions,
+        // Keep older saved OT totals visible when their request records are unavailable.
+        overtimeHours: overtimeContributions.length
+          ? overtimeContributions.reduce((sum, contribution) => sum + contribution.hours, 0)
+          : Number(item.overtimeHours) || 0
+      };
+    })
   });
 }
 
@@ -191,6 +247,12 @@ export function updateGanttItem(req, res) {
   const endTimestamp = Date.parse(`${nextEndDate}T00:00:00Z`);
   if (!Number.isFinite(startTimestamp) || !Number.isFinite(endTimestamp) || endTimestamp < startTimestamp) {
     return res.status(400).json({ success: false, message: 'Khoảng thời gian không hợp lệ' });
+  }
+
+  const itemProjectId = item.projectId || (db.tasks || []).find(task => task.ganttId === item.id)?.projectId || 'proj-1';
+  const project = (db.projects || []).find(candidate => candidate.id === itemProjectId);
+  if (project && ((project.startDate && nextStartDate < project.startDate) || (project.endDate && nextEndDate > project.endDate))) {
+    return res.status(400).json({ success: false, message: `Ngày task phải nằm trong thời gian dự án (${project.startDate} → ${project.endDate})` });
   }
 
   const calculatedDays = Math.floor((endTimestamp - startTimestamp) / 86400000) + 1;
@@ -250,9 +312,13 @@ export function updateGanttItem(req, res) {
     if (linkedById || linkedLegacyTask || shiftedWithGantt) {
       task.startDate = linkedById || linkedLegacyTask ? nextStartDate : (db.ganttItems.find(ganttItem => ganttItem.id === task.ganttId)?.startDate || task.startDate);
       task.endDate = linkedById || linkedLegacyTask ? nextEndDate : (db.ganttItems.find(ganttItem => ganttItem.id === task.ganttId)?.endDate || task.endDate);
+      const previousEstimatedDays = Number(task.estimatedDays) || 1;
       task.estimatedDays = linkedById || linkedLegacyTask ? calculatedDays : Math.floor((Date.parse(`${task.endDate}T00:00:00Z`) - Date.parse(`${task.startDate}T00:00:00Z`)) / 86400000) + 1;
       const standardHours = Number(db.employees.find(employee => employee.id === task.employeeId)?.standardHours) || 8;
-      task.estimatedHours = task.estimatedDays * standardHours;
+      const defaultEstimatedHours = previousEstimatedDays * standardHours;
+      if (!Number(task.estimatedHours) || Math.abs(Number(task.estimatedHours) - defaultEstimatedHours) < 0.01) {
+        task.estimatedHours = task.estimatedDays * standardHours;
+      }
     }
   });
 
@@ -277,6 +343,7 @@ export function createGanttItem(req, res) {
     startDate,
     endDate,
     assignee,
+    estimatedHours,
     notes,
     color,
     dependencies,
@@ -293,12 +360,22 @@ export function createGanttItem(req, res) {
     return res.status(400).json({ success: false, message: 'Vui lòng chọn một dự án đang tồn tại' });
   }
 
+  if ((project.startDate && startDate < project.startDate) || (project.endDate && endDate > project.endDate)) {
+    return res.status(400).json({ success: false, message: `Ngày task phải nằm trong thời gian dự án (${project.startDate} → ${project.endDate})` });
+  }
+
   const startTimestamp = Date.parse(`${startDate}T00:00:00Z`);
   const endTimestamp = Date.parse(`${endDate}T00:00:00Z`);
   if (!Number.isFinite(startTimestamp) || !Number.isFinite(endTimestamp) || endTimestamp < startTimestamp) {
     return res.status(400).json({ success: false, message: 'Khoảng thời gian không hợp lệ' });
   }
   const calculatedDays = Math.floor((endTimestamp - startTimestamp) / 86400000) + 1;
+  const assigneeName = (assignee || 'Trần Quốc Hưng').trim().toLowerCase();
+  const assignedEmployee = (db.employees || []).find(employee => employee.name.trim().toLowerCase() === assigneeName) || db.employees[0];
+  const requestedEstimatedHours = Number(estimatedHours);
+  const calculatedEstimatedHours = Number.isFinite(requestedEstimatedHours) && requestedEstimatedHours > 0
+    ? Math.round(requestedEstimatedHours * 100) / 100
+    : calculatedDays * (Number(assignedEmployee?.standardHours) || 8);
 
   const formattedCode = code ? String(code).trim() : `T${db.ganttItems.length + 1}`;
   const newGanttId = `G-${Date.now()}`;
@@ -340,6 +417,7 @@ export function createGanttItem(req, res) {
     startDate,
     endDate,
     days: calculatedDays,
+    estimatedHours: calculatedEstimatedHours,
     assignee: assignee || 'Trần Quốc Hưng',
     notes: notes || '',
     status: 'in_progress',
@@ -358,8 +436,7 @@ export function createGanttItem(req, res) {
   // === 3. ĐỒNG BỘ SANG MỤC 1 (PHÂN CÔNG CÔNG VIỆC) & TRANG NHÂN SỰ ===
   if (!isGroup) {
     // Tìm nhân sự tương ứng
-    const empNameNorm = (newItem.assignee || '').trim().toLowerCase();
-    const emp = db.employees.find(e => e.name.trim().toLowerCase() === empNameNorm) || db.employees[0];
+    const emp = assignedEmployee;
 
     // Xác định tên giai đoạn (Phase)
     let phaseName = 'A. THIẾT KẾ XÂY DỰNG';
@@ -380,7 +457,7 @@ export function createGanttItem(req, res) {
       employeeName: emp ? emp.name : newItem.assignee,
       startDate: newItem.startDate,
       endDate: newItem.endDate,
-      estimatedHours: newItem.days * (Number(emp?.standardHours) || 8),
+      estimatedHours: newItem.estimatedHours,
       estimatedDays: newItem.days,
       status: 'in_progress',
       speedStatus: newItem.speed || 'on_time',

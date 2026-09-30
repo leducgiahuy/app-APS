@@ -31,6 +31,7 @@ export function createTask(req, res) {
     employeeId,
     startDate,
     endDate,
+    estimatedHours,
     priority,
     notes
   } = req.body;
@@ -57,9 +58,18 @@ export function createTask(req, res) {
   if (!Number.isFinite(startTimestamp) || !Number.isFinite(endTimestamp) || endTimestamp < startTimestamp) {
     return res.status(400).json({ success: false, message: 'Khoảng thời gian công việc không hợp lệ' });
   }
+  if ((project.startDate && taskStartDate < project.startDate) || (project.endDate && taskEndDate > project.endDate)) {
+    return res.status(400).json({ success: false, message: `Ngày task phải nằm trong thời gian dự án (${project.startDate} → ${project.endDate})` });
+  }
   const days = Math.floor((endTimestamp - startTimestamp) / 86400000) + 1;
   const standardHours = Number(emp?.standardHours) || 8;
-  const hours = days * standardHours;
+  const requestedHours = Number(estimatedHours);
+  if (estimatedHours !== undefined && (!Number.isFinite(requestedHours) || requestedHours <= 0)) {
+    return res.status(400).json({ success: false, message: 'Giờ làm dự kiến phải lớn hơn 0' });
+  }
+  const hours = Number.isFinite(requestedHours) && requestedHours > 0
+    ? Math.round(requestedHours * 100) / 100
+    : days * standardHours;
 
   // Sinh mã WBS tự động nếu chưa có
   let wbsCode = code ? String(code).trim() : '';
@@ -137,6 +147,7 @@ export function createTask(req, res) {
     startDate: newTask.startDate,
     endDate: newTask.endDate,
     days: newTask.estimatedDays,
+    estimatedHours: newTask.estimatedHours,
     assignee: employeeName,
     notes: notes || '',
     status: 'in_progress',
@@ -171,7 +182,7 @@ export function createTask(req, res) {
 export function updateTask(req, res) {
   const db = readDb();
   const { id } = req.params;
-  const { status, progress, speedStatus, notes, startDate, endDate, estimatedDays } = req.body;
+  const { status, progress, speedStatus, notes, startDate, endDate, estimatedDays, estimatedHours } = req.body;
 
   const task = db.tasks.find(t => t.id === id);
   if (!task) {
@@ -182,16 +193,29 @@ export function updateTask(req, res) {
   if (progress !== undefined) task.progress = Number(progress);
   if (speedStatus !== undefined) task.speedStatus = speedStatus;
   if (notes !== undefined) task.notes = notes;
+  if (estimatedHours !== undefined) {
+    const hours = Number(estimatedHours);
+    if (!Number.isFinite(hours) || hours <= 0) {
+      return res.status(400).json({ success: false, message: 'Giờ làm dự kiến phải lớn hơn 0' });
+    }
+    task.estimatedHours = Math.round(hours * 100) / 100;
+  }
   if (startDate !== undefined) task.startDate = startDate;
   if (endDate !== undefined) task.endDate = endDate;
   if (estimatedDays !== undefined) {
     task.estimatedDays = Number(estimatedDays);
     const standardHours = Number(db.employees.find(employee => employee.id === task.employeeId)?.standardHours) || 8;
-    task.estimatedHours = task.estimatedDays * standardHours;
+    if (estimatedHours === undefined) task.estimatedHours = task.estimatedDays * standardHours;
   }
 
   if (task.progress === 100) {
     task.status = 'completed';
+  }
+
+  if (task.status === 'completed' && speedStatus === undefined && task.endDate) {
+    const now = new Date();
+    const completionDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    task.speedStatus = completionDate < task.endDate ? 'early' : completionDate > task.endDate ? 'delayed' : 'on_time';
   }
 
   // Đồng bộ sang ganttItems tương ứng
@@ -203,6 +227,7 @@ export function updateTask(req, res) {
     if (startDate !== undefined) gantt.startDate = task.startDate;
     if (endDate !== undefined) gantt.endDate = task.endDate;
     if (estimatedDays !== undefined) gantt.days = task.estimatedDays;
+    if (estimatedHours !== undefined) gantt.estimatedHours = task.estimatedHours;
   }
 
   writeDb(db);

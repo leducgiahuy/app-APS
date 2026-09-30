@@ -57,7 +57,7 @@ export function getStats(req, res) {
   const projectSummaries = projects.map(proj => {
     const projTasks = tasks.filter(t => t.projectId === proj.id);
     const completed = projTasks.filter(t => t.status === 'completed').length;
-    const rate = projTasks.length > 0 ? Math.round((completed / projTasks.length) * 100) : proj.progress;
+    const rate = projTasks.length > 0 ? Math.round((completed / projTasks.length) * 100) : 0;
 
     return {
       id: proj.id,
@@ -71,6 +71,9 @@ export function getStats(req, res) {
       progressRate: rate
     };
   });
+  const overallCompletionRate = projectSummaries.length > 0
+    ? Math.round(projectSummaries.reduce((sum, project) => sum + project.progressRate, 0) / projectSummaries.length)
+    : 0;
 
   return res.json({
     success: true,
@@ -86,7 +89,7 @@ export function getStats(req, res) {
         earlyTasks,
         onTimeTasks,
         totalOtHours: Math.round(totalOtHours * 10) / 10,
-        overallCompletionRate: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 45
+        overallCompletionRate
       },
       employeePerformance,
       projectSummaries

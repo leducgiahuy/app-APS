@@ -3,6 +3,7 @@ import {
   getEmployees,
   createEmployee,
   toggleOnSite,
+  toggleBreak,
   deleteEmployee
 } from '../controllers/hrController.js';
 import {
@@ -16,6 +17,7 @@ import {
 import {
   getProjects,
   createProject,
+  updateProject,
   deleteProject,
   getGanttItems,
   createGanttItem,
@@ -31,6 +33,7 @@ const router = express.Router();
 router.get('/employees', getEmployees);
 router.post('/employees', createEmployee);
 router.patch('/employees/:id/toggle-onsite', toggleOnSite);
+router.patch('/employees/:id/toggle-break', toggleBreak);
 router.delete('/employees/:id', deleteEmployee);
 
 // === PHÂN HỆ 2: PHÂN CÔNG & TĂNG CA ===
@@ -44,6 +47,7 @@ router.delete('/overtimes/:id', deleteOvertime);
 // === PHÂN HỆ 3: DỰ ÁN & TIẾN ĐỘ GANTT ===
 router.get('/projects', getProjects);
 router.post('/projects', createProject);
+router.patch('/projects/:id', updateProject);
 router.delete('/projects/:id', deleteProject);
 router.get('/gantt', getGanttItems);
 router.post('/gantt', createGanttItem);

@@ -18,6 +18,10 @@ export function AppProvider({ children }) {
   // Ngày được chọn trên thanh điều hướng ngày
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [dateFollowsToday, setDateFollowsToday] = useState(true);
+  const [ganttMonth, setGanttMonth] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
 
   // Trạng thái thu gọn Sidebar
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -118,13 +122,19 @@ export function AppProvider({ children }) {
   const refreshAllData = async () => {
     try {
       setLoading(true);
-      const [empRes, taskRes, projRes, ganttRes, statRes] = await Promise.all([
+      let [empRes, taskRes, projRes, ganttRes, statRes] = await Promise.all([
         api.getEmployees(),
         api.getTasks(),
         api.getProjects(),
         api.getGanttItems(),
         api.getStats()
       ]);
+
+      // If getEmployees just initialized sessions for already-open shifts,
+      // reload task data after that database write has completed.
+      if (empRes?.meta?.taskSessionsSyncedIds?.length) {
+        [taskRes, ganttRes] = await Promise.all([api.getTasks(), api.getGanttItems()]);
+      }
 
       if (empRes?.data) setEmployees(empRes.data);
       announceAutoCheckout(empRes);
@@ -156,6 +166,9 @@ export function AppProvider({ children }) {
         const response = await api.getEmployees();
         if (response?.data) setEmployees(response.data);
         announceAutoCheckout(response);
+        if (response?.meta?.autoCheckedOutIds?.length || response?.meta?.taskSessionsSyncedIds?.length) {
+          await refreshAllData();
+        }
       } catch (error) {
         console.warn('Không thể đồng bộ trạng thái ca làm:', error.message);
       }
@@ -167,10 +180,27 @@ export function AppProvider({ children }) {
   const toggleOnSite = async (id) => {
     try {
       const res = await api.toggleOnSite(id);
-      showToast(res.message || 'Cập nhật trạng thái thành công');
-      if (res.data) setEmployees(prev => prev.map(emp => emp.id === id ? { ...emp, ...res.data } : emp));
+      if (res.data?.isOnSite && res.data.checkInAt) {
+        const checkIn = new Date(res.data.checkInAt);
+        const time = checkIn.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+        const date = checkIn.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        showToast(`Vào ca thành công lúc ${time}, ngày ${date}`);
+      } else {
+        showToast(res.message || 'Đã rời công trường');
+      }
+      await refreshAllData();
     } catch (err) {
       showToast('Lỗi khi cập nhật trạng thái', 'error');
+    }
+  };
+
+  const toggleBreak = async (id) => {
+    try {
+      const res = await api.toggleBreak(id);
+      showToast(res.message || 'Đã cập nhật trạng thái làm việc');
+      await refreshAllData();
+    } catch (err) {
+      showToast(err.message || 'Lỗi khi cập nhật trạng thái nghỉ', 'error');
     }
   };
 
@@ -274,6 +304,18 @@ export function AppProvider({ children }) {
     }
   };
 
+  const updateProject = async (id, projectData) => {
+    try {
+      await api.updateProject(id, projectData);
+      showToast('Đã cập nhật thời gian dự án');
+      await refreshAllData();
+      return true;
+    } catch (err) {
+      showToast(err.message || 'Lỗi khi cập nhật dự án', 'error');
+      return false;
+    }
+  };
+
   const deleteProject = async (id) => {
     if (!window.confirm('Xóa dự án sẽ xóa toàn bộ task, Gantt và OT liên quan. Bạn có chắc chắn không?')) return false;
     try {
@@ -355,6 +397,12 @@ export function AppProvider({ children }) {
         goToPrevDay,
         goToNextDay,
         goToToday,
+        ganttMonth,
+        setGanttMonth: (date) => {
+          if (date instanceof Date && !Number.isNaN(date.getTime())) {
+            setGanttMonth(new Date(date.getFullYear(), date.getMonth(), 1));
+          }
+        },
         sidebarCollapsed,
         setSidebarCollapsed,
         mobileMenuOpen,
@@ -370,6 +418,7 @@ export function AppProvider({ children }) {
         showToast,
         refreshAllData,
         toggleOnSite,
+        toggleBreak,
         addEmployee,
         deleteEmployee,
         addTask,
@@ -378,6 +427,7 @@ export function AppProvider({ children }) {
         addOvertime,
         deleteOvertime,
         addProject,
+        updateProject,
         deleteProject,
         addGanttItem,
         updateGanttItem,

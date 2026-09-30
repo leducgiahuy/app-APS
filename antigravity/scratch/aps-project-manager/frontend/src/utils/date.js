@@ -4,6 +4,10 @@ export function formatDateVi(isoDate) {
   return match ? `${match[3]}/${match[2]}/${match[1]}` : '';
 }
 
+export function todayIsoDate(date = new Date()) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
 export function parseDateVi(value) {
   const match = String(value || '').trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (!match) return null;
@@ -30,17 +34,35 @@ export function shiftIsoDate(isoDate, days) {
   return date.toISOString().slice(0, 10);
 }
 
-export function scheduledProgress(task, hoursPerDay = 8, now = new Date()) {
+export function scheduledProgress(task, hoursPerDay = 8, now = new Date(), activeCheckInAt = null) {
   if (task?.status === 'completed') return 100;
   const days = inclusiveDays(task?.startDate, task?.endDate);
+  const dailyHours = Number(hoursPerDay) || 8;
+  const plannedHours = Number(task?.estimatedHours) > 0 ? Number(task.estimatedHours) : days * dailyHours;
+  const isAssignedTask = Boolean(task?.attendanceTracked || task?.employeeId || task?.employeeName || task?.assignee);
+  if (isAssignedTask) {
+    const completedHours = Number(task.actualWorkHours) || 0;
+    const sessionStartValue = activeCheckInAt || task.workSessionStartedAt || '';
+    const activeSessionStart = Date.parse(sessionStartValue);
+    const sessionStartDate = Number.isFinite(activeSessionStart) ? new Date(activeSessionStart) : null;
+    const sessionDateKey = sessionStartDate
+      ? `${sessionStartDate.getFullYear()}-${String(sessionStartDate.getMonth() + 1).padStart(2, '0')}-${String(sessionStartDate.getDate()).padStart(2, '0')}`
+      : '';
+    const sessionIsWithinTaskDates = Boolean(sessionDateKey) &&
+      (!task?.startDate || sessionDateKey >= task.startDate) &&
+      (!task?.endDate || sessionDateKey <= task.endDate);
+    const activeSessionHours = sessionIsWithinTaskDates && Number.isFinite(activeSessionStart)
+      ? Math.max(0, (now.getTime() - activeSessionStart) / 3600000)
+      : 0;
+    return Math.max(0, Math.min(100, Math.floor(((completedHours + activeSessionHours) / plannedHours) * 100)));
+  }
   const [, startYear, startMonth, startDay] = String(task?.startDate || '').match(/^(\d{4})-(\d{2})-(\d{2})$/) || [];
   const start = startYear ? new Date(Number(startYear), Number(startMonth) - 1, Number(startDay)).getTime() : NaN;
   if (!Number.isFinite(start)) return Math.max(0, Math.min(100, Number(task?.progress) || 0));
 
-  const totalPlannedHours = days * (Number(hoursPerDay) || 8);
   const elapsedDays = Math.max(0, Math.min(days, (now.getTime() - start) / 86400000));
-  const elapsedPlannedHours = elapsedDays * (Number(hoursPerDay) || 8);
-  return Math.max(0, Math.min(100, Math.floor((elapsedPlannedHours / totalPlannedHours) * 100)));
+  const elapsedPlannedHours = elapsedDays * dailyHours;
+  return Math.max(0, Math.min(100, Math.floor((elapsedPlannedHours / plannedHours) * 100)));
 }
 
 export function isTaskOverdue(task, now = new Date()) {

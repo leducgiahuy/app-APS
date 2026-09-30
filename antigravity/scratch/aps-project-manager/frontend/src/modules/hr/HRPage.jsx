@@ -23,7 +23,9 @@ export default function HRPage() {
   const {
     employees,
     tasks: allTasks,
+    overtimes,
     toggleOnSite,
+    toggleBreak,
     addEmployee,
     deleteEmployee,
     selectedDate
@@ -49,6 +51,9 @@ export default function HRPage() {
   const onSiteEmployees = employees.filter(e => e.isOnSite);
   const onSiteCount = onSiteEmployees.length;
   const totalOtHours = employees.reduce((sum, e) => sum + (e.totalOtHours || 0), 0);
+  const selectedDateKey = selectedDate instanceof Date
+    ? `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`
+    : String(selectedDate || '').slice(0, 10);
 
   // Danh sách ban/đội duy nhất
   const teams = ['ALL', ...new Set(employees.map(e => e.team).filter(Boolean))];
@@ -200,6 +205,52 @@ export default function HRPage() {
             const assignedByName = (task.employeeName || '').trim().toLowerCase() === emp.name.trim().toLowerCase();
             return (assignedById || assignedByName) && isTaskActiveOnDate(task, selectedDate);
           });
+          const dailyOtHours = overtimes
+            .filter(ot => (ot.employeeId === emp.id || (ot.employeeName || '').trim().toLowerCase() === emp.name.trim().toLowerCase()) && String(ot.date || '').slice(0, 10) === selectedDateKey && (!ot.status || ot.status === 'approved'))
+            .reduce((sum, ot) => sum + (Number(ot.hours) || 0), 0);
+          const checkInDate = emp.checkInAt ? new Date(emp.checkInAt) : null;
+          const checkInDateLabel = checkInDate && Number.isFinite(checkInDate.getTime())
+            ? checkInDate.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
+            : '';
+          const handleOnSiteAction = () => {
+            if (!emp.isOnSite) {
+              toggleOnSite(emp.id);
+              return;
+            }
+
+            const checkInTimestamp = Date.parse(emp.checkInAt || '');
+            if (Number.isFinite(checkInTimestamp)) {
+              const now = new Date();
+              const checkIn = new Date(checkInTimestamp);
+              const shiftDateKey = `${checkIn.getFullYear()}-${String(checkIn.getMonth() + 1).padStart(2, '0')}-${String(checkIn.getDate()).padStart(2, '0')}`;
+              const shiftOtHours = overtimes
+                .filter(ot =>
+                  (ot.employeeId === emp.id || (ot.employeeName || '').trim().toLowerCase() === emp.name.trim().toLowerCase()) &&
+                  String(ot.date || '').slice(0, 10) === shiftDateKey &&
+                  (!ot.status || ot.status === 'approved')
+                )
+                .reduce((sum, ot) => sum + (Number(ot.hours) || 0), 0);
+              const breakStartedTimestamp = Date.parse(emp.breakStartedAt || '');
+              const activeBreakMs = emp.isOnBreak && Number.isFinite(breakStartedTimestamp)
+                ? Math.max(0, now.getTime() - breakStartedTimestamp)
+                : 0;
+              const workedMinutes = Math.max(0, Math.floor((
+                now.getTime() - checkInTimestamp - (Number(emp.totalBreakMs) || 0) - activeBreakMs
+              ) / 60000));
+              const requiredMinutes = Math.ceil(((Number(emp.standardHours) || 8) + shiftOtHours) * 60);
+
+              if (workedMinutes < requiredMinutes) {
+                const formatDuration = minutes => `${Math.floor(minutes / 60)} giờ ${minutes % 60} phút`;
+                const remaining = requiredMinutes - workedMinutes;
+                const confirmed = window.confirm(
+                  `${emp.name} mới làm ${formatDuration(workedMinutes)}, còn thiếu ${formatDuration(remaining)} theo giờ ca và OT đã duyệt. Bạn có chắc chắn muốn rời công trường và kết thúc ca không?`
+                );
+                if (!confirmed) return;
+              }
+            }
+
+            toggleOnSite(emp.id);
+          };
           return (
             <div
               key={emp.id}
@@ -285,7 +336,7 @@ export default function HRPage() {
                   </div>
                   <div className="p-2 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
                     <span className="text-amber-500/70 text-[10px] block">Tăng ca (OT)</span>
-                    <span className="font-bold">+{emp.totalOtHours || 0}h</span>
+                    <span className="font-bold">{dailyOtHours > 0 ? `+${dailyOtHours}h` : '—'}</span>
                   </div>
                 </div>
 
@@ -303,36 +354,50 @@ export default function HRPage() {
                 <div className="flex items-center gap-2">
                   <span
                     className={`w-2.5 h-2.5 rounded-full ${
-                      emp.isOnSite ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'
+                      emp.isOnBreak ? 'bg-amber-500' : emp.isOnSite ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'
                     }`}
                   />
                   <div className="flex flex-col">
                     <span
                       className={`text-xs font-bold ${
-                        emp.isOnSite ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500'
+                        emp.isOnBreak ? 'text-amber-600 dark:text-amber-400' : emp.isOnSite ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500'
                       }`}
                     >
-                      {emp.isOnSite ? 'Tại công trường' : 'Vắng mặt'}
+                      {emp.isOnBreak ? 'Đang tạm nghỉ' : emp.isOnSite ? 'Tại công trường' : 'Vắng mặt'}
                     </span>
                     {emp.isOnSite && emp.checkInTime && (
                       <span className="text-[10px] text-slate-400">
-                        Vào ca: {emp.checkInTime}
+                        Vào ca: {emp.checkInTime}{checkInDateLabel ? ` · ${checkInDateLabel}` : ''}
                       </span>
                     )}
                   </div>
                 </div>
 
                 {/* Nút Toggle Điểm danh */}
-                <button
-                  onClick={() => toggleOnSite(emp.id)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                    emp.isOnSite
-                      ? 'bg-rose-50 text-rose-600 hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-300'
-                      : 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-sm'
-                  }`}
-                >
-                  {emp.isOnSite ? 'Rời công trường' : 'Vào công trường'}
-                </button>
+                <div className="flex items-center gap-2">
+                  {emp.isOnSite && (
+                    <button
+                      onClick={() => toggleBreak(emp.id)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                        emp.isOnBreak
+                          ? 'bg-sky-50 text-sky-700 hover:bg-sky-100 dark:bg-sky-950/40 dark:text-sky-300'
+                          : 'bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-300'
+                      }`}
+                    >
+                      {emp.isOnBreak ? 'Tiếp tục' : 'Tạm nghỉ'}
+                    </button>
+                  )}
+                  <button
+                    onClick={handleOnSiteAction}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                      emp.isOnSite
+                        ? 'bg-rose-50 text-rose-600 hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-300'
+                        : 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-sm'
+                    }`}
+                  >
+                    {emp.isOnSite ? 'Rời công trường' : 'Vào công trường'}
+                  </button>
+                </div>
               </div>
 
             </div>

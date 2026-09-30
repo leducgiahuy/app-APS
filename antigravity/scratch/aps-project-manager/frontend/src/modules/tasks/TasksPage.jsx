@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import DateInput from '../../components/DateInput';
-import { formatDateVi, inclusiveDays, scheduledProgress, isTaskOverdue, isTaskActiveOnDate } from '../../utils/date';
+import { formatDateVi, inclusiveDays, scheduledProgress, isTaskOverdue, isTaskActiveOnDate, todayIsoDate } from '../../utils/date';
 import {
   CheckSquare,
   Clock,
@@ -11,15 +11,22 @@ import {
   AlertCircle,
   CheckCircle2,
   Hourglass,
-  Layers,
   Building,
   User,
+  Search,
   Trash2,
   TrendingUp,
   Tag
 } from 'lucide-react';
 
+const normalizeEmployeeSearch = value => String(value || '')
+  .toLocaleLowerCase('vi')
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .replace(/đ/g, 'd');
+
 export default function TasksPage() {
+  const today = todayIsoDate();
   const {
     tasks,
     employees,
@@ -40,20 +47,26 @@ export default function TasksPage() {
   // Trạng thái mở modal
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [showOtModal, setShowOtModal] = useState(false);
+  const [employeeSearch, setEmployeeSearch] = useState('');
   const tasksForSelectedDate = tasks.filter(task => isTaskActiveOnDate(task, selectedDate));
+  const visibleTasks = tasksForSelectedDate.filter(task => {
+    const assignee = employees.find(employee => employee.id === task.employeeId);
+    const assigneeName = task.employeeName || assignee?.name || '';
+    return normalizeEmployeeSearch(assigneeName).includes(normalizeEmployeeSearch(employeeSearch.trim()));
+  });
 
   // Form phân công task
   const [taskForm, setTaskForm] = useState({
     projectId: projects[0]?.id || '',
-    phase: 'A. THIẾT KẾ XÂY DỰNG',
     code: '',
     title: '',
     employeeId: employees[0]?.id || '',
-    startDate: '2026-11-05',
-    endDate: '2026-11-09',
-    estimatedDays: 5,
-    priority: 'normal',
-    notes: ''
+    startDate: today,
+    endDate: today,
+    estimatedDays: 1,
+    estimatedHours: Number(employees[0]?.standardHours) || 8,
+    estimatedHoursEdited: false,
+    priority: 'normal'
   });
 
   // Projects load asynchronously; keep the form selection tied to a real project.
@@ -64,12 +77,25 @@ export default function TasksPage() {
       : { ...current, projectId: projects[0].id });
   }, [projects]);
 
+  useEffect(() => {
+    if (employees.length === 0) return;
+    setTaskForm(current => {
+      if (employees.some(employee => employee.id === current.employeeId)) return current;
+      const employee = employees[0];
+      return {
+        ...current,
+        employeeId: employee.id,
+        estimatedHours: current.estimatedHoursEdited ? current.estimatedHours : current.estimatedDays * (Number(employee.standardHours) || 8)
+      };
+    });
+  }, [employees]);
+
   // Form đăng ký tăng ca (OT)
   const [otForm, setOtForm] = useState({
     taskId: '',
     employeeId: employees[0]?.id || '',
     hours: 2,
-    date: '2026-11-06',
+    date: today,
     reason: ''
   });
 
@@ -80,19 +106,24 @@ export default function TasksPage() {
       ? taskForm.projectId
       : projects[0]?.id;
     if (!taskForm.title || !taskForm.employeeId || !projectId) return;
+    const project = projects.find(item => item.id === projectId);
+    if (project && ((project.startDate && taskForm.startDate < project.startDate) || (project.endDate && taskForm.endDate > project.endDate))) {
+      window.alert(`Ngày task phải nằm trong thời gian dự án (${formatDateVi(project.startDate)} → ${formatDateVi(project.endDate)}).`);
+      return;
+    }
     const success = await addTask({ ...taskForm, projectId });
     if (success) {
       setTaskForm({
         projectId: projects[0]?.id || '',
-        phase: 'A. THIẾT KẾ XÂY DỰNG',
         code: '',
         title: '',
         employeeId: employees[0]?.id || '',
-        startDate: '2026-11-05',
-        endDate: '2026-11-09',
-        estimatedDays: 5,
-        priority: 'normal',
-        notes: ''
+        startDate: todayIsoDate(),
+        endDate: todayIsoDate(),
+        estimatedDays: 1,
+        estimatedHours: Number(employees[0]?.standardHours) || 8,
+        estimatedHoursEdited: false,
+        priority: 'normal'
       });
       setShowTaskModal(false);
     }
@@ -106,6 +137,10 @@ export default function TasksPage() {
         else next.startDate = value;
       }
       next.estimatedDays = inclusiveDays(next.startDate, next.endDate);
+      if (!current.estimatedHoursEdited) {
+        const employee = employees.find(item => item.id === current.employeeId);
+        next.estimatedHours = next.estimatedDays * (Number(employee?.standardHours) || 8);
+      }
       return next;
     });
   };
@@ -120,7 +155,7 @@ export default function TasksPage() {
         taskId: '',
         employeeId: employees[0]?.id || '',
         hours: 2,
-        date: new Date().toISOString().split('T')[0],
+        date: todayIsoDate(),
         reason: ''
       });
       setShowOtModal(false);
@@ -128,11 +163,17 @@ export default function TasksPage() {
   };
 
   // Đổi trạng thái tiến độ nhanh (Sớm / Đúng hạn / Chậm)
-  const handleSpeedChange = (taskId, newSpeed) => {
-    updateTask(taskId, { speedStatus: newSpeed });
+  const handleCompleteTask = (task) => {
+    const today = `${currentTime.getFullYear()}-${String(currentTime.getMonth() + 1).padStart(2, '0')}-${String(currentTime.getDate()).padStart(2, '0')}`;
+    const speedStatus = today < task.endDate ? 'early' : today > task.endDate ? 'delayed' : 'on_time';
+    updateTask(task.id, { status: 'completed', progress: 100, speedStatus });
   };
 
-  const handleCompleteTask = (taskId) => updateTask(taskId, { status: 'completed', progress: 100 });
+  const getTaskSpeedStatus = (task) => {
+    if (task.status === 'completed') return task.speedStatus || 'on_time';
+    const today = `${currentTime.getFullYear()}-${String(currentTime.getMonth() + 1).padStart(2, '0')}-${String(currentTime.getDate()).padStart(2, '0')}`;
+    return today > task.endDate ? 'delayed' : 'on_time';
+  };
 
   return (
     <div className="space-y-6">
@@ -174,7 +215,22 @@ export default function TasksPage() {
         {/* Nút hành động tương ứng */}
         {activeSubTab === 'tasks' ? (
           <button
-            onClick={() => setShowTaskModal(true)}
+            onClick={() => {
+              const selectedProject = projects.find(project => project.id === taskForm.projectId);
+              const todayDate = todayIsoDate();
+              const currentDate = selectedProject?.startDate && todayDate < selectedProject.startDate
+                ? selectedProject.startDate
+                : selectedProject?.endDate && todayDate > selectedProject.endDate ? selectedProject.endDate : todayDate;
+              setTaskForm(current => ({
+                ...current,
+                startDate: currentDate,
+                endDate: currentDate,
+                estimatedDays: 1,
+                estimatedHours: Number(employees.find(employee => employee.id === current.employeeId)?.standardHours) || 8,
+                estimatedHoursEdited: false
+              }));
+              setShowTaskModal(true);
+            }}
             className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-semibold text-sm shadow-md transition-all flex-shrink-0"
           >
             <Plus className="w-4 h-4" />
@@ -182,7 +238,10 @@ export default function TasksPage() {
           </button>
         ) : (
           <button
-            onClick={() => setShowOtModal(true)}
+            onClick={() => {
+              setOtForm(current => ({ ...current, date: todayIsoDate() }));
+              setShowOtModal(true);
+            }}
             className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-white font-semibold text-sm shadow-md transition-all flex-shrink-0"
           >
             <Flame className="w-4 h-4" />
@@ -194,13 +253,30 @@ export default function TasksPage() {
       {/* ================= NỘI DUNG MỤC 1: PHÂN CÔNG CÔNG VIỆC ================= */}
       {activeSubTab === 'tasks' && (
         <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <label className="relative block w-full sm:max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                type="search"
+                value={employeeSearch}
+                onChange={event => setEmployeeSearch(event.target.value)}
+                placeholder="Tìm task theo tên nhân sự..."
+                aria-label="Tìm task theo tên nhân sự"
+                className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm text-slate-700 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500"
+              />
+            </label>
+            <span className="text-xs text-slate-500 dark:text-slate-400">
+              Hiển thị {visibleTasks.length}/{tasksForSelectedDate.length} task trong ngày
+            </span>
+          </div>
           <div className="grid grid-cols-1 gap-4">
-            {tasksForSelectedDate.length > 0 ? tasksForSelectedDate.map((task) => {
+            {visibleTasks.length > 0 ? visibleTasks.map((task) => {
               // Tìm thông tin nhân sự đảm nhận
               const assignee = employees.find(e => e.id === task.employeeId);
               const standardHours = assignee?.standardHours || 8;
-              const progress = scheduledProgress(task, standardHours, currentTime);
+              const progress = scheduledProgress(task, standardHours, currentTime, assignee?.isOnSite && !assignee.isOnBreak ? (assignee.workSessionStartedAt || assignee.checkInAt) : null);
               const isOverdue = isTaskOverdue(task, currentTime);
+              const taskSpeedStatus = getTaskSpeedStatus(task);
               const isNearDeadline = progress >= 80 && task.status !== 'completed';
               const progressColor = task.status === 'completed'
                 ? 'bg-emerald-500'
@@ -217,7 +293,7 @@ export default function TasksPage() {
                 delayed: { label: 'Chậm trễ / Quá hạn', bg: 'bg-rose-500/10 text-rose-500 border-rose-500/20 animate-pulse' }
               };
 
-              const speedInfo = speedStyles[task.speedStatus] || speedStyles.on_time;
+              const speedInfo = speedStyles[taskSpeedStatus] || speedStyles.on_time;
 
               return (
                 <div
@@ -230,11 +306,6 @@ export default function TasksPage() {
                       <span className="font-bold text-sky-600 dark:text-sky-400 flex items-center gap-1">
                         <Building className="w-3.5 h-3.5" />
                         {task.projectName}
-                      </span>
-                      <span className="text-slate-300 dark:text-slate-700">•</span>
-                      <span className="font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                        <Layers className="w-3.5 h-3.5 text-slate-400" />
-                        {task.phase}
                       </span>
                     </div>
 
@@ -317,7 +388,7 @@ export default function TasksPage() {
                       <div className="flex items-center justify-between text-xs text-slate-500">
                         <span>Thời gian dự kiến:</span>
                         <span className="font-bold text-slate-900 dark:text-white">
-                          {task.estimatedDays} ngày ({task.estimatedHours}h)
+                          {task.estimatedDays} ngày ({Number(task.estimatedHours) || task.estimatedDays * standardHours}h)
                         </span>
                       </div>
                       <div className="flex items-center justify-between text-[11px] text-slate-400">
@@ -342,42 +413,30 @@ export default function TasksPage() {
                       </span>
                     </div>
 
-                    {/* Chọn nhanh tốc độ: Sớm / Đúng hạn / Chậm */}
                     <div className="flex items-center gap-1.5 w-full sm:w-auto justify-end">
-                      <span className="text-xs text-slate-400 mr-1">Đánh giá:</span>
-                      <button
-                        onClick={() => handleSpeedChange(task.id, 'early')}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors ${
-                          task.speedStatus === 'early'
-                            ? 'bg-emerald-600 text-white'
-                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/30'
-                        }`}
-                      >
-                        Làm sớm
-                      </button>
-                      <button
-                        onClick={() => handleSpeedChange(task.id, 'on_time')}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors ${
-                          task.speedStatus === 'on_time'
-                            ? 'bg-sky-600 text-white'
-                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-sky-50 dark:hover:bg-sky-950/30'
-                        }`}
-                      >
-                        Đúng hạn
-                      </button>
-                      <button
-                        onClick={() => handleSpeedChange(task.id, 'delayed')}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors ${
-                          task.speedStatus === 'delayed'
-                            ? 'bg-rose-600 text-white'
-                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-rose-50 dark:hover:bg-rose-950/30'
-                        }`}
-                      >
-                        Chậm trễ
-                      </button>
+                      {[
+                        { id: 'early', label: 'Làm sớm', active: 'bg-emerald-600 text-white' },
+                        { id: 'on_time', label: 'Đúng hạn', active: 'bg-sky-600 text-white' },
+                        { id: 'delayed', label: 'Chậm trễ', active: 'bg-rose-600 text-white' }
+                      ].map(option => (
+                        <button
+                          key={option.id}
+                          type="button"
+                          disabled
+                          aria-pressed={taskSpeedStatus === option.id}
+                          title="Trạng thái được tự động đánh giá theo tiến độ và thời hạn công việc"
+                          className={`px-2.5 py-1 rounded-lg text-xs font-semibold cursor-default opacity-100 ${
+                            taskSpeedStatus === option.id
+                              ? option.active
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
                       {task.status !== 'completed' && (
                         <button
-                          onClick={() => handleCompleteTask(task.id)}
+                          onClick={() => handleCompleteTask(task)}
                           className="ml-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-500 transition-colors"
                         >
                           Hoàn thành
@@ -399,7 +458,9 @@ export default function TasksPage() {
               );
             }) : (
               <div className="p-8 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 text-center text-sm text-slate-500 dark:text-slate-400">
-                Không có task nào được phân công vào ngày {formatDateVi(`${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`)}.
+                {tasksForSelectedDate.length === 0
+                  ? `Không có task nào được phân công vào ngày ${formatDateVi(`${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`)}.`
+                  : 'Không tìm thấy task của nhân sự này. Hãy thử tên khác hoặc xóa nội dung tìm kiếm.'}
               </div>
             )}
           </div>
@@ -498,14 +559,34 @@ export default function TasksPage() {
 
             <form onSubmit={handleTaskSubmit} className="space-y-3.5">
               
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3">
                 <div>
                   <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
                     Dự Án Xây Dựng *
                   </label>
                   <select
                     value={taskForm.projectId}
-                    onChange={(e) => setTaskForm({ ...taskForm, projectId: e.target.value })}
+                    onChange={(e) => {
+                      const project = projects.find(item => item.id === e.target.value);
+                      const clampDate = date => project?.startDate && date < project.startDate
+                        ? project.startDate
+                        : project?.endDate && date > project.endDate ? project.endDate : date;
+                      const startDate = clampDate(taskForm.startDate);
+                      let endDate = clampDate(taskForm.endDate);
+                      if (endDate < startDate) endDate = startDate;
+                      setTaskForm(current => {
+                        const estimatedDays = inclusiveDays(startDate, endDate);
+                        const standardHours = Number(employees.find(employee => employee.id === current.employeeId)?.standardHours) || 8;
+                        return {
+                          ...current,
+                          projectId: e.target.value,
+                          startDate,
+                          endDate,
+                          estimatedDays,
+                          estimatedHours: current.estimatedHoursEdited ? current.estimatedHours : estimatedDays * standardHours
+                        };
+                      });
+                    }}
                     className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs focus:ring-2 focus:ring-sky-500"
                   >
                     {projects.map(p => (
@@ -514,21 +595,7 @@ export default function TasksPage() {
                   </select>
                 </div>
 
-                <div>
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                    Giai Đoạn Công Trình *
-                  </label>
-                  <select
-                    value={taskForm.phase}
-                    onChange={(e) => setTaskForm({ ...taskForm, phase: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs focus:ring-2 focus:ring-sky-500"
-                  >
-                    <option value="A. THIẾT KẾ XÂY DỰNG">A. THIẾT KẾ XÂY DỰNG</option>
-                    <option value="B. XIN PHÉP / PHÁP LÝ">B. XIN PHÉP / PHÁP LÝ</option>
-                    <option value="C. MỜI THẦU THI CÔNG">C. MỜI THẦU THI CÔNG</option>
-                    <option value="D. THI CÔNG CÔNG TRÌNH">D. THI CÔNG CÔNG TRÌNH</option>
-                  </select>
-                </div>
+
               </div>
 
               <div className="grid grid-cols-3 gap-3">
@@ -566,7 +633,10 @@ export default function TasksPage() {
                   </label>
                   <select
                     value={taskForm.employeeId}
-                    onChange={(e) => setTaskForm({ ...taskForm, employeeId: e.target.value })}
+                    onChange={(e) => setTaskForm(current => {
+                      const employee = employees.find(item => item.id === e.target.value);
+                      return { ...current, employeeId: e.target.value, estimatedHours: current.estimatedHoursEdited ? current.estimatedHours : current.estimatedDays * (Number(employee?.standardHours) || 8) };
+                    })}
                     className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs focus:ring-2 focus:ring-sky-500"
                   >
                     {employees.map(e => (
@@ -599,6 +669,8 @@ export default function TasksPage() {
                   <DateInput
                     value={taskForm.startDate}
                     onChange={(value) => updateTaskDate('startDate', value)}
+                    min={projects.find(project => project.id === taskForm.projectId)?.startDate}
+                    max={projects.find(project => project.id === taskForm.projectId)?.endDate}
                     className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
                   />
                 </div>
@@ -610,23 +682,27 @@ export default function TasksPage() {
                   <DateInput
                     value={taskForm.endDate}
                     onChange={(value) => updateTaskDate('endDate', value)}
+                    min={projects.find(project => project.id === taskForm.projectId)?.startDate}
+                    max={projects.find(project => project.id === taskForm.projectId)?.endDate}
                     className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                  Ghi Chú Tiến Độ / GATE Kiểm Soát
-                </label>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">Giờ Làm Dự Kiến (h) *</label>
                 <input
-                  type="text"
-                  placeholder="VD: GATE 2: Nghiệm thu cùng Chủ đầu tư"
-                  value={taskForm.notes}
-                  onChange={(e) => setTaskForm({ ...taskForm, notes: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
+                  type="number"
+                  required
+                  min="0.25"
+                  step="0.25"
+                  value={taskForm.estimatedHours}
+                  onChange={event => setTaskForm(current => ({ ...current, estimatedHours: Number(event.target.value), estimatedHoursEdited: true }))}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold"
                 />
               </div>
+
+
 
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">
                 <button

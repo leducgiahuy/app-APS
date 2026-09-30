@@ -31,6 +31,7 @@ export const api = {
   getEmployees: () => fetchApi('/employees'),
   createEmployee: (data) => fetchApi('/employees', { method: 'POST', body: JSON.stringify(data) }),
   toggleOnSite: (id) => fetchApi(`/employees/${id}/toggle-onsite`, { method: 'PATCH' }),
+  toggleBreak: (id) => fetchApi(`/employees/${id}/toggle-break`, { method: 'PATCH' }),
   deleteEmployee: (id) => fetchApi(`/employees/${id}`, { method: 'DELETE' }),
 
   // === PHÂN CÔNG & TĂNG CA ===
@@ -44,6 +45,7 @@ export const api = {
   // === DỰ ÁN & TIẾN ĐỘ GANTT ===
   getProjects: () => fetchApi('/projects'),
   createProject: (data) => fetchApi('/projects', { method: 'POST', body: JSON.stringify(data) }),
+  updateProject: (id, data) => fetchApi(`/projects/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteProject: (id) => fetchApi(`/projects/${id}`, { method: 'DELETE' }),
   getGanttItems: () => fetchApi('/gantt'),
   createGanttItem: (data) => fetchApi('/gantt', { method: 'POST', body: JSON.stringify(data) }),
