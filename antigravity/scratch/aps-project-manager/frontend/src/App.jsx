@@ -28,8 +28,8 @@ function MainLayout() {
 
         {/* Nội dung trang theo từng phân hệ */}
         <main className={`flex-1 w-full animate-fade-in ${
-          activeTab === 'gantt' && sidebarCollapsed
-            ? 'max-w-none mx-0 p-3 sm:p-4 lg:p-5'
+          activeTab === 'gantt' || activeTab === 'tasks' || activeTab === 'hr' || activeTab === 'dashboard'
+            ? 'max-w-none mx-0 p-0'
             : 'p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto'
         }`}>
           {activeTab === 'hr' && <HRPage />}
@@ -38,10 +38,6 @@ function MainLayout() {
           {activeTab === 'dashboard' && <DashboardPage />}
         </main>
 
-        {/* Footer ghi nhận bản quyền APS Việt Nam */}
-        <footer className="py-4 px-6 border-t border-slate-200 dark:border-slate-800 text-center text-xs text-slate-400">
-          <p>© 2026 CÔNG TY GIẢI PHÁP CHÂU Á THÁI BÌNH DƯƠNG VIỆT NAM (APS VIỆT NAM) - CỔNG QUẢN LÝ DỰ ÁN & NHÂN SỰ CÔNG TRƯỜNG</p>
-        </footer>
       </div>
 
       {/* Thông báo dạng Toast nổi bật */}

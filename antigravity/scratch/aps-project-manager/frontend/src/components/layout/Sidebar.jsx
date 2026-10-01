@@ -33,21 +33,21 @@ export default function Sidebar() {
   const menuItems = [
     {
       id: 'hr',
-      label: 'Nhân Sự & Công Trường',
+      label: 'Thành Viên',
       icon: Users,
       badge: `${onSiteCount} On-site`,
       badgeColor: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
     },
     {
       id: 'tasks',
-      label: 'Phân Công & Tăng Ca',
+      label: 'Công việc',
       icon: CheckSquare,
       badge: `${inProgressTaskCount} Đang làm`,
       badgeColor: 'bg-blue-500/10 text-blue-500 border-blue-500/20'
     },
     {
       id: 'gantt',
-      label: 'Tiến Độ Dự Án (Gantt)',
+      label: 'Tiến Độ Dự Án',
       icon: CalendarRange,
       badge: 'FS Link',
       badgeColor: 'bg-amber-500/10 text-amber-500 border-amber-500/20'

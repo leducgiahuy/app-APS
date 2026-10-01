@@ -10,7 +10,11 @@ import {
   ChevronRight,
   RotateCcw,
   Sparkles,
-  Building
+  Building,
+  Users,
+  CheckSquare,
+  CalendarRange,
+  BarChart3
 } from 'lucide-react';
 
 export default function Header() {
@@ -32,20 +36,24 @@ export default function Header() {
   // Tiêu đề tương ứng từng trang
   const pageTitles = {
     hr: {
-      title: 'Quản Lý Nhân Sự & Điểm Danh Công Trường',
-      sub: 'Theo dõi sự hiện diện, thời gian thực, ca làm và số lượng công việc được giao'
+      title: 'Thành Viên',
+      sub: '',
+      icon: Users
     },
     tasks: {
-      title: 'Phân Công Công Việc & Đăng Ký Tăng Ca (OT)',
-      sub: 'Giao task cho nhân sự, kiểm soát định mức 8h/ngày và ca làm thêm giờ gấp'
+      title: 'Công việc',
+      sub: '',
+      icon: CheckSquare
     },
     gantt: {
-      title: 'Tiến Độ Dự Án & Biểu Đồ Gantt Công Trình',
-      sub: 'Phân rã WBS, liên kết phụ thuộc Finish-to-Start (FS), mốc nghỉ lễ và trạng thái sớm/chậm'
+      title: 'Tiến Độ Dự Án',
+      sub: '',
+      icon: CalendarRange
     },
     dashboard: {
-      title: 'Thống Kê & Báo Cáo Hiệu Suất Tổng Quan',
-      sub: 'Đo lường tiến độ các công việc, nhân viên đảm nhận và tỷ lệ hoàn thành'
+      title: 'Thống Kê & Báo Cáo Hiệu Suất',
+      sub: '',
+      icon: BarChart3
     }
   };
 
@@ -83,11 +91,11 @@ export default function Header() {
   };
 
   return (
-    <header className="sticky top-0 z-30 h-20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-colors">
-      <div className="h-full px-4 sm:px-6 flex items-center justify-between gap-4">
+    <header className="sticky top-0 z-30 h-16 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-colors">
+      <div className="h-full px-4 sm:px-5 flex items-center justify-between gap-3">
         
         {/* Phần bên trái: Nút Menu Mobile + Tiêu đề trang */}
-        <div className="flex items-center gap-3.5 min-w-0">
+        <div className="flex items-center gap-2.5 min-w-0">
           <button
             onClick={() => setMobileMenuOpen(true)}
             className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 lg:hidden flex-shrink-0"
@@ -95,21 +103,26 @@ export default function Header() {
             <Menu className="w-6 h-6" />
           </button>
 
-          <div className="min-w-0">
+          {currentInfo.title && <div className="flex items-center gap-2.5 min-w-0">
+            {currentInfo.icon && <span className="w-9 h-9 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center flex-shrink-0">
+              <currentInfo.icon className="w-[18px] h-[18px]" />
+            </span>}
+            <div className="min-w-0">
             <h1 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white truncate">
               {currentInfo.title}
             </h1>
             <p className="text-xs text-slate-500 dark:text-slate-400 hidden sm:block truncate">
               {currentInfo.sub}
             </p>
-          </div>
+            </div>
+          </div>}
         </div>
 
         {/* Phần bên phải: Đồng hồ số Real-time + Bộ chọn ngày + Theme Toggle + User Badge */}
-        <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2.5 flex-shrink-0">
           
           {/* Đồng hồ số chạy theo thời gian thực (Real-time Clock) */}
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 text-sky-600 dark:text-sky-400 font-mono font-bold text-xs sm:text-sm shadow-inner">
+          <div className="flex items-center gap-2 px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 text-sky-600 dark:text-sky-400 font-mono font-bold text-xs sm:text-sm shadow-inner">
             <Clock className="w-4 h-4 animate-spin" style={{ animationDuration: '6s' }} />
             <span>{formatTime(currentTime)}</span>
           </div>

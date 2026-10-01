@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import DateInput from '../../components/DateInput';
-import { formatDateVi, inclusiveDays, scheduledProgress, isTaskOverdue, isTaskActiveOnDate, todayIsoDate } from '../../utils/date';
+import { formatDateVi, inclusiveDays, scheduledProgress, isTaskOverdue, isTaskActiveOnDate, taskDelayHours, formatDelayHours, todayIsoDate } from '../../utils/date';
 import {
   CheckSquare,
   Clock,
@@ -161,23 +161,22 @@ export default function TasksPage() {
 
   // Đổi trạng thái tiến độ nhanh (Sớm / Đúng hạn / Chậm)
   const handleCompleteTask = (task) => {
-    const today = `${currentTime.getFullYear()}-${String(currentTime.getMonth() + 1).padStart(2, '0')}-${String(currentTime.getDate()).padStart(2, '0')}`;
-    const speedStatus = today < task.endDate ? 'early' : today > task.endDate ? 'delayed' : 'on_time';
-    updateTask(task.id, { status: 'completed', progress: 100, speedStatus });
+    updateTask(task.id, { status: 'completed', progress: 100 });
   };
 
   const getTaskSpeedStatus = (task) => {
     if (task.status === 'completed') return task.speedStatus || 'on_time';
+    if (taskDelayHours(task, currentTime) > 0) return 'delayed';
     const today = `${currentTime.getFullYear()}-${String(currentTime.getMonth() + 1).padStart(2, '0')}-${String(currentTime.getDate()).padStart(2, '0')}`;
     return today > task.endDate ? 'delayed' : 'on_time';
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       
       {/* Thanh chuyển đổi 2 Mục: Phân công task & Đăng ký tăng ca */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
-        <div className="flex items-center gap-2 w-full sm:w-auto">
+      <div className="sticky top-16 z-40 w-full min-w-0 flex flex-col 2xl:flex-row 2xl:flex-nowrap items-center justify-between gap-3 px-4 sm:px-5 py-2.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-sm">
+        <div className="flex items-center gap-2 w-full 2xl:w-auto 2xl:flex-none min-w-0">
           <button
             onClick={() => setActiveSubTab('tasks')}
             className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all ${
@@ -210,6 +209,25 @@ export default function TasksPage() {
         </div>
 
         {/* Nút hành động tương ứng */}
+        <div className="flex flex-col sm:flex-row items-center gap-3 w-full 2xl:w-auto 2xl:flex-1 2xl:justify-end min-w-0">
+        {activeSubTab === 'tasks' && (
+          <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:flex-1 lg:min-w-0">
+            <label className="relative block w-full sm:flex-1 sm:min-w-0 2xl:max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                type="search"
+                value={employeeSearch}
+                onChange={event => setEmployeeSearch(event.target.value)}
+                placeholder="Tìm task theo tên nhân sự..."
+                aria-label="Tìm task theo tên nhân sự"
+                className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-700 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500"
+              />
+            </label>
+            <span className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
+              Hiển thị {visibleTasks.length}/{tasksForSelectedDate.length}
+            </span>
+          </div>
+        )}
         {activeSubTab === 'tasks' ? (
           <button
             onClick={() => {
@@ -228,7 +246,7 @@ export default function TasksPage() {
               }));
               setShowTaskModal(true);
             }}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-semibold text-sm shadow-md transition-all flex-shrink-0"
+            className="w-full sm:w-auto 2xl:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-semibold text-sm shadow-md transition-all flex-shrink-0"
           >
             <Plus className="w-4 h-4" />
             <span>Tạo Task Công Việc Mới</span>
@@ -239,33 +257,18 @@ export default function TasksPage() {
               setOtForm(current => ({ ...current, date: todayIsoDate() }));
               setShowOtModal(true);
             }}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-white font-semibold text-sm shadow-md transition-all flex-shrink-0"
+            className="w-full sm:w-auto 2xl:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-white font-semibold text-sm shadow-md transition-all flex-shrink-0"
           >
             <Flame className="w-4 h-4" />
             <span>Đăng Ký Ca Tăng Ca Mới</span>
           </button>
         )}
+        </div>
       </div>
 
       {/* ================= NỘI DUNG MỤC 1: PHÂN CÔNG CÔNG VIỆC ================= */}
       {activeSubTab === 'tasks' && (
         <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <label className="relative block w-full sm:max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <input
-                type="search"
-                value={employeeSearch}
-                onChange={event => setEmployeeSearch(event.target.value)}
-                placeholder="Tìm task theo tên nhân sự..."
-                aria-label="Tìm task theo tên nhân sự"
-                className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm text-slate-700 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500"
-              />
-            </label>
-            <span className="text-xs text-slate-500 dark:text-slate-400">
-              Hiển thị {visibleTasks.length}/{tasksForSelectedDate.length} task trong ngày
-            </span>
-          </div>
           <div className="grid grid-cols-1 gap-4">
             {visibleTasks.length > 0 ? visibleTasks.map((task) => {
               // Tìm thông tin nhân sự đảm nhận
@@ -274,6 +277,8 @@ export default function TasksPage() {
               const progress = scheduledProgress(task, standardHours, currentTime);
               const isOverdue = isTaskOverdue(task, currentTime);
               const taskSpeedStatus = getTaskSpeedStatus(task);
+              const delayHours = taskDelayHours(task, currentTime);
+              const earlyHours = Number(task.earlyHours) || 0;
               const isNearDeadline = progress >= 80 && task.status !== 'completed';
               const progressColor = task.status === 'completed'
                 ? 'bg-emerald-500'
@@ -290,7 +295,15 @@ export default function TasksPage() {
                 delayed: { label: 'Chậm trễ / Quá hạn', bg: 'bg-rose-500/10 text-rose-500 border-rose-500/20 animate-pulse' }
               };
 
-              const speedInfo = speedStyles[taskSpeedStatus] || speedStyles.on_time;
+              const speedInfo = task.status === 'completed'
+                ? taskSpeedStatus === 'delayed'
+                  ? { label: 'Hoàn thành muộn', bg: 'bg-amber-500/10 text-amber-700 border-amber-500/20' }
+                  : speedStyles[taskSpeedStatus] || speedStyles.on_time
+                : isOverdue
+                  ? { label: 'Quá hạn', bg: 'bg-rose-500/10 text-rose-600 border-rose-500/20 animate-pulse' }
+                  : delayHours > 0
+                    ? { label: 'Chậm trễ', bg: 'bg-amber-500/10 text-amber-700 border-amber-500/20' }
+                    : speedStyles.on_time;
 
               return (
                 <div
@@ -310,7 +323,7 @@ export default function TasksPage() {
                       <span
                         className={`text-[11px] font-bold px-2.5 py-1 rounded-full border ${speedInfo.bg}`}
                       >
-                        {speedInfo.label}
+                        {speedInfo.label}{task.status === 'completed' && taskSpeedStatus === 'early' && earlyHours > 0 ? ` · Sớm ${formatDelayHours(earlyHours)}` : delayHours > 0 ? ` · Trễ ${formatDelayHours(delayHours)}` : ''}
                       </span>
 
                       {task.priority === 'urgent' && (

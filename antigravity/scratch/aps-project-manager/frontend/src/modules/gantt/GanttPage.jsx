@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import DateInput from '../../components/DateInput';
-import { formatDateVi, inclusiveDays, scheduledProgress, isTaskOverdue, todayIsoDate } from '../../utils/date';
+import { formatDateVi, inclusiveDays, scheduledProgress, isTaskOverdue, taskDelayHours, formatDelayHours, todayIsoDate } from '../../utils/date';
 import {
   CalendarRange,
   Plus,
@@ -241,7 +241,7 @@ export default function GanttPage() {
   const ROW_HEIGHT = 44;
   const HEADER_HEIGHT = zoomLevel === 'month' ? 72 : 52;
   const BAR_HEIGHT = 24;
-  const LEFT_PANEL_WIDTH = 624;
+  const LEFT_PANEL_WIDTH = 788;
   const rowHeights = filteredGanttItems.map(item => {
     if (item.isProjectHeader) return 36;
     const assigneeName = (item.assignee || '').trim().toLowerCase();
@@ -297,7 +297,7 @@ export default function GanttPage() {
 
   // Tạo đường cong mũi tên phụ thuộc Finish-to-Start (FS) - TỰ ĐỘNG NỐI TỪ TASK TRƯỚC XUỐNG
   const dependencyLines = useMemo(() => {
-    const lines = [];
+    const edges = new Map();
     filteredGanttItems.forEach((item, toIndex) => {
       if (item.isProjectHeader) return;
       let deps = Array.isArray(item.dependencies) ? [...item.dependencies] : [];
@@ -313,36 +313,30 @@ export default function GanttPage() {
         }
       }
 
-      deps.forEach((depId) => {
+      [...new Set(deps)].filter(depId => depId !== item.id).forEach((depId) => {
         const from = taskCoordinates[depId];
         const to = taskCoordinates[item.id];
-        if (from && to) {
-          const startX = from.endX;
-          const startY = from.centerY;
-          const targetX = to.x;
-          const targetY = to.centerY;
-
-          let pathData = '';
-          if (targetX >= startX) {
-            const midX = startX + 10;
-            pathData = `M ${startX} ${startY} L ${midX} ${startY} L ${midX} ${targetY} L ${targetX} ${targetY}`;
-          } else {
-            const loopX = startX + 10;
-            const midY = (startY + targetY) / 2;
-            const approachX = Math.max(10, targetX - 10);
-            pathData = `M ${startX} ${startY} L ${loopX} ${startY} L ${loopX} ${midY} L ${approachX} ${midY} L ${approachX} ${targetY} L ${targetX} ${targetY}`;
-          }
-
-          lines.push({
-            key: `${depId}->${item.id}`,
-            path: pathData,
-            targetX,
-            targetY
-          });
-        }
+        if (!from || !to) return;
+        const key = `${depId}->${item.id}`;
+        edges.set(key, { key, from, to });
       });
     });
-    return lines;
+
+    return [...edges.values()].map(({ key, from, to }) => {
+      const startX = from.x;
+      const startY = from.centerY;
+      const endX = to.x;
+      const endY = to.centerY;
+      const horizontalDistance = endX - startX;
+      const controlX = horizontalDistance > 32
+        ? horizontalDistance / 2
+        : -Math.max(24, Math.abs(horizontalDistance) / 2);
+      return {
+        key,
+        path: `M ${startX} ${startY} C ${startX + controlX} ${startY}, ${endX - controlX} ${endY}, ${endX} ${endY}`,
+        type: 'dependency'
+      };
+    });
   }, [filteredGanttItems, taskCoordinates]);
 
   // Xử lý gửi Form thêm Task
@@ -440,10 +434,10 @@ export default function GanttPage() {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="w-full space-y-0">
       
       {/* THANH ĐIỀU KHIỂN & BỘ LỌC GANTT */}
-      <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-wrap items-center justify-between gap-4">
+      <div className="sticky top-16 z-[60] w-full px-4 sm:px-5 py-2.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-sm flex flex-wrap items-center justify-between gap-4">
         
         {/* Chọn dự án & Banner */}
         <div className="flex flex-wrap items-center gap-3">
@@ -544,27 +538,17 @@ export default function GanttPage() {
       </div>
 
       {/* BẢNG TIẾN ĐỘ & BIỂU ĐỒ GANTT TƯƠNG TÁC (CỘT TRỜI ĐÓNG BĂNG) */}
-      <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden">
+      <div className="w-full bg-white dark:bg-slate-900 border-y border-slate-200 dark:border-slate-800 overflow-hidden">
         
-        {/* Banner thông báo chế độ kéo ngang & đóng băng */}
-        <div className="px-4 py-2 bg-slate-800 text-white text-[11px] font-semibold flex items-center justify-between">
-          <span className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-            CỘT TRỜI ĐÓNG BĂNG : KÉO THANH CUỘN NGANG ĐỂ XEM THANH TIẾN ĐỘ BAR
-          </span>
-          <span className="text-slate-400 font-mono text-[10px]">
-            {filteredGanttItems.filter(item => !item.isProjectHeader).length} hạng mục công việc
-          </span>
-        </div>
-
         {/* Khung cuộn ngang chứa cả Bảng bên trái + Biểu đồ bên phải */}
-        <div ref={timelineScrollRef} className={`overflow-x-auto relative isolate overflow-y-auto bg-slate-100 dark:bg-slate-950 ${
-          sidebarCollapsed ? 'max-h-[calc(100vh-220px)]' : 'max-h-[700px]'
-        }`}>
+        <div
+          ref={timelineScrollRef}
+          className="h-[calc(100vh-180px)] min-h-[320px] overflow-x-auto overflow-y-auto relative isolate bg-slate-100 dark:bg-slate-950"
+        >
           <div className="flex bg-slate-100 dark:bg-slate-950" style={{ width: `${LEFT_PANEL_WIDTH + ganttWidth}px`, minWidth: '100%' }}>
             
             {/* ================= KHUNG TRÁI: BẢNG DỮ LIỆU CÔNG VIỆC (ĐÓNG BĂNG FREEZE) ================= */}
-            <div className="w-[624px] min-w-[624px] max-w-[624px] flex-shrink-0 sticky left-0 z-40 bg-white dark:bg-slate-900 border-r-2 border-slate-300 dark:border-slate-700 shadow-md">
+            <div className="w-[788px] min-w-[788px] max-w-[788px] flex-shrink-0 sticky left-0 z-40 bg-white dark:bg-slate-900 border-r-2 border-slate-300 dark:border-slate-700 shadow-md">
               
               {/* Header Bảng Bên Trái - Khóa cứng 52px */}
               <div
@@ -572,11 +556,13 @@ export default function GanttPage() {
                 style={{ height: `${HEADER_HEIGHT}px`, minHeight: `${HEADER_HEIGHT}px`, maxHeight: `${HEADER_HEIGHT}px` }}
               >
                 <div className="w-14 min-w-[56px] text-center py-2 px-1 border-r border-slate-200 dark:border-slate-700 shrink-0">STT</div>
-                <div className="w-[240px] min-w-[240px] max-w-[240px] py-2 px-3 border-r border-slate-200 dark:border-slate-700 whitespace-nowrap truncate shrink-0">CÔNG VIỆC TRONG DỰ ÁN</div>
-                <div className="w-20 min-w-[80px] text-center py-2 px-1 border-r border-slate-200 dark:border-slate-700 shrink-0">BẮT ĐẦU</div>
-                <div className="w-20 min-w-[80px] text-center py-2 px-1 border-r border-slate-200 dark:border-slate-700 shrink-0">KẾT THÚC</div>
-                <div className="w-14 min-w-[56px] text-center py-2 px-1 border-r border-slate-200 dark:border-slate-700 shrink-0">NGÀY</div>
-                <div className="w-28 min-w-[112px] text-center py-2 px-1 shrink-0">THAO TÁC</div>
+                <div className="w-[220px] min-w-[220px] max-w-[220px] py-2 px-3 border-r border-slate-200 dark:border-slate-700 whitespace-nowrap truncate shrink-0">CÔNG VIỆC TRONG DỰ ÁN</div>
+                <div className="w-[76px] min-w-[76px] text-center py-2 px-1 border-r border-slate-200 dark:border-slate-700 shrink-0">BẮT ĐẦU</div>
+                <div className="w-[76px] min-w-[76px] text-center py-2 px-1 border-r border-slate-200 dark:border-slate-700 shrink-0">KẾT THÚC</div>
+                <div className="w-[72px] min-w-[72px] text-center py-2 px-1 border-r border-slate-200 dark:border-slate-700 shrink-0">NGÀY</div>
+                <div className="w-[88px] min-w-[88px] text-center py-2 px-1 border-r border-slate-200 dark:border-slate-700 shrink-0">THỜI GIAN</div>
+                <div className="w-24 min-w-[96px] text-center py-2 px-1 border-r border-slate-200 dark:border-slate-700 shrink-0">TRẠNG THÁI</div>
+                <div className="w-[104px] min-w-[104px] text-center py-2 px-1 shrink-0">THAO TÁC</div>
               </div>
 
               {/* Danh Sách Các Hàng Công Việc (Khóa cứng 44px mỗi dòng) */}
@@ -585,6 +571,19 @@ export default function GanttPage() {
                   const isGroup = item.isGroup;
                   const isHoliday = item.status === 'holiday';
                   if (item.isProjectHeader) {
+                    const project = projects.find(candidate => candidate.id === item.projectId);
+                    const projectTasks = tasks.filter(task => task.projectId === item.projectId || (!task.projectId && task.projectName === project?.name));
+                    const projectTaskGanttIds = new Set(projectTasks.map(task => task.ganttId).filter(Boolean));
+                    const projectTaskTitles = new Set(projectTasks.map(task => task.title?.trim().toLowerCase()).filter(Boolean));
+                    const ganttOnlyProjectItems = ganttItems.filter(ganttItem =>
+                      projectIdForItem(ganttItem) === item.projectId && !ganttItem.isGroup && ganttItem.status !== 'holiday' &&
+                      !projectTaskGanttIds.has(ganttItem.id) && !projectTaskTitles.has(ganttItem.title?.trim().toLowerCase())
+                    );
+                    const totalProjectHours = [
+                      ...projectTasks.map(task => Number(task.estimatedHours) || (Number(task.estimatedHoursPerDay) || 8) * (Number(task.estimatedDays) || 1)),
+                      ...ganttOnlyProjectItems.map(ganttItem => Number(ganttItem.estimatedHours) || (Number(ganttItem.estimatedHoursPerDay) || 8) * (Number(ganttItem.days) || 1))
+                    ].reduce((sum, hours) => sum + hours, 0);
+                    const totalProjectDays = inclusiveDays(project?.startDate, project?.endDate);
                     return (
                       <div
                         key={item.id}
@@ -592,7 +591,7 @@ export default function GanttPage() {
                         style={{ height: `${rowHeights[itemIndex]}px`, minHeight: `${rowHeights[itemIndex]}px` }}
                       >
                         <div className="w-14 min-w-[56px] h-full border-r border-sky-100 dark:border-slate-700" />
-                        <div className="w-[240px] min-w-[240px] max-w-[240px] h-full px-3 flex items-center gap-2 border-r border-sky-100 dark:border-slate-700 truncate">
+                        <div className="w-[220px] min-w-[220px] max-w-[220px] h-full px-3 flex items-center gap-2 border-r border-sky-100 dark:border-slate-700 truncate">
                           <button
                             type="button"
                             onClick={() => toggleProjectCollapsed(item.projectId)}
@@ -607,13 +606,37 @@ export default function GanttPage() {
                           <Building className="w-3.5 h-3.5 shrink-0 text-sky-600" />
                           <span className="truncate">{item.title}</span>
                         </div>
-                        <div className="w-20 min-w-[80px] h-full px-1 flex items-center justify-center border-r border-sky-100 dark:border-slate-700 text-[11px] font-medium text-slate-500 dark:text-slate-400">{formatDateVi(projects.find(project => project.id === item.projectId)?.startDate) || '-'}</div>
-                        <div className="w-20 min-w-[80px] h-full px-1 flex items-center justify-center border-r border-sky-100 dark:border-slate-700 text-[11px] font-medium text-slate-500 dark:text-slate-400">{formatDateVi(projects.find(project => project.id === item.projectId)?.endDate) || '-'}</div>
-                        <div className="w-14 min-w-[56px] h-full border-r border-sky-100 dark:border-slate-700" />
-                        <div className="w-28 min-w-[112px] h-full" />
+                        <div className="w-[76px] min-w-[76px] h-full px-1 flex items-center justify-center border-r border-sky-100 dark:border-slate-700 text-[11px] font-medium text-slate-500 dark:text-slate-400">{formatDateVi(project?.startDate) || '-'}</div>
+                        <div className="w-[76px] min-w-[76px] h-full px-1 flex items-center justify-center border-r border-sky-100 dark:border-slate-700 text-[11px] font-medium text-slate-500 dark:text-slate-400">{formatDateVi(project?.endDate) || '-'}</div>
+                        <div className="w-[72px] min-w-[72px] h-full px-1 flex items-center justify-center border-r border-sky-100 dark:border-slate-700 text-[11px] font-bold text-slate-600 dark:text-slate-300">{totalProjectDays} ngày</div>
+                        <div className="w-[88px] min-w-[88px] h-full px-1 flex items-center justify-center border-r border-sky-100 dark:border-slate-700 text-[11px] font-semibold text-slate-600 dark:text-slate-300">{totalProjectHours.toLocaleString('vi-VN', { maximumFractionDigits: 2 })}h</div>
+                        <div className="w-24 min-w-[96px] h-full border-r border-sky-100 dark:border-slate-700" />
+                        <div className="w-[104px] min-w-[104px] h-full" />
                       </div>
                     );
                   }
+
+                  const linkedTask = tasks.find(task => task.ganttId === item.id) || tasks.find(task =>
+                    task.title?.trim().toLowerCase() === item.title?.trim().toLowerCase() &&
+                    (!task.projectId || !item.projectId || task.projectId === item.projectId)
+                  );
+                  const rowTask = linkedTask || item;
+                  const rowOverdue = isTaskOverdue(rowTask, currentTime);
+                  const rowDelayHours = taskDelayHours(rowTask, currentTime);
+                  const notStarted = rowTask.startDate && rowTask.startDate > todayIsoDate(currentTime);
+                  const rowStatus = item.isGroup || isHoliday ? null : rowTask.status === 'completed' && (rowTask.speedStatus === 'delayed' || rowTask.delayHours > 0)
+                    ? { label: 'Hoàn thành muộn', style: 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' }
+                    : rowTask.status === 'completed' && rowTask.speedStatus === 'early'
+                      ? { label: 'Hoàn thành sớm', style: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' }
+                    : rowTask.status === 'completed'
+                      ? { label: 'Hoàn thành', style: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' }
+                      : rowOverdue
+                        ? { label: 'Quá hạn', style: 'bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300' }
+                        : rowDelayHours > 0
+                          ? { label: 'Chậm trễ', style: 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' }
+                          : notStarted
+                            ? { label: 'Chưa bắt đầu', style: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300' }
+                            : { label: 'Đang làm', style: 'bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300' };
 
                   return (
                     <div
@@ -634,14 +657,7 @@ export default function GanttPage() {
 
                       {/* Cột Tên Công Việc (Có thụt dòng theo cấp WBS) */}
                       <div
-                        className="w-[240px] min-w-[240px] max-w-[240px] py-1 px-3 border-r border-slate-100 dark:border-slate-800 truncate flex items-center gap-1.5 shrink-0"
-                        style={{
-                          paddingLeft: (item.code && item.code.includes('.'))
-                            ? '24px'
-                            : (item.code && item.code.length > 1)
-                            ? '16px'
-                            : '10px'
-                        }}
+                        className="w-[220px] min-w-[220px] max-w-[220px] h-full min-h-0 px-3 border-r border-slate-100 dark:border-slate-800 overflow-hidden whitespace-nowrap flex items-center gap-1.5 shrink-0"
                       >
                         {isGroup && (
                           <span
@@ -649,28 +665,33 @@ export default function GanttPage() {
                             style={{ backgroundColor: item.color }}
                           />
                         )}
-                        <span className="min-w-0 truncate" title={item.title}>
+                        <span className="min-w-0 flex-1 truncate" title={item.title}>
                           {item.title}
                         </span>
                       </div>
 
                       {/* Cột Bắt Đầu */}
-                      <div className="w-20 min-w-[80px] text-center py-1 px-1 text-[11px] border-r border-slate-100 dark:border-slate-800 text-slate-500 shrink-0">
+                      <div className="w-[76px] min-w-[76px] text-center py-1 px-1 text-[11px] border-r border-slate-100 dark:border-slate-800 text-slate-500 shrink-0">
                         {formatDateVi(item.startDate) || '-'}
                       </div>
 
                       {/* Cột Kết Thúc */}
-                      <div className="w-20 min-w-[80px] text-center py-1 px-1 text-[11px] border-r border-slate-100 dark:border-slate-800 text-slate-500 shrink-0">
+                      <div className="w-[76px] min-w-[76px] text-center py-1 px-1 text-[11px] border-r border-slate-100 dark:border-slate-800 text-slate-500 shrink-0">
                         {formatDateVi(item.endDate) || '-'}
                       </div>
 
                       {/* Cột Ngày (Duration) */}
-                      <div className="w-14 min-w-[56px] text-center py-1 px-1 font-bold text-[11px] border-r border-slate-100 dark:border-slate-800 shrink-0">
+                      <div className="w-[72px] min-w-[72px] text-center py-1 px-1 font-bold text-[11px] border-r border-slate-100 dark:border-slate-800 shrink-0">
                         {item.days}
                       </div>
 
+                      <div className="w-[88px] min-w-[88px] text-center py-1 px-1 text-[11px] border-r border-slate-100 dark:border-slate-800 text-slate-500 shrink-0">{item.isGroup || isHoliday ? '—' : `${(Number(rowTask.estimatedHours) || (Number(rowTask.estimatedHoursPerDay) || 8) * (Number(rowTask.estimatedDays) || Number(item.days) || 1)).toLocaleString('vi-VN', { maximumFractionDigits: 2 })}h`}</div>
+                      <div className="w-24 min-w-[96px] text-center py-1 px-1 border-r border-slate-100 dark:border-slate-800 shrink-0">
+                        {rowStatus && <span className={`inline-flex max-w-full px-1.5 py-1 rounded-full text-[9px] font-bold whitespace-nowrap ${rowStatus.style}`}>{rowStatus.label}</span>}
+                      </div>
+
                       {/* Cột Thao Tác (Di chuyển lên/xuống & Xóa) */}
-                      <div className="w-28 min-w-[112px] flex items-center justify-center gap-0.5 py-1 px-1 shrink-0">
+                      <div className="w-[104px] min-w-[104px] flex items-center justify-center gap-0.5 py-1 px-1 shrink-0">
                         <button
                           onClick={() => handleEditOpen(item)}
                           className="p-1 rounded text-slate-400 hover:text-sky-500 hover:bg-sky-50 dark:hover:bg-slate-800 transition-colors"
@@ -779,7 +800,7 @@ export default function GanttPage() {
                     refY="3.5"
                     orient="auto"
                   >
-                    <polygon points="0 0, 7 3.5, 0 7" fill="#0284c7" />
+                    <polygon points="0 0, 8 4, 0 8" fill="#64748b" />
                   </marker>
                   
                   {/* Gradient cho các thanh bar */}
@@ -798,6 +819,10 @@ export default function GanttPage() {
                   <linearGradient id="grad-green" x1="0%" y1="0%" x2="100%" y2="0%">
                     <stop offset="0%" stopColor="#15803d" />
                     <stop offset="100%" stopColor="#22c55e" />
+                  </linearGradient>
+                  <linearGradient id="grad-slate" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#64748b" />
+                    <stop offset="100%" stopColor="#94a3b8" />
                   </linearGradient>
                 </defs>
 
@@ -846,17 +871,32 @@ export default function GanttPage() {
                 ))}
 
                 {/* 2. HIỂN THỊ MŨI TÊN KẺ XUỐNG CÔNG VIỆC TIẾP THEO TRONG DỰ ÁN (FS Dependency) */}
-                {dependencyLines.map((line) => (
+                {dependencyLines.map(line => (
+                  <path
+                    key={`${line.key}-halo`}
+                    d={line.path}
+                    fill="none"
+                    stroke="#f8fafc"
+                    strokeWidth="5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    pointerEvents="none"
+                  />
+                ))}
+                {dependencyLines.map(line => (
                   <path
                     key={line.key}
                     d={line.path}
                     fill="none"
-                    stroke="#0284c7"
-                    strokeWidth="1.8"
-                    strokeDasharray="4 2"
-                    markerEnd="url(#arrowhead)"
-                    className="transition-all hover:stroke-sky-400"
-                  />
+                    stroke="#64748b"
+                    strokeWidth={line.type === 'trunk' ? '2.1' : '1.9'}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    markerEnd={line.type === 'dependency' ? 'url(#arrowhead)' : undefined}
+                    className="transition-colors hover:stroke-sky-500"
+                  >
+                    <title>{line.type === 'trunk' ? 'Nhánh chung của liên kết FS' : 'Công việc trước → công việc sau (Finish-to-Start)'}</title>
+                  </path>
                 ))}
 
                 {/* 3. Vẽ các thanh tiến độ Gantt Bar */}
@@ -868,15 +908,41 @@ export default function GanttPage() {
                   const isHoliday = item.status === 'holiday';
                   const linkedTask = tasks.find(task => task.ganttId === item.id);
                   const assignee = employees.find(employee => employee.id === linkedTask?.employeeId || employee.name === item.assignee);
-                  const progressTask = linkedTask || item;
+                  // Merge the linked task with its Gantt row so completion timing survives
+                  // when one side has not yet received the latest synchronized fields.
+                  const progressTask = linkedTask ? { ...item, ...linkedTask } : item;
                   const progress = scheduledProgress(progressTask, assignee?.standardHours || 8, currentTime);
                   const overdue = isTaskOverdue(progressTask, currentTime);
+                  const delayHours = Math.max(
+                    taskDelayHours(progressTask, currentTime),
+                    Number(linkedTask?.delayHours) || 0,
+                    Number(item.delayHours) || 0
+                  );
+                  const completedLate = progressTask.status === 'completed' && (progressTask.speedStatus === 'delayed' || item.speed === 'delayed');
+                  const completedEarly = progressTask.status === 'completed' && (progressTask.speedStatus === 'early' || item.speed === 'early');
+                  const earlyHours = Math.max(
+                    Number(progressTask.earlyHours) || 0,
+                    Number(linkedTask?.earlyHours) || 0,
+                    Number(item.earlyHours) || 0
+                  );
+                  const notStarted = progressTask.startDate && progressTask.startDate > todayIsoDate(currentTime);
 
-                  // Chọn màu gradient
-                  let fillColor = 'url(#grad-sky)';
-                  if (item.color === '#eab308' || isHoliday) fillColor = 'url(#grad-amber)';
-                  if (item.color === '#dc2626') fillColor = 'url(#grad-red)';
-                  if (item.color === '#16a34a') fillColor = 'url(#grad-green)';
+                  // Keep the bar and progress fill aligned with the task status pill.
+                  const statusColor = isHoliday ? '#f59e0b'
+                    : progressTask.status === 'completed' ? (completedLate ? '#f59e0b' : '#10b981')
+                      : overdue ? '#ef4444'
+                        : delayHours > 0 ? '#f59e0b'
+                          : notStarted ? '#94a3b8'
+                            : '#10b981';
+                  const fillColor = isHoliday || (progressTask.status === 'completed' && completedLate) || (!overdue && delayHours > 0)
+                    ? 'url(#grad-amber)'
+                    : progressTask.status === 'completed'
+                      ? 'url(#grad-green)'
+                      : overdue
+                        ? 'url(#grad-red)'
+                        : notStarted
+                          ? 'url(#grad-slate)'
+                          : 'url(#grad-sky)';
 
                   return (
                     <g key={item.id} className="cursor-pointer group">
@@ -928,8 +994,8 @@ export default function GanttPage() {
                           height={coord.height}
                           rx="6"
                           ry="6"
-                          fill={overdue ? '#ef4444' : progress >= 80 && progressTask.status !== 'completed' ? '#f59e0b' : '#10b981'}
-                          fillOpacity="0.78"
+                          fill={statusColor}
+                          fillOpacity="1"
                           className="pointer-events-none transition-all duration-500"
                         >
                           <title>{`Tiến độ theo thời gian: ${progress}%${overdue ? ' · Quá hạn' : ''}`}</title>
@@ -941,9 +1007,13 @@ export default function GanttPage() {
                         x={coord.endX + 8}
                         y={isGroup ? coord.centerY + 4 : coord.rowTop + ROW_HEIGHT / 2 + 4}
                         fill="#64748b"
+                        stroke="#f1f5f9"
+                        strokeWidth="4"
+                        strokeLinejoin="round"
+                        paintOrder="stroke"
                         fontSize="11"
                         fontWeight="600"
-                        className="dark:fill-slate-300 select-none pointer-events-none"
+                        className="dark:fill-slate-300 dark:stroke-slate-950 select-none pointer-events-none"
                       >
                         {isGroup ? `${item.title} (${item.days} ngày)` : <>
                           <tspan fill="#64748b">{item.assignee} ({item.days} ngày{item.days > 1 ? `, ${Number(item.estimatedHoursPerDay) || Number(item.estimatedHours) / item.days || 8}h/ngày` : `, ${Number(item.estimatedHours) || item.days * 8}h`})</tspan>
@@ -971,33 +1041,19 @@ export default function GanttPage() {
                             <tspan fill="#f59e0b" fontWeight="bold"> [+{item.overtimeHours}h OT]</tspan>
                           )}
                         </>}
-                        {item.speed === 'early' && (
-                          <tspan fill="#10b981"> [Sớm]</tspan>
-                        )}
-                        {item.speed === 'delayed' && (
-                          <tspan fill="#ef4444" fontWeight="bold"> [Chậm]</tspan>
+                        {completedEarly && (
+                          <tspan fill="#15803d" fontWeight="bold"> [Hoàn thành sớm{earlyHours > 0 ? ` · Sớm ${formatDelayHours(earlyHours)}` : ''}]</tspan>
                         )}
                         {overdue && (
-                          <tspan fill="#ef4444" fontWeight="bold"> [Quá hạn]</tspan>
+                          <tspan fill="#ef4444" fontWeight="bold"> [Quá hạn{delayHours > 0 ? ` ${formatDelayHours(delayHours)}` : ''}]</tspan>
+                        )}
+                        {!overdue && (completedLate || item.speed === 'delayed' || delayHours > 0) && (
+                          <tspan fill="#d97706" fontWeight="bold"> [{completedLate ? (delayHours > 0 ? `Hoàn thành muộn · Trễ ${formatDelayHours(delayHours)}` : 'Hoàn thành muộn') : (delayHours > 0 ? `Chậm ${formatDelayHours(delayHours)}` : 'Chậm trễ')}]</tspan>
                         )}
                         {!overdue && progress >= 80 && progressTask.status !== 'completed' && (
                           <tspan fill="#f59e0b" fontWeight="bold"> [Sắp hết hạn]</tspan>
                         )}
                       </text>
-
-                      {/* Chữ hiển thị bên trong thanh nếu đủ rộng */}
-                      {coord.width >= 40 && (
-                        <text
-                          x={coord.x + 8}
-                          y={coord.centerY + 4}
-                          fill="#ffffff"
-                          fontSize="10"
-                          fontWeight="bold"
-                          className="select-none pointer-events-none truncate"
-                        >
-                          {item.code} {coord.width > 90 ? `- ${item.days}d` : ''}
-                        </text>
-                      )}
 
                     </g>
                   );

@@ -227,12 +227,8 @@ export function updateTask(req, res) {
     task.status = 'completed';
   }
 
-  if (task.status === 'completed' && speedStatus === undefined && task.endDate) {
-    const now = new Date();
-    const completionDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    task.speedStatus = completionDate < task.endDate ? 'early' : completionDate > task.endDate ? 'delayed' : 'on_time';
-  }
-
+  const completingTask = task.status === 'completed' && !task.completedAt;
+  const completedAt = completingTask ? new Date() : (task.completedAt ? new Date(task.completedAt) : null);
   let completedSessionStartAt = null;
   if (task.status === 'completed' && task.workSessionStartedAt) {
     completedSessionStartAt = task.workSessionStartedAt;
@@ -247,12 +243,44 @@ export function updateTask(req, res) {
     }
   }
 
+  if (task.status === 'completed' && completedAt) {
+    task.completedAt = completedAt.toISOString();
+    const standardHours = Number(db.employees.find(employee => employee.id === task.employeeId)?.standardHours) || 8;
+    const plannedHours = Number(task.estimatedHours) > 0
+      ? Number(task.estimatedHours)
+      : (Number(task.estimatedDays) || 1) * (Number(task.estimatedHoursPerDay) || standardHours);
+    const effortDelay = Math.max(0, (Number(task.actualWorkHours) || 0) - plannedHours);
+    const endDateMatch = String(task.endDate || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    const deadline = endDateMatch
+      ? new Date(Number(endDateMatch[1]), Number(endDateMatch[2]) - 1, Number(endDateMatch[3]) + 1).getTime()
+      : NaN;
+    const calendarDelay = Number.isFinite(deadline)
+      ? Math.max(0, completedAt.getTime() - deadline) / 3600000
+      : 0;
+    task.delayHours = Math.round(Math.max(effortDelay, calendarDelay) * 100) / 100;
+    const trackedWorkHours = Number(task.actualWorkHours) || 0;
+    task.earlyHours = task.delayHours > 0 || trackedWorkHours <= 0
+      ? 0
+      : Math.round(Math.max(0, plannedHours - trackedWorkHours) * 100) / 100;
+
+    if (completingTask || speedStatus !== undefined) {
+      const completionDate = `${completedAt.getFullYear()}-${String(completedAt.getMonth() + 1).padStart(2, '0')}-${String(completedAt.getDate()).padStart(2, '0')}`;
+      task.speedStatus = task.delayHours > 0
+        ? 'delayed'
+        : task.earlyHours > 0 || completionDate < task.endDate ? 'early' : completionDate > task.endDate ? 'delayed' : (speedStatus || 'on_time');
+    }
+  }
+
   // Đồng bộ sang ganttItems tương ứng
   const gantt = (db.ganttItems || []).find(g => g.id === task.ganttId || g.title === task.title);
   if (gantt) {
     if (task.status !== undefined) gantt.status = task.status;
     if (task.progress !== undefined) gantt.progress = task.progress;
     if (task.speedStatus !== undefined) gantt.speed = task.speedStatus;
+    if (task.completedAt) gantt.completedAt = task.completedAt;
+    if (task.delayHours !== undefined) gantt.delayHours = task.delayHours;
+    if (task.earlyHours !== undefined) gantt.earlyHours = task.earlyHours;
+    if (task.actualWorkHours !== undefined) gantt.actualWorkHours = task.actualWorkHours;
     if (startDate !== undefined) gantt.startDate = task.startDate;
     if (endDate !== undefined) gantt.endDate = task.endDate;
     if (estimatedDays !== undefined) gantt.days = task.estimatedDays;

@@ -73,6 +73,42 @@ export function isTaskOverdue(task, now = new Date()) {
   return Number.isFinite(endExclusive) && now.getTime() >= endExclusive;
 }
 
+export function taskDelayHours(task, now = new Date()) {
+  if (!task) return 0;
+  if (task.status === 'completed' && Number(task.delayHours) > 0) {
+    return Number(task.delayHours);
+  }
+
+  const days = Number(task.estimatedDays) || inclusiveDays(task.startDate, task.endDate);
+  const perDay = Number(task.estimatedHoursPerDay) || 0;
+  const plannedHours = Number(task.estimatedHours) > 0
+    ? Number(task.estimatedHours)
+    : days * (perDay || 8);
+  const activeStart = Date.parse(task.workSessionStartedAt || '');
+  const trackedHours = (Number(task.actualWorkHours) || 0) + (Number.isFinite(activeStart)
+    ? Math.max(0, now.getTime() - activeStart) / 3600000
+    : 0);
+  const effortDelay = Math.max(0, trackedHours - plannedHours);
+
+  let calendarDelay = 0;
+  if (task.endDate && (task.status === 'completed' ? task.completedAt : isTaskOverdue(task, now))) {
+    const [, year, month, day] = String(task.endDate).match(/^(\d{4})-(\d{2})-(\d{2})$/) || [];
+    const deadline = year ? new Date(Number(year), Number(month) - 1, Number(day) + 1).getTime() : NaN;
+    const completion = task.status === 'completed' ? Date.parse(task.completedAt) : now.getTime();
+    if (Number.isFinite(deadline) && Number.isFinite(completion)) calendarDelay = Math.max(0, completion - deadline) / 3600000;
+  }
+  return Math.round(Math.max(effortDelay, calendarDelay) * 10) / 10;
+}
+
+export function formatDelayHours(hours) {
+  const totalMinutes = Math.max(0, Math.round((Number(hours) || 0) * 60));
+  const wholeHours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (wholeHours && minutes) return `${wholeHours}h${minutes}`;
+  if (wholeHours) return `${wholeHours}h`;
+  return `${minutes}p`;
+}
+
 export function isTaskActiveOnDate(task, date) {
   if (!task?.startDate || !task?.endDate || !date) return false;
   const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;

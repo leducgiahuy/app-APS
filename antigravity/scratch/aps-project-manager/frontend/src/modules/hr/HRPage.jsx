@@ -87,13 +87,13 @@ export default function HRPage() {
   };
 
   return (
-    <div className="space-y-6">
-      
+    <div className="w-full space-y-6 px-4 sm:px-6 pt-0 pb-6">
+      <div className="sticky top-16 z-20 -mx-4 sm:-mx-6 space-y-0 bg-slate-50 dark:bg-slate-950 pb-1">
       {/* 4 Thẻ KPI Tóm Tắt Đầu Trang */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-0">
         
         {/* KPI 1: Tổng nhân sự */}
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+        <div className="p-4 rounded-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Tổng Nhân Sự
@@ -108,7 +108,7 @@ export default function HRPage() {
         </div>
 
         {/* KPI 2: Nhân sự tại công trường */}
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+        <div className="p-4 rounded-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
               Có Mặt Tại Công Trường
@@ -124,7 +124,7 @@ export default function HRPage() {
         </div>
 
         {/* KPI 3: Định mức giờ chuẩn */}
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+        <div className="p-4 rounded-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Ca Làm Chuẩn
@@ -139,7 +139,7 @@ export default function HRPage() {
         </div>
 
         {/* KPI 4: Giờ tăng ca */}
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+        <div className="p-4 rounded-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-amber-500 dark:text-amber-400">
               Tổng Giờ Tăng Ca (OT)
@@ -156,7 +156,7 @@ export default function HRPage() {
       </div>
 
       {/* Thanh công cụ: Tìm kiếm, Lọc đội nhóm, Nút thêm nhân sự */}
-      <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+      <div className="p-4 rounded-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
         
         {/* Ô tìm kiếm */}
         <div className="relative w-full md:w-80">
@@ -196,6 +196,7 @@ export default function HRPage() {
           </button>
         </div>
 
+      </div>
       </div>
 
       {/* Lưới danh sách nhân sự (Personnel Cards Grid) */}

@@ -330,6 +330,32 @@ export function updateGanttItem(req, res) {
       } else if (!Number(task.estimatedHours) || Math.abs(Number(task.estimatedHours) - defaultEstimatedHours) < 0.01) {
         task.estimatedHours = task.estimatedDays * standardHours;
       }
+      if (task.status === 'completed' && task.completedAt) {
+        const completedAt = Date.parse(task.completedAt);
+        const plannedHours = Number(task.estimatedHours) || task.estimatedDays * (Number(task.estimatedHoursPerDay) || standardHours);
+        const effortDelay = Math.max(0, (Number(task.actualWorkHours) || 0) - plannedHours);
+        const trackedWorkHours = Number(task.actualWorkHours) || 0;
+        const [, year, month, day] = String(task.endDate || '').match(/^(\d{4})-(\d{2})-(\d{2})$/) || [];
+        const deadline = year ? new Date(Number(year), Number(month) - 1, Number(day) + 1).getTime() : NaN;
+        const calendarDelay = Number.isFinite(completedAt) && Number.isFinite(deadline)
+          ? Math.max(0, completedAt - deadline) / 3600000
+          : 0;
+        task.delayHours = Math.round(Math.max(effortDelay, calendarDelay) * 100) / 100;
+        task.earlyHours = task.delayHours > 0 || trackedWorkHours <= 0
+          ? 0
+          : Math.round(Math.max(0, plannedHours - trackedWorkHours) * 100) / 100;
+        task.speedStatus = task.delayHours > 0
+          ? 'delayed'
+          : task.earlyHours > 0 || String(task.completedAt).slice(0, 10) < task.endDate ? 'early' : 'on_time';
+        const linkedItem = (db.ganttItems || []).find(ganttItem => ganttItem.id === task.ganttId);
+        if (linkedItem) {
+          linkedItem.delayHours = task.delayHours;
+          linkedItem.earlyHours = task.earlyHours;
+          linkedItem.speed = task.speedStatus;
+          linkedItem.completedAt = task.completedAt;
+          linkedItem.actualWorkHours = task.actualWorkHours;
+        }
+      }
     }
   });
 
