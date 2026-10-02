@@ -44,6 +44,10 @@ export default function Header() {
       title: 'Phân Công Công Việc & Đăng Ký Tăng Ca (OT)',
       sub: 'Giao task cho nhân sự, kiểm soát định mức 8h/ngày và ca làm thêm giờ gấp'
     },
+    workload: {
+      title: 'Theo Dõi Giờ & Công Việc Trong Ngày',
+      sub: 'Theo dõi giờ công thực tế, phân bổ công việc và giờ còn trống theo ngày'
+    },
     gantt: {
       title: 'Tiến Độ Dự Án & Biểu Đồ Gantt Công Trình',
       sub: 'Phân rã WBS, liên kết phụ thuộc Finish-to-Start (FS), mốc nghỉ lễ và trạng thái sớm/chậm'

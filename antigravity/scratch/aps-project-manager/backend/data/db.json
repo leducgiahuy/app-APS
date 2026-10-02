@@ -35,6 +35,18 @@
       "endDate": "2026-10-07",
       "status": "planning",
       "progress": 0
+    },
+    {
+      "id": "proj-1790923547621",
+      "code": "aaa",
+      "name": "aaaa",
+      "description": "",
+      "location": "Hà Nội",
+      "manager": "Trần Quốc Hưng",
+      "startDate": "2026-10-02",
+      "endDate": "2026-10-28",
+      "status": "planning",
+      "progress": 0
     }
   ],
   "employees": [
@@ -200,8 +212,8 @@
       "breakStartedAt": "2026-10-02T02:46:27.764Z",
       "totalBreakMs": 0,
       "workSessionStartedAt": null,
-      "activeTaskId": "task-1790906411479",
-      "activeTaskTitle": "Tesst",
+      "activeTaskId": null,
+      "activeTaskTitle": null,
       "avatar": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80",
       "lastShiftCheckInAt": "2026-10-01T04:36:27.429Z",
       "lastShiftCheckOutAt": "2026-10-02T02:43:30.664Z",
@@ -447,29 +459,46 @@
       "notes": ""
     },
     {
-      "id": "task-1790906411479",
-      "ganttId": "G-1790906411478",
-      "projectId": "proj-1790742057315",
-      "projectName": "APS",
+      "id": "task-1790923587652",
+      "ganttId": "G-1790923587641",
+      "projectId": "proj-1790923547621",
+      "projectName": "aaaa",
       "phase": "A. THIẾT KẾ XÂY DỰNG",
-      "title": "Tesst",
-      "code": "A9",
-      "employeeId": "emp-1790741838788",
-      "employeeName": "Ngoc Thanh",
+      "title": "123123",
+      "code": "áds",
+      "employeeId": "emp-1790741806921",
+      "employeeName": "Gia Huy",
       "startDate": "2026-10-02",
-      "endDate": "2026-10-02",
-      "estimatedHours": 8,
+      "endDate": "2026-10-08",
+      "estimatedHours": 56,
       "estimatedHoursPerDay": 8,
-      "estimatedDays": 1,
+      "estimatedDays": 7,
       "status": "in_progress",
       "speedStatus": "on_time",
       "priority": "high",
       "progress": 0,
-      "notes": "",
-      "attendanceTracked": true,
-      "actualWorkStartedAt": "2026-10-02T02:00:40.238Z",
-      "workSessionStartedAt": null,
-      "actualWorkHours": 0.76
+      "notes": ""
+    },
+    {
+      "id": "task-1790923626555",
+      "ganttId": "G-1790923626489",
+      "projectId": "proj-1790923547621",
+      "projectName": "aaaa",
+      "phase": "A. THIẾT KẾ XÂY DỰNG",
+      "title": "ádcccc",
+      "code": "âsd",
+      "employeeId": "emp-1790741838788",
+      "employeeName": "Ngoc Thanh",
+      "startDate": "2026-10-10",
+      "endDate": "2026-10-16",
+      "estimatedHours": 56,
+      "estimatedHoursPerDay": 8,
+      "estimatedDays": 7,
+      "status": "in_progress",
+      "speedStatus": "on_time",
+      "priority": "high",
+      "progress": 0,
+      "notes": ""
     }
   ],
   "overtimes": [
@@ -507,30 +536,6 @@
       "date": "2026-09-26",
       "reason": "Khoan thêm 2 hố khoan kiểm chứng địa tầng sụt lún",
       "approvedBy": "Trần Quốc Hưng",
-      "status": "approved"
-    },
-    {
-      "id": "ot-1790910814840",
-      "taskId": "task-1790906411479",
-      "taskTitle": "Tesst",
-      "employeeId": "emp-1790741838788",
-      "employeeName": "Ngoc Thanh",
-      "hours": 2,
-      "date": "2026-10-02",
-      "reason": "a",
-      "approvedBy": "Trần Quốc Hưng (Chỉ huy trưởng)",
-      "status": "approved"
-    },
-    {
-      "id": "ot-1790910844635",
-      "taskId": "task-1790906411479",
-      "taskTitle": "Tesst",
-      "employeeId": "emp-1790741838788",
-      "employeeName": "Ngoc Thanh",
-      "hours": 2,
-      "date": "2026-10-02",
-      "reason": "b",
-      "approvedBy": "Trần Quốc Hưng (Chỉ huy trưởng)",
       "status": "approved"
     }
   ],
@@ -990,17 +995,37 @@
       ]
     },
     {
-      "id": "G-1790906411478",
-      "projectId": "proj-1790742057315",
-      "code": "A9",
-      "title": "Tesst",
+      "id": "G-1790923587641",
+      "projectId": "proj-1790923547621",
+      "code": "áds",
+      "title": "123123",
       "isGroup": false,
       "color": "#0284c7",
       "unit": "TK",
       "startDate": "2026-10-02",
-      "endDate": "2026-10-02",
-      "days": 1,
-      "estimatedHours": 8,
+      "endDate": "2026-10-08",
+      "days": 7,
+      "estimatedHours": 56,
+      "estimatedHoursPerDay": 8,
+      "assignee": "Gia Huy",
+      "notes": "",
+      "status": "in_progress",
+      "speed": "on_time",
+      "progress": 0,
+      "dependencies": []
+    },
+    {
+      "id": "G-1790923626489",
+      "projectId": "proj-1790923547621",
+      "code": "âsd",
+      "title": "ádcccc",
+      "isGroup": false,
+      "color": "#0284c7",
+      "unit": "TK",
+      "startDate": "2026-10-10",
+      "endDate": "2026-10-16",
+      "days": 7,
+      "estimatedHours": 56,
       "estimatedHoursPerDay": 8,
       "assignee": "Ngoc Thanh",
       "notes": "",
@@ -1008,16 +1033,380 @@
       "speed": "on_time",
       "progress": 0,
       "dependencies": [
-        "G-1790821645407"
-      ],
-      "attendanceTracked": true,
-      "actualWorkStartedAt": "2026-10-02T02:00:40.238Z",
-      "workSessionStartedAt": null,
-      "actualWorkHours": 0.76,
-      "overtimeHours": 4
+        "G-1790923587641"
+      ]
     }
   ],
   "activityLog": [
+    {
+      "id": "923e541e-a826-44dd-b460-6ab595f9d8d5",
+      "timestamp": "2026-10-02T06:47:15.790Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "module.view",
+      "details": "Mở phân hệ workload."
+    },
+    {
+      "id": "22dbc8c9-82d9-4f77-b5c5-aa16816ef4bb",
+      "timestamp": "2026-10-02T06:47:06.560Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.create",
+      "details": "Thêm hạng mục ádcccc vào Gantt."
+    },
+    {
+      "id": "f6075252-0a4a-42b4-af81-7ad4309dc93e",
+      "timestamp": "2026-10-02T06:46:27.657Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.create",
+      "details": "Thêm hạng mục 123123 vào Gantt."
+    },
+    {
+      "id": "846e650b-e444-4057-b2a9-67d1d15109de",
+      "timestamp": "2026-10-02T06:45:59.146Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "module.view",
+      "details": "Mở phân hệ gantt."
+    },
+    {
+      "id": "bda7cb09-4426-484b-b5ef-83ad18719585",
+      "timestamp": "2026-10-02T06:45:58.096Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "module.view",
+      "details": "Mở phân hệ dashboard."
+    },
+    {
+      "id": "37bf0ede-5b2f-4757-b11c-c33a1597984a",
+      "timestamp": "2026-10-02T06:45:56.212Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "module.view",
+      "details": "Mở phân hệ hr."
+    },
+    {
+      "id": "7d57cf20-e9fb-4f97-8dc5-d6b7c8aaa4ba",
+      "timestamp": "2026-10-02T06:45:54.477Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "module.view",
+      "details": "Mở phân hệ tasks."
+    },
+    {
+      "id": "171945e0-7f15-4006-88cf-352ce89fe7f7",
+      "timestamp": "2026-10-02T06:45:53.385Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "module.view",
+      "details": "Mở phân hệ workload."
+    },
+    {
+      "id": "2a608c9e-d8b1-4fb1-9bd0-772bd2563391",
+      "timestamp": "2026-10-02T06:45:52.913Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "module.view",
+      "details": "Mở phân hệ hr."
+    },
+    {
+      "id": "72de42b3-208c-4e3f-a73c-bdee149c8685",
+      "timestamp": "2026-10-02T06:45:52.364Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "module.view",
+      "details": "Mở phân hệ tasks."
+    },
+    {
+      "id": "42f9f3aa-7e63-4321-8e7e-f0fd4c551685",
+      "timestamp": "2026-10-02T06:45:47.628Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "project.create",
+      "details": "Tạo dự án aaaa."
+    },
+    {
+      "id": "ee21d9bb-d49c-44b2-b0da-595672827e6c",
+      "timestamp": "2026-10-02T06:45:24.980Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "module.view",
+      "details": "Mở phân hệ gantt."
+    },
+    {
+      "id": "f1b333b6-2216-4a78-8737-cd56b7b83a4f",
+      "timestamp": "2026-10-02T06:45:24.241Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "module.view",
+      "details": "Mở phân hệ workload."
+    },
+    {
+      "id": "78f7ec21-079c-415c-9f8f-9af3155ed592",
+      "timestamp": "2026-10-02T06:45:23.018Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "module.view",
+      "details": "Mở phân hệ dashboard."
+    },
+    {
+      "id": "97e935c4-00bc-4f1e-81c1-0c2414adccec",
+      "timestamp": "2026-10-02T06:45:21.137Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "module.view",
+      "details": "Mở phân hệ workload."
+    },
+    {
+      "id": "cfb947ff-5aa6-4807-b3af-7465cbec2f9f",
+      "timestamp": "2026-10-02T06:45:19.753Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "module.view",
+      "details": "Mở phân hệ tasks."
+    },
+    {
+      "id": "a3ce06bc-d8ec-4eec-ab2f-da22693a6f26",
+      "timestamp": "2026-10-02T06:45:05.256Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "module.view",
+      "details": "Mở phân hệ hr."
+    },
+    {
+      "id": "3a7ad9ca-d0b2-45b1-b59a-4ac3bfb786e0",
+      "timestamp": "2026-10-02T04:48:33.760Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "module.view",
+      "details": "Mở phân hệ hr."
+    },
+    {
+      "id": "80168d49-1f5b-44a7-8515-9476cb4b9afa",
+      "timestamp": "2026-10-02T04:48:29.313Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "module.view",
+      "details": "Mở phân hệ activity."
+    },
+    {
+      "id": "a92c6c7a-168a-4136-8535-16f9f7159a37",
+      "timestamp": "2026-10-02T04:48:28.780Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "module.view",
+      "details": "Mở phân hệ dashboard."
+    },
+    {
+      "id": "3ba4fb4a-0792-460b-8a1c-7fe2a8849b02",
+      "timestamp": "2026-10-02T04:48:25.060Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "module.view",
+      "details": "Mở phân hệ gantt."
+    },
+    {
+      "id": "19d29f72-626e-425c-9f06-51fa2044dc48",
+      "timestamp": "2026-10-02T04:48:24.529Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "module.view",
+      "details": "Mở phân hệ dashboard."
+    },
+    {
+      "id": "ea192b4a-3fad-4038-b32f-01f99c7252e2",
+      "timestamp": "2026-10-02T04:48:23.584Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "module.view",
+      "details": "Mở phân hệ gantt."
+    },
+    {
+      "id": "38e0bbc0-c8c1-4183-9d7e-c18ccf650fb6",
+      "timestamp": "2026-10-02T04:48:20.381Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "module.view",
+      "details": "Mở phân hệ hr."
+    },
+    {
+      "id": "f93c651f-9ad3-4789-9d6f-a02f07650f39",
+      "timestamp": "2026-10-02T04:48:06.031Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "module.view",
+      "details": "Mở phân hệ workload."
+    },
+    {
+      "id": "01b8aef1-1988-4683-9ee9-ed959d7f5776",
+      "timestamp": "2026-10-02T04:48:05.743Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "module.view",
+      "details": "Mở phân hệ gantt."
+    },
+    {
+      "id": "49952157-46af-4c3e-829c-8e27608b6ce3",
+      "timestamp": "2026-10-02T04:48:04.487Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "task.delete",
+      "details": "Xóa công việc Tesst."
+    },
+    {
+      "id": "dd8a5d45-f47f-4e35-8ea0-d8aa199d44b9",
+      "timestamp": "2026-10-02T04:47:59.382Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "module.view",
+      "details": "Mở phân hệ tasks."
+    },
+    {
+      "id": "2682a906-6278-4064-a0ca-6b3f4e7fe2fc",
+      "timestamp": "2026-10-02T04:47:59.036Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "module.view",
+      "details": "Mở phân hệ workload."
+    },
+    {
+      "id": "6b0c6666-54bc-4aa6-a71c-d65fbf49f110",
+      "timestamp": "2026-10-02T04:47:58.155Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "module.view",
+      "details": "Mở phân hệ tasks."
+    },
+    {
+      "id": "92998a45-961c-4447-aebf-0e21a1a38015",
+      "timestamp": "2026-10-02T04:47:57.702Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "module.view",
+      "details": "Mở phân hệ gantt."
+    },
+    {
+      "id": "573b290d-6ded-4ece-abbd-b2bd4faa7bb1",
+      "timestamp": "2026-10-02T04:47:49.370Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "module.view",
+      "details": "Mở phân hệ workload."
+    },
+    {
+      "id": "d25f3be4-6134-460a-9cd9-08bccab63883",
+      "timestamp": "2026-10-02T04:47:48.192Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "module.view",
+      "details": "Mở phân hệ hr."
+    },
+    {
+      "id": "5308e071-6945-41f9-9f9f-b0f0f59c2a3a",
+      "timestamp": "2026-10-02T04:39:21.583Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "module.view",
+      "details": "Mở phân hệ hr."
+    },
+    {
+      "id": "c4e14f8d-351f-494b-b1f4-15c3165b06b6",
+      "timestamp": "2026-10-02T04:39:15.393Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "module.view",
+      "details": "Mở phân hệ activity."
+    },
+    {
+      "id": "9d1c09cd-5ac9-4a28-bca5-d8b051e3cdcc",
+      "timestamp": "2026-10-02T04:39:14.428Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "module.view",
+      "details": "Mở phân hệ dashboard."
+    },
+    {
+      "id": "2ea9c11a-5e3f-484a-bcea-5b74ba09e514",
+      "timestamp": "2026-10-02T04:39:13.774Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "module.view",
+      "details": "Mở phân hệ gantt."
+    },
+    {
+      "id": "d83f0b93-183a-485b-83fc-7c50e13d2b10",
+      "timestamp": "2026-10-02T04:39:13.296Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "module.view",
+      "details": "Mở phân hệ hr."
+    },
+    {
+      "id": "a8b9587a-d645-4fac-8277-d8adcdb24613",
+      "timestamp": "2026-10-02T04:39:12.582Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "module.view",
+      "details": "Mở phân hệ gantt."
+    },
+    {
+      "id": "e295933a-6f9f-4ca9-b941-e8f64c0ce706",
+      "timestamp": "2026-10-02T04:39:11.047Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "module.view",
+      "details": "Mở phân hệ hr."
+    },
+    {
+      "id": "6d3ae7bc-8b5d-42ac-a5a5-9b1909dd4612",
+      "timestamp": "2026-10-02T04:38:20.444Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "module.view",
+      "details": "Mở phân hệ hr."
+    },
     {
       "id": "477c350a-ee2c-4c00-8aca-459201661a66",
       "timestamp": "2026-10-02T04:35:39.380Z",

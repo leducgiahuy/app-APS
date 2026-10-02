@@ -10,6 +10,7 @@ import DashboardPage from './modules/dashboard/DashboardPage';
 import LoginPage from './modules/auth/LoginPage';
 import AccountPage from './modules/auth/AccountPage';
 import AdminActivityPage from './modules/auth/AdminActivityPage';
+import WorkloadPage from './modules/workload/WorkloadPage';
 import { hasAuthSession } from './modules/auth/authSession';
 import { getCurrentUser } from './modules/auth/authSession';
 
@@ -20,8 +21,9 @@ function MainLayout() {
       <Sidebar />
       <div className={`flex-1 flex flex-col transition-all duration-300 ${sidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72'}`}>
         <Header />
-        <main className={`flex-1 w-full animate-fade-in ${activeTab === 'gantt' || activeTab === 'tasks' || activeTab === 'hr' || activeTab === 'dashboard' ? 'max-w-none mx-0 p-0' : 'p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto'}`}>
+        <main className={`flex-1 w-full animate-fade-in ${activeTab === 'workload' || activeTab === 'gantt' || activeTab === 'tasks' || activeTab === 'hr' || activeTab === 'dashboard' ? 'max-w-none mx-0 p-0' : 'p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto'}`}>
           {activeTab === 'hr' && <HRPage />}
+          {activeTab === 'workload' && <WorkloadPage />}
           {activeTab === 'tasks' && <TasksPage />}
           {activeTab === 'gantt' && <GanttPage />}
           {activeTab === 'dashboard' && <DashboardPage />}

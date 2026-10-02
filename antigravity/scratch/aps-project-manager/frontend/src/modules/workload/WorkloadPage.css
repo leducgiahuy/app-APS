@@ -1,0 +1,167 @@
+.workload-page { color: #0f172a; font-family: "Segoe UI", Arial, sans-serif; }
+.workload-page button, .workload-page input, .workload-page table { font-family: inherit; }
+.dark .workload-page { color: #e2e8f0; }
+.workload-heading, .workload-toolbar, .workload-table-heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.workload-heading { margin-bottom: 25px; }
+.workload-eyebrow { display: flex; align-items: center; gap: 7px; color: #0284c7; font-size: 11px; font-weight: 800; letter-spacing: .12em; }
+.workload-heading h1 { margin: 8px 0 4px; font-size: clamp(23px, 3vw, 30px); line-height: 1.2; font-weight: 750; letter-spacing: -.035em; }
+.workload-heading p, .workload-table-heading p { margin: 0; color: #64748b; font-size: 14px; }
+.dark .workload-heading p, .dark .workload-table-heading p { color: #94a3b8; }
+.workload-assign-button { display: inline-flex; align-items: center; gap: 9px; border: 0; border-radius: 11px; padding: 11px 15px; background: #0284c7; color: #fff; font-size: 13px; font-weight: 700; box-shadow: 0 6px 15px #0284c733; cursor: pointer; white-space: nowrap; }
+.workload-assign-button:hover { background: #0369a1; }
+.workload-toolbar { flex-wrap: wrap; margin-bottom: 17px; padding: 14px; border: 1px solid #e2e8f0; border-radius: 14px; background: white; }
+.dark .workload-toolbar, .dark .workload-table-card { border-color: #1e293b; background: #0f172a; }
+.workload-period-switch { display: flex; gap: 3px; border-radius: 10px; padding: 3px; background: #f1f5f9; }
+.dark .workload-period-switch { background: #1e293b; }
+.workload-period-switch button { border: 0; border-radius: 8px; padding: 9px 15px; background: transparent; color: #64748b; font-size: 14px; font-weight: 700; cursor: pointer; }
+.workload-period-switch button.active { background: white; color: #0369a1; box-shadow: 0 1px 4px #0f172a1a; }
+.dark .workload-period-switch button.active { background: #334155; color: #7dd3fc; }
+.workload-period-picker { display: flex; align-items: center; gap: 7px; }
+.workload-period-picker input { min-width: 145px; height: 36px; border: 1px solid #e2e8f0; border-radius: 9px; padding: 0 9px; background: white; color: #0f172a; font: inherit; font-size: 12px; font-weight: 650; }
+.workload-period-picker input[type=number] { width: 94px; min-width: 94px; }
+.workload-date-button { display: inline-flex; min-height: 40px; align-items: center; gap: 9px; border: 1px solid #cbd5e1; border-radius: 9px; padding: 0 12px; background: #fff; color: #1e293b; font-size: 14px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.workload-date-button svg { color: #0284c7; }
+.dark .workload-date-button { border-color: #334155; background: #0f172a; color: #e2e8f0; }
+.workload-date-picker-input { position: absolute; width: 1px !important; min-width: 1px !important; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.dark .workload-period-picker input { border-color: #334155; background: #0f172a; color: #e2e8f0; }
+.workload-icon-button { display: grid; width: 34px; height: 34px; place-items: center; border: 1px solid #e2e8f0; border-radius: 9px; background: white; color: #475569; cursor: pointer; }
+.dark .workload-icon-button { border-color: #334155; background: #0f172a; color: #cbd5e1; }
+.workload-period-caption { margin-left: 5px; color: #475569; font-size: 14px; font-weight: 700; text-transform: capitalize; }
+.dark .workload-period-caption { color: #cbd5e1; }
+.workload-search { display: flex; min-width: 220px; align-items: center; gap: 8px; border: 1px solid #e2e8f0; border-radius: 9px; padding: 0 10px; color: #94a3b8; }
+.dark .workload-search { border-color: #334155; }
+.workload-search input { width: 100%; height: 40px; border: 0; outline: 0; background: transparent; color: inherit; font-size: 14px; }
+.workload-summary-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 13px; margin-bottom: 18px; }
+.workload-summary-card { display: flex; min-height: 122px; flex-direction: column; justify-content: space-between; border: 1px solid #e2e8f0; border-radius: 14px; padding: 15px 17px; background: white; }
+.dark .workload-summary-card { border-color: #1e293b; background: #0f172a; }
+.workload-summary-card > span { display: flex; align-items: center; gap: 8px; color: #64748b; font-size: 14px; font-weight: 650; }
+.workload-summary-card > span svg { color: #0284c7; }
+.workload-summary-card strong { font-size: 25px; line-height: 1.1; letter-spacing: -.04em; }
+.workload-summary-card strong small { font-size: 13px; font-weight: 600; letter-spacing: 0; color: #64748b; }
+.workload-summary-card em { color: #526276; font-size: 13px; font-style: normal; }
+.workload-summary-card.has-overload > span svg, .workload-summary-card.has-overload strong { color: #dc2626; }
+.workload-table-card { overflow: hidden; border: 1px solid #e2e8f0; border-radius: 15px; background: white; }
+.workload-table-heading { padding: 17px 19px; }
+.workload-table-heading h2 { margin: 0 0 4px; font-size: 15px; font-weight: 750; }
+.workload-unit-note { border-radius: 8px; padding: 6px 9px; background: #f0f9ff; color: #0369a1; font-size: 10px; font-weight: 700; }
+.dark .workload-unit-note { background: #082f49; color: #7dd3fc; }
+.workload-table-scroll { overflow-x: auto; overflow-y: visible; max-height: none; border-top: 1px solid #e2e8f0; overscroll-behavior-x: contain; }
+.dark .workload-table-scroll { border-color: #1e293b; }
+.workload-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 11px; }
+.workload-table th, .workload-table td { min-width: 112px; border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; padding: 9px; vertical-align: top; }
+.dark .workload-table th, .dark .workload-table td { border-color: #1e293b; }
+.workload-table thead th { position: sticky; z-index: 2; top: 0; background: #f8fafc; color: #475569; text-align: center; font-size: 13px; font-weight: 750; }
+.dark .workload-table thead th { background: #111c2f; color: #94a3b8; }
+.workload-table .workload-employee-column { position: sticky; z-index: 4; left: 0; width: 260px; min-width: 260px; text-align: left; background: #fff; box-shadow: 5px 0 8px rgb(15 23 42 / 8%); isolation: isolate; }
+.dark .workload-table .workload-employee-column { background: #0f172a; }
+.workload-table thead .workload-employee-column { z-index: 6; background: #f8fafc; }
+.dark .workload-table thead .workload-employee-column { background: #111c2f; }
+.workload-table tbody th.workload-employee-column { display: table-cell; }
+.workload-employee-cell { display: flex; align-items: center; gap: 9px; min-height: 34px; }
+.workload-avatar { display: grid; width: 29px; height: 29px; flex: 0 0 29px; place-items: center; border-radius: 9px; background: #e0f2fe; color: #0369a1; font-size: 12px; font-weight: 800; }
+.dark .workload-avatar { background: #082f49; color: #7dd3fc; }
+.workload-employee-info { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
+.workload-employee-info strong { overflow: hidden; color: #1e293b; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.dark .workload-employee-info strong { color: #e2e8f0; }
+.workload-employee-info small { overflow: hidden; color: #64748b; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.workload-table td { background: #fff; }
+.dark .workload-table td { background: #0f172a; }
+.workload-table td.weekend { background: #f8fafc; }
+.dark .workload-table td.weekend { background: #111c2f; }
+.workload-table td.available { background: #f0fdf4; }
+.dark .workload-table td.available { background: #052e23; }
+.workload-table td.full { background: #eff6ff; }
+.dark .workload-table td.full { background: #172554; }
+.workload-table td.over { background: #fef2f2; }
+.dark .workload-table td.over { background: #450a0a; }
+.workload-cell-hours { display: flex; align-items: baseline; justify-content: center; gap: 2px; white-space: nowrap; }
+.workload-cell-hours strong { color: #0f172a; font-size: 14px; }
+.workload-cell-hours span { color: #94a3b8; font-size: 9px; }
+.dark .workload-cell-hours strong { color: #e2e8f0; }
+.workload-meter { overflow: hidden; height: 4px; margin: 6px 0 4px; border-radius: 6px; background: #e2e8f0; }
+.dark .workload-meter { background: #334155; }
+.workload-meter span { display: block; height: 100%; border-radius: inherit; background: #22c55e; }
+.full .workload-meter span { background: #3b82f6; }
+.over .workload-meter span { background: #ef4444; }
+.workload-free-label { display: block; color: #15803d; text-align: center; font-size: 11px; }
+.workload-free-label.over { color: #dc2626; }
+.workload-table .month th, .workload-table.month th, .workload-table.month td { min-width: 76px; padding: 7px 5px; }
+.workload-table.month .workload-employee-column { min-width: 220px; }
+.workload-table .workload-total-column { min-width: 112px; background: #f8fafc; text-align: center; }
+.dark .workload-table .workload-total-column { background: #111c2f; }
+.workload-total-column strong { display: block; color: #0f172a; font-size: 12px; }
+.dark .workload-total-column strong { color: #e2e8f0; }
+.workload-total-column small { color: #64748b; font-size: 9px; }
+.workload-task-list { display: flex; max-height: 60px; flex-direction: column; gap: 3px; overflow: hidden; margin: 5px 0; }
+.workload-task-list span { display: flex; align-items: center; justify-content: space-between; gap: 3px; overflow: hidden; border-radius: 4px; padding: 3px; background: #dbeafe; color: #1e40af; font-size: 9px; text-align: left; }
+.dark .workload-task-list span { background: #1e3a8a; color: #dbeafe; }
+.workload-task-list span b { flex: 0 0 auto; }
+.workload-empty { padding: 35px !important; color: #64748b; text-align: center; }
+.workload-table.day .workload-detail-column { width: 52%; min-width: 460px; background: #fff; text-align: left; }
+.dark .workload-table.day .workload-detail-column { background: #0f172a; }
+.workload-day-task-list { display: grid; gap: 8px; }
+.workload-day-task { border: 1px solid #dbe5eb; border-left: 3px solid #0284c7; border-radius: 8px; padding: 9px 10px; background: #f8fbfd; }
+.dark .workload-day-task { border-color: #334155; border-left-color: #38bdf8; background: #111c2f; }
+.workload-day-task-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.workload-day-task-top strong { color: #1e293b; font-size: 14px; line-height: 1.45; }
+.dark .workload-day-task-top strong { color: #e2e8f0; }
+.workload-day-task-top span { flex: 0 0 auto; border-radius: 6px; padding: 4px 7px; background: #e0f2fe; color: #0369a1; font-size: 12px; font-weight: 750; }
+.workload-day-task small { display: block; margin-top: 4px; color: #526276; font-size: 12px; }
+.workload-day-task .workload-session-time { color: #15803d; font-weight: 650; }
+.workload-day-task .workload-session-time.running { color: #0369a1; }
+.workload-day-task .workload-no-log { color: #a16207; }
+.workload-no-tasks { display: flex; flex-direction: column; gap: 5px; color: #475569; font-size: 11px; }
+.dark .workload-no-tasks { color: #cbd5e1; }
+.workload-no-tasks span { color: #15803d; }
+.workload-propose-button { margin-top: 9px; border: 0; border-radius: 7px; padding: 7px 9px; background: #e0f2fe; color: #0369a1; font-size: 10px; font-weight: 750; cursor: pointer; }
+.workload-propose-button:hover { background: #bae6fd; }
+.workload-footnote { padding: 12px 17px; color: #526276; font-size: 12px; line-height: 1.5; }
+.workload-table th, .workload-table td { font-size: 13px; }
+.workload-table.month th, .workload-table.month td { min-width: 78px; }
+.workload-cell-hours span { font-size: 11px; }
+.workload-total-column small { font-size: 11px; }
+.workload-unit-note { font-size: 12px; }
+.workload-task-list span { font-size: 11px; }
+.dark .workload-free-label { color: #4ade80; }
+.dark .workload-day-task small, .dark .workload-footnote, .dark .workload-summary-card em { color: #b6c4d5; }
+.dark .workload-day-task .workload-no-log { color: #facc15; }
+.workload-personal-empty { margin: 14px 0; padding: 15px 17px; border: 1px solid #f0d39a; border-radius: 12px; color: #805b12; background: #fff8e8; font-size: 13px; line-height: 1.55; }
+.dark .workload-personal-empty { border-color: #6b5428; color: #f5d58a; background: #382f1d; }
+.workload-personal-projects { margin-top: 18px; overflow: hidden; border: 1px solid #e2e8f0; border-radius: 16px; background: #fff; box-shadow: 0 1px 2px rgb(15 23 42 / 4%); }
+.dark .workload-personal-projects { border-color: #273449; background: #0f172a; }
+.workload-personal-projects-heading { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 17px 20px; border-bottom: 1px solid #e2e8f0; }
+.dark .workload-personal-projects-heading { border-color: #273449; }
+.workload-personal-projects-heading h2 { margin: 0; color: #1e293b; font-size: 16px; font-weight: 750; }
+.dark .workload-personal-projects-heading h2 { color: #f1f5f9; }
+.workload-personal-projects-heading p { margin: 4px 0 0; color: #64748b; font-size: 12px; }
+.workload-personal-projects-heading > span { flex: 0 0 auto; padding: 6px 9px; border-radius: 99px; color: #0369a1; background: #e0f2fe; font-size: 11px; font-weight: 700; }
+.workload-project-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; padding: 16px; }
+.workload-project-card { padding: 14px; border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc; }
+.dark .workload-project-card { border-color: #273449; background: #111c2f; }
+.workload-project-title, .workload-project-metrics { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.workload-project-title strong { overflow: hidden; color: #1e293b; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.dark .workload-project-title strong { color: #e2e8f0; }
+.workload-project-title span { flex: 0 0 auto; color: #64748b; font-size: 10px; }
+.workload-project-progress, .workload-project-progress span { height: 6px; border-radius: 99px; }
+.workload-project-progress { margin: 12px 0; overflow: hidden; background: #e2e8f0; }
+.workload-project-progress span { display: block; background: #0ea5e9; }
+.workload-project-metrics { justify-content: flex-start; flex-wrap: wrap; color: #64748b; font-size: 10px; }
+.workload-project-metrics span { padding: 5px 7px; border-radius: 6px; background: #eef2f7; }
+.workload-project-metrics b { color: #334155; }
+.dark .workload-project-metrics span { background: #1e293b; }
+.dark .workload-project-metrics b { color: #e2e8f0; }
+.workload-project-list + .workload-personal-empty { margin: 0 16px 16px; }
+@media (max-width: 760px) {
+  .workload-heading, .workload-toolbar { align-items: stretch; flex-direction: column; }
+  .workload-heading { gap: 15px; }
+  .workload-assign-button { justify-content: center; }
+  .workload-period-picker { justify-content: space-between; flex-wrap: wrap; }
+  .workload-period-caption { flex: 1 0 100%; margin: 2px 0 0; text-align: center; }
+  .workload-search { min-width: 0; }
+  .workload-summary-grid { grid-template-columns: 1fr; }
+  .workload-summary-card { min-height: 105px; }
+  .workload-table .workload-employee-column { width: 220px; min-width: 220px; }
+  .workload-table.day .workload-detail-column { min-width: 330px; }
+  .workload-table.month .workload-employee-column { min-width: 185px; }
+  .workload-table.month th, .workload-table.month td { min-width: 67px; }
+}

@@ -6,6 +6,7 @@ import {
   CalendarRange,
   BarChart3,
   Activity,
+  Clock3,
   ChevronLeft,
   ChevronRight,
   X,
@@ -46,6 +47,13 @@ export default function Sidebar() {
       icon: CheckSquare,
       badge: `${inProgressTaskCount} Đang làm`,
       badgeColor: 'bg-blue-500/10 text-blue-500 border-blue-500/20'
+    },
+    {
+      id: 'workload',
+      label: 'Theo Dõi Giờ & Công Việc Trong Ngày',
+      icon: Clock3,
+      badge: '8h/ngày',
+      badgeColor: 'bg-sky-500/10 text-sky-500 border-sky-500/20'
     },
     {
       id: 'gantt',
