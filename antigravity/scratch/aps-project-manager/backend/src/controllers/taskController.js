@@ -32,6 +32,7 @@ export function createTask(req, res) {
     startDate,
     endDate,
     estimatedHours,
+    estimatedHoursPerDay,
     priority,
     notes
   } = req.body;
@@ -63,13 +64,13 @@ export function createTask(req, res) {
   }
   const days = Math.floor((endTimestamp - startTimestamp) / 86400000) + 1;
   const standardHours = Number(emp?.standardHours) || 8;
-  const requestedHours = Number(estimatedHours);
-  if (estimatedHours !== undefined && (!Number.isFinite(requestedHours) || requestedHours <= 0)) {
+  const dailyHoursInput = estimatedHoursPerDay ?? estimatedHours;
+  const requestedHours = Number(dailyHoursInput);
+  if (dailyHoursInput !== undefined && (!Number.isFinite(requestedHours) || requestedHours <= 0)) {
     return res.status(400).json({ success: false, message: 'Giờ làm dự kiến phải lớn hơn 0' });
   }
-  const hours = Number.isFinite(requestedHours) && requestedHours > 0
-    ? Math.round(requestedHours * 100) / 100
-    : days * standardHours;
+  const hoursPerDay = Number.isFinite(requestedHours) && requestedHours > 0 ? requestedHours : standardHours;
+  const hours = Math.round(hoursPerDay * days * 100) / 100;
 
   // Sinh mã WBS tự động nếu chưa có
   let wbsCode = code ? String(code).trim() : '';
@@ -99,6 +100,7 @@ export function createTask(req, res) {
     startDate: taskStartDate,
     endDate: taskEndDate,
     estimatedHours: hours,
+    estimatedHoursPerDay: hoursPerDay,
     estimatedDays: days,
     status: 'in_progress',
     speedStatus: 'on_time', // 'early', 'on_time', 'delayed'
@@ -148,6 +150,7 @@ export function createTask(req, res) {
     endDate: newTask.endDate,
     days: newTask.estimatedDays,
     estimatedHours: newTask.estimatedHours,
+    estimatedHoursPerDay: newTask.estimatedHoursPerDay,
     assignee: employeeName,
     notes: notes || '',
     status: 'in_progress',
@@ -182,7 +185,7 @@ export function createTask(req, res) {
 export function updateTask(req, res) {
   const db = readDb();
   const { id } = req.params;
-  const { status, progress, speedStatus, notes, startDate, endDate, estimatedDays, estimatedHours } = req.body;
+  const { status, progress, speedStatus, notes, startDate, endDate, estimatedDays, estimatedHours, estimatedHoursPerDay } = req.body;
 
   const task = db.tasks.find(t => t.id === id);
   if (!task) {
@@ -199,23 +202,73 @@ export function updateTask(req, res) {
       return res.status(400).json({ success: false, message: 'Giờ làm dự kiến phải lớn hơn 0' });
     }
     task.estimatedHours = Math.round(hours * 100) / 100;
+    if (estimatedHoursPerDay === undefined) delete task.estimatedHoursPerDay;
+  }
+  if (estimatedHoursPerDay !== undefined) {
+    const hoursPerDay = Number(estimatedHoursPerDay);
+    if (!Number.isFinite(hoursPerDay) || hoursPerDay <= 0) {
+      return res.status(400).json({ success: false, message: 'Giờ làm dự kiến mỗi ngày phải lớn hơn 0' });
+    }
+    task.estimatedHoursPerDay = Math.round(hoursPerDay * 100) / 100;
   }
   if (startDate !== undefined) task.startDate = startDate;
   if (endDate !== undefined) task.endDate = endDate;
   if (estimatedDays !== undefined) {
     task.estimatedDays = Number(estimatedDays);
     const standardHours = Number(db.employees.find(employee => employee.id === task.employeeId)?.standardHours) || 8;
-    if (estimatedHours === undefined) task.estimatedHours = task.estimatedDays * standardHours;
+    if (estimatedHoursPerDay !== undefined) task.estimatedHours = task.estimatedHoursPerDay * task.estimatedDays;
+    else if (estimatedHours === undefined) task.estimatedHours = task.estimatedDays * standardHours;
+  }
+  if (estimatedHoursPerDay !== undefined && estimatedDays === undefined) {
+    task.estimatedHours = Math.round(task.estimatedHoursPerDay * (Number(task.estimatedDays) || 1) * 100) / 100;
   }
 
   if (task.progress === 100) {
     task.status = 'completed';
   }
 
-  if (task.status === 'completed' && speedStatus === undefined && task.endDate) {
-    const now = new Date();
-    const completionDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    task.speedStatus = completionDate < task.endDate ? 'early' : completionDate > task.endDate ? 'delayed' : 'on_time';
+  const completingTask = task.status === 'completed' && !task.completedAt;
+  const completedAt = completingTask ? new Date() : (task.completedAt ? new Date(task.completedAt) : null);
+  let completedSessionStartAt = null;
+  if (task.status === 'completed' && task.workSessionStartedAt) {
+    completedSessionStartAt = task.workSessionStartedAt;
+    const elapsed = Math.max(0, (Date.now() - Date.parse(completedSessionStartAt)) / 3600000);
+    task.actualWorkHours = Math.round(((Number(task.actualWorkHours) || 0) + elapsed) * 100) / 100;
+    task.workSessionStartedAt = null;
+    const activeEmployee = (db.employees || []).find(employee => employee.activeTaskId === task.id);
+    if (activeEmployee) {
+      activeEmployee.activeTaskId = null;
+      activeEmployee.activeTaskTitle = null;
+      activeEmployee.workSessionStartedAt = null;
+    }
+  }
+
+  if (task.status === 'completed' && completedAt) {
+    task.completedAt = completedAt.toISOString();
+    const standardHours = Number(db.employees.find(employee => employee.id === task.employeeId)?.standardHours) || 8;
+    const plannedHours = Number(task.estimatedHours) > 0
+      ? Number(task.estimatedHours)
+      : (Number(task.estimatedDays) || 1) * (Number(task.estimatedHoursPerDay) || standardHours);
+    const effortDelay = Math.max(0, (Number(task.actualWorkHours) || 0) - plannedHours);
+    const endDateMatch = String(task.endDate || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    const deadline = endDateMatch
+      ? new Date(Number(endDateMatch[1]), Number(endDateMatch[2]) - 1, Number(endDateMatch[3]) + 1).getTime()
+      : NaN;
+    const calendarDelay = Number.isFinite(deadline)
+      ? Math.max(0, completedAt.getTime() - deadline) / 3600000
+      : 0;
+    task.delayHours = Math.round(Math.max(effortDelay, calendarDelay) * 100) / 100;
+    const trackedWorkHours = Number(task.actualWorkHours) || 0;
+    task.earlyHours = task.delayHours > 0 || trackedWorkHours <= 0
+      ? 0
+      : Math.round(Math.max(0, plannedHours - trackedWorkHours) * 100) / 100;
+
+    if (completingTask || speedStatus !== undefined) {
+      const completionDate = `${completedAt.getFullYear()}-${String(completedAt.getMonth() + 1).padStart(2, '0')}-${String(completedAt.getDate()).padStart(2, '0')}`;
+      task.speedStatus = task.delayHours > 0
+        ? 'delayed'
+        : task.earlyHours > 0 || completionDate < task.endDate ? 'early' : completionDate > task.endDate ? 'delayed' : (speedStatus || 'on_time');
+    }
   }
 
   // Đồng bộ sang ganttItems tương ứng
@@ -224,10 +277,20 @@ export function updateTask(req, res) {
     if (task.status !== undefined) gantt.status = task.status;
     if (task.progress !== undefined) gantt.progress = task.progress;
     if (task.speedStatus !== undefined) gantt.speed = task.speedStatus;
+    if (task.completedAt) gantt.completedAt = task.completedAt;
+    if (task.delayHours !== undefined) gantt.delayHours = task.delayHours;
+    if (task.earlyHours !== undefined) gantt.earlyHours = task.earlyHours;
+    if (task.actualWorkHours !== undefined) gantt.actualWorkHours = task.actualWorkHours;
     if (startDate !== undefined) gantt.startDate = task.startDate;
     if (endDate !== undefined) gantt.endDate = task.endDate;
     if (estimatedDays !== undefined) gantt.days = task.estimatedDays;
     if (estimatedHours !== undefined) gantt.estimatedHours = task.estimatedHours;
+    if (estimatedHoursPerDay !== undefined) gantt.estimatedHoursPerDay = task.estimatedHoursPerDay;
+    if (completedSessionStartAt) {
+      const elapsed = Math.max(0, (Date.now() - Date.parse(completedSessionStartAt)) / 3600000);
+      gantt.actualWorkHours = Math.round(((Number(gantt.actualWorkHours) || 0) + elapsed) * 100) / 100;
+      gantt.workSessionStartedAt = null;
+    }
   }
 
   writeDb(db);

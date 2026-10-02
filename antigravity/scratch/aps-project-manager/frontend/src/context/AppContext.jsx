@@ -211,6 +211,18 @@ export function AppProvider({ children }) {
     }
   };
 
+  const setActiveTask = async (id, taskId) => {
+    try {
+      const res = await api.setActiveTask(id, taskId);
+      showToast(res.message || 'Đã chuyển công việc đang thực hiện');
+      await refreshAllData();
+      return true;
+    } catch (err) {
+      showToast(err.message || 'Không thể chuyển công việc', 'error');
+      return false;
+    }
+  };
+
   // Hành động: Thêm nhân sự mới
   const addEmployee = async (employeeData) => {
     try {
@@ -443,6 +455,7 @@ export function AppProvider({ children }) {
         refreshAllData,
         toggleOnSite,
         toggleBreak,
+        setActiveTask,
         addEmployee,
         deleteEmployee,
         addTask,

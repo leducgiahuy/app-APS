@@ -89,3 +89,41 @@ npm run dev
 - Hỗ trợ **Light Mode & Dark Mode** (nút bật tắt Mặt Trời / Mặt Trăng ở Header, tự lưu vào bộ nhớ máy).
 - Thiết kế bo tròn hiện đại `border-radius: 12px - 16px`, hiệu ứng bóng mờ cao cấp.
 - Sidebar tự thu gọn (Collapse) dạng icon trên Desktop và mở dạng Drawer trượt trên Mobile/Tablet.
+
+---
+
+## GHI CHÚ VẬN HÀNH: GIỜ DỰ KIẾN VÀ TIẾN ĐỘ TASK
+
+- Trường **Giờ/ngày dự kiến** là số giờ dự kiến làm trong từng ngày của task. Tổng thời gian dự kiến hiển thị = số ngày lịch × giờ/ngày. Ví dụ task 4 ngày, 5 giờ/ngày sẽ hiện 20 giờ tổng.
+- Có thể sửa ngày bắt đầu, ngày kết thúc, số ngày và giờ/ngày trong cửa sổ **Chỉnh thời gian công việc** trên trang Gantt. Ngày của task phải nằm trong thời gian dự án.
+- Sau khi lưu, Gantt và task được giao được đồng bộ qua API. Nếu giao diện báo lưu thành công nhưng số giờ chưa đổi, tải lại trang để lấy dữ liệu mới; nếu vừa cập nhật mã backend, khởi động lại backend để Node nạp mã mới.
+- Tiến độ tính theo giờ làm thực tế của nhân sự trên task đang chọn. Nhân sự cần vào công trường và chọn task để bắt đầu ghi thời gian; nút **Tạm nghỉ** dừng tính giờ task đến khi nhấn **Tiếp tục**. Khi chuyển sang task khác, thời gian được ghi cho task đang chọn, không chạy đồng thời trên các task còn lại.
+- Khi xóa dự án, các task và hạng mục Gantt thuộc dự án bị xóa theo; các số liệu tổng quan được tính lại từ dữ liệu dự án/task hiện có.
+
+Chi tiết luồng dữ liệu, tên trường lưu và vị trí mã nguồn được ghi trong [ARCHITECTURE.md](ARCHITECTURE.md), mục **Quy tắc nghiệp vụ và đồng bộ dữ liệu**.
+
+### Theo dõi số giờ chậm
+
+- Khi task dùng quá tổng số giờ dự kiến, nhãn Gantt và task hiển thị **Chậm trễ** cùng số giờ vượt.
+- Sau ngày kết thúc dự kiến, nhãn chuyển thành **Quá hạn** và số giờ tính từ 00:00 ngày tiếp theo. Khi hoàn thành task, thời điểm hoàn tất và tổng giờ trễ được lưu để các trang tiếp tục hiển thị cùng kết quả.
+- Bảng Gantt bên trái hiển thị tổng số ngày dự án ở hàng tên dự án; trạng thái task dùng xanh lá cho hoàn thành, vàng cho chậm trễ và đỏ cho quá hạn.
+- Đường liên kết FS trên Gantt có nhánh cong và mũi tên chỉ vào task kế tiếp; các task cùng phụ thuộc vào một task trước dùng chung trục rồi tách nhánh trong khoảng trống cạnh các hàng.
+- Đường được đặt sát mép thanh và chữ nhãn có viền màu nền để đường phụ thuộc không làm mất độ rõ của tên task/người nhận việc.
+
+### GHI CHÚ CẬP NHẬT GIAO DIỆN & GANTT (UI/UX LÀM SẠCH HƠN)
+
+- Khi bật popup như tạo task, tạo dự án, đăng ký OT, cửa sổ modal hiển thị trên nền mờ nhẹ để không tạo cảm giác “màn xám phủ kín” quá nặng.
+- Tất cả modal đều khóa scroll của body khi mở để tránh nền phía sau bị cuộn ngang hoặc tạo khoảng trắng/line kẻ không cần thiết.
+- Đường liên kết phụ thuộc trên Gantt đã được tối ưu để đi mềm, rõ ràng và có nhánh lệch trái theo kiểu ma trận dự án thực tế. Không còn đường đè lên task bar quá mức.
+- Mũi tên dependency được đặt sát mép ô đích, không chui vào bên trong bar task. Điều này giúp dễ nhìn và tránh che chữ / màu của task.
+- Khi rê chuột vào đường phụ thuộc, đường và mũi tên đổi màu đỏ, đồng thời task nguồn và task đích liên quan cũng sáng đỏ để người dùng biết rõ “nối tới task nào”.
+- Mục tiêu của việc chỉnh này là làm Gantt trở nên dễ đọc hơn cho người quản lý, không rối mắt như các đường phụ thuộc minh họa cũ.n có viền màu nền để đường phụ thuộc không làm mất độ rõ của tên task/người nhận việc.- Ở hàng dự án, cột **Ngày** là tổng ngày của dự án và cột **Thời gian** là tổng giờ dự kiến của các task; mỗi hàng task hiển thị giờ dự kiến riêng.
+- Task hoàn tất trễ có trạng thái vàng **Hoàn thành muộn**. Nhãn Gantt và các trang liên quan ghi độ trễ như `Trễ 1h30` (ví dụ dự kiến 15h, thực tế 16h30).
+- Task hoàn tất sớm lưu `earlyHours` trên task và Gantt item. Khi có thời gian làm thực tế, các trang Gantt, Phân công và Dashboard hiển thị **Hoàn thành sớm · Sớm 1h30** theo số giờ dự kiến trừ số giờ đã ghi nhận. Giờ thực tế lấy từ phiên làm task tại công trường; nghỉ, chuyển task và checkout sẽ đóng phiên hiện tại.
+- Phần tiến độ đã thực hiện trên thanh Gantt có màu xanh lá và tăng theo phần trăm; màu trạng thái xanh/vàng/đỏ/xám vẫn phân biệt hoàn thành đúng hạn hoặc sớm, trễ, quá hạn và chưa bắt đầu.
+
+### Thanh thao tác và vùng cuộn cố định
+
+- Trang Phân công gộp tab, tìm task và nút tạo task trên một thanh sticky toàn chiều ngang bên dưới header; thanh ngoài phẳng, riêng ô tìm kiếm có bo góc.
+- Footer bản quyền được bỏ khỏi giao diện dùng chung.
+- Gantt giữ header cột trong vùng cuộn nội bộ, có cột trái đóng băng; chiều cao vùng biểu đồ căn theo viewport để header cột luôn hiện khi xem danh sách task.

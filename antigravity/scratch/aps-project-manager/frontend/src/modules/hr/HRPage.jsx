@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { isTaskActiveOnDate } from '../../utils/date';
 import {
@@ -26,6 +26,7 @@ export default function HRPage() {
     overtimes,
     toggleOnSite,
     toggleBreak,
+    setActiveTask,
     addEmployee,
     deleteEmployee,
     selectedDate
@@ -35,6 +36,21 @@ export default function HRPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTeam, setSelectedTeam] = useState('ALL');
   const [showAddModal, setShowAddModal] = useState(false);
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    const previousOverflowX = document.body.style.overflowX;
+
+    if (showAddModal) {
+      document.body.style.overflow = 'hidden';
+      document.body.style.overflowX = 'hidden';
+    }
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.body.style.overflowX = previousOverflowX;
+    };
+  }, [showAddModal]);
 
   // Form tạo nhân sự mới
   const [formData, setFormData] = useState({
@@ -86,13 +102,13 @@ export default function HRPage() {
   };
 
   return (
-    <div className="space-y-6">
-      
+    <div className="w-full space-y-6 px-4 sm:px-6 pt-0 pb-6">
+      <div className="sticky top-16 z-20 -mx-4 sm:-mx-6 space-y-0 bg-slate-50 dark:bg-slate-950 pb-1">
       {/* 4 Thẻ KPI Tóm Tắt Đầu Trang */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-0">
         
         {/* KPI 1: Tổng nhân sự */}
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+        <div className="p-4 rounded-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Tổng Nhân Sự
@@ -107,7 +123,7 @@ export default function HRPage() {
         </div>
 
         {/* KPI 2: Nhân sự tại công trường */}
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+        <div className="p-4 rounded-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
               Có Mặt Tại Công Trường
@@ -123,7 +139,7 @@ export default function HRPage() {
         </div>
 
         {/* KPI 3: Định mức giờ chuẩn */}
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+        <div className="p-4 rounded-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Ca Làm Chuẩn
@@ -138,7 +154,7 @@ export default function HRPage() {
         </div>
 
         {/* KPI 4: Giờ tăng ca */}
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+        <div className="p-4 rounded-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-amber-500 dark:text-amber-400">
               Tổng Giờ Tăng Ca (OT)
@@ -155,7 +171,7 @@ export default function HRPage() {
       </div>
 
       {/* Thanh công cụ: Tìm kiếm, Lọc đội nhóm, Nút thêm nhân sự */}
-      <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+      <div className="p-4 rounded-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
         
         {/* Ô tìm kiếm */}
         <div className="relative w-full md:w-80">
@@ -196,6 +212,7 @@ export default function HRPage() {
         </div>
 
       </div>
+      </div>
 
       {/* Lưới danh sách nhân sự (Personnel Cards Grid) */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
@@ -214,6 +231,10 @@ export default function HRPage() {
             : '';
           const handleOnSiteAction = () => {
             if (!emp.isOnSite) {
+              if (activeTasks.length > 0 && !activeTasks.some(task => task.id === emp.activeTaskId && task.status !== 'completed')) {
+                window.alert('Hãy chọn task muốn bắt đầu trước khi vào công trường.');
+                return;
+              }
               toggleOnSite(emp.id);
               return;
             }
@@ -326,6 +347,26 @@ export default function HRPage() {
                   ) : (
                     <p className="mt-1 text-[11px] text-slate-400 italic">Chưa được giao task</p>
                   )}
+                  {activeTasks.length > 0 && (
+                    <div className="mt-3 border-t border-slate-200/70 pt-2 dark:border-slate-700/70">
+                      <label className="mb-1 block text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                        Task đang thực hiện
+                      </label>
+                      <select
+                        value={activeTasks.some(task => task.id === emp.activeTaskId && task.status !== 'completed') ? emp.activeTaskId : ''}
+                        onChange={event => setActiveTask(emp.id, event.target.value)}
+                        className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-700 outline-none focus:border-sky-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                      >
+                        <option value="">-- Chọn task --</option>
+                        {activeTasks.filter(task => task.status !== 'completed').map(task => (
+                          <option key={task.id} value={task.id}>{task.code} · {task.title}</option>
+                        ))}
+                      </select>
+                      {emp.activeTaskId && !emp.isOnBreak && emp.isOnSite && (
+                        <p className="mt-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">Đang tính giờ: {emp.activeTaskTitle || activeTasks.find(task => task.id === emp.activeTaskId)?.title}</p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Giờ làm việc chuẩn & Tăng ca */}
@@ -407,7 +448,7 @@ export default function HRPage() {
 
       {/* Modal: Tạo Nhân Sự Mới */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-transparent backdrop-blur-[2px] animate-fade-in">
           <div className="w-full max-w-lg p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
