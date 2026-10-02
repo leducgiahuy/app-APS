@@ -113,7 +113,29 @@ flowchart TD
 ## 🛠️ 5. GHI CHÚ BẢO TRÌ DÀNH CHO IT NỘI BỘ
 1. **Dữ liệu được lưu ở đâu?** Toàn bộ dữ liệu nằm gọn trong file `backend/data/db.json`. Khi cần sao lưu hoặc chuyển đổi sang máy khác, bạn chỉ cần copy file này.
 2. **Nâng cấp Cơ sở dữ liệu sau này:** Nếu công ty muốn chuyển sang dùng SQL Server, PostgreSQL hoặc MySQL, bạn chỉ cần thay thế hàm đọc/ghi trong file `backend/src/models/db.js`, còn toàn bộ giao diện Frontend giữ nguyên 100%.
-3. **Mạng nội bộ công trường (LAN/Wi-Fi):** Cả máy chủ Backend và Frontend đều đã được mở cờ `--host` (`host: true`), các đồng nghiệp cùng bắt mạng Wi-Fi tại công trường có thể nhập trực tiếp địa chỉ IP của máy bạn (ví dụ: `http://192.168.100.81:3000`) để truy cập ngay lập tức!
+3. **Mạng nội bộ công trường (LAN/Wi-Fi):** Cả máy chủ Backend và Frontend đều đã đ
+
+## 6. CẬP NHẬT GIAO DIỆN & HÀNH VI MODAL / GANTT
+
+### 6.1 Modal overlay và nền mờ
+- Modal được thiết kế để phủ lên nền mà không tạo cảm giác xám đen quá nặng.
+- Mục tiêu là giữ lại tầm nhìn tổng quát của màn hình, nhưng vẫn nhấn mạnh khung modal đang hoạt động.
+- Khi mở modal, body scroll bị khóa để không xuất hiện phần cuộn ngang nền hay layout bị lệch khi thao tác ở paging area.
+
+### 6.2 Gantt dependency route
+- Các liên kết Finish-to-Start (FS) trong Gantt được vẽ theo style mềm, cong và đi lệch trái, không chạy cắt thẳng qua nội dung task.
+- Nền đường phụ thuộc được giữ tối thiểu để không chen vào các bar và chữ trên task.
+- Mũi tên được đặt sát cạnh task đích, không nằm trong ô task để tránh che chữ hoặc làm rối nhận diện.
+
+### 6.3 Hover highlight và mapping task
+- Khi user hover vào một dependency line, hàm `onMouseEnter`/`onMouseLeave` sẽ đánh dấu đường đó là `hoveredDependencyKey`.
+- Task nguồn và task đích tương ứng sẽ được highlight bằng đường viền đỏ để trực quan hóa đúng đường nối nào liên kết hai task.
+- Cơ chế này giúp người quản lý nhìn ra ngay mối quan hệ ưu tiên / phụ thuộc trong tiến độ công trình.
+
+### 6.4 Kết luận UI
+- Bản thân Gantt không chỉ là biểu đồ thời gian, mà còn là hệ thống “thông tin phụ thuộc” giữa các task.
+- Vì vậy việc nhìn sạch, không chồng lấn và có highlight khi hover rất quan trọng để tăng độ tin cậy cho người dùng khi điều phối công việc thực tế.
+ược mở cờ `--host` (`host: true`), các đồng nghiệp cùng bắt mạng Wi-Fi tại công trường có thể nhập trực tiếp địa chỉ IP của máy bạn (ví dụ: `http://192.168.100.81:3000`) để truy cập ngay lập tức!
 
 ---
 

@@ -48,17 +48,17 @@
       "standardHours": 8,
       "isOnSite": true,
       "isOnBreak": true,
-      "checkInAt": "2026-10-01T04:36:27.429Z",
-      "checkInTime": "11:36",
-      "breakStartedAt": "2026-10-01T04:36:51.700Z",
+      "checkInAt": "2026-10-02T02:43:37.943Z",
+      "checkInTime": "09:43",
+      "breakStartedAt": "2026-10-02T02:46:27.764Z",
       "totalBreakMs": 0,
       "workSessionStartedAt": null,
-      "activeTaskId": null,
-      "activeTaskTitle": null,
+      "activeTaskId": "task-1790906411479",
+      "activeTaskTitle": "Tesst",
       "avatar": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80",
-      "lastShiftCheckInAt": "2026-09-30T04:43:01.712Z",
-      "lastShiftCheckOutAt": "2026-10-01T04:02:52.485Z",
-      "lastShiftCheckOutTime": "11:02"
+      "lastShiftCheckInAt": "2026-10-01T04:36:27.429Z",
+      "lastShiftCheckOutAt": "2026-10-02T02:43:30.664Z",
+      "lastShiftCheckOutTime": "09:43"
     }
   ],
   "tasks": [
@@ -186,9 +186,59 @@
       "priority": "high",
       "progress": 0,
       "notes": ""
+    },
+    {
+      "id": "task-1790906411479",
+      "ganttId": "G-1790906411478",
+      "projectId": "proj-1790742057315",
+      "projectName": "APS",
+      "phase": "A. THIẾT KẾ XÂY DỰNG",
+      "title": "Tesst",
+      "code": "A9",
+      "employeeId": "emp-1790741838788",
+      "employeeName": "Ngoc Thanh",
+      "startDate": "2026-10-02",
+      "endDate": "2026-10-02",
+      "estimatedHours": 8,
+      "estimatedHoursPerDay": 8,
+      "estimatedDays": 1,
+      "status": "in_progress",
+      "speedStatus": "on_time",
+      "priority": "high",
+      "progress": 0,
+      "notes": "",
+      "attendanceTracked": true,
+      "actualWorkStartedAt": "2026-10-02T02:00:40.238Z",
+      "workSessionStartedAt": null,
+      "actualWorkHours": 0.76
     }
   ],
-  "overtimes": [],
+  "overtimes": [
+    {
+      "id": "ot-1790910814840",
+      "taskId": "task-1790906411479",
+      "taskTitle": "Tesst",
+      "employeeId": "emp-1790741838788",
+      "employeeName": "Ngoc Thanh",
+      "hours": 2,
+      "date": "2026-10-02",
+      "reason": "a",
+      "approvedBy": "Trần Quốc Hưng (Chỉ huy trưởng)",
+      "status": "approved"
+    },
+    {
+      "id": "ot-1790910844635",
+      "taskId": "task-1790906411479",
+      "taskTitle": "Tesst",
+      "employeeId": "emp-1790741838788",
+      "employeeName": "Ngoc Thanh",
+      "hours": 2,
+      "date": "2026-10-02",
+      "reason": "b",
+      "approvedBy": "Trần Quốc Hưng (Chỉ huy trưởng)",
+      "status": "approved"
+    }
+  ],
   "ganttItems": [
     {
       "id": "G-1790821987841",
@@ -311,6 +361,33 @@
       "dependencies": [
         "G-1790820864841"
       ]
+    },
+    {
+      "id": "G-1790906411478",
+      "projectId": "proj-1790742057315",
+      "code": "A9",
+      "title": "Tesst",
+      "isGroup": false,
+      "color": "#0284c7",
+      "unit": "TK",
+      "startDate": "2026-10-02",
+      "endDate": "2026-10-02",
+      "days": 1,
+      "estimatedHours": 8,
+      "estimatedHoursPerDay": 8,
+      "assignee": "Ngoc Thanh",
+      "notes": "",
+      "status": "in_progress",
+      "speed": "on_time",
+      "progress": 0,
+      "dependencies": [
+        "G-1790821645407"
+      ],
+      "attendanceTracked": true,
+      "actualWorkStartedAt": "2026-10-02T02:00:40.238Z",
+      "workSessionStartedAt": null,
+      "actualWorkHours": 0.76,
+      "overtimeHours": 4
     }
   ]
 }

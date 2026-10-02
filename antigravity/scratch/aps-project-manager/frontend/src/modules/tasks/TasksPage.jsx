@@ -90,6 +90,22 @@ export default function TasksPage() {
     });
   }, [employees]);
 
+  useEffect(() => {
+    const shouldLockScroll = showTaskModal || showOtModal;
+    const previousOverflow = document.body.style.overflow;
+    const previousOverflowX = document.body.style.overflowX;
+
+    if (shouldLockScroll) {
+      document.body.style.overflow = 'hidden';
+      document.body.style.overflowX = 'hidden';
+    }
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.body.style.overflowX = previousOverflowX;
+    };
+  }, [showTaskModal, showOtModal]);
+
   // Form đăng ký tăng ca (OT)
   const [otForm, setOtForm] = useState({
     taskId: '',
@@ -554,7 +570,7 @@ export default function TasksPage() {
 
       {/* MODAL 1: TẠO TASK CÔNG VIỆC MỚI */}
       {showTaskModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-transparent backdrop-blur-[2px] animate-fade-in">
           <div className="w-full max-w-xl p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -739,7 +755,7 @@ export default function TasksPage() {
 
       {/* MODAL 2: TẠO CA TĂNG CA (OVERTIME) */}
       {showOtModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-transparent backdrop-blur-[2px] animate-fade-in">
           <div className="w-full max-w-lg p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">

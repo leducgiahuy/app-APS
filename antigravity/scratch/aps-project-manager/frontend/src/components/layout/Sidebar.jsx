@@ -71,7 +71,7 @@ export default function Sidebar() {
       {/* Backdrop trên Mobile khi mở Drawer */}
       {mobileMenuOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden transition-opacity"
+          className="fixed inset-0 z-40 bg-transparent backdrop-blur-[2px] lg:hidden transition-opacity"
           onClick={() => setMobileMenuOpen(false)}
         />
       )}

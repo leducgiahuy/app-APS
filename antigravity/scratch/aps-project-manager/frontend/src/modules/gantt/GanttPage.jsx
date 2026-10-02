@@ -81,6 +81,7 @@ export default function GanttPage() {
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
   const [showAddProjectModal, setShowAddProjectModal] = useState(false);
   const [showEditProjectModal, setShowEditProjectModal] = useState(false);
+  const [hoveredDependencyKey, setHoveredDependencyKey] = useState(null);
   const [locationSuggestionsOpen, setLocationSuggestionsOpen] = useState(false);
   const [locationSearch, setLocationSearch] = useState('');
   const [editingItem, setEditingItem] = useState(null);
@@ -93,6 +94,22 @@ export default function GanttPage() {
     window.addEventListener('resize', updateViewportHeight);
     return () => window.removeEventListener('resize', updateViewportHeight);
   }, []);
+
+  useEffect(() => {
+    const shouldLockScroll = showAddTaskModal || showAddProjectModal || showEditProjectModal || Boolean(editingItem);
+    const previousOverflow = document.body.style.overflow;
+    const previousOverflowX = document.body.style.overflowX;
+
+    if (shouldLockScroll) {
+      document.body.style.overflow = 'hidden';
+      document.body.style.overflowX = 'hidden';
+    }
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.body.style.overflowX = previousOverflowX;
+    };
+  }, [showAddTaskModal, showAddProjectModal, showEditProjectModal, editingItem]);
 
   // Form thêm công việc cho dự án
   const [taskForm, setTaskForm] = useState({
@@ -318,26 +335,32 @@ export default function GanttPage() {
         const to = taskCoordinates[item.id];
         if (!from || !to) return;
         const key = `${depId}->${item.id}`;
-        edges.set(key, { key, from, to });
+        edges.set(key, { key, from, to, sourceId: depId, targetId: item.id });
       });
     });
 
-    return [...edges.values()].map(({ key, from, to }) => {
-      const startX = from.x;
+    return [...edges.values()].map(({ key, from, to, sourceId, targetId }) => {
+      const startX = from.x + 6;
       const startY = from.centerY;
-      const endX = to.x;
+      const endX = Math.max(to.x - 10, 0);
       const endY = to.centerY;
-      const horizontalDistance = endX - startX;
-      const controlX = horizontalDistance > 32
-        ? horizontalDistance / 2
-        : -Math.max(24, Math.abs(horizontalDistance) / 2);
+      const laneX = Math.min(startX, endX) - 32;
+      const bendY = startY + (endY - startY) * 0.45;
+      const path = `M ${startX} ${startY}
+        C ${startX - 18} ${startY}, ${laneX} ${startY}, ${laneX} ${bendY}
+        S ${laneX} ${endY}, ${endX} ${endY}`;
+
       return {
         key,
-        path: `M ${startX} ${startY} C ${startX + controlX} ${startY}, ${endX - controlX} ${endY}, ${endX} ${endY}`,
-        type: 'dependency'
+        path,
+        type: 'dependency',
+        sourceId,
+        targetId
       };
     });
   }, [filteredGanttItems, taskCoordinates]);
+
+  const hoveredDependency = dependencyLines.find(line => line.key === hoveredDependencyKey) || null;
 
   // Xử lý gửi Form thêm Task
   const handleTaskSubmit = async (e) => {
@@ -793,14 +816,24 @@ export default function GanttPage() {
                 <defs>
                   {/* Mũi tên đầu đường phụ thuộc Finish-to-Start */}
                   <marker
-                    id="arrowhead"
-                    markerWidth="7"
-                    markerHeight="7"
-                    refX="5"
-                    refY="3.5"
+                    id="arrowhead-default"
+                    markerWidth="10"
+                    markerHeight="10"
+                    refX="7"
+                    refY="5"
                     orient="auto"
                   >
-                    <polygon points="0 0, 8 4, 0 8" fill="#64748b" />
+                    <polygon points="0 0, 10 5, 0 10" fill="#64748b" />
+                  </marker>
+                  <marker
+                    id="arrowhead-active"
+                    markerWidth="10"
+                    markerHeight="10"
+                    refX="7"
+                    refY="5"
+                    orient="auto"
+                  >
+                    <polygon points="0 0, 10 5, 0 10" fill="#ef4444" />
                   </marker>
                   
                   {/* Gradient cho các thanh bar */}
@@ -877,27 +910,34 @@ export default function GanttPage() {
                     d={line.path}
                     fill="none"
                     stroke="#f8fafc"
-                    strokeWidth="5"
+                    strokeWidth="7"
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     pointerEvents="none"
+                    opacity="0.9"
                   />
                 ))}
-                {dependencyLines.map(line => (
-                  <path
-                    key={line.key}
-                    d={line.path}
-                    fill="none"
-                    stroke="#64748b"
-                    strokeWidth={line.type === 'trunk' ? '2.1' : '1.9'}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    markerEnd={line.type === 'dependency' ? 'url(#arrowhead)' : undefined}
-                    className="transition-colors hover:stroke-sky-500"
-                  >
-                    <title>{line.type === 'trunk' ? 'Nhánh chung của liên kết FS' : 'Công việc trước → công việc sau (Finish-to-Start)'}</title>
-                  </path>
-                ))}
+                {dependencyLines.map(line => {
+                  const isActive = hoveredDependencyKey === line.key;
+                  return (
+                    <path
+                      key={line.key}
+                      d={line.path}
+                      fill="none"
+                      stroke={isActive ? '#ef4444' : '#64748b'}
+                      strokeWidth={isActive ? 2.4 : 1.8}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      markerEnd={line.type === 'dependency' ? (isActive ? 'url(#arrowhead-active)' : 'url(#arrowhead-default)') : undefined}
+                      opacity="0.95"
+                      style={{ cursor: 'pointer', transition: 'stroke 0.2s ease, stroke-width 0.2s ease' }}
+                      onMouseEnter={() => setHoveredDependencyKey(line.key)}
+                      onMouseLeave={() => setHoveredDependencyKey(null)}
+                    >
+                      <title>{line.type === 'trunk' ? 'Nhánh chung của liên kết FS' : 'Công việc trước → công việc sau (Finish-to-Start)'}</title>
+                    </path>
+                  );
+                })}
 
                 {/* 3. Vẽ các thanh tiến độ Gantt Bar */}
                 {filteredGanttItems.map((item) => {
@@ -906,6 +946,8 @@ export default function GanttPage() {
 
                   const isGroup = item.isGroup;
                   const isHoliday = item.status === 'holiday';
+                  const isDependencyHighlighted = hoveredDependency
+                    && (hoveredDependency.sourceId === item.id || hoveredDependency.targetId === item.id);
                   const linkedTask = tasks.find(task => task.ganttId === item.id);
                   const assignee = employees.find(employee => employee.id === linkedTask?.employeeId || employee.name === item.assignee);
                   // Merge the linked task with its Gantt row so completion timing survives
@@ -968,7 +1010,9 @@ export default function GanttPage() {
                           height={coord.height - 6}
                           rx="4"
                           ry="4"
-                          fill="#0369a1"
+                          fill={isDependencyHighlighted ? '#ef4444' : '#0369a1'}
+                          stroke={isDependencyHighlighted ? '#b91c1c' : 'transparent'}
+                          strokeWidth={isDependencyHighlighted ? 2 : 0}
                           className="shadow-sm"
                           filter="drop-shadow(0 2px 4px rgba(0,0,0,0.15))"
                         />
@@ -981,6 +1025,8 @@ export default function GanttPage() {
                           rx="6"
                           ry="6"
                           fill={fillColor}
+                          stroke={isDependencyHighlighted ? '#ef4444' : 'transparent'}
+                          strokeWidth={isDependencyHighlighted ? 2.4 : 0}
                           className="transition-all hover:opacity-90 shadow-sm"
                           filter="drop-shadow(0 2px 4px rgba(0,0,0,0.12))"
                         />
@@ -996,6 +1042,8 @@ export default function GanttPage() {
                           ry="6"
                           fill={statusColor}
                           fillOpacity="1"
+                          stroke={isDependencyHighlighted ? '#ef4444' : 'transparent'}
+                          strokeWidth={isDependencyHighlighted ? 2.2 : 0}
                           className="pointer-events-none transition-all duration-500"
                         >
                           <title>{`Tiến độ theo thời gian: ${progress}%${overdue ? ' · Quá hạn' : ''}`}</title>
@@ -1069,7 +1117,7 @@ export default function GanttPage() {
       </div>
 
       {showEditProjectModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-transparent backdrop-blur-[2px] animate-fade-in">
           <div className="w-full max-w-md p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white">Chỉnh thời gian dự án</h3>
@@ -1096,7 +1144,7 @@ export default function GanttPage() {
       )}
 
       {editingItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-transparent backdrop-blur-[2px] animate-fade-in">
           <div className="w-full max-w-md p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <div>
@@ -1161,7 +1209,7 @@ export default function GanttPage() {
 
       {/* MODAL 1: THÊM CÔNG VIỆC VÀO DỰ ÁN */}
       {showAddTaskModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-transparent backdrop-blur-[2px] animate-fade-in">
           <div className="w-full max-w-xl p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -1376,7 +1424,7 @@ export default function GanttPage() {
 
       {/* MODAL 2: TẠO DỰ ÁN MỚI */}
       {showAddProjectModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-transparent backdrop-blur-[2px] animate-fade-in">
           <div className="w-full max-w-lg p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">

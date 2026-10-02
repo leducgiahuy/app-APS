@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { isTaskActiveOnDate } from '../../utils/date';
 import {
@@ -36,6 +36,21 @@ export default function HRPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTeam, setSelectedTeam] = useState('ALL');
   const [showAddModal, setShowAddModal] = useState(false);
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    const previousOverflowX = document.body.style.overflowX;
+
+    if (showAddModal) {
+      document.body.style.overflow = 'hidden';
+      document.body.style.overflowX = 'hidden';
+    }
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.body.style.overflowX = previousOverflowX;
+    };
+  }, [showAddModal]);
 
   // Form tạo nhân sự mới
   const [formData, setFormData] = useState({
@@ -433,7 +448,7 @@ export default function HRPage() {
 
       {/* Modal: Tạo Nhân Sự Mới */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-transparent backdrop-blur-[2px] animate-fade-in">
           <div className="w-full max-w-lg p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
