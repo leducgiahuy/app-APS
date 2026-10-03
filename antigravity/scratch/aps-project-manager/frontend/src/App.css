@@ -1,10 +1,10 @@
 ﻿#root { min-height: 100vh; }
 
 .login-page {
-  --ink: #202a36;
-  --muted: #7e8993;
-  --line: #e8e9e5;
-  --amber: #e5a929;
+  --ink: #342f30;
+  --muted: #756d6b;
+  --line: #e7dfd7;
+  --amber: #e6a51e;
   display: grid;
   grid-template-columns: minmax(420px, 0.92fr) minmax(480px, 1.08fr);
   min-height: 100vh;
@@ -28,20 +28,20 @@
 .form-intro { margin: 0 0 35px; color: #78838c; font-size: 13px; line-height: 1.8; }
 .field-label { display: block; margin-bottom: 9px; color: #3b4650; font-size: 11px; font-weight: 700; }
 .input-wrap { display: flex; align-items: center; height: 51px; gap: 12px; padding: 0 15px; border: 1px solid #e4e6e2; border-radius: 9px; color: #9da6a9; background: #fff; transition: border-color .18s, box-shadow .18s; }
-.input-wrap:focus-within { border-color: #d8a83e; box-shadow: 0 0 0 3px rgb(229 169 41 / 13%); }
+.input-wrap:focus-within { border-color: #c99132; box-shadow: 0 0 0 3px rgb(230 165 30 / 16%); }
 .input-wrap input { min-width: 0; width: 100%; height: 100%; padding: 0; border: 0; outline: 0; color: #313d48; background: transparent; font: inherit; font-size: 12px; }
 .input-wrap input:focus-visible { outline: 0; }
 .input-wrap input::placeholder { color: #b2b9bc; }
 .password-heading { display: flex; justify-content: space-between; align-items: center; margin-top: 21px; }
 .password-heading .field-label { margin-bottom: 9px; }
-.password-heading a, .support-line a { color: #a87716; font-size: 11px; font-weight: 700; text-decoration: none; }
+.password-heading a, .support-line a { color: #861b36; font-size: 11px; font-weight: 700; text-decoration: none; }
 .password-heading a:hover, .support-line a:hover { text-decoration: underline; }
 .password-toggle { display: grid; place-items: center; padding: 4px; border: 0; color: #99a2a5; background: none; cursor: pointer; }
 .remember-row { display: flex; align-items: center; gap: 9px; margin: 17px 0 21px; color: #717d85; font-size: 11px; cursor: pointer; }
-.remember-row input { width: 14px; height: 14px; margin: 0; accent-color: #c9911f; }
-.submit-button { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; height: 51px; border: 0; border-radius: 9px; color: #fff; background: #293846; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; transition: background .18s, transform .18s; }
-.submit-button:hover { transform: translateY(-1px); background: #1d2b38; }
-.submit-button:focus-visible, .password-toggle:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid rgb(229 169 41 / 55%); outline-offset: 3px; }
+.remember-row input { width: 14px; height: 14px; margin: 0; accent-color: #861b36; }
+.submit-button { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; height: 51px; border: 0; border-radius: 9px; color: #fff; background: #861b36; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; transition: background .18s, transform .18s; }
+.submit-button:hover { transform: translateY(-1px); background: #70172e; }
+.submit-button:focus-visible, .password-toggle:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid rgb(230 165 30 / 55%); outline-offset: 3px; }
 .form-message { min-height: 0; margin: 0; color: #8d641a; font-size: 11px; line-height: 1.6; }
 .form-message:not(:empty) { margin-top: 13px; padding: 10px 12px; border-radius: 7px; background: #fff5dc; }
 .support-line { margin: 25px 0 0; text-align: center; color: #879198; font-size: 11px; }
@@ -56,13 +56,13 @@
 .demo-credentials code { color: #33413f; font-family: 'JetBrains Mono', monospace; font-size: 10px; }
 .demo-credentials small { display: block; margin-top: 6px; color: #9b9c91; font-size: 8px; }
 
-.visual-panel { position: relative; display: flex; flex-direction: column; min-height: 100vh; overflow: hidden; padding: 34px clamp(30px, 4.3vw, 64px) 25px; color: #fff; background: #e9e8df; }
-.visual-panel::before { position: absolute; inset: 0; content: ''; background: linear-gradient(145deg, #d6ddd7 0%, #e9e5d9 52%, #d8d8ce 100%); }
+.visual-panel { position: relative; display: flex; flex-direction: column; min-height: 100vh; overflow: hidden; padding: 34px clamp(30px, 4.3vw, 64px) 25px; color: #fff; background: #e9e5dc; }
+.visual-panel::before { position: absolute; inset: 0; content: ''; background: linear-gradient(145deg, #e6e0d8 0%, #f0e8d9 52%, #e5ded4 100%); }
 .visual-panel::after { position: absolute; inset: 0; content: ''; opacity: .22; background-image: radial-gradient(#788479 0.6px, transparent 0.6px); background-size: 12px 12px; pointer-events: none; }
 .visual-top, .visual-bottom { position: relative; z-index: 2; color: #77817a; font-family: 'JetBrains Mono', monospace; font-size: 9px; letter-spacing: .1em; }
 .visual-top span:last-child { color: #9c9b8d; }
 .site-art { position: absolute; inset: 12% 5% 40%; z-index: 1; overflow: hidden; }
-.art-sun { position: absolute; top: 13%; right: 15%; width: 94px; height: 94px; border-radius: 50%; background: #efc76e; opacity: .73; }
+.art-sun { position: absolute; top: 13%; right: 15%; width: 94px; height: 94px; border-radius: 50%; background: #e6a51e; opacity: .62; }
 .art-ground { position: absolute; right: -5%; bottom: 3%; left: -5%; height: 22%; transform: skewY(-5deg); background: #c1c5b8; border-top: 1px solid rgb(255 255 255 / 65%); }
 .art-building { position: absolute; bottom: 19%; display: grid; gap: 10px; padding: 19px 15px; border: 1px solid rgb(80 94 95 / 35%); box-shadow: 12px 12px 0 rgb(107 120 111 / 12%); }
 .art-building i { display: block; border: 1px solid rgb(95 113 111 / 37%); background: #d7ded5; }
@@ -76,7 +76,7 @@
 .art-crane i { position: absolute; top: 3px; left: 67%; width: 2px; height: 30%; background: #747f78; }
 .art-crane b { position: absolute; top: 30%; left: calc(67% - 4px); width: 10px; height: 12px; border-right: 1px solid #747f78; border-bottom: 1px solid #747f78; }
 .art-label { position: absolute; bottom: 9%; left: 4%; display: flex; align-items: center; gap: 9px; padding: 11px 14px; border: 1px solid rgb(255 255 255 / 65%); color: #65736b; background: rgb(255 255 255 / 48%); font-family: 'JetBrains Mono', monospace; font-size: 8px; letter-spacing: .06em; }
-.visual-caption { position: relative; z-index: 2; margin: auto 0 35px; padding-left: 18px; border-left: 2px solid #d6a73f; }
+.visual-caption { position: relative; z-index: 2; margin: auto 0 35px; padding-left: 18px; border-left: 2px solid #e6a51e; }
 .caption-rule { display: none; }
 .visual-caption p { margin: 0 0 12px; color: #536259; font-size: clamp(21px, 2.2vw, 29px); font-weight: 400; line-height: 1.45; letter-spacing: -.035em; }
 .visual-caption p strong { color: #34443d; font-weight: 700; }

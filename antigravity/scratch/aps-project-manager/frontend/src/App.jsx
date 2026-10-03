@@ -21,7 +21,7 @@ function MainLayout() {
       <Sidebar />
       <div className={`flex-1 flex flex-col transition-all duration-300 ${sidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72'}`}>
         <Header />
-        <main className={`flex-1 w-full animate-fade-in ${activeTab === 'workload' || activeTab === 'gantt' || activeTab === 'tasks' || activeTab === 'hr' || activeTab === 'dashboard' ? 'max-w-none mx-0 p-0' : 'p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto'}`}>
+        <main className={`flex-1 w-full animate-fade-in ${activeTab === 'workload' || activeTab === 'gantt' || activeTab === 'tasks' || activeTab === 'hr' || activeTab === 'dashboard' || activeTab === 'activity' ? 'max-w-none mx-0 p-0' : 'p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto'}`}>
           {activeTab === 'hr' && <HRPage />}
           {activeTab === 'workload' && <WorkloadPage />}
           {activeTab === 'tasks' && <TasksPage />}
@@ -29,7 +29,6 @@ function MainLayout() {
           {activeTab === 'dashboard' && <DashboardPage />}
           {activeTab === 'activity' && getCurrentUser()?.role === 'admin' && <AdminActivityPage />}
         </main>
-        <footer className="py-4 px-6 border-t border-slate-200 dark:border-slate-800 text-center text-xs text-slate-400">© 2026 APS Việt Nam · Quản lý dự án và nhân sự công trường</footer>
       </div>
       <Toast />
     </div>

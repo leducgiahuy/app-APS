@@ -257,7 +257,7 @@ export function AppProvider({ children }) {
       await api.createTask(taskData);
       recordActivity('task.create', `Tạo công việc ${taskData.title || 'mới'}.`);
       showToast('Phân công công việc thành công');
-      refreshAllData();
+      await refreshAllData();
       return true;
     } catch (err) {
       showToast(err.message || 'Lỗi khi tạo công việc', 'error');
@@ -271,7 +271,7 @@ export function AppProvider({ children }) {
       await api.updateTask(id, data);
       recordActivity('task.update', `Cập nhật công việc ${tasks.find(item => item.id === id)?.title || id}.`);
       showToast('Cập nhật tiến độ thành công');
-      refreshAllData();
+      await refreshAllData();
       return true;
     } catch {
       showToast('Lỗi khi cập nhật công việc', 'error');
@@ -299,7 +299,7 @@ export function AppProvider({ children }) {
       await api.createOvertime(otData);
       recordActivity('overtime.create', `Tạo đăng ký tăng ca cho ${otData.employeeName || 'nhân sự'}.`);
       showToast('Đăng ký ca tăng ca (OT) thành công');
-      refreshAllData();
+      await refreshAllData();
       return true;
     } catch (err) {
       showToast(err.message || 'Lỗi khi đăng ký tăng ca', 'error');
@@ -377,8 +377,11 @@ export function AppProvider({ children }) {
   const updateGanttItem = async (id, data) => {
     try {
       const res = await api.updateGanttItem(id, data);
-      recordActivity('gantt.update', `Cập nhật hạng mục ${ganttItems.find(item => item.id === id)?.title || id}.`);
-      showToast(res.message || 'Đã cập nhật thời gian task');
+      const itemTitle = ganttItems.find(item => item.id === id)?.title || id;
+      recordActivity('gantt.update', Array.isArray(data.assignees)
+        ? `Cập nhật người đảm nhận cho hạng mục ${itemTitle}.`
+        : `Cập nhật hạng mục ${itemTitle}.`);
+      showToast(res.message || 'Đã cập nhật hạng mục Gantt');
       await refreshAllData();
       return true;
     } catch (err) {

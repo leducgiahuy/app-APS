@@ -2,7 +2,7 @@
 
 > **Dự án phát triển cho:** Công ty Giải Pháp Châu Á Thái Bình Dương Việt Nam (APS Việt Nam)  
 > **Người phụ trách:** Chuyên viên IT Nội Bộ (Phần Cứng & Hạ Tầng)  
-> **Phiên bản:** 1.0.0 Production Ready  
+> **Phiên bản:** 1.0.0 (bản xem trước nội bộ)
 > **Kiến trúc:** Clean Modular FullStack (Frontend React + Backend Node Express riêng biệt)
 
 ---
@@ -83,12 +83,26 @@ npm run dev
 - Bảng tổng hợp chi tiết: Tên dự án, công việc trong dự án, nhân viên đảm nhận, thời gian hoàn thành.
 - Bảng xếp hạng năng suất và giờ cống hiến của từng nhân sự.
 
+### 5. Phân hệ Theo Dõi Giờ & Công Việc (`workload`)
+- Xem phân bổ công việc theo ngày, tháng hoặc năm; admin có thể tìm nhân viên và xem giờ đã lên lịch, giờ trống hoặc phần vượt định mức.
+- User xem lịch cá nhân sau khi tài khoản được ghép với hồ sơ nhân sự theo `employeeId`, email hoặc tên.
+- Ngày làm việc tính Thứ 2–6 đủ định mức, Thứ 7 nửa định mức, Chủ nhật không tính.
+- Chế độ ngày hiển thị task và nhật ký giờ thực tế, gồm phiên đang chạy; chế độ tháng/năm tổng hợp tiến độ và giờ theo công trình.
+
+### 6. Đăng Nhập, Tài Khoản & Nhật Ký Quản Trị (`/login`, `/account`)
+- Có màn hình đăng nhập, ghi nhớ phiên đăng nhập, đăng xuất, trang hồ sơ, đổi mật khẩu và cập nhật ảnh đại diện.
+- Admin có thể tạo tài khoản user, chỉnh hồ sơ/ảnh và cấp lại mật khẩu. User không tự cấp quyền admin.
+- Admin có trang nhật ký hoạt động: tìm kiếm, lọc theo nhóm/user, thống kê, xuất CSV và xóa nhật ký. Nhật ký dùng backend để chia sẻ giữa trình duyệt, tối đa 1.000 sự kiện gần nhất; backend tắt thì dùng bản cục bộ.
+- Tài khoản demo trên màn hình đăng nhập: `demo@aps.vn` / `APS@2026`.
+- **Giới hạn cần biết:** đăng nhập, vai trò và tài khoản hiện xử lý ở frontend, dữ liệu mật khẩu lưu trong `localStorage`; backend API chưa tự xác thực/ủy quyền. Đây là bản xem trước, không nên dùng làm lớp bảo vệ dữ liệu nhạy cảm hoặc công khai API trước khi bổ sung xác thực ở server.
+
 ---
 
 ## 🎨 THIẾT KẾ GIAO DIỆN (UI/UX)
 - Hỗ trợ **Light Mode & Dark Mode** (nút bật tắt Mặt Trời / Mặt Trăng ở Header, tự lưu vào bộ nhớ máy).
 - Thiết kế bo tròn hiện đại `border-radius: 12px - 16px`, hiệu ứng bóng mờ cao cấp.
 - Sidebar tự thu gọn (Collapse) dạng icon trên Desktop và mở dạng Drawer trượt trên Mobile/Tablet.
+- Logo APS được dùng thống nhất ở màn hình đăng nhập, sidebar và trang tài khoản; màn hình đăng nhập có bố cục riêng cho cổng nội bộ.
 
 ---
 
@@ -125,5 +139,5 @@ Chi tiết luồng dữ liệu, tên trường lưu và vị trí mã nguồn đ
 ### Thanh thao tác và vùng cuộn cố định
 
 - Trang Phân công gộp tab, tìm task và nút tạo task trên một thanh sticky toàn chiều ngang bên dưới header; thanh ngoài phẳng, riêng ô tìm kiếm có bo góc.
-- Footer bản quyền được bỏ khỏi giao diện dùng chung.
+- Footer bản quyền được hiển thị ở cuối khung ứng dụng dùng chung.
 - Gantt giữ header cột trong vùng cuộn nội bộ, có cột trái đóng băng; chiều cao vùng biểu đồ căn theo viewport để header cột luôn hiện khi xem danh sách task.

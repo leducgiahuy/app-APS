@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { formatDateVi, scheduledProgress, isTaskOverdue, taskDelayHours, formatDelayHours } from '../../utils/date';
+import { getGanttTaskCode } from '../../utils/taskCode';
 import {
   BarChart3,
   Building,
@@ -16,7 +17,7 @@ import {
 } from 'lucide-react';
 
 export default function DashboardPage() {
-  const { stats, projects, tasks, employees, currentTime } = useApp();
+  const { stats, projects, tasks, ganttItems, employees, currentTime } = useApp();
 
   // Bộ lọc dự án trong bảng thống kê
   const [selectedProjectId, setSelectedProjectId] = useState('ALL');
@@ -62,12 +63,12 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-0">
         
         {/* KPI 1: Tỉ lệ hoàn thành dự án */}
-        <div className="p-5 rounded-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+        <div className="p-4 rounded-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Tiến Độ Dự Án Trung Bình
             </p>
-            <p className="text-3xl font-black text-sky-600 dark:text-sky-400 mt-1">
+            <p className="text-2xl font-black text-sky-600 dark:text-sky-400 mt-1">
               {overview.overallCompletionRate}%
             </p>
             <div className="w-32 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full mt-2 overflow-hidden">
@@ -77,62 +78,62 @@ export default function DashboardPage() {
               />
             </div>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-sky-500/10 text-sky-500 flex items-center justify-center">
-            <TrendingUp className="w-6 h-6" />
+          <div className="w-10 h-10 rounded-xl bg-sky-500/10 text-sky-500 flex items-center justify-center">
+            <TrendingUp className="w-5 h-5" />
           </div>
         </div>
 
         {/* KPI 2: Tổng công việc & Tình trạng */}
-        <div className="p-5 rounded-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+        <div className="p-4 rounded-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Công Việc Đã Xong
             </p>
-            <p className="text-3xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
+            <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
               {overview.completedTasks} <span className="text-sm font-normal text-slate-400">/ {overview.totalTasks}</span>
             </p>
             <p className="text-[11px] text-emerald-500 font-semibold mt-1">
               {Math.round((overview.completedTasks / Math.max(1, overview.totalTasks)) * 100)}% đạt yêu cầu
             </p>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
-            <CheckCircle2 className="w-6 h-6" />
+          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
+            <CheckCircle2 className="w-5 h-5" />
           </div>
         </div>
 
         {/* KPI 3: Công việc chậm tiến độ */}
-        <div className="p-5 rounded-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+        <div className="p-4 rounded-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Chậm Tiến Độ / Cảnh Báo
             </p>
-            <p className="text-3xl font-black text-rose-600 dark:text-rose-400 mt-1">
+            <p className="text-2xl font-black text-rose-600 dark:text-rose-400 mt-1">
               {liveDelayedTaskCount} <span className="text-sm font-normal text-slate-400">hạng mục</span>
             </p>
             <p className="text-[11px] text-rose-500 font-semibold mt-1">
               Cần ưu tiên bổ sung OT
             </p>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-rose-500/10 text-rose-500 flex items-center justify-center">
-            <AlertTriangle className="w-6 h-6" />
+          <div className="w-10 h-10 rounded-xl bg-rose-500/10 text-rose-500 flex items-center justify-center">
+            <AlertTriangle className="w-5 h-5" />
           </div>
         </div>
 
         {/* KPI 4: Tổng giờ làm thêm OT */}
-        <div className="p-5 rounded-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+        <div className="p-4 rounded-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Tổng Giờ Tăng Ca Đã Cấp
             </p>
-            <p className="text-3xl font-black text-amber-500 dark:text-amber-400 mt-1">
+            <p className="text-2xl font-black text-amber-500 dark:text-amber-400 mt-1">
               {overview.totalOtHours} <span className="text-sm font-normal text-slate-400">giờ</span>
             </p>
             <p className="text-[11px] text-amber-500 font-semibold mt-1">
               Đảm bảo tiến độ công trình
             </p>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center">
-            <Flame className="w-6 h-6" />
+          <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center">
+            <Flame className="w-5 h-5" />
           </div>
         </div>
 
@@ -206,6 +207,7 @@ export default function DashboardPage() {
                 const earlyHours = Number(t.earlyHours) || 0;
                 const liveLate = t.status !== 'completed' && delayHours > 0;
                 const progressColor = t.status === 'completed' ? 'bg-emerald-500' : overdue ? 'bg-rose-500' : progress >= 80 ? 'bg-amber-500' : 'bg-sky-600';
+                const taskCode = getGanttTaskCode(t, ganttItems);
 
                 return (
                   <tr key={t.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
@@ -218,8 +220,11 @@ export default function DashboardPage() {
                     </td>
 
                     {/* Tên công việc */}
-                    <td className="py-3 px-3 font-bold text-sky-600 dark:text-sky-400 max-w-[240px] truncate" title={t.title}>
-                      {t.title}
+                    <td className="py-3 px-3 max-w-[260px]" title={taskCode ? `${taskCode} · ${t.title}` : t.title}>
+                      <div className="flex min-w-0 items-center gap-2">
+                        {taskCode && <span className="flex-shrink-0 rounded bg-sky-500/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-sky-600 dark:text-sky-400">{taskCode}</span>}
+                        <span className="truncate font-bold text-sky-600 dark:text-sky-400">{t.title}</span>
+                      </div>
                     </td>
 
                     {/* Tên nhân viên đảm nhận */}
@@ -268,7 +273,7 @@ export default function DashboardPage() {
                     <td className="py-3 px-3 text-center">
                       {overdue && t.status !== 'completed' && (
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-600 border border-rose-500/20">
-                          Quá hạn{delayHours > 0 ? ` · ${formatDelayHours(delayHours)}` : ''}
+                          Quá hạn{delayHours > 0 ? ` · Trễ ${formatDelayHours(delayHours)}` : ''}
                         </span>
                       )}
                       {!overdue && liveLate && (
@@ -278,7 +283,7 @@ export default function DashboardPage() {
                       )}
                       {t.status === 'completed' && t.speedStatus === 'early' && (
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                          Hoàn thành sớm{earlyHours > 0 ? ` · Sớm ${formatDelayHours(earlyHours)}` : ''}
+                          Hoàn thành sớm · Sớm {formatDelayHours(earlyHours)}
                         </span>
                       )}
                       {t.status === 'completed' && t.speedStatus === 'on_time' && (

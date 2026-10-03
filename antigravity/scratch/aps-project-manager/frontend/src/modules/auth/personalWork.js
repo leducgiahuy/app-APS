@@ -17,6 +17,9 @@ export function resolveEmployee(user, employees = []) {
 
 export function isTaskAssignedTo(task, employee) {
   if (!employee || !task) return false;
+  if (Array.isArray(task.assignees) && task.assignees.some(assignment =>
+    assignment.employeeId === employee.id || normalize(assignment.employeeName) === normalize(employee.name)
+  )) return true;
   if (task.employeeId) return task.employeeId === employee.id;
   return normalize(task.employeeName || task.assignee) === normalize(employee.name);
 }

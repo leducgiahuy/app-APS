@@ -104,7 +104,7 @@ export function formatDelayHours(hours) {
   const totalMinutes = Math.max(0, Math.round((Number(hours) || 0) * 60));
   const wholeHours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
-  if (wholeHours && minutes) return `${wholeHours}h${minutes}`;
+  if (wholeHours && minutes) return `${wholeHours}h${String(minutes).padStart(2, '0')}`;
   if (wholeHours) return `${wholeHours}h`;
   return `${minutes}p`;
 }

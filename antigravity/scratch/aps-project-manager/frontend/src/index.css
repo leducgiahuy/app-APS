@@ -3,22 +3,24 @@
 @tailwind utilities;
 
 @layer base {
-  html { min-width: 320px; min-height: 100%; background: #fbfaf7; }
-  body { min-width: 320px; min-height: 100vh; margin: 0; color: #202a36; background: #fbfaf7; font-family: 'Segoe UI', Arial, sans-serif; }
+  html { min-width: 320px; min-height: 100%; background: #f5f3ef; }
+  body { min-width: 320px; min-height: 100vh; margin: 0; color: #342f30; background: #f5f3ef; font-family: 'Segoe UI', Arial, sans-serif; }
   button, input { font: inherit; }
-  ::selection { color: #263441; background: #f4d991; }
+  ::selection { color: #4b1727; background: #f0d99f; }
 }
 
-/* Tông sáng dùng nền xám sương và bề mặt trắng ngà để giảm chói khi xem lâu. */
+/* Bảng màu APS: đỏ đô và vàng ấm trên nền trung tính dịu. */
 .app-shell {
-  --workspace: #e9eef1;
-  --surface: #fafbfb;
-  --surface-soft: #f2f5f6;
-  --surface-muted: #e5eaed;
-  --line: #d4dde2;
-  --text-main: #26343d;
-  --text-muted: #53636d;
-  --accent: #527f93;
+  --workspace: #f1efeb;
+  --surface: #fbfaf8;
+  --surface-soft: #f5f2ed;
+  --surface-muted: #ebe6df;
+  --line: #ddd7ce;
+  --text-main: #342f30;
+  --text-muted: #686164;
+  --accent: #861b36;
+  --accent-soft: #f5e8eb;
+  --accent-gold: #e6a51e;
   background-color: var(--workspace);
   color: var(--text-main);
   font-family: 'Segoe UI', Arial, sans-serif;
@@ -31,25 +33,27 @@ html:not(.dark) .app-shell [class~="text-slate-900"], html:not(.dark) .app-shell
 html:not(.dark) .app-shell [class~="text-slate-700"], html:not(.dark) .app-shell [class~="text-slate-600"], html:not(.dark) .app-shell [class~="text-slate-500"] { color: var(--text-muted) !important; }
 html:not(.dark) .app-shell [class~="text-slate-400"] { color: #53636d !important; }
 html:not(.dark) .app-shell [class~="bg-sky-600"] { background-color: var(--accent) !important; }
-html:not(.dark) .app-shell [class~="text-sky-600"] { color: #496f83 !important; }
-.app-shell [class~="shadow-sm"], .app-shell [class~="shadow-xl"] { box-shadow: 0 2px 7px rgb(36 54 64 / 7%) !important; }
+html:not(.dark) .app-shell [class~="text-sky-600"] { color: var(--accent) !important; }
+.app-shell [class~="shadow-sm"], .app-shell [class~="shadow-xl"] { box-shadow: 0 2px 7px rgb(57 42 39 / 7%) !important; }
 html:not(.dark) .app-shell [class~="text-[8px]"] { font-size: 9px !important; }
 html:not(.dark) .app-shell [class~="text-[9px]"] { font-size: 11px !important; }
 html:not(.dark) .app-shell [class~="text-[10px]"] { font-size: 12px !important; }
 html:not(.dark) .app-shell [class~="text-[11px]"] { font-size: 13px !important; }
 html:not(.dark) .app-shell [class~="text-xs"] { font-size: 13px !important; }
 
-/* Dark mode chuyển từ nền đen/xanh đậm sang xám than, với thẻ sáng hơn rõ rệt. */
-html.dark body { color: #e7ecef; background: #353c42; }
+/* Dark mode dùng than ấm để giữ độ tương phản mà vẫn hợp đỏ đô/vàng. */
+html.dark body { color: #eee9e6; background: #2c292a; }
 html.dark .app-shell {
-  --workspace: #353c42;
-  --surface: #434b52;
-  --surface-soft: #3c444b;
-  --surface-muted: #4d565e;
-  --line: #56616a;
-  --text-main: #eef1f3;
-  --text-muted: #c4cdd2;
-  --accent: #7399ab;
+  --workspace: #2c292a;
+  --surface: #393536;
+  --surface-soft: #454041;
+  --surface-muted: #51494a;
+  --line: #5c5251;
+  --text-main: #f0ebea;
+  --text-muted: #c9c0be;
+  --accent: #b84b65;
+  --accent-soft: #4c3038;
+  --accent-gold: #efc15b;
   background-color: var(--workspace);
   color: var(--text-main);
   font-family: 'Segoe UI', Arial, sans-serif;
@@ -66,10 +70,10 @@ html.dark .app-shell [class~="dark:text-slate-300"], html.dark .app-shell [class
 html.dark .app-shell [class~="text-slate-900"], html.dark .app-shell [class~="text-slate-800"], html.dark .app-shell [class~="text-slate-700"] { color: #edf1f3 !important; }
 html.dark .app-shell [class~="text-slate-600"], html.dark .app-shell [class~="text-slate-500"] { color: #d0d8dc !important; }
 html.dark .app-shell [class~="text-slate-400"] { color: #b5c0c5 !important; }
-html.dark .app-shell [class~="bg-sky-600"], html.dark .app-shell [class~="dark:bg-sky-600"] { background-color: #527d91 !important; }
-html.dark .app-shell [class~="text-sky-600"], html.dark .app-shell [class~="dark:text-sky-400"] { color: #9bc1d2 !important; }
-html.dark .app-shell [class~="dark:bg-slate-950/50"] { background-color: rgb(53 60 66 / 65%) !important; }
-html.dark .app-shell [class~="shadow-sm"], html.dark .app-shell [class~="shadow-xl"] { box-shadow: 0 2px 8px rgb(14 20 24 / 14%) !important; }
+html.dark .app-shell [class~="bg-sky-600"], html.dark .app-shell [class~="dark:bg-sky-600"] { background-color: var(--accent) !important; }
+html.dark .app-shell [class~="text-sky-600"], html.dark .app-shell [class~="dark:text-sky-400"] { color: #edb2bf !important; }
+html.dark .app-shell [class~="dark:bg-slate-950/50"] { background-color: rgb(44 41 42 / 72%) !important; }
+html.dark .app-shell [class~="shadow-sm"], html.dark .app-shell [class~="shadow-xl"] { box-shadow: 0 2px 8px rgb(17 12 13 / 22%) !important; }
 html.dark .app-shell [class~="text-[8px]"] { font-size: 9px !important; }
 html.dark .app-shell [class~="text-[9px]"] { font-size: 11px !important; }
 html.dark .app-shell [class~="text-[10px]"], html.dark .app-shell [class~="dark:text-[10px]"] { font-size: 12px !important; }
@@ -77,20 +81,20 @@ html.dark .app-shell [class~="text-[11px]"], html.dark .app-shell [class~="dark:
 html.dark .app-shell [class~="text-xs"] { font-size: 13px !important; }
 
 /* Trang đăng nhập và tài khoản theo cùng bảng màu để không lóa sau khi thoát dashboard. */
-html.dark .login-page, html.dark .account-page { color: #e7ecef; background: #353c42; }
-html.dark .login-panel { background: #353c42; }
-html.dark .form-wrap h1, html.dark .account-heading h1 { color: #eef1f3; }
-html.dark .form-intro, html.dark .account-heading div > span { color: #c4cdd2; }
-html.dark .input-wrap, html.dark .account-card { border-color: #56616a; background: #434b52; }
-html.dark .input-wrap input, html.dark .account-form input, html.dark .account-form select { color: #edf1f3; background: #3b434a; }
-html.dark .account-form input[readonly] { background: #343b41; }
-html.dark .field-label, html.dark .account-form label, html.dark .account-photo-controls > b { color: #e1e7e9; }
-html.dark .demo-credentials, html.dark .account-tabs { border-color: #58636a; background: #3b434a; }
-html.dark .demo-credentials code { color: #eef1f3; }
-html.dark .account-tabs button.active { color: #f1f4f5; background: #515b63; }
-html.dark .account-photo-row { border-color: #58636a; background: #3b434a; }
-html.dark .account-header { border-color: #56616a; }
-html.dark .account-back, html.dark .account-logout { border-color: #59656d; color: #d4dde1; background: #434b52; }
+html.dark .login-page, html.dark .account-page { color: #eee9e6; background: #2c292a; }
+html.dark .login-panel { background: #2c292a; }
+html.dark .form-wrap h1, html.dark .account-heading h1 { color: #f0ebea; }
+html.dark .form-intro, html.dark .account-heading div > span { color: #c9c0be; }
+html.dark .input-wrap, html.dark .account-card { border-color: #5c5251; background: #393536; }
+html.dark .input-wrap input, html.dark .account-form input, html.dark .account-form select { color: #f0ebea; background: #393536; }
+html.dark .account-form input[readonly] { background: #322e2f; }
+html.dark .field-label, html.dark .account-form label, html.dark .account-photo-controls > b { color: #e7dfdd; }
+html.dark .demo-credentials, html.dark .account-tabs { border-color: #5c5251; background: #393536; }
+html.dark .demo-credentials code { color: #f0ebea; }
+html.dark .account-tabs button.active { color: #f0ebea; background: #51494a; }
+html.dark .account-photo-row { border-color: #5c5251; background: #393536; }
+html.dark .account-header { border-color: #5c5251; }
+html.dark .account-back, html.dark .account-logout { border-color: #655b5a; color: #d6cecb; background: #393536; }
 html.dark .visual-panel::before { background: linear-gradient(145deg, #414b4e 0%, #4b4b43 52%, #3e4747 100%); }
 html.dark .visual-panel::after { opacity: .12; }
 html.dark .visual-caption p, html.dark .visual-caption p strong { color: #e0e7e5; }
@@ -101,7 +105,7 @@ html.dark .visual-caption > span, html.dark .visual-top, html.dark .visual-botto
 .aps-sidebar-symbol { display: grid; place-items: center; width: 46px; height: 46px; border: 1px solid #d2d9dc; border-radius: 11px; color: #861b36; background: #faf7f3; font-size: 13px; font-weight: 900; letter-spacing: .04em; }
 .aps-full-logo { display: block; width: 215px; height: 58px; object-fit: contain; object-position: left center; }
 .account-brand img { display: block; width: 230px; height: 58px; object-fit: contain; object-position: left center; }
-.account-avatar-preview { display: grid; place-items: center; width: 76px; height: 76px; flex: 0 0 auto; overflow: hidden; border: 1px solid #d7dfe3; border-radius: 18px; color: #52778a; background: #e9eff1; font-size: 20px; font-weight: 800; }
+.account-avatar-preview { display: grid; place-items: center; width: 76px; height: 76px; flex: 0 0 auto; overflow: hidden; border: 1px solid #e7dadd; border-radius: 18px; color: #861b36; background: #f5e6e9; font-size: 20px; font-weight: 800; }
 .account-avatar-preview img { width: 100%; height: 100%; object-fit: cover; }
 .account-photo-row { display: flex; align-items: center; gap: 16px; margin-bottom: 21px; padding: 15px; border: 1px solid #e4e8e7; border-radius: 11px; background: #f7f9f8; }
 .account-photo-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 9px 13px; }

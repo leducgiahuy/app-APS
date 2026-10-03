@@ -1,4 +1,4 @@
-﻿import React, { useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import {
   Menu,
@@ -12,7 +12,13 @@ import {
   Sparkles,
   Building,
   LogOut,
-  UserRoundPen
+  UserRoundPen,
+  Users,
+  CheckSquare,
+  UsersRound,
+  CalendarRange,
+  BarChart3,
+  Activity
 } from 'lucide-react';
 import { endAuthSession, getCurrentUser } from '../../modules/auth/authSession';
 
@@ -33,40 +39,52 @@ export default function Header() {
   } = useApp();
   const accountUser = getCurrentUser();
   const accountInitials = accountUser?.name.split(/\s+/).slice(-2).map((part) => part[0]).join('').toUpperCase() || 'APS';
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const accountMenuRef = useRef(null);
 
-  // Tiêu đề tương ứng từng trang
+  // Tiêu đề đồng bộ với tên mục trên thanh điều hướng.
   const pageTitles = {
-    hr: {
-      title: 'Quản Lý Nhân Sự & Điểm Danh Công Trường',
-      sub: 'Theo dõi sự hiện diện, thời gian thực, ca làm và số lượng công việc được giao'
-    },
-    tasks: {
-      title: 'Phân Công Công Việc & Đăng Ký Tăng Ca (OT)',
-      sub: 'Giao task cho nhân sự, kiểm soát định mức 8h/ngày và ca làm thêm giờ gấp'
-    },
-    workload: {
-      title: 'Theo Dõi Giờ & Công Việc Trong Ngày',
-      sub: 'Theo dõi giờ công thực tế, phân bổ công việc và giờ còn trống theo ngày'
-    },
-    gantt: {
-      title: 'Tiến Độ Dự Án & Biểu Đồ Gantt Công Trình',
-      sub: 'Phân rã WBS, liên kết phụ thuộc Finish-to-Start (FS), mốc nghỉ lễ và trạng thái sớm/chậm'
-    },
-    dashboard: {
-      title: 'Thống Kê & Báo Cáo Hiệu Suất Tổng Quan',
-      sub: 'Đo lường tiến độ các công việc, nhân viên đảm nhận và tỷ lệ hoàn thành'
-    },
-    activity: {
-      title: 'Nhật Ký Hoạt Động',
-      sub: 'Theo dõi đăng nhập, thay đổi tài khoản và thao tác dữ liệu của người dùng'
-    }
+    hr: 'Thành Viên',
+    tasks: 'Công việc',
+    workload: 'Quản Lý Nhân Sự',
+    gantt: 'Tiến Độ Dự Án',
+    dashboard: 'Thống Kê & Báo Cáo',
+    activity: 'Nhật Ký Hoạt Động'
   };
 
-  const currentInfo = pageTitles[activeTab] || pageTitles.hr;
+  const pageIcons = {
+    hr: Users,
+    tasks: CheckSquare,
+    workload: UsersRound,
+    gantt: CalendarRange,
+    dashboard: BarChart3,
+    activity: Activity
+  };
+
+  const currentTitle = pageTitles[activeTab] || pageTitles.hr;
+  const CurrentPageIcon = pageIcons[activeTab] || pageIcons.hr;
   const isGanttView = activeTab === 'gantt';
   const dayPickerRef = useRef(null);
   const selectedDateValue = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
   const ganttMonthValue = `${ganttMonth.getFullYear()}-${String(ganttMonth.getMonth() + 1).padStart(2, '0')}`;
+
+  useEffect(() => {
+    if (!accountMenuOpen) return undefined;
+
+    const closeOnOutsideClick = (event) => {
+      if (!accountMenuRef.current?.contains(event.target)) setAccountMenuOpen(false);
+    };
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') setAccountMenuOpen(false);
+    };
+
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [accountMenuOpen]);
 
   const openDayPicker = () => {
     const picker = dayPickerRef.current;
@@ -96,11 +114,11 @@ export default function Header() {
   };
 
   return (
-    <header className="sticky top-0 z-30 h-20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-colors">
-      <div className="h-full px-4 sm:px-6 flex items-center justify-between gap-4">
+    <header className="sticky top-0 z-30 h-16 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-colors">
+      <div className="h-full px-3 sm:px-5 flex items-center justify-between gap-3">
         
         {/* Phần bên trái: Nút Menu Mobile + Tiêu đề trang */}
-        <div className="flex items-center gap-3.5 min-w-0">
+        <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={() => setMobileMenuOpen(true)}
             className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 lg:hidden flex-shrink-0"
@@ -108,21 +126,17 @@ export default function Header() {
             <Menu className="w-6 h-6" />
           </button>
 
-          <div className="min-w-0">
-            <h1 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white truncate">
-              {currentInfo.title}
-            </h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400 hidden sm:block truncate">
-              {currentInfo.sub}
-            </p>
-          </div>
+          <CurrentPageIcon className="h-5 w-5 flex-shrink-0 text-slate-500 dark:text-slate-400" aria-hidden="true" />
+          <h1 className="min-w-0 text-sm sm:text-base font-bold text-slate-900 dark:text-white truncate">
+            {currentTitle}
+          </h1>
         </div>
 
         {/* Phần bên phải: Đồng hồ số Real-time + Bộ chọn ngày + Theme Toggle + User Badge */}
-        <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2.5 flex-shrink-0">
           
           {/* Đồng hồ số chạy theo thời gian thực (Real-time Clock) */}
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 text-sky-600 dark:text-sky-400 font-mono font-bold text-xs sm:text-sm shadow-inner">
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 text-sky-600 dark:text-sky-400 font-mono font-bold text-[11px] sm:text-xs shadow-inner">
             <Clock className="w-4 h-4 animate-spin" style={{ animationDuration: '6s' }} />
             <span>{formatTime(currentTime)}</span>
           </div>
@@ -203,44 +217,53 @@ export default function Header() {
             )}
           </button>
 
-          {/* Ảnh đại diện lấy trực tiếp từ hồ sơ tài khoản hiện đang đăng nhập. */}
-          <div className="flex items-center gap-2 pl-2 border-l border-slate-200 dark:border-slate-700">
-            {accountUser?.avatarData
-              ? <img src={accountUser.avatarData} alt={`Ảnh đại diện ${accountUser.name}`} className="h-10 w-10 rounded-xl object-cover border border-slate-200 dark:border-slate-600" />
-              : <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-200 dark:bg-slate-600 text-xs font-bold text-slate-700 dark:text-slate-100">{accountInitials}</div>}
-            <div className="hidden xl:flex flex-col text-left">
-              <span className="text-xs font-bold text-slate-800 dark:text-slate-200 leading-tight">
-                {accountUser?.name || 'Người dùng'}
-              </span>
-              <span className="text-[10px] text-slate-500 dark:text-slate-300 font-medium">
-                {accountUser?.role === 'admin' ? 'Quản trị viên' : accountUser?.company || 'APS Việt Nam'}
-              </span>
-            </div>
+          <div ref={accountMenuRef} className="relative border-l border-slate-200 pl-2 dark:border-slate-700">
+            <button
+              type="button"
+              onClick={() => setAccountMenuOpen(open => !open)}
+              className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl bg-slate-200 text-xs font-bold text-slate-700 hover:ring-2 hover:ring-sky-500/40 dark:bg-slate-600 dark:text-slate-100"
+              aria-label="Mở menu tài khoản"
+              aria-haspopup="menu"
+              aria-expanded={accountMenuOpen}
+            >
+              {accountUser?.avatarData
+                ? <img src={accountUser.avatarData} alt="" className="h-full w-full object-cover" />
+                : accountInitials}
+            </button>
+
+            {accountMenuOpen && (
+              <div className="absolute right-0 top-full z-50 mt-2 w-64 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900" role="menu">
+                <div className="border-b border-slate-200 px-4 py-3 dark:border-slate-700">
+                  <p className="truncate text-sm font-bold text-slate-800 dark:text-slate-100">{accountUser?.name || 'Người dùng'}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {accountUser?.role === 'admin' ? 'Quản trị viên' : accountUser?.company || 'APS Việt Nam'}
+                  </p>
+                </div>
+                <a
+                  href="/account"
+                  role="menuitem"
+                  onClick={() => setAccountMenuOpen(false)}
+                  className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                >
+                  <UserRoundPen className="h-4 w-4" />
+                  Tài khoản
+                </a>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setAccountMenuOpen(false);
+                    endAuthSession();
+                    window.location.assign('/login');
+                  }}
+                  className="flex w-full items-center gap-3 border-t border-slate-200 px-4 py-3 text-left text-sm font-medium text-rose-600 hover:bg-rose-50 dark:border-slate-700 dark:text-rose-400 dark:hover:bg-rose-950/30"
+                >
+                  <LogOut className="h-4 w-4" />
+                  Đăng xuất
+                </button>
+              </div>
+            )}
           </div>
-
-          <a
-            href="/account"
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-            title="Hồ sơ và tài khoản"
-            aria-label="Hồ sơ và tài khoản"
-          >
-            <UserRoundPen className="w-4 h-4" />
-            <span className="hidden md:inline">Tài khoản</span>
-          </a>
-
-          <button
-            type="button"
-            onClick={() => {
-              endAuthSession();
-              window.location.assign('/login');
-            }}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-            title="Đăng xuất"
-            aria-label="Đăng xuất"
-          >
-            <LogOut className="w-4 h-4" />
-            <span className="hidden sm:inline">Đăng xuất</span>
-          </button>
 
         </div>
 

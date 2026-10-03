@@ -1,7 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import ModalOverlay from '../../components/layout/ModalOverlay';
 import DateInput from '../../components/DateInput';
 import { formatDateVi, inclusiveDays, scheduledProgress, isTaskOverdue, isTaskActiveOnDate, taskDelayHours, formatDelayHours, todayIsoDate } from '../../utils/date';
+import { getGanttTaskCode } from '../../utils/taskCode';
 import {
   CheckSquare,
   Clock,
@@ -16,7 +18,8 @@ import {
   Search,
   Trash2,
   TrendingUp,
-  Tag
+  Tag,
+  ChevronDown
 } from 'lucide-react';
 
 const normalizeEmployeeSearch = value => String(value || '')
@@ -29,6 +32,7 @@ export default function TasksPage() {
   const today = todayIsoDate();
   const {
     tasks,
+    ganttItems,
     employees,
     projects,
     overtimes,
@@ -47,12 +51,32 @@ export default function TasksPage() {
   // Trạng thái mở modal
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [showOtModal, setShowOtModal] = useState(false);
+  const [overtimeTaskDropdownOpen, setOvertimeTaskDropdownOpen] = useState(false);
+  const overtimeTaskDropdownRef = useRef(null);
+  const overtimeTaskTriggerRef = useRef(null);
   const [employeeSearch, setEmployeeSearch] = useState('');
-  const tasksForSelectedDate = tasks.filter(task => isTaskActiveOnDate(task, selectedDate));
+  const selectedDateKey = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
+  const tasksForSelectedDate = tasks.filter(task => {
+    if (Array.isArray(task.assignees) && task.assignees.length) {
+      return task.assignees.some(assignment =>
+        (assignment.startDate || task.startDate) <= selectedDateKey &&
+        (assignment.endDate || task.endDate) >= selectedDateKey
+      );
+    }
+    return isTaskActiveOnDate(task, selectedDate);
+  });
   const visibleTasks = tasksForSelectedDate.filter(task => {
     const assignee = employees.find(employee => employee.id === task.employeeId);
-    const assigneeName = task.employeeName || assignee?.name || '';
-    return normalizeEmployeeSearch(assigneeName).includes(normalizeEmployeeSearch(employeeSearch.trim()));
+    const search = normalizeEmployeeSearch(employeeSearch.trim());
+    const assigneeNames = Array.isArray(task.assignees) && task.assignees.length
+      ? task.assignees
+        .filter(assignment =>
+          (assignment.startDate || task.startDate) <= selectedDateKey &&
+          (assignment.endDate || task.endDate) >= selectedDateKey
+        )
+        .map(assignment => assignment.employeeName || employees.find(employee => employee.id === assignment.employeeId)?.name || '')
+      : [task.employeeName || assignee?.name || ''];
+    return assigneeNames.some(name => normalizeEmployeeSearch(name).includes(search));
   });
 
   // Form phân công task
@@ -90,22 +114,6 @@ export default function TasksPage() {
     });
   }, [employees]);
 
-  useEffect(() => {
-    const shouldLockScroll = showTaskModal || showOtModal;
-    const previousOverflow = document.body.style.overflow;
-    const previousOverflowX = document.body.style.overflowX;
-
-    if (shouldLockScroll) {
-      document.body.style.overflow = 'hidden';
-      document.body.style.overflowX = 'hidden';
-    }
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      document.body.style.overflowX = previousOverflowX;
-    };
-  }, [showTaskModal, showOtModal]);
-
   // Form đăng ký tăng ca (OT)
   const [otForm, setOtForm] = useState({
     taskId: '',
@@ -114,6 +122,30 @@ export default function TasksPage() {
     date: today,
     reason: ''
   });
+  const selectedOvertimeTask = tasks.find(task => task.id === otForm.taskId);
+
+  useEffect(() => {
+    if (!overtimeTaskDropdownOpen) return undefined;
+
+    const closeOnOutsideClick = event => {
+      if (!overtimeTaskDropdownRef.current?.contains(event.target)) {
+        setOvertimeTaskDropdownOpen(false);
+      }
+    };
+    const closeOnEscape = event => {
+      if (event.key === 'Escape') {
+        setOvertimeTaskDropdownOpen(false);
+        overtimeTaskTriggerRef.current?.focus();
+      }
+    };
+
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [overtimeTaskDropdownOpen]);
 
   // Xử lý gửi Form Task
   const handleTaskSubmit = async (e) => {
@@ -191,11 +223,11 @@ export default function TasksPage() {
     <div className="space-y-4">
       
       {/* Thanh chuyển đổi 2 Mục: Phân công task & Đăng ký tăng ca */}
-      <div className="sticky top-16 z-40 w-full min-w-0 flex flex-col 2xl:flex-row 2xl:flex-nowrap items-center justify-between gap-3 px-4 sm:px-5 py-2.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-sm">
+      <div className="sticky top-16 z-40 w-full min-w-0 flex flex-col 2xl:flex-row 2xl:flex-nowrap items-center justify-between gap-2 px-4 sm:px-5 py-2 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-sm">
         <div className="flex items-center gap-2 w-full 2xl:w-auto 2xl:flex-none min-w-0">
           <button
             onClick={() => setActiveSubTab('tasks')}
-            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all ${
+            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all ${
               activeSubTab === 'tasks'
                 ? 'bg-sky-600 text-white shadow-md shadow-sky-600/25'
                 : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
@@ -210,7 +242,7 @@ export default function TasksPage() {
 
           <button
             onClick={() => setActiveSubTab('ot')}
-            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all ${
+            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all ${
               activeSubTab === 'ot'
                 ? 'bg-amber-500 text-white shadow-md shadow-amber-500/25'
                 : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
@@ -320,6 +352,7 @@ export default function TasksPage() {
                   : delayHours > 0
                     ? { label: 'Chậm trễ', bg: 'bg-amber-500/10 text-amber-700 border-amber-500/20' }
                     : speedStyles.on_time;
+              const taskCode = getGanttTaskCode(task, ganttItems);
 
               return (
                 <div
@@ -339,7 +372,9 @@ export default function TasksPage() {
                       <span
                         className={`text-[11px] font-bold px-2.5 py-1 rounded-full border ${speedInfo.bg}`}
                       >
-                        {speedInfo.label}{task.status === 'completed' && taskSpeedStatus === 'early' && earlyHours > 0 ? ` · Sớm ${formatDelayHours(earlyHours)}` : delayHours > 0 ? ` · Trễ ${formatDelayHours(delayHours)}` : ''}
+                        {speedInfo.label}{task.status === 'completed' && taskSpeedStatus === 'early'
+                          ? ` · Sớm ${formatDelayHours(earlyHours)}`
+                          : delayHours > 0 ? ` · Trễ ${formatDelayHours(delayHours)}` : ''}
                       </span>
 
                       {task.priority === 'urgent' && (
@@ -359,14 +394,14 @@ export default function TasksPage() {
                   </div>
 
                   {/* Hàng 2: Tên công việc & Người đảm nhận */}
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center">
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
                     
                     {/* Tên công việc */}
-                    <div className="lg:col-span-5">
+                    <div className="lg:col-span-5 min-w-0">
                       <div className="flex items-center gap-2">
-                        {task.code && (
+                        {taskCode && (
                           <span className="px-2 py-0.5 rounded bg-sky-500/10 text-sky-600 dark:text-sky-400 font-mono font-bold text-xs flex-shrink-0">
-                            {task.code}
+                            {taskCode}
                           </span>
                         )}
                         <h4 className="font-bold text-base text-slate-900 dark:text-white">
@@ -378,50 +413,71 @@ export default function TasksPage() {
                           Ghi chú: {task.notes}
                         </p>
                       )}
+                      <div className="mt-3 w-80 max-w-full space-y-1 rounded-xl bg-slate-50/80 dark:bg-slate-800/40 px-3 py-2">
+                        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-xs text-slate-500">
+                          <span>Thời gian dự kiến:</span>
+                          <span className="font-bold text-slate-900 dark:text-white">
+                            {task.estimatedDays} ngày ({task.estimatedDays > 1
+                              ? `${Number(task.estimatedHoursPerDay) || (Number(task.estimatedHours) / task.estimatedDays) || standardHours}h/ngày, ${Number(task.estimatedHours) || task.estimatedDays * standardHours}h tổng`
+                              : `${Number(task.estimatedHours) || task.estimatedDays * standardHours}h`})
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-[11px] text-slate-400">
+                          <span>Thời hạn:</span>
+                          <span>{formatDateVi(task.startDate)} → {formatDateVi(task.endDate)}</span>
+                        </div>
+                      </div>
                     </div>
 
                     {/* HIỂN THỊ TÊN NHÂN SỰ & THỜI GIAN LÀM 1 NGÀY (8h/ngày) */}
-                    <div className="lg:col-span-4 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 flex items-center justify-between">
-                      <div className="flex items-center gap-2.5">
-                        <img
-                          src={assignee?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80'}
-                          alt={task.employeeName}
-                          className="w-10 h-10 rounded-xl object-cover border border-slate-200 dark:border-slate-700"
-                        />
-                        <div>
-                          <p className="text-xs font-bold text-slate-900 dark:text-white">
-                            {task.employeeName}
-                          </p>
-                          <p className="text-[11px] text-sky-600 dark:text-sky-400">
-                            {assignee?.title || 'Kỹ sư công trình'}
-                          </p>
-                        </div>
+                    <div className="lg:col-span-7 min-w-0 w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 flex items-center justify-between gap-4">
+                      <div className="min-w-0 flex-1">
+                          {(Array.isArray(task.assignees) && task.assignees.length
+                            ? task.assignees
+                            : [{
+                              employeeId: task.employeeId,
+                              employeeName: task.employeeName,
+                              startDate: task.startDate,
+                              endDate: task.endDate
+                            }]
+                          ).map((assignment, assignmentIndex) => {
+                            const assignedEmployee = employees.find(employee => employee.id === assignment.employeeId);
+                            const assignmentStart = assignment.startDate || task.startDate;
+                            const assignmentEnd = assignment.endDate || task.endDate;
+                            const assignedDays = inclusiveDays(assignmentStart, assignmentEnd);
+                            const assignedHoursPerDay = Number(assignment.estimatedHoursPerDay) ||
+                              Number(task.estimatedHoursPerDay) ||
+                              (Number(task.estimatedHours) / (Number(task.estimatedDays) || 1)) ||
+                              Number(assignedEmployee?.standardHours) || 8;
+                            const assignedName = assignment.employeeName || assignedEmployee?.name || task.employeeName;
+                            return (
+                              <div key={assignment.employeeId || assignmentIndex} className={`flex min-w-0 items-center gap-2.5 ${assignmentIndex ? 'mt-1 border-t border-slate-200 dark:border-slate-700 pt-1' : ''}`}>
+                                <img
+                                  src={assignedEmployee?.avatar || assignee?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80'}
+                                  alt={assignedName}
+                                  className="w-10 h-10 flex-shrink-0 rounded-xl object-cover border border-slate-200 dark:border-slate-700"
+                                />
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-xs font-bold text-slate-900 dark:text-white">
+                                    {assignedName}
+                                  </p>
+                                  <p className="text-[11px] leading-5 text-sky-600 dark:text-sky-400 break-words">
+                                    {assignedEmployee?.title || 'Kỹ sư công trình'} · {assignedDays} ngày, {assignedHoursPerDay}h/ngày · {formatDateVi(assignmentStart)} – {formatDateVi(assignmentEnd)}
+                                  </p>
+                                </div>
+                              </div>
+                            );
+                          })}
                       </div>
 
                       {/* Thông số ca làm việc chuẩn 1 ngày */}
-                      <div className="text-right">
+                      <div className="flex-shrink-0 text-right">
                         <span className="text-[10px] uppercase font-bold text-slate-400 block">
                           Ca chuẩn
                         </span>
                         <span className="text-xs font-black text-slate-800 dark:text-slate-200">
                           {standardHours}h / ngày
                         </span>
-                      </div>
-                    </div>
-
-                    {/* THỜI GIAN DỰ KIẾN CỦA TASK (NGÀY / GIỜ) */}
-                    <div className="lg:col-span-3 flex flex-col justify-center space-y-1">
-                      <div className="flex items-center justify-between text-xs text-slate-500">
-                        <span>Thời gian dự kiến:</span>
-                        <span className="font-bold text-slate-900 dark:text-white">
-                          {task.estimatedDays} ngày ({task.estimatedDays > 1
-                            ? `${Number(task.estimatedHoursPerDay) || (Number(task.estimatedHours) / task.estimatedDays) || standardHours}h/ngày, ${Number(task.estimatedHours) || task.estimatedDays * standardHours}h tổng`
-                            : `${Number(task.estimatedHours) || task.estimatedDays * standardHours}h`})
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between text-[11px] text-slate-400">
-                        <span>Thời hạn:</span>
-                        <span>{formatDateVi(task.startDate)} → {formatDateVi(task.endDate)}</span>
                       </div>
                     </div>
 
@@ -570,7 +626,7 @@ export default function TasksPage() {
 
       {/* MODAL 1: TẠO TASK CÔNG VIỆC MỚI */}
       {showTaskModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-transparent backdrop-blur-[2px] animate-fade-in">
+        <ModalOverlay>
           <div className="w-full max-w-xl p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -750,12 +806,12 @@ export default function TasksPage() {
 
             </form>
           </div>
-        </div>
+        </ModalOverlay>
       )}
 
       {/* MODAL 2: TẠO CA TĂNG CA (OVERTIME) */}
       {showOtModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-transparent backdrop-blur-[2px] animate-fade-in">
+        <ModalOverlay>
           <div className="w-full max-w-lg p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -793,18 +849,73 @@ export default function TasksPage() {
                 <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
                   Gắn Với Công Việc Khẩn Cấp Cần Đẩy Nhanh Tiến Độ
                 </label>
-                <select
-                  value={otForm.taskId}
-                  onChange={(e) => setOtForm({ ...otForm, taskId: e.target.value })}
-                  className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
-                >
-                  <option value="">-- Tăng ca đột xuất tại hiện trường --</option>
-                  {tasks.map(t => (
-                    <option key={t.id} value={t.id}>
-                      [{t.phase.split('.')[0]}] {t.title}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative" ref={overtimeTaskDropdownRef}>
+                  <button
+                    ref={overtimeTaskTriggerRef}
+                    type="button"
+                    aria-haspopup="listbox"
+                    aria-expanded={overtimeTaskDropdownOpen}
+                    aria-controls="overtime-task-options"
+                    onClick={() => setOvertimeTaskDropdownOpen(open => !open)}
+                    className="flex w-full items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-left text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                  >
+                    {selectedOvertimeTask ? (
+                      <span className="grid min-w-0 flex-1 grid-cols-[72px_minmax(0,1fr)] items-center gap-2">
+                        <span className="truncate border-r border-slate-200 pr-2 text-center font-mono font-bold text-slate-500 dark:border-slate-600 dark:text-slate-400">
+                          {getGanttTaskCode(selectedOvertimeTask, ganttItems) || selectedOvertimeTask.phase || '—'}
+                        </span>
+                        <span className="truncate">{selectedOvertimeTask.title}</span>
+                      </span>
+                    ) : (
+                      <span className="min-w-0 flex-1 truncate text-slate-500 dark:text-slate-400">
+                        -- Tăng ca đột xuất tại hiện trường --
+                      </span>
+                    )}
+                    <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
+                  </button>
+                  {overtimeTaskDropdownOpen && (
+                    <ul
+                      id="overtime-task-options"
+                      role="listbox"
+                      aria-label="Chọn công việc tăng ca"
+                      className="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-xl dark:border-slate-700 dark:bg-slate-800"
+                    >
+                      <li role="option" aria-selected={!otForm.taskId}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setOtForm(current => ({ ...current, taskId: '' }));
+                            setOvertimeTaskDropdownOpen(false);
+                          }}
+                          className="w-full px-3 py-2 text-left text-xs text-slate-500 hover:bg-sky-50 dark:text-slate-400 dark:hover:bg-slate-700"
+                        >
+                          -- Tăng ca đột xuất tại hiện trường --
+                        </button>
+                      </li>
+                      {tasks.map(task => {
+                        const taskCode = getGanttTaskCode(task, ganttItems) || task.phase || '—';
+                        return (
+                          <li key={task.id} role="option" aria-selected={otForm.taskId === task.id}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOtForm(current => ({ ...current, taskId: task.id }));
+                                setOvertimeTaskDropdownOpen(false);
+                              }}
+                              title={task.title}
+                              className="grid w-full grid-cols-[72px_minmax(0,1fr)] items-start gap-2 px-3 py-2 text-left text-xs text-slate-700 hover:bg-sky-50 hover:text-sky-700 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-sky-300"
+                            >
+                              <span className="border-r border-slate-200 pr-2 text-center font-mono font-bold text-slate-500 dark:border-slate-600 dark:text-slate-400">
+                                {taskCode}
+                              </span>
+                              <span className="min-w-0 whitespace-normal break-words leading-4">{task.title}</span>
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -868,7 +979,7 @@ export default function TasksPage() {
 
             </form>
           </div>
-        </div>
+        </ModalOverlay>
       )}
 
     </div>

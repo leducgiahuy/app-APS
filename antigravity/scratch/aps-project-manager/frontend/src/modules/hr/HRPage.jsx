@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { isTaskActiveOnDate } from '../../utils/date';
+import ModalOverlay from '../../components/layout/ModalOverlay';
 import {
   Users,
   UserCheck,
@@ -36,21 +37,6 @@ export default function HRPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTeam, setSelectedTeam] = useState('ALL');
   const [showAddModal, setShowAddModal] = useState(false);
-
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    const previousOverflowX = document.body.style.overflowX;
-
-    if (showAddModal) {
-      document.body.style.overflow = 'hidden';
-      document.body.style.overflowX = 'hidden';
-    }
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      document.body.style.overflowX = previousOverflowX;
-    };
-  }, [showAddModal]);
 
   // Form tạo nhân sự mới
   const [formData, setFormData] = useState({
@@ -108,7 +94,7 @@ export default function HRPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-0">
         
         {/* KPI 1: Tổng nhân sự */}
-        <div className="p-4 rounded-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+        <div className="p-3 rounded-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Tổng Nhân Sự
@@ -117,13 +103,13 @@ export default function HRPage() {
               {totalEmployees} <span className="text-sm font-normal text-slate-500">người</span>
             </p>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-sky-500/10 text-sky-500 flex items-center justify-center">
-            <Users className="w-6 h-6" />
+          <div className="w-10 h-10 rounded-xl bg-sky-500/10 text-sky-500 flex items-center justify-center">
+            <Users className="w-5 h-5" />
           </div>
         </div>
 
         {/* KPI 2: Nhân sự tại công trường */}
-        <div className="p-4 rounded-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+        <div className="p-3 rounded-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
               Có Mặt Tại Công Trường
@@ -132,14 +118,14 @@ export default function HRPage() {
               {onSiteCount} <span className="text-sm font-normal text-slate-500">/ {totalEmployees}</span>
             </p>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center relative">
-            <UserCheck className="w-6 h-6" />
+          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center relative">
+            <UserCheck className="w-5 h-5" />
             <span className="absolute top-2 right-2 w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
           </div>
         </div>
 
         {/* KPI 3: Định mức giờ chuẩn */}
-        <div className="p-4 rounded-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+        <div className="p-3 rounded-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Ca Làm Chuẩn
@@ -148,13 +134,13 @@ export default function HRPage() {
               8 <span className="text-sm font-normal text-slate-500">giờ / ngày</span>
             </p>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center">
-            <Clock className="w-6 h-6" />
+          <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center">
+            <Clock className="w-5 h-5" />
           </div>
         </div>
 
         {/* KPI 4: Giờ tăng ca */}
-        <div className="p-4 rounded-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+        <div className="p-3 rounded-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-amber-500 dark:text-amber-400">
               Tổng Giờ Tăng Ca (OT)
@@ -163,15 +149,15 @@ export default function HRPage() {
               {totalOtHours} <span className="text-sm font-normal text-slate-500">giờ</span>
             </p>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center">
-            <Flame className="w-6 h-6" />
+          <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center">
+            <Flame className="w-5 h-5" />
           </div>
         </div>
 
       </div>
 
       {/* Thanh công cụ: Tìm kiếm, Lọc đội nhóm, Nút thêm nhân sự */}
-      <div className="p-4 rounded-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+      <div className="p-3 rounded-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row items-center justify-between gap-3">
         
         {/* Ô tìm kiếm */}
         <div className="relative w-full md:w-80">
@@ -181,7 +167,7 @@ export default function HRPage() {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Tìm theo tên, mã NV, chức danh..."
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500"
+            className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500"
           />
         </div>
 
@@ -192,7 +178,7 @@ export default function HRPage() {
             <select
               value={selectedTeam}
               onChange={(e) => setSelectedTeam(e.target.value)}
-              className="py-2.5 px-3 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-sm font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
+              className="py-2 px-3 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-sm font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
             >
               {teams.map(team => (
                 <option key={team} value={team}>
@@ -204,7 +190,7 @@ export default function HRPage() {
 
           <button
             onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-semibold text-sm shadow-md shadow-sky-600/20 transition-all hover:scale-[1.02] flex-shrink-0"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-semibold text-sm shadow-md shadow-sky-600/20 transition-all hover:scale-[1.02] flex-shrink-0"
           >
             <Plus className="w-4 h-4" />
             <span>Thêm Nhân Sự</span>
@@ -218,6 +204,17 @@ export default function HRPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
         {filteredEmployees.map((emp) => {
           const activeTasks = allTasks.filter(task => {
+            if (Array.isArray(task.assignees) && task.assignees.length > 0) {
+              return task.assignees.some(assignment => {
+                const assignedById = assignment.employeeId === emp.id;
+                const assignedByName = (assignment.employeeName || '').trim().toLowerCase() === emp.name.trim().toLowerCase();
+                const assignmentTask = {
+                  startDate: assignment.startDate || task.startDate,
+                  endDate: assignment.endDate || task.endDate
+                };
+                return (assignedById || assignedByName) && isTaskActiveOnDate(assignmentTask, selectedDate);
+              });
+            }
             const assignedById = task.employeeId === emp.id;
             const assignedByName = (task.employeeName || '').trim().toLowerCase() === emp.name.trim().toLowerCase();
             return (assignedById || assignedByName) && isTaskActiveOnDate(task, selectedDate);
@@ -448,7 +445,7 @@ export default function HRPage() {
 
       {/* Modal: Tạo Nhân Sự Mới */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-transparent backdrop-blur-[2px] animate-fade-in">
+        <ModalOverlay>
           <div className="w-full max-w-lg p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -552,7 +549,7 @@ export default function HRPage() {
               </div>
             </form>
           </div>
-        </div>
+        </ModalOverlay>
       )}
 
     </div>

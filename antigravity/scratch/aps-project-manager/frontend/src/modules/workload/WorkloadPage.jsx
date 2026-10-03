@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { getCurrentUser } from '../auth/authSession';
 import { isTaskAssignedTo, resolveEmployee } from '../auth/personalWork';
+import { getGanttTaskCode } from '../../utils/taskCode';
 import { ArrowRight, CalendarDays, ChevronLeft, ChevronRight, Clock3, Search, Users } from 'lucide-react';
 import './WorkloadPage.css';
 
@@ -18,6 +19,33 @@ const hoursPerTaskDay = (task) => {
 const dayKey = (year, monthIndex, day) => `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 const formatHours = (value) => Number.isInteger(value) ? String(value) : value.toFixed(1);
 const monthNames = ['Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6', 'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'];
+
+function tasksAssignedTo(tasks, employeeId, start, end) {
+  return tasks.flatMap(task => {
+    const assignments = Array.isArray(task.assignees) && task.assignees.length
+      ? task.assignees
+      : [{
+        employeeId: task.employeeId,
+        employeeName: task.employeeName,
+        startDate: task.startDate,
+        endDate: task.endDate
+      }];
+    return assignments
+      .filter(assignment =>
+        assignment.employeeId === employeeId &&
+        (assignment.startDate || task.startDate) <= end &&
+        (assignment.endDate || task.endDate) >= start
+      )
+      .map(assignment => ({
+        ...task,
+        employeeId: assignment.employeeId,
+        employeeName: assignment.employeeName || task.employeeName,
+        startDate: assignment.startDate || task.startDate,
+        endDate: assignment.endDate || task.endDate,
+        estimatedHoursPerDay: Number(assignment.estimatedHoursPerDay) || Number(task.estimatedHoursPerDay)
+      }));
+  });
+}
 
 function workdayWeight(key) {
   const day = new Date(`${key}T12:00:00`).getDay();
@@ -36,8 +64,8 @@ function taskOccursOn(task, key) {
 }
 
 function hoursForPeriod(tasks, employeeId, start, end) {
-  return tasks
-    .filter(task => task.employeeId === employeeId && task.status !== 'cancelled' && task.startDate <= end && task.endDate >= start)
+  return tasksAssignedTo(tasks, employeeId, start, end)
+    .filter(task => task.status !== 'cancelled')
     .reduce((sum, task) => {
       const overlapStart = task.startDate > start ? task.startDate : start;
       const overlapEnd = task.endDate < end ? task.endDate : end;
@@ -113,7 +141,7 @@ function actualHoursForPeriod(tasks, employee, start, end, now) {
 }
 
 export default function WorkloadPage() {
-  const { employees, tasks, currentTime, setActiveTab, selectDate } = useApp();
+  const { employees, tasks, ganttItems, currentTime, setActiveTab, selectDate } = useApp();
   const currentUser = getCurrentUser();
   const isAdmin = currentUser?.role === 'admin';
   const personalEmployee = isAdmin ? null : resolveEmployee(currentUser, employees);
@@ -168,11 +196,12 @@ export default function WorkloadPage() {
       if (period !== 'day') {
         const capacity = periodCapacity(employee, column.start, column.end);
         const allocated = hoursForPeriod(scopedTasks, employee.id, column.start, column.end);
-        return { capacity, allocated, remaining: Math.max(0, capacity - allocated), overflow: Math.max(0, allocated - capacity), tasks: scopedTasks.filter(task => task.employeeId === employee.id && task.status !== 'cancelled' && task.startDate <= column.end && task.endDate >= column.start) };
+        return { capacity, allocated, remaining: Math.max(0, capacity - allocated), overflow: Math.max(0, allocated - capacity), tasks: tasksAssignedTo(scopedTasks, employee.id, column.start, column.end).filter(task => task.status !== 'cancelled') };
       }
       const capacity = (Number(employee.standardHours) || 8) * workdayWeight(column.key);
-      const matchingTasks = scopedTasks.filter(task => task.employeeId === employee.id && task.status !== 'cancelled' && taskOccursOn(task, column.key));
-      const allocated = matchingTasks.reduce((sum, task) => sum + hoursPerTaskDay(task) * workdayWeight(column.key), 0);
+      const matchingTasks = tasksAssignedTo(scopedTasks, employee.id, column.key, column.key)
+        .filter(task => task.status !== 'cancelled' && taskOccursOn(task, column.key));
+      const allocated = matchingTasks.reduce((sum, task) => sum + hoursPerTaskDay(task), 0);
       return { capacity, allocated, remaining: Math.max(0, capacity - allocated), overflow: Math.max(0, allocated - capacity), tasks: matchingTasks };
     })
   })), [normalizedEmployees, columns, period, scopedTasks]);
@@ -219,17 +248,9 @@ export default function WorkloadPage() {
 
   return (
     <section className="workload-page">
-      <div className="workload-heading">
-        <div>
-          <div className="workload-eyebrow"><CalendarDays size={15} /> {isAdmin ? 'QUẢN LÝ NGUỒN LỰC' : 'LỊCH CÔNG VIỆC CÁ NHÂN'}</div>
-          <h1>{isAdmin ? 'Theo dõi phân bổ công việc' : 'Công việc và giờ làm của tôi'}</h1>
-          <p>{isAdmin ? 'Xem giờ đã lên lịch theo từng nhân viên và tìm phần công suất còn trống.' : 'Theo dõi giờ làm, công trình và phần thời gian còn trống để quản lý có thể giao thêm việc.'}</p>
-        </div>
-        {isAdmin && <button type="button" className="workload-assign-button" onClick={() => setActiveTab('tasks')}>Phân công công việc <ArrowRight size={17} /></button>}
-      </div>
-
       {!isAdmin && !personalEmployee && <div className="workload-personal-empty">Tài khoản chưa được liên kết với hồ sơ nhân sự. Hãy nhờ quản trị viên chọn đúng hồ sơ tại mục <b>Tài khoản → Quản lý user → Nhân sự liên kết</b> để xem công việc cá nhân.</div>}
 
+      <div className="workload-sticky-controls">
       <div className="workload-toolbar">
         <div className="workload-period-switch" role="tablist" aria-label="Khoảng thời gian">
           {periods.map(([value, label]) => <button type="button" key={value} className={period === value ? 'active' : ''} onClick={() => setPeriod(value)}>{label}</button>)}
@@ -246,7 +267,10 @@ export default function WorkloadPage() {
           {period === 'year' && <input aria-label="Chọn năm" type="number" min="2000" max="2100" value={selectedYear} onChange={event => setSelectedYear(event.target.value)} />}
           <button type="button" className="workload-icon-button" onClick={() => shiftPeriod(1)} aria-label="Khoảng thời gian tiếp"><ChevronRight size={18} /></button>
         </div>
-        {isAdmin && <label className="workload-search"><Search size={17} /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Tìm nhân viên, mã, đội..." /></label>}
+        <div className="workload-toolbar-actions">
+          {isAdmin && <label className="workload-search"><Search size={17} /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Tìm nhân viên, mã, đội..." /></label>}
+          {isAdmin && <button type="button" className="workload-assign-button" onClick={() => setActiveTab('tasks')}>Phân công công việc <ArrowRight size={17} /></button>}
+        </div>
       </div>
 
       <div className="workload-summary-grid">
@@ -260,6 +284,7 @@ export default function WorkloadPage() {
           <article className="workload-summary-card"><span><Clock3 size={17} /> Giờ đã lên lịch</span><strong>{formatHours(summary.allocated)}<small> giờ</small></strong><em>Tổng định mức {formatHours(summary.capacity)} giờ trong kỳ</em></article>
           <article className={`workload-summary-card ${summary.overloaded ? 'has-overload' : ''}`}><span><CalendarDays size={17} /> Tình trạng phân bổ</span><strong>{summary.overloaded}<small> nhân viên/kỳ quá định mức</small></strong><em>{summary.overloaded ? 'Cần xem lại lịch phân công' : 'Chưa phát hiện phân bổ vượt định mức'}</em></article>
         </>}
+      </div>
       </div>
 
       <div className="workload-table-card">
@@ -285,8 +310,9 @@ export default function WorkloadPage() {
                     {cells[0].tasks.length ? <div className="workload-day-task-list">{cells[0].tasks.map(task => {
                       const activity = taskActivityForDay(task, employee, selectedDay, currentTime);
                       const planned = hoursPerTaskDay(task);
+                      const taskCode = getGanttTaskCode(task, ganttItems);
                       return <article className="workload-day-task" key={task.id}>
-                        <div className="workload-day-task-top"><strong>{task.code ? `${task.code} · ` : ''}{task.title}</strong><span>{activity.hasActualLog ? `${formatHours(activity.actualHours)}h thực tế` : `${formatHours(planned)}h dự kiến`}</span></div>
+                        <div className="workload-day-task-top"><strong>{taskCode && <span className="workload-task-code">{taskCode}</span>}{task.title}</strong><span>{activity.hasActualLog ? `${formatHours(activity.actualHours)}h thực tế` : `${formatHours(planned)}h dự kiến`}</span></div>
                         <small>{task.projectName || 'Chưa gắn dự án'} · {task.phase || 'Công việc được giao'}</small>
                         {activity.sessions.map(session => <small className="workload-session-time" key={session.id}>{sessionTimeLabel(session)} · {formatHours(Number(session.hours) || 0)}h đã làm</small>)}
                         {activity.isRunning && <small className="workload-session-time running">Đang làm · {formatHours(activity.actualHours)}h tính đến hiện tại</small>}
@@ -301,7 +327,6 @@ export default function WorkloadPage() {
             </tbody>
           </table>
         </div>
-        <div className="workload-footnote">Phân bổ dự kiến lấy từ task đã giao; giờ thực tế hiển thị từ phiên công việc được ghi nhận khi nhân viên chọn task, nghỉ hoặc kết thúc ca. Lịch sử trước khi bật ghi nhận phiên không có số giờ thực tế theo từng ngày. Thứ 7 tính nửa định mức; Chủ nhật không tính.</div>
       </div>
       {!isAdmin && period !== 'day' && personalEmployee && <section className="workload-personal-projects">
         <div className="workload-personal-projects-heading"><div><h2>Công trình trong {period === 'month' ? 'tháng' : 'năm'} của tôi</h2><p>Tổng hợp giờ dự kiến, giờ đã ghi nhận và task được giao trong kỳ.</p></div><span>{personalProjects.length} công trình</span></div>

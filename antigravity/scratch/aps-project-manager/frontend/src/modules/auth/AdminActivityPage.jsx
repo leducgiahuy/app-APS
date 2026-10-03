@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Activity, Download, LogIn, Search, ShieldCheck, Trash2, UserRound, UsersRound } from 'lucide-react';
+import { Activity, Download, LogIn, Search, Trash2, UserRound, UsersRound } from 'lucide-react';
 import { clearActivityLog, clearSharedActivityLog, fetchSharedActivityLog, getActivityLog, getCurrentUser, getUsers, recordActivity } from './authSession';
 import './AdminActivityPage.css';
 
@@ -100,31 +100,27 @@ export default function AdminActivityPage() {
 
   return (
     <section className="activity-page">
-      <div className="activity-hero">
-        <div className="activity-hero-copy"><span className="activity-kicker"><ShieldCheck size={15} /> BẢNG ĐIỀU KHIỂN QUẢN TRỊ</span><h2>Nhật ký hoạt động</h2><p>Theo dõi lịch sử đăng nhập và thay đổi trên hệ thống APS.</p></div>
-        <div className="activity-hero-mark"><Activity size={36} /><span>ADMIN ONLY</span></div>
-      </div>
+      <div className="activity-overview">
+        <div className="activity-stats">
+          <article><span className="activity-stat-icon amber"><Activity size={19} /></span><div><small>TỔNG SỰ KIỆN</small><b>{events.length}</b></div><i>được lưu gần nhất</i></article>
+          <article><span className="activity-stat-icon blue"><UsersRound size={19} /></span><div><small>NGƯỜI DÙNG</small><b>{activeUsers}</b></div><i>đã có hoạt động</i></article>
+          <article><span className="activity-stat-icon green"><LogIn size={19} /></span><div><small>ĐĂNG NHẬP HÔM NAY</small><b>{todayEvents.filter((event) => event.action === 'auth.login').length}</b></div><i>lượt đăng nhập</i></article>
+          <article><span className="activity-stat-icon violet"><UserRound size={19} /></span><div><small>TỔNG LƯỢT ĐĂNG NHẬP</small><b>{signIns}</b></div><i>trong nhật ký</i></article>
+        </div>
 
-      <div className="activity-stats">
-        <article><span className="activity-stat-icon amber"><Activity size={19} /></span><div><small>TỔNG SỰ KIỆN</small><b>{events.length}</b></div><i>được lưu gần nhất</i></article>
-        <article><span className="activity-stat-icon blue"><UsersRound size={19} /></span><div><small>NGƯỜI DÙNG</small><b>{activeUsers}</b></div><i>đã có hoạt động</i></article>
-        <article><span className="activity-stat-icon green"><LogIn size={19} /></span><div><small>ĐĂNG NHẬP HÔM NAY</small><b>{todayEvents.filter((event) => event.action === 'auth.login').length}</b></div><i>lượt đăng nhập</i></article>
-        <article><span className="activity-stat-icon violet"><UserRound size={19} /></span><div><small>TỔNG LƯỢT ĐĂNG NHẬP</small><b>{signIns}</b></div><i>trong nhật ký</i></article>
-      </div>
-
-      <div className="activity-toolbar">
-        <label className="activity-search"><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm theo tên, email hoặc nội dung..." /></label>
-        <select aria-label="Lọc theo nhóm hoạt động" value={category} onChange={(event) => setCategory(event.target.value)}><option value="all">Tất cả hoạt động</option><option value="auth">Đăng nhập / đăng xuất</option><option value="accounts">Tài khoản và hồ sơ</option><option value="data">Dữ liệu dự án</option><option value="navigation">Truy cập phân hệ</option></select>
-        <select aria-label="Lọc theo user" value={userEmail} onChange={(event) => setUserEmail(event.target.value)}><option value="all">Tất cả user</option>{users.map((user) => <option key={user.email} value={user.email}>{user.name}</option>)}</select>
-        <button className="activity-export" type="button" onClick={handleExport} disabled={!filteredEvents.length}><Download size={16} /> Xuất CSV</button>
-        <button className="activity-clear" type="button" onClick={handleClear} disabled={!events.length}><Trash2 size={16} /> Xóa nhật ký</button>
+        <div className="activity-toolbar">
+          <label className="activity-search"><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm theo tên, email hoặc nội dung..." /></label>
+          <select aria-label="Lọc theo nhóm hoạt động" value={category} onChange={(event) => setCategory(event.target.value)}><option value="all">Tất cả hoạt động</option><option value="auth">Đăng nhập / đăng xuất</option><option value="accounts">Tài khoản và hồ sơ</option><option value="data">Dữ liệu dự án</option><option value="navigation">Truy cập phân hệ</option></select>
+          <select aria-label="Lọc theo user" value={userEmail} onChange={(event) => setUserEmail(event.target.value)}><option value="all">Tất cả user</option>{users.map((user) => <option key={user.email} value={user.email}>{user.name}</option>)}</select>
+          <button className="activity-export" type="button" onClick={handleExport} disabled={!filteredEvents.length}><Download size={16} /> Xuất CSV</button>
+          <button className="activity-clear" type="button" onClick={handleClear} disabled={!events.length}><Trash2 size={16} /> Xóa nhật ký</button>
+        </div>
       </div>
 
       <div className="activity-list-header"><div><h3>Lịch sử gần đây</h3><p>Hiển thị {filteredEvents.length} / {events.length} sự kiện</p></div><span><i /> Đang theo dõi</span></div>
       {filteredEvents.length ? <div className="activity-table-wrap"><table className="activity-table"><thead><tr><th>Thời gian</th><th>Người dùng</th><th>Hoạt động</th><th>Chi tiết</th></tr></thead><tbody>
         {filteredEvents.map((event) => <tr key={event.id}><td className="activity-time">{formatDate(event.timestamp)}</td><td><div className="activity-user"><span>{event.name.slice(0, 1).toUpperCase()}</span><div><b>{event.name}</b><small>{event.email}</small></div></div></td><td><span className={`activity-event-pill ${getCategory(event.action)}`}>{ACTION_LABELS[event.action] || event.action}</span><small className="activity-role">{event.role === 'admin' ? 'Admin' : 'User'}</small></td><td className="activity-detail">{event.details || '—'}</td></tr>)}
       </tbody></table></div> : <div className="activity-empty"><Activity size={28} /><b>Chưa tìm thấy hoạt động</b><span>Thử đổi từ khóa hoặc bộ lọc.</span></div>}
-      <p className="activity-storage-note">Khi backend hoạt động, nhật ký được chia sẻ giữa các trình duyệt và giữ tối đa 1.000 sự kiện gần nhất. Nếu backend tắt, ứng dụng tạm dùng nhật ký trên trình duyệt.</p>
     </section>
   );
 }

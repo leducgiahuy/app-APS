@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
+import ModalOverlay from '../../components/layout/ModalOverlay';
 import DateInput from '../../components/DateInput';
 import { formatDateVi, inclusiveDays, scheduledProgress, isTaskOverdue, taskDelayHours, formatDelayHours, todayIsoDate } from '../../utils/date';
 import {
@@ -17,7 +18,10 @@ import {
   HelpCircle,
   ChevronUp,
   ChevronDown,
-  Pencil
+  Pencil,
+  UsersRound,
+  UserPlus,
+  X
 } from 'lucide-react';
 
 // Danh sách 64 đơn vị cấp tỉnh theo yêu cầu (giai đoạn 2004–2008).
@@ -42,6 +46,18 @@ const normalizeLocationSearch = (value) => String(value || '')
   .replace(/[đĐ]/g, 'd')
   .toLocaleLowerCase('vi');
 
+const formatAssignmentDateRange = (startDate, endDate) => {
+  const [, startYear, startMonth, startDay] = String(startDate || '').match(/^(\d{4})-(\d{2})-(\d{2})$/) || [];
+  const [, endYear, endMonth, endDay] = String(endDate || '').match(/^(\d{4})-(\d{2})-(\d{2})$/) || [];
+  if (!startYear || !endYear) return '';
+  if (startYear === endYear && startMonth === endMonth) {
+    return startDay === endDay
+      ? `${Number(startDay)}/${Number(startMonth)}`
+      : `${Number(startDay)}–${Number(endDay)}/${Number(startMonth)}`;
+  }
+  return `${Number(startDay)}/${Number(startMonth)}–${Number(endDay)}/${Number(endMonth)}`;
+};
+
 export default function GanttPage() {
   const today = todayIsoDate();
   const {
@@ -53,7 +69,6 @@ export default function GanttPage() {
     ganttMonth,
     sidebarCollapsed,
     addGanttItem,
-    moveGanttItem,
     deleteGanttItem,
     addProject,
     updateProject,
@@ -81,6 +96,8 @@ export default function GanttPage() {
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
   const [showAddProjectModal, setShowAddProjectModal] = useState(false);
   const [showEditProjectModal, setShowEditProjectModal] = useState(false);
+  const [assignmentEditorItem, setAssignmentEditorItem] = useState(null);
+  const [assignmentRows, setAssignmentRows] = useState([]);
   const [hoveredDependencyKey, setHoveredDependencyKey] = useState(null);
   const [locationSuggestionsOpen, setLocationSuggestionsOpen] = useState(false);
   const [locationSearch, setLocationSearch] = useState('');
@@ -94,22 +111,6 @@ export default function GanttPage() {
     window.addEventListener('resize', updateViewportHeight);
     return () => window.removeEventListener('resize', updateViewportHeight);
   }, []);
-
-  useEffect(() => {
-    const shouldLockScroll = showAddTaskModal || showAddProjectModal || showEditProjectModal || Boolean(editingItem);
-    const previousOverflow = document.body.style.overflow;
-    const previousOverflowX = document.body.style.overflowX;
-
-    if (shouldLockScroll) {
-      document.body.style.overflow = 'hidden';
-      document.body.style.overflowX = 'hidden';
-    }
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      document.body.style.overflowX = previousOverflowX;
-    };
-  }, [showAddTaskModal, showAddProjectModal, showEditProjectModal, editingItem]);
 
   // Form thêm công việc cho dự án
   const [taskForm, setTaskForm] = useState({
@@ -125,8 +126,9 @@ export default function GanttPage() {
     estimatedHoursEdited: false,
     assignee: employees[0]?.name || 'Trần Quốc Hưng',
     notes: '',
-    color: '#0284c7',
+    color: '#861b36',
     dependencies: [],
+    successorId: '',
     speed: 'on_time',
     insertAfterId: ''
   });
@@ -261,11 +263,18 @@ export default function GanttPage() {
   const LEFT_PANEL_WIDTH = 788;
   const rowHeights = filteredGanttItems.map(item => {
     if (item.isProjectHeader) return 36;
-    const assigneeName = (item.assignee || '').trim().toLowerCase();
-    const additionalAssignees = (item.overtimeContributions || []).filter(contribution =>
-      (contribution.employeeName || '').trim().toLowerCase() !== assigneeName
-    ).length;
-    return ROW_HEIGHT + additionalAssignees * 18;
+    const linkedTask = tasks.find(task => task.ganttId === item.id);
+    const savedAssignees = Array.isArray(linkedTask?.assignees) && linkedTask.assignees.length
+      ? linkedTask.assignees
+      : item.assignees;
+    const assigneeCount = Array.isArray(savedAssignees) && savedAssignees.length ? savedAssignees.length : 1;
+    const hasAssignee = contribution => (savedAssignees || []).some(assignment =>
+      (contribution.employeeId && assignment.employeeId === contribution.employeeId) ||
+      (contribution.employeeName || '').trim().toLocaleLowerCase('vi') ===
+        (assignment.employeeName || '').trim().toLocaleLowerCase('vi')
+    );
+    const additionalOvertimeRows = (item.overtimeContributions || []).filter(contribution => !hasAssignee(contribution)).length;
+    return Math.max(ROW_HEIGHT, 8 + assigneeCount * 22) + additionalOvertimeRows * 18;
   });
   const rowOffsets = rowHeights.reduce((offsets, height, index) => {
     offsets.push((offsets[index] || 0) + height);
@@ -386,8 +395,9 @@ export default function GanttPage() {
         estimatedHoursEdited: false,
         assignee: employees[0]?.name || 'Trần Quốc Hưng',
         notes: '',
-        color: '#0284c7',
+        color: '#861b36',
         dependencies: [],
+        successorId: '',
         speed: 'on_time',
         insertAfterId: ''
       });
@@ -450,6 +460,57 @@ export default function GanttPage() {
     if (success) setEditingItem(null);
   };
 
+  const handleAssignmentsOpen = (item) => {
+    const linkedTask = tasks.find(task => task.ganttId === item.id);
+    const currentAssignments = Array.isArray(linkedTask?.assignees) && linkedTask.assignees.length
+      ? linkedTask.assignees
+      : Array.isArray(item.assignees) && item.assignees.length
+        ? item.assignees
+      : [{
+        employeeId: linkedTask?.employeeId || employees.find(employee => employee.name === item.assignee)?.id || '',
+        employeeName: linkedTask?.employeeName || item.assignee || '',
+        startDate: item.startDate,
+        endDate: item.endDate
+      }];
+    setAssignmentRows(currentAssignments.map(assignment => ({
+      employeeId: assignment.employeeId || '',
+      startDate: assignment.startDate || item.startDate,
+      endDate: assignment.endDate || item.endDate,
+      estimatedHoursPerDay: Number(assignment.estimatedHoursPerDay) ||
+        Number(linkedTask?.estimatedHoursPerDay) ||
+        Number(item.estimatedHoursPerDay) ||
+        Number(employees.find(employee => employee.id === assignment.employeeId)?.standardHours) || 8
+    })));
+    setAssignmentEditorItem(item);
+  };
+
+  const handleAssignmentsSubmit = async (e) => {
+    e.preventDefault();
+    if (!assignmentEditorItem || assignmentRows.some(assignment =>
+      !assignment.employeeId || !assignment.startDate || !assignment.endDate || assignment.endDate < assignment.startDate ||
+      !Number.isFinite(Number(assignment.estimatedHoursPerDay)) || Number(assignment.estimatedHoursPerDay) <= 0
+    )) {
+      window.alert('Vui lòng chọn người đảm nhận và khoảng thời gian hợp lệ cho từng người.');
+      return;
+    }
+    const duplicateEmployee = assignmentRows.some((assignment, index) =>
+      assignmentRows.findIndex(row => row.employeeId === assignment.employeeId) !== index
+    );
+    if (duplicateEmployee) {
+      window.alert('Mỗi người chỉ được xuất hiện một lần trong danh sách đảm nhận.');
+      return;
+    }
+    const outsideTaskDates = assignmentRows.some(assignment =>
+      assignment.startDate < assignmentEditorItem.startDate || assignment.endDate > assignmentEditorItem.endDate
+    );
+    if (outsideTaskDates) {
+      window.alert(`Khoảng thời gian đảm nhận phải nằm trong thời gian công việc (${formatDateVi(assignmentEditorItem.startDate)} → ${formatDateVi(assignmentEditorItem.endDate)}).`);
+      return;
+    }
+    const success = await updateGanttItem(assignmentEditorItem.id, { assignees: assignmentRows });
+    if (success) setAssignmentEditorItem(null);
+  };
+
   const handleDeleteSelectedProject = async () => {
     if (selectedProjectId === 'ALL') return;
     const success = await deleteProject(selectedProjectId);
@@ -460,7 +521,7 @@ export default function GanttPage() {
     <div className="w-full space-y-0">
       
       {/* THANH ĐIỀU KHIỂN & BỘ LỌC GANTT */}
-      <div className="sticky top-16 z-[60] w-full px-4 sm:px-5 py-2.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-sm flex flex-wrap items-center justify-between gap-4">
+      <div className="sticky top-16 z-[60] w-full px-4 sm:px-5 py-2 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-sm flex flex-wrap items-center justify-between gap-3">
         
         {/* Chọn dự án & Banner */}
         <div className="flex flex-wrap items-center gap-3">
@@ -566,7 +627,7 @@ export default function GanttPage() {
         {/* Khung cuộn ngang chứa cả Bảng bên trái + Biểu đồ bên phải */}
         <div
           ref={timelineScrollRef}
-          className="h-[calc(100vh-180px)] min-h-[320px] overflow-x-auto overflow-y-auto relative isolate bg-slate-100 dark:bg-slate-950"
+          className="h-[calc(100dvh-124px)] min-h-[320px] overflow-x-auto overflow-y-auto relative isolate bg-slate-100 dark:bg-slate-950"
         >
           <div className="flex bg-slate-100 dark:bg-slate-950" style={{ width: `${LEFT_PANEL_WIDTH + ganttWidth}px`, minWidth: '100%' }}>
             
@@ -710,10 +771,10 @@ export default function GanttPage() {
 
                       <div className="w-[88px] min-w-[88px] text-center py-1 px-1 text-[11px] border-r border-slate-100 dark:border-slate-800 text-slate-500 shrink-0">{item.isGroup || isHoliday ? '—' : `${(Number(rowTask.estimatedHours) || (Number(rowTask.estimatedHoursPerDay) || 8) * (Number(rowTask.estimatedDays) || Number(item.days) || 1)).toLocaleString('vi-VN', { maximumFractionDigits: 2 })}h`}</div>
                       <div className="w-24 min-w-[96px] text-center py-1 px-1 border-r border-slate-100 dark:border-slate-800 shrink-0">
-                        {rowStatus && <span className={`inline-flex max-w-full px-1.5 py-1 rounded-full text-[9px] font-bold whitespace-nowrap ${rowStatus.style}`}>{rowStatus.label}</span>}
+                        {rowStatus && <span className={`inline-flex max-w-full min-w-0 px-1.5 py-1 rounded-full text-center text-[9px] font-bold whitespace-normal break-words leading-tight ${rowStatus.style}`}>{rowStatus.label}</span>}
                       </div>
 
-                      {/* Cột Thao Tác (Di chuyển lên/xuống & Xóa) */}
+                      {/* Cột Thao Tác */}
                       <div className="w-[104px] min-w-[104px] flex items-center justify-center gap-0.5 py-1 px-1 shrink-0">
                         <button
                           onClick={() => handleEditOpen(item)}
@@ -722,20 +783,15 @@ export default function GanttPage() {
                         >
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
-                        <button
-                          onClick={() => moveGanttItem(item.id, 'up')}
-                          className="p-1 rounded text-slate-400 hover:text-sky-500 hover:bg-sky-50 dark:hover:bg-slate-800 transition-colors"
-                          title="Di chuyển lên trên"
-                        >
-                          <ChevronUp className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => moveGanttItem(item.id, 'down')}
-                          className="p-1 rounded text-slate-400 hover:text-sky-500 hover:bg-sky-50 dark:hover:bg-slate-800 transition-colors"
-                          title="Di chuyển xuống dưới"
-                        >
-                          <ChevronDown className="w-3.5 h-3.5" />
-                        </button>
+                        {!isGroup && !isHoliday && (
+                          <button
+                            onClick={() => handleAssignmentsOpen(item)}
+                            className="p-1 rounded text-slate-400 hover:text-sky-500 hover:bg-sky-50 dark:hover:bg-slate-800 transition-colors"
+                            title="Quản lý người đảm nhận và thời gian"
+                          >
+                            <UsersRound className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                         <button
                           onClick={() => deleteGanttItem(item.id)}
                           className="p-1 rounded text-slate-300 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
@@ -823,7 +879,7 @@ export default function GanttPage() {
                     refY="5"
                     orient="auto"
                   >
-                    <polygon points="0 0, 10 5, 0 10" fill="#64748b" />
+                    <polygon points="0 0, 10 5, 0 10" fill="#64748b" className="dark:fill-white" />
                   </marker>
                   <marker
                     id="arrowhead-active"
@@ -833,17 +889,17 @@ export default function GanttPage() {
                     refY="5"
                     orient="auto"
                   >
-                    <polygon points="0 0, 10 5, 0 10" fill="#ef4444" />
+                    <polygon points="0 0, 10 5, 0 10" fill="#ef4444" className="dark:fill-white" />
                   </marker>
                   
                   {/* Gradient cho các thanh bar */}
                   <linearGradient id="grad-sky" x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%" stopColor="#0284c7" />
-                    <stop offset="100%" stopColor="#38bdf8" />
+                    <stop offset="0%" stopColor="#70172e" />
+                    <stop offset="100%" stopColor="#b84b65" />
                   </linearGradient>
                   <linearGradient id="grad-amber" x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%" stopColor="#d97706" />
-                    <stop offset="100%" stopColor="#fbbf24" />
+                    <stop offset="0%" stopColor="#936017" />
+                    <stop offset="100%" stopColor="#e6b83e" />
                   </linearGradient>
                   <linearGradient id="grad-red" x1="0%" y1="0%" x2="100%" y2="0%">
                     <stop offset="0%" stopColor="#b91c1c" />
@@ -904,19 +960,6 @@ export default function GanttPage() {
                 ))}
 
                 {/* 2. HIỂN THỊ MŨI TÊN KẺ XUỐNG CÔNG VIỆC TIẾP THEO TRONG DỰ ÁN (FS Dependency) */}
-                {dependencyLines.map(line => (
-                  <path
-                    key={`${line.key}-halo`}
-                    d={line.path}
-                    fill="none"
-                    stroke="#f8fafc"
-                    strokeWidth="7"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    pointerEvents="none"
-                    opacity="0.9"
-                  />
-                ))}
                 {dependencyLines.map(line => {
                   const isActive = hoveredDependencyKey === line.key;
                   return (
@@ -926,6 +969,7 @@ export default function GanttPage() {
                       fill="none"
                       stroke={isActive ? '#ef4444' : '#64748b'}
                       strokeWidth={isActive ? 2.4 : 1.8}
+                      className={!isActive ? 'dark:stroke-white' : undefined}
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       markerEnd={line.type === 'dependency' ? (isActive ? 'url(#arrowhead-active)' : 'url(#arrowhead-default)') : undefined}
@@ -949,6 +993,9 @@ export default function GanttPage() {
                   const isDependencyHighlighted = hoveredDependency
                     && (hoveredDependency.sourceId === item.id || hoveredDependency.targetId === item.id);
                   const linkedTask = tasks.find(task => task.ganttId === item.id);
+                  const itemAssignees = Array.isArray(linkedTask?.assignees) && linkedTask.assignees.length
+                    ? linkedTask.assignees
+                    : item.assignees;
                   const assignee = employees.find(employee => employee.id === linkedTask?.employeeId || employee.name === item.assignee);
                   // Merge the linked task with its Gantt row so completion timing survives
                   // when one side has not yet received the latest synchronized fields.
@@ -985,6 +1032,35 @@ export default function GanttPage() {
                         : notStarted
                           ? 'url(#grad-slate)'
                           : 'url(#grad-sky)';
+                  const assignmentLabels = !isGroup && !isHoliday
+                    ? (Array.isArray(itemAssignees) && itemAssignees.length
+                      ? itemAssignees
+                      : [{ employeeName: item.assignee, startDate: item.startDate, endDate: item.endDate }])
+                      .map((assignment, index) => {
+                        return {
+                          key: `${item.id}-${assignment.employeeId || index}`,
+                          employeeName: assignment.employeeName || item.assignee,
+                          startDate: assignment.startDate || item.startDate,
+                          endDate: assignment.endDate || item.endDate,
+                          days: inclusiveDays(assignment.startDate || item.startDate, assignment.endDate || item.endDate),
+                          hoursPerDay: Number(assignment.estimatedHoursPerDay) || Number(item.estimatedHoursPerDay) || Number(item.estimatedHours) / (Number(item.days) || 1) || 8,
+                          y: coord.rowTop + 16 + index * 22
+                        };
+                      })
+                    : [];
+                  const overtimeContributions = item.overtimeContributions || [];
+                  const overtimeForAssignment = assignment => overtimeContributions.filter(contribution =>
+                    (contribution.employeeId && assignment.employeeId === contribution.employeeId) ||
+                    (contribution.employeeName || '').trim().toLocaleLowerCase('vi') ===
+                      (assignment.employeeName || '').trim().toLocaleLowerCase('vi')
+                  );
+                  const unassignedOvertime = overtimeContributions.filter(contribution =>
+                    !assignmentLabels.some(assignment =>
+                      (contribution.employeeId && assignment.employeeId === contribution.employeeId) ||
+                      (contribution.employeeName || '').trim().toLocaleLowerCase('vi') ===
+                        (assignment.employeeName || '').trim().toLocaleLowerCase('vi')
+                    )
+                  );
 
                   return (
                     <g key={item.id} className="cursor-pointer group">
@@ -1002,7 +1078,7 @@ export default function GanttPage() {
                       )}
 
                       {/* Thanh Gantt: Nhóm tổng hoặc Hạng mục chi tiết */}
-                      {isGroup ? (
+                      {isGroup && (
                         <rect
                           x={coord.x}
                           y={coord.y + 3}
@@ -1010,13 +1086,14 @@ export default function GanttPage() {
                           height={coord.height - 6}
                           rx="4"
                           ry="4"
-                          fill={isDependencyHighlighted ? '#ef4444' : '#0369a1'}
+                          fill={isDependencyHighlighted ? '#ef4444' : '#861b36'}
                           stroke={isDependencyHighlighted ? '#b91c1c' : 'transparent'}
                           strokeWidth={isDependencyHighlighted ? 2 : 0}
                           className="shadow-sm"
                           filter="drop-shadow(0 2px 4px rgba(0,0,0,0.15))"
                         />
-                      ) : (
+                      )}
+                      {isHoliday && !isGroup && (
                         <rect
                           x={coord.x}
                           y={coord.y}
@@ -1032,76 +1109,107 @@ export default function GanttPage() {
                         />
                       )}
 
-                      {!isGroup && progress > 0 && (
-                        <rect
-                          x={coord.x}
-                          y={coord.y}
-                          width={coord.width * progress / 100}
-                          height={coord.height}
-                          rx="6"
-                          ry="6"
-                          fill={statusColor}
-                          fillOpacity="1"
-                          stroke={isDependencyHighlighted ? '#ef4444' : 'transparent'}
-                          strokeWidth={isDependencyHighlighted ? 2.2 : 0}
-                          className="pointer-events-none transition-all duration-500"
-                        >
-                          <title>{`Tiến độ theo thời gian: ${progress}%${overdue ? ' · Quá hạn' : ''}`}</title>
-                        </rect>
+                      {!isGroup && !isHoliday && (
+                        <>
+                          <rect
+                            x={coord.x}
+                            y={coord.y}
+                            width={coord.width}
+                            height={coord.height}
+                            rx="6"
+                            ry="6"
+                            fill={fillColor}
+                            stroke={isDependencyHighlighted ? '#ef4444' : 'transparent'}
+                            strokeWidth={isDependencyHighlighted ? 2.4 : 0}
+                            className="transition-all hover:opacity-90 shadow-sm"
+                            filter="drop-shadow(0 2px 4px rgba(0,0,0,0.12))"
+                          />
+                          {progress > 0 && (
+                            <rect
+                              x={coord.x}
+                              y={coord.y}
+                              width={coord.width * progress / 100}
+                              height={coord.height}
+                              rx="6"
+                              ry="6"
+                              fill={statusColor}
+                              fillOpacity="1"
+                              stroke={isDependencyHighlighted ? '#ef4444' : 'transparent'}
+                              strokeWidth={isDependencyHighlighted ? 2.2 : 0}
+                              className="pointer-events-none transition-all duration-500"
+                            >
+                              <title>{`Tiến độ theo thời gian: ${progress}%${overdue ? ' · Quá hạn' : ''}`}</title>
+                            </rect>
+                          )}
+                        </>
                       )}
 
                       {/* Nhãn trên thanh hoặc cạnh thanh: Tên người đảm nhận, thời gian, tăng ca */}
-                      <text
-                        x={coord.endX + 8}
-                        y={isGroup ? coord.centerY + 4 : coord.rowTop + ROW_HEIGHT / 2 + 4}
-                        fill="#64748b"
-                        stroke="#f1f5f9"
-                        strokeWidth="4"
-                        strokeLinejoin="round"
-                        paintOrder="stroke"
-                        fontSize="11"
-                        fontWeight="600"
-                        className="dark:fill-slate-300 dark:stroke-slate-950 select-none pointer-events-none"
-                      >
-                        {isGroup ? `${item.title} (${item.days} ngày)` : <>
-                          <tspan fill="#64748b">{item.assignee} ({item.days} ngày{item.days > 1 ? `, ${Number(item.estimatedHoursPerDay) || Number(item.estimatedHours) / item.days || 8}h/ngày` : `, ${Number(item.estimatedHours) || item.days * 8}h`})</tspan>
-                          {(item.overtimeContributions || [])
-                            .filter(contribution => (contribution.employeeName || '').trim().toLowerCase() === (item.assignee || '').trim().toLowerCase())
-                            .map(contribution => (
-                              <tspan key={contribution.employeeId || contribution.employeeName} fill="#d97706" fontWeight="bold">
-                                {' '}[+{contribution.hours}h OT]
-                              </tspan>
-                            ))}
-                          {(item.overtimeContributions || [])
-                            .filter(contribution => (contribution.employeeName || '').trim().toLowerCase() !== (item.assignee || '').trim().toLowerCase())
-                            .map((contribution, contributionIndex) => (
-                            <tspan
-                              key={contribution.employeeId || contribution.employeeName}
-                              x={coord.endX + 8}
-                              dy={18}
-                              fill="#d97706"
-                              fontWeight="bold"
-                            >
-                              {contribution.employeeName} [+{contribution.hours}h OT]
+                      {isGroup ? (
+                        <text
+                          x={coord.endX + 8}
+                          y={coord.centerY + 4}
+                          fill="#64748b"
+                          fontSize="11"
+                          fontWeight="600"
+                          className="dark:fill-white select-none pointer-events-none"
+                        >
+                          {`${item.title} (${item.days} ngày)`}
+                        </text>
+                      ) : (
+                        <>
+                        {assignmentLabels.map((bar, index) => (
+                        <text
+                          key={`label-${bar.key}`}
+                          x={coord.endX + 8}
+                          y={bar.y}
+                          fill="#64748b"
+                          fontSize="11"
+                          fontWeight="600"
+                          className="dark:fill-white select-none pointer-events-none"
+                        >
+                          <tspan fill="#64748b" className="dark:fill-white">
+                            {bar.employeeName} ({bar.days} ngày, {bar.hoursPerDay}h/ngày · {formatAssignmentDateRange(bar.startDate, bar.endDate)})
+                          </tspan>
+                          {overtimeForAssignment(bar).map(contribution => (
+                            <tspan key={contribution.employeeId || contribution.employeeName} fill="#d97706" fontWeight="bold">
+                              {' '}[+{contribution.hours}h OT]
                             </tspan>
                           ))}
-                          {!(item.overtimeContributions || []).length && item.overtimeHours > 0 && (
+                          {index === 0 && !overtimeContributions.length && item.overtimeHours > 0 && (
                             <tspan fill="#f59e0b" fontWeight="bold"> [+{item.overtimeHours}h OT]</tspan>
                           )}
-                        </>}
-                        {completedEarly && (
-                          <tspan fill="#15803d" fontWeight="bold"> [Hoàn thành sớm{earlyHours > 0 ? ` · Sớm ${formatDelayHours(earlyHours)}` : ''}]</tspan>
-                        )}
-                        {overdue && (
-                          <tspan fill="#ef4444" fontWeight="bold"> [Quá hạn{delayHours > 0 ? ` ${formatDelayHours(delayHours)}` : ''}]</tspan>
-                        )}
-                        {!overdue && (completedLate || item.speed === 'delayed' || delayHours > 0) && (
+                          {index === 0 && <>
+                          {completedEarly && (
+                          <tspan fill="#15803d" fontWeight="bold"> [Hoàn thành sớm · Sớm {formatDelayHours(earlyHours)}]</tspan>
+                          )}
+                          {overdue && (
+                          <tspan fill="#ef4444" fontWeight="bold"> [Quá hạn{delayHours > 0 ? ` · Trễ ${formatDelayHours(delayHours)}` : ''}]</tspan>
+                          )}
+                          {!overdue && (completedLate || item.speed === 'delayed' || delayHours > 0) && (
                           <tspan fill="#d97706" fontWeight="bold"> [{completedLate ? (delayHours > 0 ? `Hoàn thành muộn · Trễ ${formatDelayHours(delayHours)}` : 'Hoàn thành muộn') : (delayHours > 0 ? `Chậm ${formatDelayHours(delayHours)}` : 'Chậm trễ')}]</tspan>
-                        )}
-                        {!overdue && progress >= 80 && progressTask.status !== 'completed' && (
+                          )}
+                          {!overdue && progress >= 80 && progressTask.status !== 'completed' && (
                           <tspan fill="#f59e0b" fontWeight="bold"> [Sắp hết hạn]</tspan>
-                        )}
-                      </text>
+                          )}
+                          </>}
+                        </text>
+                        ))}
+                        {unassignedOvertime.map((contribution, contributionIndex) => (
+                          <text
+                            key={`overtime-${contribution.employeeId || contribution.employeeName}`}
+                            x={coord.endX + 8}
+                            y={coord.rowTop + 16 + assignmentLabels.length * 22 + contributionIndex * 18}
+                            fill="#d97706"
+                            fontSize="11"
+                            fontWeight="600"
+                            className="select-none pointer-events-none"
+                          >
+                            {contribution.employeeName} [+{contribution.hours}h OT]
+                          </text>
+                        ))}
+                        </>
+                      )}
 
                     </g>
                   );
@@ -1117,7 +1225,7 @@ export default function GanttPage() {
       </div>
 
       {showEditProjectModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-transparent backdrop-blur-[2px] animate-fade-in">
+        <ModalOverlay>
           <div className="w-full max-w-md p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white">Chỉnh thời gian dự án</h3>
@@ -1140,11 +1248,11 @@ export default function GanttPage() {
               </div>
             </form>
           </div>
-        </div>
+        </ModalOverlay>
       )}
 
       {editingItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-transparent backdrop-blur-[2px] animate-fade-in">
+        <ModalOverlay>
           <div className="w-full max-w-md p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <div>
@@ -1204,12 +1312,150 @@ export default function GanttPage() {
               </div>
             </form>
           </div>
-        </div>
+        </ModalOverlay>
+      )}
+
+      {assignmentEditorItem && (
+        <ModalOverlay>
+          <div className="w-full max-w-2xl p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Người đảm nhận công việc</h3>
+                <p className="text-xs text-slate-500 mt-1">{assignmentEditorItem.code} - {assignmentEditorItem.title}</p>
+              </div>
+              <button type="button" onClick={() => setAssignmentEditorItem(null)} className="text-slate-400 hover:text-slate-600 font-bold">✕</button>
+            </div>
+
+            <form onSubmit={handleAssignmentsSubmit} className="space-y-3">
+              <p className="text-xs text-slate-500">
+                Mỗi người có khoảng thời gian đảm nhận riêng; các khoảng thời gian có thể trùng nhau.
+              </p>
+              {assignmentRows.map((assignment, index) => {
+                const employee = employees.find(item => item.id === assignment.employeeId);
+                const availableEmployees = employees.filter(item =>
+                  item.id === assignment.employeeId || !assignmentRows.some(row => row.employeeId === item.id)
+                );
+                return (
+                  <div key={`assignment-${index}`} className="rounded-xl border border-slate-200 dark:border-slate-700 p-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_180px_auto] gap-2 items-end">
+                      <div>
+                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                          {index === 0 ? 'Người đảm nhận ban đầu' : `Người đảm nhận ${index + 1}`}
+                        </label>
+                        {index === 0 ? (
+                          <div className="px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                            {employee?.name || 'Chưa xác định'}
+                          </div>
+                        ) : (
+                          <select
+                            required
+                            value={assignment.employeeId}
+                            onChange={event => setAssignmentRows(current => current.map((row, rowIndex) => {
+                              if (rowIndex !== index) return row;
+                              const selectedEmployee = employees.find(item => item.id === event.target.value);
+                              return {
+                                ...row,
+                                employeeId: event.target.value,
+                                estimatedHoursPerDay: Number(selectedEmployee?.standardHours) || Number(row.estimatedHoursPerDay) || 8
+                              };
+                            }))}
+                            className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
+                          >
+                            <option value="">-- Chọn nhân viên --</option>
+                            {availableEmployees.map(item => (
+                              <option key={item.id} value={item.id}>{item.name} ({item.title})</option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+                      <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        Giờ dự kiến / ngày
+                        <input
+                          type="number"
+                          required
+                          min="0.25"
+                          step="0.25"
+                          value={assignment.estimatedHoursPerDay}
+                          onChange={event => setAssignmentRows(current => current.map((row, rowIndex) =>
+                            rowIndex === index ? { ...row, estimatedHoursPerDay: event.target.value } : row
+                          ))}
+                          className="mt-1 w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
+                        />
+                      </label>
+                      {index > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setAssignmentRows(current => current.filter((_, rowIndex) => rowIndex !== index))}
+                          className="p-2 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                          aria-label={`Xóa người đảm nhận ${index + 1}`}
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                    <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        Ngày bắt đầu
+                        <DateInput
+                          required
+                          min={assignmentEditorItem.startDate}
+                          max={assignmentEditorItem.endDate}
+                          value={assignment.startDate}
+                          onChange={value => setAssignmentRows(current => current.map((row, rowIndex) =>
+                            rowIndex === index ? { ...row, startDate: value, endDate: row.endDate < value ? value : row.endDate } : row
+                          ))}
+                          className="mt-1 w-full px-2 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
+                        />
+                      </label>
+                      <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        Ngày kết thúc
+                        <DateInput
+                          required
+                          min={assignmentEditorItem.startDate}
+                          max={assignmentEditorItem.endDate}
+                          value={assignment.endDate}
+                          onChange={value => setAssignmentRows(current => current.map((row, rowIndex) =>
+                            rowIndex === index ? { ...row, endDate: value, startDate: row.startDate > value ? value : row.startDate } : row
+                          ))}
+                          className="mt-1 w-full px-2 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                );
+              })}
+
+              <button
+                type="button"
+                disabled={assignmentRows.length >= employees.length}
+                onClick={() => {
+                  const nextEmployee = employees.find(employee => !assignmentRows.some(row => row.employeeId === employee.id));
+                  if (!nextEmployee) return;
+                  setAssignmentRows(current => [...current, {
+                    employeeId: nextEmployee.id,
+                    startDate: assignmentEditorItem.startDate,
+                    endDate: assignmentEditorItem.endDate,
+                    estimatedHoursPerDay: Number(nextEmployee.standardHours) || 8
+                  }]);
+                }}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-sky-200 dark:border-sky-800 text-xs font-bold text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-950/30 disabled:opacity-50"
+              >
+                <UserPlus className="w-4 h-4" />
+                Thêm người đảm nhận
+              </button>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">
+                <button type="button" onClick={() => setAssignmentEditorItem(null)} className="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">Hủy</button>
+                <button type="submit" className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs">Lưu phân công</button>
+              </div>
+            </form>
+          </div>
+        </ModalOverlay>
       )}
 
       {/* MODAL 1: THÊM CÔNG VIỆC VÀO DỰ ÁN */}
       {showAddTaskModal && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-transparent backdrop-blur-[2px] animate-fade-in">
+        <ModalOverlay>
           <div className="w-full max-w-xl p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -1299,7 +1545,7 @@ export default function GanttPage() {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="w-full">
                 <div>
                   <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
                     Dự Án
@@ -1315,7 +1561,7 @@ export default function GanttPage() {
                       const startDate = clampToProject(taskForm.startDate);
                       let endDate = clampToProject(taskForm.endDate);
                       if (endDate < startDate) endDate = startDate;
-                      setTaskForm(current => ({ ...current, projectId: e.target.value, dependencies: [], startDate, endDate, days: inclusiveDays(startDate, endDate), estimatedHours: current.estimatedHoursEdited ? current.estimatedHours : 8 }));
+                      setTaskForm(current => ({ ...current, projectId: e.target.value, dependencies: [], successorId: '', startDate, endDate, days: inclusiveDays(startDate, endDate), estimatedHours: current.estimatedHoursEdited ? current.estimatedHours : 8 }));
                     }}
                     className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
                   >
@@ -1324,6 +1570,9 @@ export default function GanttPage() {
                     ))}
                   </select>
                 </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
 
                 <div>
                   <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
@@ -1332,7 +1581,11 @@ export default function GanttPage() {
                   <select
                     onChange={(e) => {
                       const val = e.target.value;
-                      setTaskForm({ ...taskForm, dependencies: val ? [val] : [] });
+                      setTaskForm(current => ({
+                        ...current,
+                        dependencies: val ? [val] : [],
+                        successorId: current.successorId === val ? '' : current.successorId
+                      }));
                     }}
                     className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
                   >
@@ -1340,6 +1593,23 @@ export default function GanttPage() {
                     {ganttItems.filter(g => projectIdForItem(g) === taskForm.projectId).map(g => (
                       <option key={g.id} value={g.id}>[{g.code}] {g.title}</option>
                     ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                    Công Việc Sau (Mũi tên liên kết FS)
+                  </label>
+                  <select
+                    value={taskForm.successorId}
+                    onChange={(e) => setTaskForm(current => ({ ...current, successorId: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
+                  >
+                    <option value="">-- Tự động nối tới công việc bên dưới gần nhất --</option>
+                    {ganttItems
+                      .filter(g => projectIdForItem(g) === taskForm.projectId && g.id !== taskForm.dependencies[0])
+                      .map(g => (
+                        <option key={g.id} value={g.id}>[{g.code}] {g.title}</option>
+                      ))}
                   </select>
                 </div>
               </div>
@@ -1419,12 +1689,12 @@ export default function GanttPage() {
 
             </form>
           </div>
-        </div>
+        </ModalOverlay>
       )}
 
       {/* MODAL 2: TẠO DỰ ÁN MỚI */}
       {showAddProjectModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-transparent backdrop-blur-[2px] animate-fade-in">
+        <ModalOverlay>
           <div className="w-full max-w-lg p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -1571,7 +1841,7 @@ export default function GanttPage() {
 
             </form>
           </div>
-        </div>
+        </ModalOverlay>
       )}
 
     </div>

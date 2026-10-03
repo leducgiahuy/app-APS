@@ -11,41 +11,54 @@ Tài liệu này được tạo ra để giúp bạn (chuyên viên IT phần c�
 aps-project-manager/
 ├── backend/                              # [MÁY CHỦ DỮ LIỆU & API]
 │   ├── data/
-│   │   └── db.json                       # ⭐ Nơi lưu trữ dữ liệu (Dự án, Nhân sự, Task, Gantt, OT)
+│   │   └── db.json                       # ⭐ Dữ liệu dự án, nhân sự, task, Gantt, OT và activityLog
 │   ├── src/
 │   │   ├── controllers/                  # Bộ xử lý nghiệp vụ cho từng phân hệ
 │   │   │   ├── hrController.js           # -> Xử lý điểm danh, thêm/xóa nhân sự, đếm task
 │   │   │   ├── taskController.js         # -> Xử lý phân công task & duyệt ca tăng ca (OT)
 │   │   │   ├── projectController.js      # -> Xử lý tạo dự án & các thanh tiến độ Gantt
-│   │   │   └── statsController.js        # -> Tính toán KPI & báo cáo hiệu suất
+│   │   │   ├── statsController.js        # -> Tính toán KPI & báo cáo hiệu suất
+│   │   │   └── activityController.js     # -> Lưu/truy vấn nhật ký hoạt động
 │   │   ├── models/
 │   │   │   └── db.js                     # -> Đọc và ghi file db.json an toàn
+│   │   ├── utils/
+│   │   │   └── workSessions.js           # -> Chia phiên làm việc theo từng ngày lịch
 │   │   ├── routes/
 │   │   │   └── api.js                    # -> Định tuyến toàn bộ API endpoints
 │   │   └── server.js                     # -> File khởi động máy chủ Express (Port 5000)
 │   └── package.json
 │
 ├── frontend/                             # [GIAO DIỆN NGƯỜI DÙNG WEB]
+│   ├── public/
+│   │   └── aps-logo.svg                  # -> Logo dùng ở đăng nhập, sidebar và tài khoản
 │   ├── src/
 │   │   ├── components/layout/            # Các khối khung giao diện chung
-│   │   │   ├── Sidebar.jsx               # -> Thanh menu bên trái (Logo APS, menu 4 trang, nút thu gọn)
+│   │   │   ├── Sidebar.jsx               # -> Thanh menu, phân hệ và nút thu gọn
 │   │   │   ├── Header.jsx                # -> Thanh trên cùng (Đồng hồ số real-time, chọn ngày, đổi Dark/Light mode)
 │   │   │   └── Toast.jsx                 # -> Khung pop-up thông báo thành công / lỗi
 │   │   │
-│   │   ├── modules/                      # ⭐ CÁC TRANG NỘI DUNG CHÍNH (THEO YÊU CẦU CỦA BẠN)
+│   │   ├── modules/                      # ⭐ Các phân hệ nội dung và xác thực
 │   │   │   ├── hr/
 │   │   │   │   └── HRPage.jsx            # -> TRANG 1: Quản lý nhân sự, On-site, số task dưới tên, giờ chuẩn
 │   │   │   ├── tasks/
 │   │   │   │   └── TasksPage.jsx         # -> TRANG 2: Phân công công việc & Đăng ký tăng ca (2 mục rõ rệt)
 │   │   │   ├── gantt/
 │   │   │   │   └── GanttPage.jsx         # -> TRANG 3: Biểu đồ Gantt thực tế (Cột đóng băng, mũi tên FS, dải nghỉ lễ)
-│   │   │   └── dashboard/
-│   │   │       └── DashboardPage.jsx     # -> TRANG 4: Bảng thống kê chi tiết các công việc trong 1 dự án
+│   │   │   ├── dashboard/
+│   │   │   │   └── DashboardPage.jsx     # -> TRANG 4: Bảng thống kê chi tiết các công việc trong 1 dự án
+│   │   │   ├── workload/
+│   │   │   │   └── WorkloadPage.jsx      # -> Phân bổ giờ dự kiến/thực tế theo ngày, tháng, năm
+│   │   │   └── auth/
+│   │   │       ├── LoginPage.jsx         # -> Đăng nhập
+│   │   │       ├── AccountPage.jsx       # -> Hồ sơ và quản lý tài khoản
+│   │   │       ├── AdminActivityPage.jsx # -> Nhật ký hoạt động dành cho admin
+│   │   │       ├── authSession.js        # -> Tài khoản, phiên và ghi nhật ký phía trình duyệt
+│   │   │       └── personalWork.js       # -> Ghép user với hồ sơ nhân sự/task
 │   │   │
 │   │   ├── context/
 │   │   │   └── AppContext.jsx            # -> Bộ quản lý trạng thái chung (đồng hồ, theme, gọi API)
 │   │   ├── api.js                        # -> Hàm kết nối từ Frontend gọi sang Backend
-│   │   ├── App.jsx                       # -> Lắp ghép khung giao diện chính
+│   │   ├── App.jsx                       # -> Cổng đăng nhập/tài khoản và khung ứng dụng
 │   │   ├── index.css                     # -> Bộ style Tailwind CSS và thanh cuộn mượt
 │   │   └── main.jsx                      # -> Entry point React
 │   ├── tailwind.config.js                # -> Cấu hình màu sắc thương hiệu APS & Dark mode
@@ -68,6 +81,9 @@ aps-project-manager/
 | **Trang Phân công:** Form tạo task, mục tăng ca (OT), đánh giá sớm/chậm | `frontend/src/modules/tasks/TasksPage.jsx` |
 | **Trang Tiến độ & Gantt:** Mũi tên liên kết FS, các giai đoạn Thiết kế/Pháp lý/Nghỉ lễ/Đấu thầu | `frontend/src/modules/gantt/GanttPage.jsx` |
 | **Trang Thống kê:** Bảng liệt kê dự án, công việc, nhân viên, thời gian hoàn thành | `frontend/src/modules/dashboard/DashboardPage.jsx` |
+| **Trang Theo dõi giờ & công việc:** Phân bổ giờ dự kiến, giờ đã ghi và công suất còn trống | `frontend/src/modules/workload/WorkloadPage.jsx` |
+| **Đăng nhập, hồ sơ và quản lý tài khoản** | `frontend/src/modules/auth/LoginPage.jsx`, `AccountPage.jsx`, `authSession.js` |
+| **Nhật ký hoạt động dành cho admin** | `frontend/src/modules/auth/AdminActivityPage.jsx`, `backend/src/controllers/activityController.js` |
 | **Thêm trực tiếp dữ liệu mẫu:** Thêm nhân viên, dự án mới bằng tay | `backend/data/db.json` |
 
 ---
@@ -77,10 +93,10 @@ aps-project-manager/
 ```mermaid
 flowchart TD
     User["Người dùng tại công trường APS"] -->|Tương tác trên giao diện| UI["React Components (HR, Tasks, Gantt, Dashboard)"]
-    UI -->|Gửi yêu cầu hành động| Ctx["AppContext.jsx (Quản lý State & Real-time Clock)"]
+    UI -->|Gửi yêu cầu hành động| Ctx["AppContext.jsx (State, đồng hồ, ghi hoạt động)"]
     Ctx -->|Gọi API RESTful| ApiClient["api.js (HTTP Fetch)"]
     ApiClient -->|Port 5000 /api| BackendRouter["routes/api.js (Express Server)"]
-    BackendRouter --> Controllers["Controllers (hr, task, project, stats)"]
+    BackendRouter --> Controllers["Controllers (hr, task, project, stats, activity)"]
     Controllers --> Storage[("backend/data/db.json\nLưu trữ dữ liệu bền vững")]
     Storage -->|Phản hồi JSON| UI
 ```
@@ -91,6 +107,9 @@ flowchart TD
 
 | Phương thức | Đường dẫn API | Mô tả nghiệp vụ |
 | :--- | :--- | :--- |
+| `GET` | `/api/activity` | Lấy tối đa 1.000 sự kiện nhật ký mới nhất |
+| `POST` | `/api/activity` | Ghi một sự kiện (email và action là bắt buộc) |
+| `DELETE` | `/api/activity` | Xóa nhật ký hoạt động dùng chung |
 | `GET` | `/api/employees` | Lấy danh sách nhân sự + số task đang nhận + số giờ OT |
 | `POST` | `/api/employees` | Thêm nhân sự mới (họ tên, chức danh, ca chuẩn 8h) |
 | `PATCH` | `/api/employees/:id/toggle-onsite` | Bật/tắt trạng thái có mặt tại công trường (On-site) |
@@ -126,6 +145,7 @@ flowchart TD
 - Các liên kết Finish-to-Start (FS) trong Gantt được vẽ theo style mềm, cong và đi lệch trái, không chạy cắt thẳng qua nội dung task.
 - Nền đường phụ thuộc được giữ tối thiểu để không chen vào các bar và chữ trên task.
 - Mũi tên được đặt sát cạnh task đích, không nằm trong ô task để tránh che chữ hoặc làm rối nhận diện.
+- Khi chèn task mới giữa hai task cũ, hệ thống giữ logic tự động: nếu người dùng không chọn công việc sau, nó sẽ nối xuống task bên dưới gần nhất; nếu có chọn công việc sau thì dùng lựa chọn đó. Khi chỉ chọn liên kết trước, hướng xuống vẫn tự động nối về task kế tiếp gần nhất. Nếu task xen giữa bị xoá, dependency cũ sẽ được nối lại tự động.
 
 ### 6.3 Hover highlight và mapping task
 - Khi user hover vào một dependency line, hàm `onMouseEnter`/`onMouseLeave` sẽ đánh dấu đường đó là `hoveredDependencyKey`.
@@ -170,6 +190,7 @@ flowchart TD
 | Tạo/sửa dự án, task Gantt và đồng bộ sang task được giao | `backend/src/controllers/projectController.js` |
 | Đọc/ghi dữ liệu JSON | `backend/src/models/db.js`, `backend/data/db.json` |
 | Endpoint API | `backend/src/routes/api.js`; client gọi API ở `frontend/src/api.js` |
+| Phiên làm việc theo ngày | `backend/src/utils/workSessions.js`; trang phân bổ đọc `workSessions` |
 
 ### Trạng thái trễ và thời lượng dự án trên Gantt
 
@@ -188,5 +209,32 @@ flowchart TD
 ### Thanh thao tác và vùng cuộn cố định
 
 - Trang Phân công ghép tab, ô tìm task và nút tạo task vào một thanh sticky ngay dưới Header, kéo hết chiều ngang vùng nội dung. Thanh ngoài bỏ bo góc; ô tìm kiếm giữ bo góc riêng để dễ nhận diện.
-- Footer bản quyền được gỡ khỏi layout dùng chung trong App.jsx nên không còn hiện trên các trang.
+- Footer bản quyền được hiển thị ở cuối layout ứng dụng dùng chung trong `App.jsx`.
 - Gantt dùng vùng cuộn nội bộ cao theo viewport. Header cột sticky bên trong vùng này; cột trái đóng băng khi cuộn ngang, còn bảng và biểu đồ cuộn dọc/ngang cùng nhau.
+
+## 7. TÀI KHOẢN, NHẬT KÝ HOẠT ĐỘNG VÀ PHÂN BỔ NGUỒN LỰC
+
+### Đăng nhập và quản lý tài khoản
+
+- `/login` là màn hình đăng nhập; `/account` là trang hồ sơ. Phiên có thể lưu trong `localStorage` khi chọn **Ghi nhớ đăng nhập**, hoặc trong `sessionStorage` cho phiên tab hiện tại.
+- Tài khoản demo quản trị được tạo tự động ở trình duyệt nếu chưa tồn tại. Tài khoản, mật khẩu, hồ sơ và ảnh đại diện hiện được lưu ở `localStorage`; ảnh được cắt vuông và nén thành JPEG 256 × 256.
+- User có thể sửa hồ sơ và đổi mật khẩu. Admin có thể tạo user, sửa hồ sơ/ảnh user và cấp lại mật khẩu. Tài khoản user mặc định không có quyền admin.
+- Trang Theo dõi giờ tìm hồ sơ nhân sự theo `employeeId` nếu có; nếu chưa có thì đối chiếu email hoặc tên đã chuẩn hóa. Nếu không ghép được, user sẽ không thấy dữ liệu cá nhân.
+
+### Nhật ký hoạt động
+
+- `authSession.js` ghi các sự kiện đăng nhập/đăng xuất, thay đổi tài khoản và hồ sơ; `AppContext.jsx` ghi lần mở phân hệ; các thao tác dữ liệu chính ghi thêm sự kiện nghiệp vụ.
+- Sự kiện được lưu ở nhật ký trình duyệt và gửi lên `POST /api/activity`. Backend lưu trong `activityLog` của `db.json`, giữ tối đa 1.000 mục gần nhất. Khi backend không sẵn sàng, giao diện có thể dùng nhật ký cục bộ.
+- Trang admin có bộ lọc theo nhóm/user, tìm kiếm, thống kê, xuất CSV và xóa nhật ký. Endpoint tương ứng là `GET`, `POST`, `DELETE /api/activity`.
+
+### Trang Theo dõi giờ & công việc
+
+- `WorkloadPage.jsx` cho xem phân bổ theo ngày, tháng hoặc năm. Admin xem và tìm nhân viên; user xem phạm vi cá nhân sau khi được ghép với hồ sơ nhân sự.
+- Giờ dự kiến được tính từ task giao trong khoảng đã chọn và giờ/ngày của task. Công suất nhân viên lấy từ `standardHours`; Thứ 2–6 tính đủ ngày, Thứ 7 tính nửa ngày, Chủ nhật không tính. Giao diện thể hiện giờ đã lên lịch, giờ trống và phần vượt định mức.
+- Ở chế độ ngày, trang hiển thị task, giờ thực tế, các phiên đã ghi và phiên đang chạy. Ở chế độ tháng/năm, user có thêm tổng hợp công trình, số task hoàn thành, tiến độ và giờ dự kiến/thực tế.
+- `workSessions.js` chia phiên làm việc qua nửa đêm thành các đoạn theo ngày lịch; các đoạn này được dùng để báo cáo giờ thực tế theo ngày. Lịch sử cũ trước khi bật ghi phiên có thể không có chi tiết giờ theo ngày.
+
+### Lưu ý triển khai và giới hạn bảo mật
+
+- Đăng nhập/phân quyền tài khoản hiện thực hiện ở frontend; tài khoản và mật khẩu lưu trong `localStorage`. Đây là cơ chế xem trước, không phải xác thực máy chủ.
+- Các API Express hiện chưa xác thực/ủy quyền theo user. Không công khai backend hoặc dùng dữ liệu nhạy cảm thực tế qua mạng công cộng trước khi bổ sung xác thực và kiểm tra quyền ở backend.
