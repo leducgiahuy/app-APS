@@ -21,8 +21,12 @@ function localDateKey(date) {
 }
 
 function isAssignedToEmployee(item, emp) {
+  const normalizedEmployeeName = (emp.name || '').trim().toLowerCase();
   return item.employeeId === emp.id ||
-    (item.employeeName || item.assignee || '').trim().toLowerCase() === (emp.name || '').trim().toLowerCase();
+    (item.employeeName || item.assignee || '').trim().toLowerCase() === normalizedEmployeeName ||
+    (Array.isArray(item.assignees) && item.assignees.some(assignment =>
+      assignment.employeeId === emp.id || (assignment.employeeName || '').trim().toLowerCase() === normalizedEmployeeName
+    ));
 }
 
 function activeOnDate(item, dateKey) {
@@ -45,6 +49,18 @@ function updateEmployeeTaskSessions(db, emp, startAt, endAt = null) {
     item.actualWorkStartedAt ||= startAt;
     if (endAt) {
       item.actualWorkHours = Math.round(((Number(item.actualWorkHours) || 0) + elapsedHours) * 100) / 100;
+      // Preserve each closed attendance segment by employee so project reports
+      // can split normal hours by person; legacy actualWorkHours stays supported.
+      if (elapsedHours > 0) {
+        item.actualWorkEntries ||= [];
+        item.actualWorkEntries.push({
+          employeeId: emp.id,
+          employeeName: emp.name,
+          startAt,
+          endAt,
+          hours: Math.round(elapsedHours * 100) / 100
+        });
+      }
       item.workSessionStartedAt = null;
     } else {
       item.workSessionStartedAt = startAt;

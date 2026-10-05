@@ -319,6 +319,18 @@ export function updateTask(req, res) {
     completedSessionStartAt = task.workSessionStartedAt;
     const elapsed = Math.max(0, (Date.now() - Date.parse(completedSessionStartAt)) / 3600000);
     task.actualWorkHours = Math.round(((Number(task.actualWorkHours) || 0) + elapsed) * 100) / 100;
+    // Keep the final active segment attributed to the employee before clearing it.
+    if (elapsed > 0) {
+      task.actualWorkEntries ||= [];
+      const sessionEmployee = (db.employees || []).find(employee => employee.activeTaskId === task.id);
+      task.actualWorkEntries.push({
+        employeeId: sessionEmployee?.id || task.employeeId,
+        employeeName: sessionEmployee?.name || task.employeeName,
+        startAt: completedSessionStartAt,
+        endAt: new Date().toISOString(),
+        hours: Math.round(elapsed * 100) / 100
+      });
+    }
     task.workSessionStartedAt = null;
     const activeEmployee = (db.employees || []).find(employee => employee.activeTaskId === task.id);
     if (activeEmployee) {

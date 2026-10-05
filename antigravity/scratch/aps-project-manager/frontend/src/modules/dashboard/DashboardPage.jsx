@@ -1,360 +1,208 @@
-import React, { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { formatDateVi, scheduledProgress, isTaskOverdue, taskDelayHours, formatDelayHours } from '../../utils/date';
-import { getGanttTaskCode } from '../../utils/taskCode';
-import {
-  BarChart3,
-  Building,
-  CheckCircle2,
-  Clock,
-  Flame,
-  AlertTriangle,
-  Users,
-  Briefcase,
-  TrendingUp,
-  Search,
-  Filter
-} from 'lucide-react';
+import { AlertTriangle, CalendarDays, Clock3, Search, Send, Users } from 'lucide-react';
+import { taskDelayHours } from '../../utils/date';
+import './DashboardPage.css';
+
+const localDateKey = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+const formatDate = (value) => value
+  ? new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(`${value}T00:00:00`))
+  : 'Chưa đặt';
+const formatHours = (value) => Number(value || 0).toLocaleString('vi-VN', { maximumFractionDigits: 1 });
 
 export default function DashboardPage() {
-  const { stats, projects, tasks, ganttItems, employees, currentTime } = useApp();
+  const { projects, tasks, employees, overtimes, currentTime } = useApp();
+  const [selectedProjectId, setSelectedProjectId] = useState('');
+  const [projectListSearch, setProjectListSearch] = useState('');
+  const [copiedReport, setCopiedReport] = useState(false);
+  const today = localDateKey(currentTime);
 
-  // Bộ lọc dự án trong bảng thống kê
-  const [selectedProjectId, setSelectedProjectId] = useState('ALL');
-  const [searchTerm, setSearchTerm] = useState('');
+  // Project completion is based on its tasks; a project with no tasks is only
+  // considered complete when its saved project status explicitly says so.
+  const projectReports = useMemo(() => projects.map((project) => {
+    const projectTasks = tasks.filter((task) => task.projectId === project.id || (!task.projectId && task.projectName === project.name));
+    const completeCount = projectTasks.filter((task) => task.status === 'completed').length;
+    const progress = projectTasks.length
+      ? Math.round(projectTasks.reduce((sum, task) => sum + (task.status === 'completed' ? 100 : Math.min(100, Math.max(0, Number(task.progress) || 0))), 0) / projectTasks.length)
+      : Number(project.progress) || 0;
+    const complete = project.status === 'completed' || (projectTasks.length > 0 && completeCount === projectTasks.length);
+    const remainingDays = project.endDate
+      ? Math.ceil((new Date(`${project.endDate}T00:00:00`) - new Date(`${today}T00:00:00`)) / 86400000)
+      : null;
+    const overdue = !complete && remainingDays !== null && remainingDays < 0;
+    const dueSoon = !complete && !overdue && remainingDays !== null && remainingDays <= 7;
+    const delayedTasks = projectTasks.filter((task) => task.status !== 'completed' &&
+      (task.speedStatus === 'delayed' || taskDelayHours(task, currentTime) > 0)).length;
+    const needsReport = !complete && !overdue && delayedTasks > 0;
+    const team = new Map();
 
-  const overview = stats?.overview || {
-    totalProjects: projects.length,
-    totalEmployees: employees.length,
-    onSiteEmployees: employees.filter(e => e.isOnSite).length,
-    totalTasks: tasks.length,
-    completedTasks: tasks.filter(t => t.status === 'completed').length,
-    inProgressTasks: tasks.filter(t => t.status === 'in_progress').length,
-    delayedTasks: tasks.filter(t => t.speedStatus === 'delayed').length,
-    earlyTasks: tasks.filter(t => t.speedStatus === 'early').length,
-    onTimeTasks: tasks.filter(t => t.speedStatus === 'on_time').length,
-    totalOtHours: 9.5,
-    overallCompletionRate: projects.length > 0
-      ? Math.round(projects.reduce((sum, project) => {
-        const projectTasks = tasks.filter(task => task.projectId === project.id);
-        return sum + (projectTasks.length ? projectTasks.filter(task => task.status === 'completed').length / projectTasks.length * 100 : 0);
-      }, 0) / projects.length)
-      : 0
+    projectTasks.forEach((task) => {
+      const assignments = Array.isArray(task.assignees) && task.assignees.length
+        ? task.assignees
+        : [{ employeeId: task.employeeId, employeeName: task.employeeName, startDate: task.startDate }];
+      assignments.forEach((assignment) => {
+        const employee = employees.find((item) => item.id === assignment.employeeId);
+        const id = assignment.employeeId || assignment.employeeName || task.id;
+        if (!team.has(id)) team.set(id, {
+          id,
+          name: assignment.employeeName || employee?.name || task.employeeName || 'Chưa rõ nhân sự',
+          hours: 0,
+          overtime: 0,
+          tracked: false,
+          addedLater: Boolean(assignment.startDate && project.startDate && assignment.startDate > project.startDate),
+        });
+      });
+
+      // Old task totals are attributable only when there is one assignee.
+      if (!(task.actualWorkEntries || []).length && assignments.length === 1 && Number(task.actualWorkHours) > 0) {
+        const person = team.get(assignments[0].employeeId || assignments[0].employeeName || task.id);
+        if (person) { person.hours += Number(task.actualWorkHours); person.tracked = true; }
+      }
+      (task.actualWorkEntries || []).forEach((entry) => {
+        const id = entry.employeeId || entry.employeeName || task.id;
+        const person = team.get(id) || { id, name: entry.employeeName || 'Nhân sự đã lưu trữ', hours: 0, overtime: 0, tracked: false, addedLater: false };
+        person.hours += Number(entry.hours) || 0;
+        person.tracked = true;
+        team.set(id, person);
+      });
+
+      // Display the currently running work session without waiting for checkout.
+      const activeEmployee = employees.find((employee) => employee.activeTaskId === task.id && employee.workSessionStartedAt);
+      if (activeEmployee) {
+        const person = team.get(activeEmployee.id) || { id: activeEmployee.id, name: activeEmployee.name, hours: 0, overtime: 0, tracked: true, addedLater: false };
+        person.hours += Math.max(0, (currentTime.getTime() - Date.parse(activeEmployee.workSessionStartedAt)) / 3600000);
+        person.tracked = true;
+        team.set(person.id, person);
+      }
+    });
+
+    const projectTaskIds = new Set(projectTasks.map((task) => task.id));
+    overtimes.filter((entry) => projectTaskIds.has(entry.taskId) && (!entry.status || entry.status === 'approved')).forEach((entry) => {
+      const id = entry.employeeId || entry.employeeName || 'unknown';
+      const person = team.get(id) || { id, name: entry.employeeName || 'Nhân sự đã lưu trữ', hours: 0, overtime: 0, tracked: false, addedLater: false };
+      person.overtime += Number(entry.hours) || 0;
+      team.set(id, person);
+    });
+
+    return {
+      ...project,
+      tasks: projectTasks,
+      completeCount,
+      progress,
+      complete,
+      remainingDays,
+      overdue,
+      dueSoon,
+      delayedTasks,
+      needsReport,
+      plannedHours: projectTasks.reduce((sum, task) => sum + (Number(task.estimatedHours) || 0), 0),
+      team: [...team.values()],
+      // Project actual effort comes from task totals; attribution by employee is
+      // shown only when individual attendance entries exist.
+      actualHours: projectTasks.reduce((sum, task) => sum + (Number(task.actualWorkHours) || 0), 0) +
+        employees.filter((employee) => projectTasks.some((task) => task.id === employee.activeTaskId) && employee.workSessionStartedAt)
+          .reduce((sum, employee) => sum + Math.max(0, (currentTime.getTime() - Date.parse(employee.workSessionStartedAt)) / 3600000), 0),
+    };
+  }), [projects, tasks, employees, overtimes, currentTime, today]);
+
+  const selected = projectReports.find((project) => project.id === selectedProjectId) || projectReports[0];
+  const visibleProjects = projectReports.filter((project) =>
+    [project.name, project.code, project.manager].some((value) => String(value || '').toLocaleLowerCase('vi').includes(projectListSearch.trim().toLocaleLowerCase('vi'))),
+  );
+  const reportText = (project) => {
+    if (!project) return '';
+    const status = project.complete ? 'Hoàn thành' : project.overdue ? 'Trễ hạn' : project.needsReport ? 'Trễ tiến độ · Cần báo cáo' : project.dueSoon ? 'Sắp đến hạn' : 'Đang thực hiện';
+    const missingHours = project.team.filter((person) => !person.tracked).length;
+    return [
+      `BÁO CÁO TÌNH HÌNH DỰ ÁN · ${new Intl.DateTimeFormat('vi-VN', { dateStyle: 'long' }).format(currentTime)}`,
+      `Dự án: ${project.name} (${project.code || 'Chưa có mã'}) · Quản lý: ${project.manager || 'Chưa cập nhật'}`,
+      `Trạng thái: ${status} · Tiến độ: ${project.progress}% · Hoàn thành ${project.completeCount}/${project.tasks.length} công việc`,
+      `Hạn dự án: ${formatDate(project.endDate)} · Công dự kiến: ${formatHours(project.plannedHours / 8)} công (${formatHours(project.plannedHours)} giờ)`,
+      `Nhân sự tham gia: ${project.team.length} · Bổ sung sau khởi công: ${project.team.filter((person) => person.addedLater).length}`,
+      `Công thực tế đã dùng: ${formatHours(project.actualHours / 8)} công · OT đã duyệt: ${formatHours(project.team.reduce((sum, person) => sum + person.overtime, 0))} giờ`,
+      missingHours ? `Lưu ý: ${missingHours} nhân sự chưa có nhật ký giờ cá nhân.` : '',
+    ].filter(Boolean).join('\n');
   };
-  const liveDelayedTaskCount = tasks.filter(task => task.status === 'completed'
-    ? task.speedStatus === 'delayed'
-    : taskDelayHours(task, currentTime) > 0
-  ).length;
 
-  // Lọc danh sách công việc hiển thị trong bảng
-  const filteredTasks = tasks.filter(task => {
-    const matchesProj = selectedProjectId === 'ALL' || task.projectId === selectedProjectId;
-    const matchesSearch =
-      task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (task.employeeName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      task.projectName.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesProj && matchesSearch;
-  });
+  const handleCopyReport = async () => {
+    if (!selected) return;
+    try {
+      await navigator.clipboard.writeText(reportText(selected));
+      setCopiedReport(true);
+      window.setTimeout(() => setCopiedReport(false), 2000);
+    } catch {
+      window.alert(reportText(selected));
+    }
+  };
 
   return (
-    <div className="w-full space-y-6 px-4 sm:px-6 pt-0 pb-6">
-      <div className="sticky top-16 z-20 -mx-4 sm:-mx-6 bg-slate-50 dark:bg-slate-950 pb-2">
-      {/* 4 Thẻ KPI Dashboard Tổng Quan */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-0">
-        
-        {/* KPI 1: Tỉ lệ hoàn thành dự án */}
-        <div className="p-4 rounded-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Tiến Độ Dự Án Trung Bình
-            </p>
-            <p className="text-2xl font-black text-sky-600 dark:text-sky-400 mt-1">
-              {overview.overallCompletionRate}%
-            </p>
-            <div className="w-32 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full mt-2 overflow-hidden">
-              <div
-                className="h-full bg-sky-600 rounded-full"
-                style={{ width: `${overview.overallCompletionRate}%` }}
-              />
+    <div className="aps-dashboard">
+      <header className="dashboard-heading">
+        <div><p className="dashboard-eyebrow">APS VIỆT NAM · BÁO CÁO DỰ ÁN</p><h1>Thống kê & Báo cáo</h1><p className="dashboard-subtitle">Tình trạng, tiến độ và nhân sự tham gia các dự án.</p></div>
+        <div className="dashboard-date"><Clock3 size={15} />{new Intl.DateTimeFormat('vi-VN', { dateStyle: 'long' }).format(currentTime)}</div>
+      </header>
+
+      <section className="dashboard-card project-overview-layout" aria-label="Tổng quan dự án và chi tiết dự án được chọn">
+        <div className="project-overview-left">
+          <div className="company-overview-heading"><div><h2>{selected?.name || 'Tổng quan dự án'}</h2><p>Tiến độ và khối lượng dự kiến của dự án</p></div></div>
+          <div className="project-overview-chart-area">
+            <div className="company-progress-chart" style={{ background: `conic-gradient(var(--dash-accent) 0 ${selected?.progress || 0}%, var(--chart-track) ${selected?.progress || 0}% 100%)` }} role="img" aria-label={`Tiến độ dự án ${selected?.name || ''}: ${selected?.progress || 0}%`}>
+              <div><strong>{selected?.progress || 0}%</strong><span>Tiến độ dự án</span></div>
             </div>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-sky-500/10 text-sky-500 flex items-center justify-center">
-            <TrendingUp className="w-5 h-5" />
-          </div>
-        </div>
-
-        {/* KPI 2: Tổng công việc & Tình trạng */}
-        <div className="p-4 rounded-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Công Việc Đã Xong
-            </p>
-            <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
-              {overview.completedTasks} <span className="text-sm font-normal text-slate-400">/ {overview.totalTasks}</span>
-            </p>
-            <p className="text-[11px] text-emerald-500 font-semibold mt-1">
-              {Math.round((overview.completedTasks / Math.max(1, overview.totalTasks)) * 100)}% đạt yêu cầu
-            </p>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
-            <CheckCircle2 className="w-5 h-5" />
-          </div>
-        </div>
-
-        {/* KPI 3: Công việc chậm tiến độ */}
-        <div className="p-4 rounded-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Chậm Tiến Độ / Cảnh Báo
-            </p>
-            <p className="text-2xl font-black text-rose-600 dark:text-rose-400 mt-1">
-              {liveDelayedTaskCount} <span className="text-sm font-normal text-slate-400">hạng mục</span>
-            </p>
-            <p className="text-[11px] text-rose-500 font-semibold mt-1">
-              Cần ưu tiên bổ sung OT
-            </p>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-rose-500/10 text-rose-500 flex items-center justify-center">
-            <AlertTriangle className="w-5 h-5" />
-          </div>
-        </div>
-
-        {/* KPI 4: Tổng giờ làm thêm OT */}
-        <div className="p-4 rounded-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Tổng Giờ Tăng Ca Đã Cấp
-            </p>
-            <p className="text-2xl font-black text-amber-500 dark:text-amber-400 mt-1">
-              {overview.totalOtHours} <span className="text-sm font-normal text-slate-400">giờ</span>
-            </p>
-            <p className="text-[11px] text-amber-500 font-semibold mt-1">
-              Đảm bảo tiến độ công trình
-            </p>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center">
-            <Flame className="w-5 h-5" />
-          </div>
-        </div>
-
-      </div>
-      </div>
-
-      {/* BẢNG THỐNG KÊ CHI TIẾT CÁC CÔNG VIỆC TRONG DỰ ÁN */}
-      <div className="p-6 rounded-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
-        
-        {/* Header Bảng: Tiêu đề + Bộ lọc tìm kiếm */}
-        <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-          <div>
-            <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-sky-600" />
-              Bảng Thống Kê Chi Tiết Các Công Việc Trong Dự Án
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Tổng hợp tên dự án, công việc, nhân viên đảm nhận và thời gian hoàn thành
-            </p>
-          </div>
-
-          <div className="flex items-center gap-3 w-full md:w-auto">
-            {/* Lọc dự án */}
-            <div className="flex items-center gap-2">
-              <Filter className="w-4 h-4 text-slate-400" />
-              <select
-                value={selectedProjectId}
-                onChange={(e) => setSelectedProjectId(e.target.value)}
-                className="py-2 px-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold"
-              >
-                <option value="ALL">Tất cả dự án</option>
-                {projects.map(p => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Tìm kiếm */}
-            <div className="relative">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Tìm công việc, nhân viên..."
-                className="pl-8 pr-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs focus:ring-2 focus:ring-sky-500"
-              />
+            <div className="company-metrics">
+              <div className="overview-number"><span>Công dự kiến</span><strong>{formatHours((selected?.plannedHours || 0) / 8)} <small>công</small></strong><em>{formatHours(selected?.plannedHours || 0)} giờ · 8 giờ = 1 công</em></div>
+              <div className="overview-number"><span>Công việc hoàn thành</span><strong>{selected?.completeCount || 0}<small>/{selected?.tasks.length || 0}</small></strong><em>{selected?.tasks.length ? `${selected.progress}% tiến độ` : 'Chưa có công việc'}</em></div>
+              <div className="overview-number"><span>Tình trạng hạn</span><strong className={selected?.overdue ? 'overview-red' : selected?.dueSoon ? 'overview-gold' : ''}>{selected?.complete ? 'Xong' : selected?.overdue ? 'Quá hạn' : selected?.dueSoon ? 'Sắp hạn' : 'Còn hạn'}</strong><em>{selected?.endDate ? `Hạn ${formatDate(selected.endDate)}` : 'Chưa đặt hạn'}</em></div>
             </div>
           </div>
         </div>
 
-        {/* Bảng dữ liệu thống kê */}
-        <div className="max-h-[360px] overflow-x-auto overflow-y-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="sticky top-0 z-10 bg-white dark:bg-slate-900">
-              <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-400 uppercase font-semibold">
-                <th className="py-3 px-3">Tên Dự Án</th>
-                <th className="py-3 px-3">Tên Công Việc</th>
-                <th className="py-3 px-3">Tên Nhân Viên Đảm Nhận</th>
-                <th className="py-3 px-3">Thời Gian Hoàn Thành (Dự Kiến)</th>
-                <th className="py-3 px-3 text-center">Tiến Độ</th>
-                <th className="py-3 px-3 text-center">Tình Trạng</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
-              {filteredTasks.map((t) => {
-                const assignee = employees.find(e => e.id === t.employeeId);
-                const progress = scheduledProgress(t, assignee?.standardHours || 8, currentTime);
-                const overdue = isTaskOverdue(t, currentTime);
-                const delayHours = taskDelayHours(t, currentTime);
-                const earlyHours = Number(t.earlyHours) || 0;
-                const liveLate = t.status !== 'completed' && delayHours > 0;
-                const progressColor = t.status === 'completed' ? 'bg-emerald-500' : overdue ? 'bg-rose-500' : progress >= 80 ? 'bg-amber-500' : 'bg-sky-600';
-                const taskCode = getGanttTaskCode(t, ganttItems);
-
-                return (
-                  <tr key={t.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                    {/* Tên Dự Án */}
-                    <td className="py-3 px-3 font-semibold text-slate-900 dark:text-white max-w-[200px] truncate" title={t.projectName}>
-                      <span className="flex items-center gap-1.5">
-                        <Building className="w-3.5 h-3.5 text-sky-600 flex-shrink-0" />
-                        <span className="truncate">{t.projectName}</span>
-                      </span>
-                    </td>
-
-                    {/* Tên công việc */}
-                    <td className="py-3 px-3 max-w-[260px]" title={taskCode ? `${taskCode} · ${t.title}` : t.title}>
-                      <div className="flex min-w-0 items-center gap-2">
-                        {taskCode && <span className="flex-shrink-0 rounded bg-sky-500/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-sky-600 dark:text-sky-400">{taskCode}</span>}
-                        <span className="truncate font-bold text-sky-600 dark:text-sky-400">{t.title}</span>
-                      </div>
-                    </td>
-
-                    {/* Tên nhân viên đảm nhận */}
-                    <td className="py-3 px-3 font-semibold text-slate-800 dark:text-slate-200">
-                      <div className="flex items-center gap-2">
-                        {t.employeeName ? (
-                          <div className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center font-bold text-[10px]">
-                            {t.employeeName.charAt(0)}
-                          </div>
-                        ) : (
-                          <div className="w-6 h-6 rounded-full border border-dashed border-slate-400 text-slate-400 flex items-center justify-center text-[10px]">+</div>
-                        )}
-                        <div>
-                          <span>{t.employeeName || 'Chưa giao'}</span>
-                          <span className="text-[10px] text-slate-400 block">{assignee?.title}</span>
-                        </div>
-                      </div>
-                    </td>
-
-                    {/* Thời gian hoàn thành */}
-                    <td className="py-3 px-3 text-slate-600 dark:text-slate-400">
-                      <div>
-                        <span className="font-bold text-slate-800 dark:text-slate-200">
-                          {t.estimatedDays} ngày ({t.estimatedDays > 1
-                            ? `${Number(t.estimatedHoursPerDay) || (Number(t.estimatedHours) / t.estimatedDays) || (assignee?.standardHours || 8)}h/ngày, ${Number(t.estimatedHours) || t.estimatedDays * (assignee?.standardHours || 8)}h tổng`
-                            : `${Number(t.estimatedHours) || t.estimatedDays * (assignee?.standardHours || 8)}h`})
-                        </span>
-                        <span className="text-[10px] text-slate-400 block">
-                          {formatDateVi(t.startDate)} → {formatDateVi(t.endDate)}
-                        </span>
-                      </div>
-                    </td>
-
-                    {/* Tiến độ % */}
-                    <td className="py-3 px-3 text-center">
-                      <div className="flex flex-col items-center">
-                        <span className={`font-bold text-xs ${overdue ? 'text-rose-600 dark:text-rose-400' : progress >= 80 && t.status !== 'completed' ? 'text-amber-600 dark:text-amber-400' : ''}`}>
-                          {progress}%{overdue ? ' · Quá hạn' : progress >= 80 && t.status !== 'completed' ? ' · Sắp hết hạn' : ''}
-                        </span>
-                        <div className="w-16 h-1 bg-slate-200 dark:bg-slate-700 rounded-full mt-1">
-                          <div
-                            className={`h-full rounded-full transition-all ${progressColor}`}
-                            style={{ width: `${progress}%` }}
-                          />
-                        </div>
-                      </div>
-                    </td>
-
-                    {/* Tình trạng sớm / đúng hạn / chậm */}
-                    <td className="py-3 px-3 text-center">
-                      {overdue && t.status !== 'completed' && (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-600 border border-rose-500/20">
-                          Quá hạn{delayHours > 0 ? ` · Trễ ${formatDelayHours(delayHours)}` : ''}
-                        </span>
-                      )}
-                      {!overdue && liveLate && (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-700 border border-amber-500/20">
-                          Chậm trễ · {formatDelayHours(delayHours)}
-                        </span>
-                      )}
-                      {t.status === 'completed' && t.speedStatus === 'early' && (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                          Hoàn thành sớm · Sớm {formatDelayHours(earlyHours)}
-                        </span>
-                      )}
-                      {t.status === 'completed' && t.speedStatus === 'on_time' && (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-500/10 text-sky-500 border border-sky-500/20">
-                          Đúng hạn
-                        </span>
-                      )}
-                      {t.status === 'completed' && t.speedStatus === 'delayed' && (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-700 border border-amber-500/20">
-                          Hoàn thành muộn{delayHours > 0 ? ` · Trễ ${formatDelayHours(delayHours)}` : ''}
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-      </div>
-
-      {/* BẢNG XẾP HẠNG HIỆU SUẤT NHÂN SỰ */}
-      <div className="p-6 rounded-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
-        <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-          <Users className="w-5 h-5 text-purple-600" />
-          Hiệu Suất & Đóng Góp Của Từng Nhân Sự APS
-        </h3>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {employees.map((emp) => {
-            const empTasks = tasks.filter(t => t.employeeId === emp.id);
-            const completedCount = empTasks.filter(t => t.status === 'completed').length;
-            const rate = empTasks.length > 0 ? Math.round((completedCount / empTasks.length) * 100) : 100;
-
-            return (
-              <div
-                key={emp.id}
-                className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60 flex items-center justify-between"
-              >
-                <div className="flex items-center gap-3">
-                  <img
-                    src={emp.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80'}
-                    alt={emp.name}
-                    className="w-11 h-11 rounded-xl object-cover border border-slate-200 dark:border-slate-700"
-                  />
-                  <div>
-                    <h4 className="font-bold text-xs text-slate-900 dark:text-white">{emp.name}</h4>
-                    <p className="text-[11px] text-sky-600 dark:text-sky-400">{emp.title}</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">{empTasks.length} task đảm nhận</p>
-                  </div>
-                </div>
-
-                <div className="text-right">
-                  <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 block">
-                    {rate}% hoàn thành
-                  </span>
-                  <span className="text-[10px] font-semibold text-amber-500 block mt-0.5">
-                    +{emp.totalOtHours || 0}h tăng ca
-                  </span>
-                </div>
+        <div className="project-overview-right">
+          {selected ? <>
+            <div className="selected-project-heading">
+              <div><p className="dashboard-eyebrow">CHI TIẾT DỰ ÁN</p><h2>{selected.name}</h2><p>{selected.code || 'Chưa có mã'} · {selected.manager || 'Chưa cập nhật quản lý'}</p></div>
+              <div className="selected-project-actions">
+                <button type="button" className="report-share-button" onClick={handleCopyReport}><Send size={14} />{copiedReport ? 'Đã sao chép' : 'Báo cáo'}</button>
               </div>
-            );
-          })}
+            </div>
+            {(selected.overdue || selected.needsReport || selected.dueSoon) && <div className={`project-alert ${selected.overdue ? 'overdue' : selected.needsReport ? 'delayed' : ''}`}><AlertTriangle size={15} /><span><strong>{selected.overdue ? 'Trễ hạn.' : selected.needsReport ? 'Trễ tiến độ · Cần báo cáo.' : 'Sắp đến hạn.'}</strong> {selected.overdue ? `Quá ${Math.abs(selected.remainingDays)} ngày` : selected.needsReport ? `${selected.delayedTasks} công việc đang chậm` : `Còn ${selected.remainingDays} ngày`} · Hoàn thành {selected.completeCount}/{selected.tasks.length} việc.</span></div>}
+            <div className="project-metrics">
+              <div><span>Công dự kiến</span><strong>{formatHours(selected.plannedHours / 8)} <small>công</small></strong><em>{formatHours(selected.plannedHours)} giờ · 8h/công</em></div>
+              <div><span>Nhân sự tham gia</span><strong>{selected.team.length} <small>người</small></strong><em>{selected.team.filter((person) => person.addedLater).length} bổ sung</em></div>
+              <div><span>Tiến độ</span><strong>{selected.progress}<small>%</small></strong><em>{selected.complete ? 'Hoàn thành' : selected.overdue ? 'Trễ hạn' : selected.needsReport ? 'Trễ tiến độ · Cần báo cáo' : 'Đang thực hiện'}</em></div>
+              <div><span>Công thực tế</span><strong>{formatHours(selected.actualHours / 8)} <small>công</small></strong><em>{formatHours(selected.actualHours)} giờ đã ghi</em></div>
+            </div>
+            <div className="team-summary-heading"><div><h3>Nhân sự & giờ công</h3><p>Giờ làm và OT đã duyệt</p></div><div className="hours-legend"><span><i className="regular-key" />Giờ làm</span><span><i className="overtime-key" />OT</span></div></div>
+            <div className="employee-report-list compact-team-list">{selected.team.length ? selected.team.map((person) => <div className="employee-report-row" key={person.id}>
+              <span className="employee-initial">{person.name.charAt(0)}</span><span className="employee-report-name">{person.name}{person.addedLater && <small>Bổ sung</small>}</span>
+              <span className="employee-hour regular-hour">{person.tracked ? `${formatHours(person.hours)}h` : '—'}</span><span className="employee-hour overtime-hour">{formatHours(person.overtime)}h</span>
+            </div>) : <div className="dashboard-empty">Chưa có nhân sự được phân công.</div>}</div>
+            {selected.team.some((person) => !person.tracked) && <p className="report-data-note">Một số người chưa có nhật ký giờ cá nhân; số giờ chưa được ước đoán.</p>}
+            <div className="project-period"><CalendarDays size={14} />{formatDate(selected.startDate)} – {formatDate(selected.endDate)}<span>·</span>{selected.tasks.length - selected.completeCount} việc còn lại</div>
+          </> : <div className="dashboard-empty">Chưa có dự án để hiển thị.</div>}
         </div>
-      </div>
+      </section>
 
+      {/* Company-wide project directory; selecting a row updates the detail panel above. */}
+      <section className="dashboard-card all-projects-card" aria-label="Tất cả dự án của công ty">
+        <div className="all-projects-heading">
+          <div><h2>Tất cả dự án của công ty</h2><p>{projectReports.length} dự án trong danh mục</p></div>
+          <label className="all-projects-search"><Search size={16} aria-hidden="true" /><input type="search" aria-label="Tìm trong tất cả dự án" placeholder="Tìm theo tên, mã hoặc quản lý..." value={projectListSearch} onChange={(event) => setProjectListSearch(event.target.value)} /></label>
+        </div>
+        <div className="all-projects-list">
+          {visibleProjects.length ? visibleProjects.map((project) => {
+            const status = project.complete ? 'completed' : project.overdue ? 'overdue' : project.needsReport ? 'delayed' : project.dueSoon ? 'due-soon' : 'in-progress';
+            const statusLabel = project.complete ? 'Hoàn thành' : project.overdue ? 'Quá hạn' : project.needsReport ? 'Cần báo cáo' : project.dueSoon ? 'Sắp đến hạn' : 'Đang thực hiện';
+            return <button type="button" className={`all-project-row ${selected?.id === project.id ? 'selected' : ''}`} key={project.id} onClick={() => setSelectedProjectId(project.id)} aria-pressed={selected?.id === project.id}>
+              <span className="all-project-name"><strong>{project.name}</strong><small>{project.code || project.manager || 'Chưa cập nhật thông tin'}</small></span>
+              <span className="all-project-progress"><span><i style={{ width: `${Math.min(100, Math.max(0, project.progress))}%` }} /></span><strong>{project.progress}%</strong></span>
+              <span className={`all-project-status ${status}`}>{statusLabel}</span>
+              <span className="all-project-deadline">Hạn {formatDate(project.endDate)}</span>
+              <span className="all-project-tasks">{project.completeCount}/{project.tasks.length} việc</span>
+            </button>;
+          }) : <div className="dashboard-empty">{projectReports.length ? 'Không tìm thấy dự án phù hợp.' : 'Chưa có dự án nào trong danh mục.'}</div>}
+        </div>
+      </section>
     </div>
   );
 }

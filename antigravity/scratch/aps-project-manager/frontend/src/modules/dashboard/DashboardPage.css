@@ -1,0 +1,117 @@
+/* Dashboard split view: company progress visualization beside the selected project report. */
+.aps-dashboard { --dash-accent:#861b36; --dash-green:#16835d; --dash-blue:#3978c5; --dash-gold:#bd8418; --dash-red:#c34d53; --dash-ink:#342f30; --dash-muted:#777174; --dash-line:#e8e3dc; --dash-surface:#fbfaf8; --dash-soft:#f5f2ed; --chart-track:#e9e5df; width:100%; min-height:100%; padding:24px clamp(16px,2vw,30px) 30px; color:var(--dash-ink); }
+.dashboard-heading { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:18px; }.dashboard-eyebrow { margin:0 0 5px; color:var(--dash-accent); font-size:9px; font-weight:800; letter-spacing:.13em; }.dashboard-heading h1 { margin:0; font-size:25px; line-height:1.2; font-weight:750; letter-spacing:-.03em; }.dashboard-subtitle { margin:6px 0 0; color:var(--dash-muted); font-size:12px; }.dashboard-date { display:inline-flex; align-items:center; gap:7px; padding:8px 10px; border:1px solid var(--dash-line); border-radius:9px; color:var(--dash-muted); background:var(--dash-surface); font-size:10px; white-space:nowrap; }
+.dashboard-card { min-width:0; border:1px solid var(--dash-line); border-radius:11px; background:var(--dash-surface); box-shadow:0 2px 7px rgb(57 42 39 / 4%); }.project-overview-layout { display:grid; grid-template-columns:minmax(330px,.76fr) minmax(0,1.24fr); overflow:hidden; }.project-overview-left { min-width:0; padding:16px; }.project-overview-right { min-width:0; padding:16px; border-left:1px solid var(--dash-line); }
+.company-overview-heading { display:flex; align-items:center; justify-content:space-between; gap:10px; padding-bottom:11px; border-bottom:1px solid var(--dash-line); }.company-overview-heading h2 { margin:0; color:var(--dash-ink); font-size:13px; font-weight:730; }.company-overview-heading p { margin:4px 0 0; color:var(--dash-muted); font-size:9px; }.company-overview-heading > span { display:inline-flex; align-items:center; gap:5px; padding:6px 8px; border-radius:7px; color:var(--dash-muted); background:var(--dash-soft); font-size:8px; white-space:nowrap; }.company-overview-heading > span strong { color:var(--dash-accent); font-size:12px; }
+.project-overview-chart-area { display:grid; grid-template-columns:minmax(135px,.8fr) minmax(130px,1fr); align-items:center; gap:12px; padding:15px 0 2px; }.company-progress-chart { display:grid; width:150px; height:150px; max-width:100%; justify-self:center; place-items:center; border-radius:50%; transform:rotate(-90deg); }.company-progress-chart > div { display:flex; width:68%; height:68%; flex-direction:column; align-items:center; justify-content:center; border-radius:50%; background:var(--dash-surface); transform:rotate(90deg); }.company-progress-chart strong { color:var(--dash-ink); font-size:25px; line-height:1; }.company-progress-chart span { margin-top:5px; color:var(--dash-muted); font-size:9px; }.company-metrics { display:grid; gap:7px; }.overview-number { display:flex; min-height:62px; flex-direction:column; justify-content:center; gap:4px; padding:8px 10px; border:1px solid var(--dash-line); border-radius:8px; background:var(--dash-surface); }.overview-number span { color:var(--dash-muted); font-size:8px; font-weight:650; }.overview-number strong { color:var(--dash-ink); font-size:17px; line-height:1; }.overview-number strong small { font-size:8px; font-weight:600; }.overview-number em { color:var(--dash-muted); font-size:7px; font-style:normal; }.overview-gold { color:var(--dash-gold)!important; }.overview-red { color:var(--dash-red)!important; }
+.selected-project-heading { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }.selected-project-title { min-width:0; }.selected-project-heading .dashboard-eyebrow { margin-bottom:4px; }.selected-project-heading h2 { margin:0; overflow:hidden; color:var(--dash-ink); font-size:16px; font-weight:750; text-overflow:ellipsis; white-space:nowrap; }.selected-project-heading p { margin:4px 0 0; overflow:hidden; color:var(--dash-muted); font-size:8px; text-overflow:ellipsis; white-space:nowrap; }.selected-project-actions { display:flex; align-items:center; gap:6px; }.project-search { display:flex; width:180px; min-width:120px; height:30px; align-items:center; gap:6px; padding:0 8px; border:1px solid var(--dash-line); border-radius:7px; color:var(--dash-muted); background:var(--dash-surface); }.project-search input { width:100%; min-width:0; border:0; outline:0; color:var(--dash-ink); background:transparent; font:inherit; font-size:8px; }.project-search input::placeholder { color:var(--dash-muted); }.report-share-button { display:inline-flex; min-height:30px; align-items:center; justify-content:center; gap:5px; padding:0 8px; border:1px solid color-mix(in srgb,var(--dash-accent) 27%,var(--dash-line)); border-radius:7px; color:var(--dash-accent); background:color-mix(in srgb,var(--dash-accent) 5%,var(--dash-surface)); font:inherit; font-size:8px; font-weight:720; cursor:pointer; white-space:nowrap; }.report-share-button:hover { background:color-mix(in srgb,var(--dash-accent) 10%,var(--dash-surface)); }
+.project-alert { display:flex; align-items:center; gap:7px; margin-bottom:9px; padding:8px 9px; border:1px solid color-mix(in srgb,var(--dash-gold) 35%,var(--dash-line)); border-radius:7px; color:var(--dash-gold); background:color-mix(in srgb,var(--dash-gold) 8%,var(--dash-surface)); font-size:8px; line-height:1.4; }.project-alert strong { color:var(--dash-ink); }.project-alert.overdue { border-color:color-mix(in srgb,var(--dash-red) 34%,var(--dash-line)); color:var(--dash-red); background:color-mix(in srgb,var(--dash-red) 7%,var(--dash-surface)); }
+.project-metrics { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; margin-bottom:10px; }.project-metrics > div { display:flex; min-height:61px; flex-direction:column; padding:8px 9px; border:1px solid var(--dash-line); border-radius:7px; background:var(--dash-soft); }.project-metrics > div > span { color:var(--dash-muted); font-size:8px; font-weight:650; }.project-metrics strong { margin-top:5px; color:var(--dash-ink); font-size:16px; line-height:1; }.project-metrics strong small { font-size:8px; font-weight:600; }.project-metrics em { margin-top:4px; color:var(--dash-muted); font-size:7px; font-style:normal; }
+.team-summary-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 0 4px; border-top:1px solid var(--dash-line); }.team-summary-heading h3 { margin:0; color:var(--dash-ink); font-size:10px; }.team-summary-heading p { margin:3px 0 0; color:var(--dash-muted); font-size:8px; }.hours-legend { display:flex; gap:9px; color:var(--dash-muted); font-size:7px; }.hours-legend span { display:flex; align-items:center; gap:4px; }.hours-legend i { width:6px; height:6px; border-radius:2px; }.regular-key { background:var(--dash-accent); }.overtime-key { background:#d69a20; }.employee-report-list { display:grid; }.compact-team-list { max-height:154px; overflow-y:auto; }.employee-report-row { display:grid; grid-template-columns:22px minmax(65px,1fr) 42px 38px; align-items:center; gap:6px; min-height:29px; border-top:1px solid var(--dash-line); }.employee-initial { display:grid; width:20px; height:20px; place-items:center; border-radius:50%; color:var(--dash-accent); background:color-mix(in srgb,var(--dash-accent) 10%,var(--dash-surface)); font-size:8px; font-weight:750; }.employee-report-name { overflow:hidden; color:var(--dash-ink); font-size:8px; text-overflow:ellipsis; white-space:nowrap; }.employee-report-name small { margin-left:4px; color:var(--dash-blue); font-size:7px; }.employee-hour { font-size:8px; font-weight:700; text-align:right; white-space:nowrap; }.regular-hour { color:var(--dash-accent); }.overtime-hour { color:#b98213; }.report-data-note,.report-footnote { margin:5px 0 0; color:var(--dash-muted); font-size:7px; line-height:1.4; }.project-period { display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-top:7px; padding-top:7px; border-top:1px solid var(--dash-line); color:var(--dash-muted); font-size:8px; }.dashboard-empty { padding:24px 8px; color:var(--dash-muted); font-size:9px; text-align:center; }
+html.dark .aps-dashboard { --dash-ink:#f0ebea; --dash-muted:#c9c0be; --dash-line:#5c5251; --dash-surface:#393536; --dash-soft:#454041; --dash-accent:#d0788b; --dash-green:#70c5a0; --dash-blue:#83afe1; --dash-gold:#edc15b; --dash-red:#e58a8d; --chart-track:#51494a; }
+@media (max-width:1100px) { .project-overview-layout { grid-template-columns:minmax(300px,.8fr) minmax(0,1.2fr); }.selected-project-heading { align-items:flex-start; flex-direction:column; }.selected-project-actions { width:100%; }.project-search { flex:1; width:auto; } }
+@media (max-width:800px) { .project-overview-layout { grid-template-columns:minmax(0,1fr); }.project-overview-right { border-top:1px solid var(--dash-line); border-left:0; }.project-overview-chart-area { grid-template-columns:180px minmax(0,1fr); }.company-progress-chart { width:158px; height:158px; }.company-metrics { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+@media (max-width:560px) { .aps-dashboard { padding:17px 12px 22px; }.dashboard-heading { align-items:flex-start; flex-direction:column; gap:9px; }.dashboard-heading h1 { font-size:22px; }.project-overview-left,.project-overview-right { padding:13px 12px; }.project-overview-chart-area { grid-template-columns:minmax(0,1fr); gap:11px; }.company-progress-chart { width:132px; height:132px; }.company-metrics { grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; }.overview-number { min-height:59px; padding:7px 6px; }.overview-number span { font-size:7px; }.overview-number strong { font-size:15px; }.overview-number em { font-size:6px; }.selected-project-actions { align-items:stretch; flex-wrap:wrap; }.project-search { flex-basis:100%; }.project-metrics { gap:5px; }.project-metrics > div { min-height:58px; padding:7px; }.project-metrics strong { font-size:15px; }.employee-report-row { grid-template-columns:20px minmax(55px,1fr) 39px 35px; gap:5px; } }
+
+/* Keep the chart as the visual focus and place company metrics beneath it. */
+.project-overview-chart-area { grid-template-columns:minmax(0,1fr); justify-items:center; gap:15px; }
+.company-progress-chart { width:196px; height:196px; }
+.company-metrics { width:100%; grid-template-columns:repeat(3,minmax(0,1fr)); }
+@media (max-width:800px) { .company-progress-chart { width:180px; height:180px; } }
+@media (max-width:560px) { .company-progress-chart { width:156px; height:156px; } }
+
+/* Raise dashboard type sizes for comfortable reading at normal zoom. */
+.dashboard-eyebrow { font-size:11px; }
+.dashboard-heading h1 { font-size:28px; }
+.dashboard-subtitle { font-size:14px; }
+.dashboard-date { font-size:12px; }
+.company-overview-heading h2 { font-size:16px; }
+.company-overview-heading p { font-size:11px; }
+.company-overview-heading > span { font-size:10px; }
+.company-overview-heading > span strong { font-size:14px; }
+.company-progress-chart strong { font-size:30px; }
+.company-progress-chart span { font-size:11px; }
+.overview-number span { font-size:10px; }
+.overview-number strong { font-size:20px; }
+.overview-number strong small { font-size:10px; }
+.overview-number em { font-size:9px; }
+.selected-project-heading h2 { font-size:20px; }
+.selected-project-heading p { font-size:11px; }
+.report-share-button { font-size:11px; }
+.project-alert { font-size:11px; }
+.project-metrics > div > span { font-size:10px; }
+.project-metrics strong { font-size:20px; }
+.project-metrics strong small { font-size:10px; }
+.project-metrics em { font-size:9px; }
+.team-summary-heading h3 { font-size:13px; }
+.team-summary-heading p { font-size:10px; }
+.hours-legend { font-size:9px; }
+.employee-report-name { font-size:11px; }
+.employee-report-name small { font-size:9px; }
+.employee-hour { font-size:10px; }
+.report-data-note,.report-footnote { font-size:9px; }
+.project-period { font-size:10px; }
+.dashboard-empty { font-size:11px; }
+
+/* Increase dashboard typography further for legibility on dense project data. */
+.dashboard-heading h1 { font-size:30px; }
+.dashboard-subtitle { font-size:15px; }
+.company-overview-heading h2 { font-size:19px; }
+.company-overview-heading p { font-size:13px; }
+.company-progress-chart strong { font-size:34px; }
+.company-progress-chart span { font-size:13px; }
+.overview-number { gap:6px; padding:10px 12px; }
+.overview-number span { font-size:12px; }
+.overview-number strong { font-size:23px; }
+.overview-number strong small { font-size:12px; }
+.overview-number em { font-size:10px; }
+.selected-project-heading h2 { font-size:23px; }
+.selected-project-heading p { font-size:13px; }
+.project-alert { font-size:12px; }
+.project-metrics > div { padding:10px 11px; }
+.project-metrics > div > span { font-size:12px; }
+.project-metrics strong { font-size:22px; }
+.project-metrics strong small { font-size:12px; }
+.project-metrics em { font-size:10px; }
+.team-summary-heading h3 { font-size:15px; }
+.team-summary-heading p { font-size:12px; }
+.hours-legend { font-size:11px; }
+.employee-report-name { font-size:13px; }
+.employee-report-name small { font-size:10px; }
+.employee-hour { font-size:12px; }
+.report-data-note,.report-footnote { font-size:10px; }
+.project-period { font-size:12px; }
+.all-projects-heading h2 { font-size:19px; }
+.all-projects-heading p { font-size:13px; }
+.all-projects-search input { font-size:13px; }
+.all-project-name strong { font-size:14px; }
+.all-project-name small,.all-project-deadline,.all-project-tasks { font-size:12px; }
+.all-project-progress strong,.all-project-status { font-size:12px; }
+
+/* Scannable company-wide project list with selection linked to the detail pane. */
+.all-projects-card { margin-top:14px; padding:16px; }
+.all-projects-heading { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.all-projects-heading h2 { margin:0; color:var(--dash-ink); font-size:16px; }
+.all-projects-heading p { margin:4px 0 0; color:var(--dash-muted); font-size:11px; }
+.all-projects-search { display:flex; width:min(340px,45%); min-height:36px; align-items:center; gap:8px; padding:0 10px; border:1px solid var(--dash-line); border-radius:8px; color:var(--dash-muted); background:var(--dash-surface); }
+.all-projects-search:focus-within { border-color:var(--dash-accent); box-shadow:0 0 0 2px color-mix(in srgb,var(--dash-accent) 12%,transparent); }
+.all-projects-search input { width:100%; min-width:0; border:0; outline:0; color:var(--dash-ink); background:transparent; font:inherit; font-size:11px; }
+.aps-dashboard .all-projects-search input:focus-visible { outline:0; box-shadow:none; }
+.all-projects-search input::placeholder { color:var(--dash-muted); }
+.all-projects-list { display:grid; }
+.all-project-row { display:grid; grid-template-columns:minmax(150px,1.3fr) minmax(120px,1fr) 115px 130px 70px; align-items:center; gap:12px; min-height:56px; padding:8px 10px; border:0; border-top:1px solid var(--dash-line); color:var(--dash-ink); background:transparent; font:inherit; text-align:left; cursor:pointer; }
+.all-project-row:hover,.all-project-row.selected { background:var(--dash-soft); }
+.all-project-name { display:grid; gap:3px; min-width:0; }
+.all-project-name strong { overflow:hidden; font-size:12px; text-overflow:ellipsis; white-space:nowrap; }
+.all-project-name small,.all-project-deadline,.all-project-tasks { overflow:hidden; color:var(--dash-muted); font-size:10px; text-overflow:ellipsis; white-space:nowrap; }
+.all-project-progress { display:flex; align-items:center; gap:8px; }
+.all-project-progress > span { height:6px; flex:1; overflow:hidden; border-radius:99px; background:var(--chart-track); }
+.all-project-progress i { display:block; height:100%; border-radius:inherit; background:var(--dash-accent); }
+.all-project-progress strong { min-width:34px; font-size:11px; text-align:right; }
+.all-project-status { justify-self:start; padding:4px 7px; border-radius:999px; font-size:10px; font-weight:700; white-space:nowrap; }
+.all-project-status.completed { color:var(--dash-green); background:color-mix(in srgb,var(--dash-green) 12%,var(--dash-surface)); }
+.all-project-status.in-progress { color:var(--dash-blue); background:color-mix(in srgb,var(--dash-blue) 12%,var(--dash-surface)); }
+.all-project-status.due-soon { color:var(--dash-gold); background:color-mix(in srgb,var(--dash-gold) 13%,var(--dash-surface)); }
+.all-project-status.delayed,.all-project-status.overdue { color:var(--dash-red); background:color-mix(in srgb,var(--dash-red) 12%,var(--dash-surface)); }
+@media (max-width:800px) { .all-project-row { grid-template-columns:minmax(130px,1fr) minmax(100px,.8fr) 110px; gap:9px; }.all-project-deadline,.all-project-tasks { display:none; } }
+@media (max-width:560px) { .all-projects-card { padding:13px 10px; }.all-projects-heading { align-items:stretch; flex-direction:column; gap:9px; }.all-projects-search { width:100%; }.all-project-row { grid-template-columns:minmax(100px,1fr) minmax(80px,.8fr); gap:8px; }.all-project-status { grid-column:2; grid-row:1; justify-self:end; }.all-project-progress { grid-column:1 / -1; }.all-project-name strong { font-size:11px; } }
