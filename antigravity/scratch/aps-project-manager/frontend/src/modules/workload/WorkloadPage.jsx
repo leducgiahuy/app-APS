@@ -141,7 +141,7 @@ function actualHoursForPeriod(tasks, employee, start, end, now) {
 }
 
 export default function WorkloadPage() {
-  const { employees, tasks, ganttItems, currentTime, setActiveTab, selectDate } = useApp();
+  const { employees, tasks, ganttItems, projects, currentTime, setActiveTab, selectDate } = useApp();
   const currentUser = getCurrentUser();
   const isAdmin = currentUser?.role === 'admin';
   const personalEmployee = isAdmin ? null : resolveEmployee(currentUser, employees);
@@ -311,9 +311,15 @@ export default function WorkloadPage() {
                       const activity = taskActivityForDay(task, employee, selectedDay, currentTime);
                       const planned = hoursPerTaskDay(task);
                       const taskCode = getGanttTaskCode(task, ganttItems);
+                      const linkedGanttItem = ganttItems.find(item => item.id === task.ganttId);
+                      const projectId = linkedGanttItem?.projectId || task.projectId;
+                      const groupId = linkedGanttItem?.parentGroupId || task.parentGroupId;
+                      const group = ganttItems.find(item => item.id === groupId && item.isGroup);
+                      const groupName = group && (!projectId || !group.projectId || group.projectId === projectId) ? group.title : '';
+                      const projectName = projects.find(project => project.id === projectId)?.name || task.projectName || 'Chưa gắn dự án';
                       return <article className="workload-day-task" key={task.id}>
                         <div className="workload-day-task-top"><strong>{taskCode && <span className="workload-task-code">{taskCode}</span>}{task.title}</strong><span>{activity.hasActualLog ? `${formatHours(activity.actualHours)}h thực tế` : `${formatHours(planned)}h dự kiến`}</span></div>
-                        <small>{task.projectName || 'Chưa gắn dự án'} · {task.phase || 'Công việc được giao'}</small>
+                        <small>{groupName || projectName}</small>
                         {activity.sessions.map(session => <small className="workload-session-time" key={session.id}>{sessionTimeLabel(session)} · {formatHours(Number(session.hours) || 0)}h đã làm</small>)}
                         {activity.isRunning && <small className="workload-session-time running">Đang làm · {formatHours(activity.actualHours)}h tính đến hiện tại</small>}
                         {!activity.hasActualLog && <small className="workload-no-log">Chưa có nhật ký giờ thực tế cho ngày này</small>}

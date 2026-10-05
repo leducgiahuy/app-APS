@@ -19,15 +19,16 @@
 .workload-period-switch button { border: 0; border-radius: 8px; padding: 7px 13px; background: transparent; color: #686164; font-size: 14px; font-weight: 700; cursor: pointer; }
 .workload-period-switch button.active { background: #fbfaf8; color: #861b36; box-shadow: 0 1px 4px rgb(52 47 48 / 10%); }
 .dark .workload-period-switch button.active { background: #51494a; color: #edb2bf; }
-.workload-period-picker { display: flex; align-items: center; gap: 7px; }
-.workload-period-picker input { min-width: 145px; height: 34px; border: 1px solid #ddd7ce; border-radius: 9px; padding: 0 9px; background: #fbfaf8; color: #342f30; font: inherit; font-size: 12px; font-weight: 650; }
-.workload-period-picker input[type=number] { width: 94px; min-width: 94px; }
-.workload-date-button { display: inline-flex; min-height: 34px; align-items: center; gap: 9px; border: 1px solid #ddd7ce; border-radius: 9px; padding: 0 12px; background: #fbfaf8; color: #342f30; font-size: 14px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.workload-period-picker { display: flex; width: 300px; flex: 0 0 300px; align-items: center; justify-content: space-between; gap: 7px; }
+.workload-period-picker input { box-sizing: border-box; width: 218px; min-width: 218px; height: 34px; border: 1px solid #ddd7ce; border-radius: 9px; padding: 0 9px; background: #fbfaf8; color: #342f30; font: inherit; font-size: 12px; font-weight: 650; }
+.workload-period-picker input[type=number] { width: 218px; min-width: 218px; }
+.workload-date-button { box-sizing: border-box; display: inline-flex; width: 218px; min-width: 218px; min-height: 34px; align-items: center; gap: 9px; overflow: hidden; border: 1px solid #ddd7ce; border-radius: 9px; padding: 0 12px; background: #fbfaf8; color: #342f30; font-size: 14px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.workload-date-button span { overflow: hidden; text-overflow: ellipsis; }
 .workload-date-button svg { color: #861b36; }
 .dark .workload-date-button { border-color: #655b5a; background: #393536; color: #f0ebea; }
 .workload-date-picker-input { position: absolute; width: 1px !important; min-width: 1px !important; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .dark .workload-period-picker input { border-color: #655b5a; background: #393536; color: #f0ebea; }
-.workload-icon-button { display: grid; width: 34px; height: 34px; place-items: center; border: 1px solid #ddd7ce; border-radius: 9px; background: #fbfaf8; color: #686164; cursor: pointer; }
+.workload-icon-button { display: grid; width: 34px; height: 34px; flex: 0 0 34px; place-items: center; border: 1px solid #ddd7ce; border-radius: 9px; background: #fbfaf8; color: #686164; cursor: pointer; }
 .dark .workload-icon-button { border-color: #655b5a; background: #393536; color: #d6cecb; }
 .workload-period-caption { margin-left: 5px; color: #686164; font-size: 14px; font-weight: 700; text-transform: capitalize; }
 .dark .workload-period-caption { color: #d6cecb; }
@@ -162,7 +163,9 @@
   .workload-heading { gap: 15px; }
   .workload-assign-button { justify-content: center; }
   .workload-toolbar-actions { width: 100%; flex-direction: column; align-items: stretch; }
-  .workload-period-picker { justify-content: space-between; flex-wrap: wrap; }
+  .workload-period-picker { width: min(300px, 100%); flex: 0 1 300px; justify-content: center; flex-wrap: nowrap; }
+  .workload-period-picker input, .workload-date-button { width: calc(100% - 82px); min-width: 0; }
+  .workload-period-picker input[type=number] { width: calc(100% - 82px); min-width: 0; }
   .workload-period-caption { flex: 1 0 100%; margin: 2px 0 0; text-align: center; }
   .workload-search { min-width: 0; }
   .workload-summary-grid { grid-template-columns: 1fr; }

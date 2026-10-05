@@ -142,14 +142,14 @@ export default function Header() {
           </div>
 
           {/* Bộ điều khiển ngày tháng (Lùi ngày, Hôm nay, Tiến ngày) */}
-          <div className="hidden md:flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+          <div className="hidden md:flex w-[350px] shrink-0 items-center justify-between gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
             <button
               onClick={() => {
                 if (isGanttView) setGanttMonth(new Date(ganttMonth.getFullYear(), ganttMonth.getMonth() - 1, 1));
                 else goToPrevDay();
               }}
               title={isGanttView ? 'Lùi 1 tháng' : 'Lùi 1 ngày'}
-              className="p-1 rounded-lg text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-white dark:hover:bg-slate-700 transition-colors"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-white dark:hover:bg-slate-700 transition-colors"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
@@ -159,7 +159,7 @@ export default function Header() {
                 type="button"
                 onClick={openDayPicker}
                 title={isGanttView ? 'Chọn tháng và năm' : 'Mở lịch để chọn ngày'}
-                className="inline-flex items-center gap-1.5 px-2 text-xs font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap hover:text-sky-600 dark:hover:text-sky-400"
+                className="inline-flex w-[176px] shrink-0 items-center justify-center gap-1.5 overflow-hidden px-2 text-xs font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap hover:text-sky-600 dark:hover:text-sky-400"
               >
                 <Calendar className="w-3.5 h-3.5" />
                 {isGanttView ? `Tháng ${ganttMonth.getMonth() + 1}/${ganttMonth.getFullYear()}` : formatVietnameseDate(selectedDate)}
@@ -187,7 +187,7 @@ export default function Header() {
                 else goToNextDay();
               }}
               title={isGanttView ? 'Tiến 1 tháng' : 'Tiến 1 ngày'}
-              className="p-1 rounded-lg text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-white dark:hover:bg-slate-700 transition-colors"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-white dark:hover:bg-slate-700 transition-colors"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
@@ -198,7 +198,7 @@ export default function Header() {
                 else goToToday();
               }}
               title={isGanttView ? 'Trở về tháng này' : 'Trở về hôm nay'}
-              className="ml-1 px-2 py-0.5 rounded-lg text-[11px] font-bold bg-sky-600 text-white hover:bg-sky-500 transition-colors"
+              className="ml-1 w-[82px] shrink-0 whitespace-nowrap rounded-lg px-2 py-0.5 text-center text-[11px] font-bold bg-sky-600 text-white hover:bg-sky-500 transition-colors"
             >
               {isGanttView ? 'Tháng này' : 'Hôm nay'}
             </button>

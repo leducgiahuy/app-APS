@@ -1,20 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Activity, Download, LogIn, Search, Trash2, UserRound, UsersRound } from 'lucide-react';
+import { Activity, Download, Search, Trash2 } from 'lucide-react';
 import { clearActivityLog, clearSharedActivityLog, fetchSharedActivityLog, getActivityLog, getCurrentUser, getUsers, recordActivity } from './authSession';
 import './AdminActivityPage.css';
 
 const ACTION_LABELS = {
-  'auth.login': 'Đăng nhập',
-  'auth.logout': 'Đăng xuất',
-  'auth.login.failed': 'Đăng nhập thất bại',
-  'profile.update': 'Cập nhật hồ sơ',
-  'password.change': 'Đổi mật khẩu',
-  'password.reset': 'Cấp lại mật khẩu',
-  'user.create': 'Tạo tài khoản',
-  'user.profile.update': 'Admin sửa hồ sơ user',
-  'activity.clear': 'Xóa nhật ký',
-  'module.view': 'Mở phân hệ',
-  'employee.attendance': 'Cập nhật điểm danh',
   'employee.create': 'Thêm nhân sự',
   'employee.delete': 'Xóa nhân sự',
   'task.create': 'Tạo công việc',
@@ -23,33 +12,47 @@ const ACTION_LABELS = {
   'overtime.create': 'Tạo đăng ký tăng ca',
   'overtime.delete': 'Xóa đăng ký tăng ca',
   'project.create': 'Tạo dự án',
+  'project.update': 'Cập nhật dự án',
   'project.delete': 'Xóa dự án',
   'gantt.create': 'Thêm hạng mục Gantt',
   'gantt.update': 'Sửa hạng mục Gantt',
-  'gantt.reorder': 'Sắp xếp hạng mục Gantt',
   'gantt.delete': 'Xóa hạng mục Gantt',
 };
 
-/** Gom loại sự kiện để admin lọc nhanh nhật ký theo nhóm công việc. */
+const CATEGORY_LABELS = {
+  employee: 'Nhân sự',
+  task: 'Công việc',
+  overtime: 'Tăng ca',
+  project: 'Dự án',
+  gantt: 'Tiến độ dự án',
+};
+
 function getCategory(action) {
-  if (action.startsWith('auth.')) return 'auth';
-  if (action.startsWith('user.') || action.startsWith('profile.') || action.startsWith('password.') || action.startsWith('activity.')) return 'accounts';
-  if (action === 'module.view') return 'navigation';
-  return 'data';
+  const prefix = action.split('.')[0];
+  return Object.hasOwn(CATEGORY_LABELS, prefix) && Object.hasOwn(ACTION_LABELS, action) ? prefix : null;
 }
 
 /** Trang theo dõi hoạt động chỉ được render từ App khi phiên hiện tại là admin. */
 export default function AdminActivityPage() {
+  const pageSize = 50;
   const [events, setEvents] = useState(getActivityLog);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('all');
   const [userEmail, setUserEmail] = useState('all');
+  const [page, setPage] = useState(1);
   const currentUser = getCurrentUser();
   const users = getUsers();
 
   // Cập nhật nhật ký nếu có thao tác phát sinh từ tab trình duyệt khác.
   useEffect(() => {
-    const refresh = async () => setEvents((await fetchSharedActivityLog()) || getActivityLog());
+    const refresh = async () => {
+      const sharedEvents = await fetchSharedActivityLog();
+      if (!sharedEvents) return;
+      setEvents(current => current.length === sharedEvents.length &&
+        current.every((event, index) => event.id === sharedEvents[index]?.id)
+        ? current
+        : sharedEvents);
+    };
     window.addEventListener('storage', refresh);
     refresh();
     const timer = window.setInterval(refresh, 5000);
@@ -59,18 +62,19 @@ export default function AdminActivityPage() {
     };
   }, []);
 
-  const todayEvents = useMemo(() => events.filter((event) => new Date(event.timestamp).toDateString() === new Date().toDateString()), [events]);
-  const activeUsers = useMemo(() => new Set(events.map((event) => event.email)).size, [events]);
-  const signIns = useMemo(() => events.filter((event) => event.action === 'auth.login').length, [events]);
+  const importantEvents = useMemo(() => events.filter((event) => getCategory(event.action)), [events]);
   const filteredEvents = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
-    return events.filter((event) => {
+    return importantEvents.filter((event) => {
       const matchesCategory = category === 'all' || getCategory(event.action) === category;
       const matchesUser = userEmail === 'all' || event.email === userEmail;
       const searchText = `${event.name} ${event.email} ${event.details} ${ACTION_LABELS[event.action] || event.action}`.toLowerCase();
       return matchesCategory && matchesUser && (!normalizedQuery || searchText.includes(normalizedQuery));
     });
-  }, [events, query, category, userEmail]);
+  }, [importantEvents, query, category, userEmail]);
+  const pageCount = Math.ceil(filteredEvents.length / pageSize);
+  const currentPage = Math.min(page, Math.max(1, pageCount));
+  const pageEvents = filteredEvents.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   /** Xóa nhật ký sau khi admin xác nhận, rồi giữ lại sự kiện xóa để kiểm toán. */
   async function handleClear() {
@@ -79,6 +83,7 @@ export default function AdminActivityPage() {
     await clearSharedActivityLog();
     recordActivity('activity.clear', 'Admin đã xóa toàn bộ nhật ký hoạt động.', currentUser.email);
     setEvents(getActivityLog());
+    setPage(1);
   }
 
   /** Tải các sự kiện đang lọc thành CSV để admin lưu hoặc tổng hợp báo cáo. */
@@ -101,26 +106,24 @@ export default function AdminActivityPage() {
   return (
     <section className="activity-page">
       <div className="activity-overview">
-        <div className="activity-stats">
-          <article><span className="activity-stat-icon amber"><Activity size={19} /></span><div><small>TỔNG SỰ KIỆN</small><b>{events.length}</b></div><i>được lưu gần nhất</i></article>
-          <article><span className="activity-stat-icon blue"><UsersRound size={19} /></span><div><small>NGƯỜI DÙNG</small><b>{activeUsers}</b></div><i>đã có hoạt động</i></article>
-          <article><span className="activity-stat-icon green"><LogIn size={19} /></span><div><small>ĐĂNG NHẬP HÔM NAY</small><b>{todayEvents.filter((event) => event.action === 'auth.login').length}</b></div><i>lượt đăng nhập</i></article>
-          <article><span className="activity-stat-icon violet"><UserRound size={19} /></span><div><small>TỔNG LƯỢT ĐĂNG NHẬP</small><b>{signIns}</b></div><i>trong nhật ký</i></article>
-        </div>
-
         <div className="activity-toolbar">
-          <label className="activity-search"><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm theo tên, email hoặc nội dung..." /></label>
-          <select aria-label="Lọc theo nhóm hoạt động" value={category} onChange={(event) => setCategory(event.target.value)}><option value="all">Tất cả hoạt động</option><option value="auth">Đăng nhập / đăng xuất</option><option value="accounts">Tài khoản và hồ sơ</option><option value="data">Dữ liệu dự án</option><option value="navigation">Truy cập phân hệ</option></select>
-          <select aria-label="Lọc theo user" value={userEmail} onChange={(event) => setUserEmail(event.target.value)}><option value="all">Tất cả user</option>{users.map((user) => <option key={user.email} value={user.email}>{user.name}</option>)}</select>
+          <label className="activity-search"><Search size={17} /><input value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="Tìm theo tên, email hoặc nội dung..." /></label>
+          <select aria-label="Lọc theo loại dữ liệu" value={category} onChange={(event) => { setCategory(event.target.value); setPage(1); }}><option value="all">Tất cả dữ liệu</option>{Object.entries(CATEGORY_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
+          <select aria-label="Lọc theo user" value={userEmail} onChange={(event) => { setUserEmail(event.target.value); setPage(1); }}><option value="all">Tất cả user</option>{users.map((user) => <option key={user.email} value={user.email}>{user.name}</option>)}</select>
           <button className="activity-export" type="button" onClick={handleExport} disabled={!filteredEvents.length}><Download size={16} /> Xuất CSV</button>
           <button className="activity-clear" type="button" onClick={handleClear} disabled={!events.length}><Trash2 size={16} /> Xóa nhật ký</button>
         </div>
       </div>
 
-      <div className="activity-list-header"><div><h3>Lịch sử gần đây</h3><p>Hiển thị {filteredEvents.length} / {events.length} sự kiện</p></div><span><i /> Đang theo dõi</span></div>
+      <div className="activity-list-header"><div><h3>Lịch sử cập nhật dữ liệu</h3><p>Hiển thị {filteredEvents.length} / {importantEvents.length} cập nhật quan trọng</p></div><span><i /> Đang theo dõi</span></div>
       {filteredEvents.length ? <div className="activity-table-wrap"><table className="activity-table"><thead><tr><th>Thời gian</th><th>Người dùng</th><th>Hoạt động</th><th>Chi tiết</th></tr></thead><tbody>
-        {filteredEvents.map((event) => <tr key={event.id}><td className="activity-time">{formatDate(event.timestamp)}</td><td><div className="activity-user"><span>{event.name.slice(0, 1).toUpperCase()}</span><div><b>{event.name}</b><small>{event.email}</small></div></div></td><td><span className={`activity-event-pill ${getCategory(event.action)}`}>{ACTION_LABELS[event.action] || event.action}</span><small className="activity-role">{event.role === 'admin' ? 'Admin' : 'User'}</small></td><td className="activity-detail">{event.details || '—'}</td></tr>)}
-      </tbody></table></div> : <div className="activity-empty"><Activity size={28} /><b>Chưa tìm thấy hoạt động</b><span>Thử đổi từ khóa hoặc bộ lọc.</span></div>}
+        {pageEvents.map((event) => <tr key={event.id}><td className="activity-time">{formatDate(event.timestamp)}</td><td><div className="activity-user"><span>{event.name.slice(0, 1).toUpperCase()}</span><div><b>{event.name}</b><small>{event.email}</small></div></div></td><td><span className="activity-event-pill data">{ACTION_LABELS[event.action]}</span><small className="activity-role">{event.role === 'admin' ? 'Admin' : 'User'}</small></td><td className="activity-detail">{event.details || '—'}</td></tr>)}
+      </tbody></table></div> : <div className="activity-empty"><Activity size={28} /><b>Chưa có cập nhật dữ liệu</b><span>Các thay đổi quan trọng như thêm nhân sự, tạo công việc hoặc dự án sẽ hiển thị tại đây.</span></div>}
+      {filteredEvents.length > 0 && <nav className="activity-pagination" aria-label="Phân trang nhật ký">
+        <button type="button" onClick={() => setPage(currentPage - 1)} disabled={currentPage <= 1}>Trước</button>
+        <span>Trang {currentPage}/{pageCount}</span>
+        <button type="button" onClick={() => setPage(currentPage + 1)} disabled={currentPage >= pageCount}>Sau</button>
+      </nav>}
     </section>
   );
 }

@@ -360,11 +360,27 @@ export function replaceGanttPredecessorLink(successor, predecessorIds, insertedI
 export function updateGanttItem(req, res) {
   const db = readDb();
   const { id } = req.params;
-  const { startDate, endDate, estimatedHoursPerDay, assignees } = req.body;
+  const { startDate, endDate, estimatedHoursPerDay, assignees, title } = req.body;
   const item = (db.ganttItems || []).find(ganttItem => ganttItem.id === id);
 
   if (!item) {
     return res.status(404).json({ success: false, message: 'Không tìm thấy hạng mục Gantt' });
+  }
+
+  if (title !== undefined) {
+    const normalizedTitle = typeof title === 'string' ? title.trim() : '';
+    if (!item.isGroup || !normalizedTitle || normalizedTitle.length > 120) {
+      return res.status(400).json({ success: false, message: 'Tên mục công việc không hợp lệ' });
+    }
+    item.title = normalizedTitle;
+    if (!writeDb(db)) {
+      return res.status(500).json({ success: false, message: 'Không thể lưu tên mục công việc. Vui lòng thử lại.' });
+    }
+    return res.json({
+      success: true,
+      message: `Đã cập nhật mục công việc "${item.title}"`,
+      data: item
+    });
   }
 
   const nextStartDate = startDate || item.startDate;

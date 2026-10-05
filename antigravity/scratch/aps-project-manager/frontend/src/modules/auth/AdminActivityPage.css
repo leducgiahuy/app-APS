@@ -1,17 +1,5 @@
 .activity-page { box-sizing: border-box; display: flex; flex-direction: column; gap: 10px; width: 100%; min-height: calc(100vh - 4rem); min-height: calc(100dvh - 4rem); padding: 0 0 16px; color: #293943; }
 .activity-overview { position: sticky; top: 4rem; z-index: 20; flex: 0 0 auto; margin: 0; padding: 0; background: #f5f3ef; }
-.activity-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; border: 1px solid #dde4e5; }
-.activity-stats article { position: relative; display: flex; align-items: center; gap: 12px; min-height: 88px; padding: 15px; border: 0; border-right: 1px solid #dde4e5; border-radius: 0; background: #fafbfb; box-shadow: none; }
-.activity-stats article:last-child { border-right: 0; }
-.activity-stat-icon { display: grid; place-items: center; width: 40px; height: 40px; flex: 0 0 auto; border-radius: 12px; }
-.activity-stat-icon.amber { color: #9b742b; background: #f4ecd9; }
-.activity-stat-icon.blue { color: #861b36; background: #f5e6e9; }
-.activity-stat-icon.green { color: #4b806d; background: #e6f0e9; }
-.activity-stat-icon.violet { color: #746e98; background: #eeedf5; }
-.activity-stats article div { display: flex; flex-direction: column; gap: 4px; }
-.activity-stats small { color: #76848a; font-size: 10px; font-weight: 800; letter-spacing: .07em; }
-.activity-stats b { color: #2a3941; font-size: 23px; line-height: 1; }
-.activity-stats article > i { align-self: flex-end; margin-left: auto; color: #929da1; font-size: 11px; font-style: normal; white-space: nowrap; }
 .activity-toolbar { display: flex; align-items: center; gap: 9px; padding: 10px 13px; border: 0 solid #dce3e4; border-right-width: 1px; border-bottom-width: 1px; border-left-width: 1px; border-radius: 0; background: #fafbfb; }
 .activity-search { display: flex; align-items: center; gap: 9px; flex: 1; min-width: 160px; height: 39px; padding: 0 11px; border: 1px solid #dfe5e6; border-radius: 8px; color: #8a989d; background: #f4f6f6; }
 .activity-search:focus-within { border-color: #9eb6bd; box-shadow: 0 0 0 3px rgb(104 144 154 / 11%); }
@@ -32,6 +20,9 @@
 .activity-table td { padding: 13px 14px; border-bottom: 1px solid #e8eceb; color: #45545c; font-size: 13px; vertical-align: middle; }
 .activity-table tbody tr:last-child td { border-bottom: 0; }
 .activity-table tbody tr:hover { background: #f5f8f7; }
+.activity-pagination { display: flex; align-items: center; justify-content: flex-end; gap: 12px; padding: 0 12px; color: #728087; font-size: 12px; }
+.activity-pagination button { min-width: 68px; height: 32px; padding: 0 10px; border: 1px solid #dce3e4; border-radius: 7px; color: #861b36; background: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+.activity-pagination button:disabled { opacity: .45; cursor: not-allowed; }
 .activity-time { min-width: 125px; color: #728087 !important; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .activity-user { display: flex; align-items: center; gap: 9px; min-width: 175px; }
 .activity-user > span { display: grid; place-items: center; width: 31px; height: 31px; flex: 0 0 auto; border: 1px solid #d5dfe1; border-radius: 10px; color: #527585; background: #eaf0f1; font-size: 11px; font-weight: 800; }
@@ -49,15 +40,9 @@
 .activity-empty b { color: #465860; font-size: 14px; }
 .activity-empty span { color: #849196; font-size: 12px; }
 html.dark .activity-overview { background: #2c292a; }
-html.dark .activity-stats b, html.dark .activity-list-header h3 { color: #f0ebea; }
+html.dark .activity-list-header h3 { color: #f0ebea; }
 html.dark .activity-list-header p { color: #c9c0be; }
-html.dark .activity-stats { border-color: #5c5251; }
-html.dark .activity-stats article, html.dark .activity-toolbar, html.dark .activity-table-wrap { border-color: #5c5251; background: #393536; }
-html.dark .activity-stats small, html.dark .activity-stats article > i { color: #c9c0be; }
-html.dark .activity-stat-icon.amber { color: #f0d58f; background: #463b27; }
-html.dark .activity-stat-icon.blue { color: #edb2bf; background: #4c3038; }
-html.dark .activity-stat-icon.green { color: #a4d3bb; background: #293a32; }
-html.dark .activity-stat-icon.violet { color: #c7c1ed; background: #403b4d; }
+html.dark .activity-toolbar, html.dark .activity-table-wrap { border-color: #5c5251; background: #393536; }
 html.dark .activity-toolbar select, html.dark .activity-search { border-color: #655b5a; color: #d6cecb; background: #393536; }
 html.dark .activity-search:focus-within { border-color: #b84b65; box-shadow: 0 0 0 3px rgb(184 75 101 / 16%); }
 html.dark .activity-search input { color: #f0ebea; }
@@ -77,5 +62,7 @@ html.dark .activity-list-header > span { color: #a4d3bb; }
 html.dark .activity-list-header i { background: #7fb99b; box-shadow: 0 0 0 4px #293a32; }
 html.dark .activity-empty { border-color: #655b5a; color: #c9c0be; background: #393536; }
 html.dark .activity-empty span { color: #a99e9b; }
-@media (max-width: 1100px) { .activity-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .activity-toolbar { flex-wrap: wrap; } .activity-search { flex-basis: 100%; } }
-@media (max-width: 640px) { .activity-stats { grid-template-columns: 1fr 1fr; } .activity-stats article { flex-wrap: wrap; gap: 8px; min-height: 82px; padding: 10px; } .activity-stats article:nth-child(2) { border-right: 0; } .activity-stats article:nth-child(-n+2) { border-bottom: 1px solid #dde4e5; } .activity-stats article > i { display: none; } .activity-stats small { font-size: 9px; } .activity-toolbar { flex-wrap: wrap; } .activity-search { flex-basis: 100%; } .activity-toolbar select { flex: 1; min-width: 135px; } .activity-export, .activity-clear { flex: 1; } .activity-table { min-width: 720px; } html.dark .activity-stats article:nth-child(-n+2) { border-bottom-color: #5c5251; } }
+html.dark .activity-pagination { color: #c9c0be; }
+html.dark .activity-pagination button { border-color: #655b5a; color: #edb2bf; background: #454041; }
+@media (max-width: 1100px) { .activity-toolbar { flex-wrap: wrap; } .activity-search { flex-basis: 100%; } }
+@media (max-width: 640px) { .activity-toolbar { flex-wrap: wrap; } .activity-search { flex-basis: 100%; } .activity-toolbar select { flex: 1; min-width: 135px; } .activity-export, .activity-clear { flex: 1; } .activity-table { min-width: 720px; } }

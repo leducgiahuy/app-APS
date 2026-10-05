@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { api } from '../api';
 import { recordActivity } from '../modules/auth/authSession';
 
@@ -12,16 +12,6 @@ export function AppProvider({ children }) {
 
   // Tab điều hướng chính
   const [activeTab, setActiveTab] = useState('hr'); // 'hr', 'tasks', 'gantt', 'dashboard'
-  const previousTab = useRef('');
-
-  // Ghi nhận màn hình được mở để admin xem lịch sử sử dụng từng phân hệ.
-  useEffect(() => {
-    if (previousTab.current !== activeTab) {
-      recordActivity('module.view', `Mở phân hệ ${activeTab}.`);
-    }
-    previousTab.current = activeTab;
-  }, [activeTab]);
-
   // Thời gian thực (Real-time Clock chạy từng giây)
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -336,6 +326,8 @@ export function AppProvider({ children }) {
   const updateProject = async (id, projectData) => {
     try {
       await api.updateProject(id, projectData);
+      const projectName = projects.find(item => item.id === id)?.name || id;
+      recordActivity('project.update', `Cập nhật thông tin dự án ${projectName}.`);
       showToast('Đã cập nhật thời gian dự án');
       await refreshAllData();
       return true;
@@ -410,9 +402,12 @@ export function AppProvider({ children }) {
 
   // Hành động: Xóa công việc khỏi Gantt
   const deleteGanttItem = async (id) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa hạng mục này khỏi tiến độ?')) return;
+    const item = ganttItems.find(entry => entry.id === id);
+    const confirmMessage = item?.isGroup
+      ? `Bạn có chắc chắn muốn xóa mục công việc "${item.title}"? Các công việc bên trong sẽ được giữ lại và không còn thuộc mục này.`
+      : 'Bạn có chắc chắn muốn xóa hạng mục này khỏi tiến độ?';
+    if (!window.confirm(confirmMessage)) return;
     try {
-      const item = ganttItems.find(entry => entry.id === id);
       await api.deleteGanttItem(id);
       recordActivity('gantt.delete', `Xóa hạng mục Gantt ${item?.title || id}.`);
       showToast('Đã xóa hạng mục khỏi biểu đồ Gantt');

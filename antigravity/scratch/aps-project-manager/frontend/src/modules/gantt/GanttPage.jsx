@@ -19,6 +19,7 @@ import {
   HelpCircle,
   ChevronUp,
   ChevronDown,
+  MoreHorizontal,
   Pencil,
   UsersRound,
   UserPlus,
@@ -108,6 +109,7 @@ export default function GanttPage() {
   const [collapsedGroupIds, setCollapsedGroupIds] = useState(() => new Set());
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const createMenuRef = useRef(null);
+  const groupMenuRef = useRef(null);
 
   const toggleProjectCollapsed = (projectId) => {
     setCollapsedProjectIds(current => {
@@ -133,6 +135,9 @@ export default function GanttPage() {
   // Trạng thái modal
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
   const [showAddGroupModal, setShowAddGroupModal] = useState(false);
+  const [editingGroup, setEditingGroup] = useState(null);
+  const [groupEditTitle, setGroupEditTitle] = useState('');
+  const [groupMenuOpenId, setGroupMenuOpenId] = useState(null);
   const [showAddProjectModal, setShowAddProjectModal] = useState(false);
   const [showEditProjectModal, setShowEditProjectModal] = useState(false);
   const [assignmentEditorItem, setAssignmentEditorItem] = useState(null);
@@ -203,6 +208,22 @@ export default function GanttPage() {
       document.removeEventListener('keydown', closeOnEscape);
     };
   }, [createMenuOpen]);
+
+  useEffect(() => {
+    if (!groupMenuOpenId) return undefined;
+    const closeOnOutsideClick = event => {
+      if (!groupMenuRef.current?.contains(event.target)) setGroupMenuOpenId(null);
+    };
+    const closeOnEscape = event => {
+      if (event.key === 'Escape') setGroupMenuOpenId(null);
+    };
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [groupMenuOpenId]);
 
   useEffect(() => {
     if (projects.length === 0) return;
@@ -499,6 +520,19 @@ export default function GanttPage() {
     }
   };
 
+  const openGroupEdit = item => {
+    setGroupEditTitle(item.title);
+    setEditingGroup(item);
+    setGroupMenuOpenId(null);
+  };
+
+  const handleGroupEditSubmit = async event => {
+    event.preventDefault();
+    const title = groupEditTitle.trim();
+    if (!editingGroup || !title) return;
+    if (await updateGanttItem(editingGroup.id, { title })) setEditingGroup(null);
+  };
+
   const openTaskCreation = () => {
     const projectId = selectedProjectId === 'ALL' ? projects[0]?.id : selectedProjectId;
     const currentDate = todayIsoDate();
@@ -739,10 +773,10 @@ export default function GanttPage() {
           
           {/* Lọc giai đoạn */}
           {/* Thu phóng (Zoom Level) */}
-          <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+          <div className="flex w-[120px] shrink-0 items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
             <button
               onClick={() => setZoomLevel('month')}
-              className={`px-2 py-1 rounded-lg text-xs font-semibold ${
+              className={`flex-1 px-2 py-1 rounded-lg text-xs font-semibold ${
                 zoomLevel === 'month' ? 'bg-white dark:bg-slate-700 shadow-sm text-sky-600 dark:text-sky-400' : 'text-slate-500'
               }`}
             >
@@ -750,7 +784,7 @@ export default function GanttPage() {
             </button>
             <button
               onClick={() => setZoomLevel('week')}
-              className={`px-2 py-1 rounded-lg text-xs font-semibold ${
+              className={`flex-1 px-2 py-1 rounded-lg text-xs font-semibold ${
                 zoomLevel === 'week' ? 'bg-white dark:bg-slate-700 shadow-sm text-sky-600 dark:text-sky-400' : 'text-slate-500'
               }`}
             >
@@ -758,7 +792,7 @@ export default function GanttPage() {
             </button>
           </div>
 
-          <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400 text-xs font-semibold">
+          <div className="hidden sm:flex w-[160px] shrink-0 items-center justify-center gap-1.5 px-3 py-1 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400 text-xs font-semibold">
             <span>T{timelineStart.getMonth() + 1}/{timelineStart.getFullYear()} - T{timelineEnd.getMonth() + 1}/{timelineEnd.getFullYear()}</span>
           </div>
 
@@ -865,6 +899,43 @@ export default function GanttPage() {
                               : <ChevronDown className="h-3.5 w-3.5" />}
                           </button>
                           <span className="min-w-0 truncate" title={item.title}>{item.title}</span>
+                          <div className="relative ml-auto shrink-0" ref={groupMenuOpenId === item.id ? groupMenuRef : null}>
+                            <button
+                              type="button"
+                              aria-label={`Tùy chọn mục công việc ${item.title}`}
+                              aria-haspopup="menu"
+                              aria-expanded={groupMenuOpenId === item.id}
+                              onClick={() => setGroupMenuOpenId(current => current === item.id ? null : item.id)}
+                              className="rounded-md p-1 text-slate-500 hover:bg-slate-200 hover:text-slate-800 dark:hover:bg-slate-700 dark:hover:text-white"
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </button>
+                            {groupMenuOpenId === item.id && (
+                              <div role="menu" className="absolute right-0 top-full z-[100] mt-1 w-60 overflow-hidden rounded-xl border border-slate-200 bg-white p-1 shadow-xl dark:border-slate-700 dark:bg-slate-900">
+                                <button
+                                  type="button"
+                                  role="menuitem"
+                                  onClick={() => openGroupEdit(item)}
+                                  className="flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                  Chỉnh sửa mục công việc
+                                </button>
+                                <button
+                                  type="button"
+                                  role="menuitem"
+                                  onClick={() => {
+                                    setGroupMenuOpenId(null);
+                                    deleteGanttItem(item.id);
+                                  }}
+                                  className="flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-left text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/40"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                  Xóa mục công việc
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     );
@@ -1691,6 +1762,56 @@ export default function GanttPage() {
                   className="rounded-xl bg-sky-600 px-5 py-2 text-xs font-bold text-white shadow-md hover:bg-sky-500"
                 >
                   Tạo mục công việc
+                </button>
+              </div>
+            </form>
+          </div>
+        </ModalOverlay>
+      )}
+
+      {editingGroup && (
+        <ModalOverlay>
+          <div className="w-full max-w-lg space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3 dark:border-slate-800">
+              <h3 className="flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-white">
+                <Layers className="h-5 w-5 text-sky-600" />
+                Chỉnh sửa mục công việc
+              </h3>
+              <button
+                type="button"
+                onClick={() => setEditingGroup(null)}
+                aria-label="Đóng"
+                className="text-slate-400 hover:text-slate-700 dark:hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+            <form onSubmit={handleGroupEditSubmit} className="space-y-4">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Tên mục công việc *
+                <input
+                  autoFocus
+                  required
+                  type="text"
+                  maxLength={120}
+                  value={groupEditTitle}
+                  onChange={event => setGroupEditTitle(event.target.value)}
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800"
+                />
+              </label>
+              <div className="flex justify-end gap-3 border-t border-slate-200 pt-3 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setEditingGroup(null)}
+                  className="rounded-xl px-4 py-2 text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="rounded-xl bg-sky-600 px-5 py-2 text-xs font-bold text-white shadow-md hover:bg-sky-500"
+                >
+                  Lưu thay đổi
                 </button>
               </div>
             </form>
