@@ -51,7 +51,7 @@ export default function DashboardPage() {
     const matchesProj = selectedProjectId === 'ALL' || task.projectId === selectedProjectId;
     const matchesSearch =
       task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      task.employeeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (task.employeeName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       task.projectName.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesProj && matchesSearch;
   });
@@ -230,11 +230,15 @@ export default function DashboardPage() {
                     {/* Tên nhân viên đảm nhận */}
                     <td className="py-3 px-3 font-semibold text-slate-800 dark:text-slate-200">
                       <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center font-bold text-[10px]">
-                          {t.employeeName.charAt(0)}
-                        </div>
+                        {t.employeeName ? (
+                          <div className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center font-bold text-[10px]">
+                            {t.employeeName.charAt(0)}
+                          </div>
+                        ) : (
+                          <div className="w-6 h-6 rounded-full border border-dashed border-slate-400 text-slate-400 flex items-center justify-center text-[10px]">+</div>
+                        )}
                         <div>
-                          <span>{t.employeeName}</span>
+                          <span>{t.employeeName || 'Chưa giao'}</span>
                           <span className="text-[10px] text-slate-400 block">{assignee?.title}</span>
                         </div>
                       </div>

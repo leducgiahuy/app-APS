@@ -256,7 +256,7 @@ export function AppProvider({ children }) {
     try {
       await api.createTask(taskData);
       recordActivity('task.create', `Tạo công việc ${taskData.title || 'mới'}.`);
-      showToast('Phân công công việc thành công');
+      showToast(taskData.employeeId ? 'Phân công công việc thành công' : 'Đã tạo công việc chưa phân công');
       await refreshAllData();
       return true;
     } catch (err) {

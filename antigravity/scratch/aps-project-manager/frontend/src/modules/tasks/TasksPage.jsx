@@ -2,13 +2,13 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import ModalOverlay from '../../components/layout/ModalOverlay';
 import DateInput from '../../components/DateInput';
+import EmployeeCombobox from '../../components/EmployeeCombobox';
 import { formatDateVi, inclusiveDays, scheduledProgress, isTaskOverdue, isTaskActiveOnDate, taskDelayHours, formatDelayHours, todayIsoDate } from '../../utils/date';
 import { getGanttTaskCode } from '../../utils/taskCode';
 import {
   CheckSquare,
   Clock,
   Flame,
-  Plus,
   Calendar,
   AlertCircle,
   CheckCircle2,
@@ -84,7 +84,7 @@ export default function TasksPage() {
     projectId: projects[0]?.id || '',
     code: '',
     title: '',
-    employeeId: employees[0]?.id || '',
+    employeeId: '',
     startDate: today,
     endDate: today,
     estimatedDays: 1,
@@ -104,12 +104,11 @@ export default function TasksPage() {
   useEffect(() => {
     if (employees.length === 0) return;
     setTaskForm(current => {
-      if (employees.some(employee => employee.id === current.employeeId)) return current;
-      const employee = employees[0];
+      if (!current.employeeId || employees.some(employee => employee.id === current.employeeId)) return current;
       return {
         ...current,
-        employeeId: employee.id,
-        estimatedHours: current.estimatedHoursEdited ? current.estimatedHours : current.estimatedDays * (Number(employee.standardHours) || 8)
+        employeeId: '',
+        estimatedHours: current.estimatedHoursEdited ? current.estimatedHours : current.estimatedDays * 8
       };
     });
   }, [employees]);
@@ -153,7 +152,7 @@ export default function TasksPage() {
     const projectId = projects.some(project => project.id === taskForm.projectId)
       ? taskForm.projectId
       : projects[0]?.id;
-    if (!taskForm.title || !taskForm.employeeId || !projectId) return;
+    if (!taskForm.title || !projectId) return;
     const project = projects.find(item => item.id === projectId);
     if (project && ((project.startDate && taskForm.startDate < project.startDate) || (project.endDate && taskForm.endDate > project.endDate))) {
       window.alert(`Ngày task phải nằm trong thời gian dự án (${formatDateVi(project.startDate)} → ${formatDateVi(project.endDate)}).`);
@@ -165,7 +164,7 @@ export default function TasksPage() {
         projectId: projects[0]?.id || '',
         code: '',
         title: '',
-        employeeId: employees[0]?.id || '',
+        employeeId: '',
         startDate: todayIsoDate(),
         endDate: todayIsoDate(),
         estimatedDays: 1,
@@ -259,7 +258,7 @@ export default function TasksPage() {
         {/* Nút hành động tương ứng */}
         <div className="flex flex-col sm:flex-row items-center gap-3 w-full 2xl:w-auto 2xl:flex-1 2xl:justify-end min-w-0">
         {activeSubTab === 'tasks' && (
-          <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:flex-1 lg:min-w-0">
+          <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:flex-1 lg:min-w-0 2xl:justify-end">
             <label className="relative block w-full sm:flex-1 sm:min-w-0 2xl:max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input
@@ -276,30 +275,7 @@ export default function TasksPage() {
             </span>
           </div>
         )}
-        {activeSubTab === 'tasks' ? (
-          <button
-            onClick={() => {
-              const selectedProject = projects.find(project => project.id === taskForm.projectId);
-              const todayDate = todayIsoDate();
-              const currentDate = selectedProject?.startDate && todayDate < selectedProject.startDate
-                ? selectedProject.startDate
-                : selectedProject?.endDate && todayDate > selectedProject.endDate ? selectedProject.endDate : todayDate;
-              setTaskForm(current => ({
-                ...current,
-                startDate: currentDate,
-                endDate: currentDate,
-                estimatedDays: 1,
-                estimatedHours: Number(employees.find(employee => employee.id === current.employeeId)?.standardHours) || 8,
-                estimatedHoursEdited: false
-              }));
-              setShowTaskModal(true);
-            }}
-            className="w-full sm:w-auto 2xl:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-semibold text-sm shadow-md transition-all flex-shrink-0"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Tạo Task Công Việc Mới</span>
-          </button>
-        ) : (
+        {activeSubTab !== 'tasks' && (
           <button
             onClick={() => {
               setOtForm(current => ({ ...current, date: todayIsoDate() }));
@@ -440,7 +416,7 @@ export default function TasksPage() {
                               startDate: task.startDate,
                               endDate: task.endDate
                             }]
-                          ).map((assignment, assignmentIndex) => {
+                          ).filter(assignment => assignment.employeeId || assignment.employeeName).map((assignment, assignmentIndex) => {
                             const assignedEmployee = employees.find(employee => employee.id === assignment.employeeId);
                             const assignmentStart = assignment.startDate || task.startDate;
                             const assignmentEnd = assignment.endDate || task.endDate;
@@ -468,6 +444,10 @@ export default function TasksPage() {
                               </div>
                             );
                           })}
+                          {!(Array.isArray(task.assignees) && task.assignees.some(assignment => assignment.employeeId || assignment.employeeName)) &&
+                            !task.employeeId && !task.employeeName && (
+                              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Chưa giao cho nhân viên</p>
+                            )}
                       </div>
 
                       {/* Thông số ca làm việc chuẩn 1 ngày */}
@@ -711,24 +691,20 @@ export default function TasksPage() {
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                    Người Đảm Nhận *
-                  </label>
-                  <select
-                    value={taskForm.employeeId}
-                    onChange={(e) => setTaskForm(current => {
-                      const employee = employees.find(item => item.id === e.target.value);
-                      return { ...current, employeeId: e.target.value, estimatedHours: current.estimatedHoursEdited ? current.estimatedHours : current.estimatedDays * (Number(employee?.standardHours) || 8) };
-                    })}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs focus:ring-2 focus:ring-sky-500"
-                  >
-                    {employees.map(e => (
-                      <option key={e.id} value={e.id}>
-                        {e.name} ({e.title} - {e.standardHours || 8}h/ngày)
-                      </option>
-                    ))}
-                  </select>
+              <div>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                  Người Đảm Nhận
+                </label>
+                <EmployeeCombobox
+                  employees={employees}
+                  value={taskForm.employeeId}
+                  onChange={employee => setTaskForm(current => ({
+                    ...current,
+                    employeeId: employee.id,
+                    estimatedHours: current.estimatedHoursEdited ? current.estimatedHours : current.estimatedDays * (Number(employee.standardHours) || 8)
+                  }))}
+                  placeholder="Giao cho"
+                />
                 </div>
 
                 <div>

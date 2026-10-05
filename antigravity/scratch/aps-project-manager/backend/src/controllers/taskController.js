@@ -1,6 +1,12 @@
 import { readDb, writeDb } from '../models/db.js';
 import { compareWbs, reconnectGanttDependencies } from './projectController.js';
 
+const hasStoredAssignmentState = task => Boolean(task && (
+  Array.isArray(task.assignees) ||
+  Object.hasOwn(task, 'employeeId') ||
+  Object.hasOwn(task, 'employeeName')
+));
+
 /**
  * Controller Quản Lý Phân Công & Tăng Ca
  * Xử lý giao việc cho nhân sự, kiểm soát giờ làm việc chuẩn (8h/ngày),
@@ -18,7 +24,8 @@ export function getTasks(req, res) {
         const ganttItem = (db.ganttItems || []).find(item => item.id === task.ganttId);
         const taskAssignments = Array.isArray(task.assignees) ? task.assignees : [];
         const ganttAssignments = Array.isArray(ganttItem?.assignees) ? ganttItem.assignees : [];
-        const assignments = taskAssignments.length ? taskAssignments : ganttAssignments;
+        const taskHasAssignmentState = hasStoredAssignmentState(task);
+        const assignments = taskHasAssignmentState ? taskAssignments : ganttAssignments;
         if (!assignments.length) return task;
         return {
           ...task,
@@ -60,13 +67,16 @@ export function createTask(req, res) {
     notes
   } = req.body;
 
-  if (!title || !employeeId) {
-    return res.status(400).json({ success: false, message: 'Vui lòng nhập tên công việc và chọn người đảm nhận' });
+  if (!title) {
+    return res.status(400).json({ success: false, message: 'Vui lòng nhập tên công việc' });
   }
 
   // Tìm tên nhân sự
-  const emp = db.employees.find(e => e.id === employeeId);
-  const employeeName = emp ? emp.name : 'Chưa phân công';
+  const emp = (db.employees || []).find(e => e.id === employeeId);
+  if (employeeId && !emp) {
+    return res.status(400).json({ success: false, message: 'Người đảm nhận đã chọn không tồn tại' });
+  }
+  const employeeName = emp?.name || '';
 
   // Treat the project ID as the source of truth so stale client state cannot
   // attach a new task to a deleted project or retain its old display name.
@@ -118,19 +128,19 @@ export function createTask(req, res) {
     phase: phase || 'A. THIẾT KẾ XÂY DỰNG',
     code: wbsCode,
     title,
-    employeeId,
+    employeeId: emp?.id || '',
     employeeName,
     startDate: taskStartDate,
     endDate: taskEndDate,
     estimatedHours: hours,
     estimatedHoursPerDay: hoursPerDay,
     estimatedDays: days,
-    assignees: [{
+    assignees: emp ? [{
       employeeId,
       employeeName,
       startDate: taskStartDate,
       endDate: taskEndDate
-    }],
+    }] : [],
     status: 'in_progress',
     speedStatus: 'on_time', // 'early', 'on_time', 'delayed'
     priority: priority || 'normal', // 'normal', 'high', 'urgent'
@@ -206,7 +216,9 @@ export function createTask(req, res) {
 
   return res.status(201).json({
     success: true,
-    message: `Phân công nhiệm vụ thành công và đã đồng bộ sang biểu đồ Gantt (${wbsCode})`,
+    message: emp
+      ? `Phân công nhiệm vụ thành công và đã đồng bộ sang biểu đồ Gantt (${wbsCode})`
+      : `Đã tạo nhiệm vụ chưa phân công và đồng bộ sang biểu đồ Gantt (${wbsCode})`,
     data: newTask
   });
 }

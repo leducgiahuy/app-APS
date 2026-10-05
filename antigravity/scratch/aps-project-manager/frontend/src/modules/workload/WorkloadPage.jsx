@@ -269,7 +269,7 @@ export default function WorkloadPage() {
         </div>
         <div className="workload-toolbar-actions">
           {isAdmin && <label className="workload-search"><Search size={17} /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Tìm nhân viên, mã, đội..." /></label>}
-          {isAdmin && <button type="button" className="workload-assign-button" onClick={() => setActiveTab('tasks')}>Phân công công việc <ArrowRight size={17} /></button>}
+          {isAdmin && <button type="button" className="workload-assign-button" onClick={() => setActiveTab('gantt')}>Phân công công việc <ArrowRight size={17} /></button>}
         </div>
       </div>
 
@@ -280,9 +280,9 @@ export default function WorkloadPage() {
           <article className="workload-summary-card"><span><Users size={17} /> Khả năng nhận thêm</span><strong>{formatHours(summary.remaining)}<small> giờ trống</small></strong><em>{personalProjects.length} công trình trong kỳ</em></article>
         </>}
         {isAdmin && <>
-          <article className="workload-summary-card"><span><Users size={17} /> Nhân viên còn giờ trống</span><strong>{summary.peopleWithAvailability.size}<small> / {rows.length}</small></strong><em>{formatHours(summary.remaining)} giờ công suất chưa phân bổ</em></article>
-          <article className="workload-summary-card"><span><Clock3 size={17} /> Giờ đã lên lịch</span><strong>{formatHours(summary.allocated)}<small> giờ</small></strong><em>Tổng định mức {formatHours(summary.capacity)} giờ trong kỳ</em></article>
-          <article className={`workload-summary-card ${summary.overloaded ? 'has-overload' : ''}`}><span><CalendarDays size={17} /> Tình trạng phân bổ</span><strong>{summary.overloaded}<small> nhân viên/kỳ quá định mức</small></strong><em>{summary.overloaded ? 'Cần xem lại lịch phân công' : 'Chưa phát hiện phân bổ vượt định mức'}</em></article>
+          <article className="workload-summary-card"><span><Users size={17} /> Nhân viên còn giờ trống</span><strong>{summary.peopleWithAvailability.size}<small> / {rows.length}</small></strong></article>
+          <article className="workload-summary-card"><span><Clock3 size={17} /> Giờ đã lên lịch</span><strong>{formatHours(summary.allocated)}<small> giờ</small></strong></article>
+          <article className={`workload-summary-card ${summary.overloaded ? 'has-overload' : ''}`}><span><CalendarDays size={17} /> Tình trạng phân bổ</span><strong>{summary.overloaded}<small> nhân viên/kỳ quá định mức</small></strong></article>
         </>}
       </div>
       </div>

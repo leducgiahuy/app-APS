@@ -2,15 +2,16 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import ModalOverlay from '../../components/layout/ModalOverlay';
 import DateInput from '../../components/DateInput';
+import EmployeeCombobox from '../../components/EmployeeCombobox';
 import { formatDateVi, inclusiveDays, scheduledProgress, isTaskOverdue, taskDelayHours, formatDelayHours, todayIsoDate } from '../../utils/date';
 import {
   CalendarRange,
   Plus,
   Trash2,
   Building,
-  Layers,
   Clock,
   Flame,
+  Layers,
   Maximize2,
   Calendar,
   AlertCircle,
@@ -58,6 +59,31 @@ const formatAssignmentDateRange = (startDate, endDate) => {
   return `${Number(startDay)}/${Number(startMonth)}–${Number(endDay)}/${Number(endMonth)}`;
 };
 
+const hasStoredAssignmentState = task => Boolean(task && (
+  Array.isArray(task.assignees) ||
+  Object.hasOwn(task, 'employeeId') ||
+  Object.hasOwn(task, 'employeeName')
+));
+
+const flattenWorkGroups = (items, collapsedGroupIds) => {
+  const groupIds = new Set(items.filter(item => item.isGroup).map(item => item.id));
+  const childrenByGroup = new Map();
+  items.forEach(item => {
+    if (!groupIds.has(item.parentGroupId)) return;
+    const children = childrenByGroup.get(item.parentGroupId) || [];
+    children.push(item);
+    childrenByGroup.set(item.parentGroupId, children);
+  });
+
+  return items
+    .filter(item => !groupIds.has(item.parentGroupId))
+    .flatMap(item => {
+      if (!item.isGroup) return [item];
+      const children = childrenByGroup.get(item.id) || [];
+      return [item, ...(collapsedGroupIds.has(item.id) ? [] : children)];
+    });
+};
+
 export default function GanttPage() {
   const today = todayIsoDate();
   const {
@@ -79,6 +105,9 @@ export default function GanttPage() {
   // Chọn dự án đang xem
   const [selectedProjectId, setSelectedProjectId] = useState(projects[0]?.id || 'proj-1');
   const [collapsedProjectIds, setCollapsedProjectIds] = useState(() => new Set());
+  const [collapsedGroupIds, setCollapsedGroupIds] = useState(() => new Set());
+  const [createMenuOpen, setCreateMenuOpen] = useState(false);
+  const createMenuRef = useRef(null);
 
   const toggleProjectCollapsed = (projectId) => {
     setCollapsedProjectIds(current => {
@@ -89,11 +118,21 @@ export default function GanttPage() {
     });
   };
 
+  const toggleGroupCollapsed = groupId => {
+    setCollapsedGroupIds(current => {
+      const next = new Set(current);
+      if (next.has(groupId)) next.delete(groupId);
+      else next.add(groupId);
+      return next;
+    });
+  };
+
   // Chế độ thu phóng (Zoom: 'day' | 'week' | 'month')
   const [zoomLevel, setZoomLevel] = useState('week'); // 1 day = 18px (day), 1 day = 6px (week), 1 day = 3px (month)
 
   // Trạng thái modal
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
+  const [showAddGroupModal, setShowAddGroupModal] = useState(false);
   const [showAddProjectModal, setShowAddProjectModal] = useState(false);
   const [showEditProjectModal, setShowEditProjectModal] = useState(false);
   const [assignmentEditorItem, setAssignmentEditorItem] = useState(null);
@@ -124,14 +163,15 @@ export default function GanttPage() {
     days: 1,
     estimatedHours: 8,
     estimatedHoursEdited: false,
-    assignee: employees[0]?.name || 'Trần Quốc Hưng',
+    assigneeId: '',
     notes: '',
     color: '#861b36',
     dependencies: [],
     successorId: '',
     speed: 'on_time',
-    insertAfterId: ''
+    parentGroupId: ''
   });
+  const [groupForm, setGroupForm] = useState({ title: '', projectId: projects[0]?.id || '' });
 
   const updateDateRange = (setter, field, value) => {
     setter(current => {
@@ -147,6 +187,22 @@ export default function GanttPage() {
   };
 
   const projectIdForItem = (item) => item.projectId || tasks.find(task => task.ganttId === item.id)?.projectId;
+
+  useEffect(() => {
+    if (!createMenuOpen) return undefined;
+    const closeOnOutsideClick = event => {
+      if (!createMenuRef.current?.contains(event.target)) setCreateMenuOpen(false);
+    };
+    const closeOnEscape = event => {
+      if (event.key === 'Escape') setCreateMenuOpen(false);
+    };
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [createMenuOpen]);
 
   useEffect(() => {
     if (projects.length === 0) return;
@@ -184,7 +240,7 @@ export default function GanttPage() {
       if (!project) return projectItems;
       return [
         { id: `project-heading-${project.id}`, projectId: project.id, title: project.name, isProjectHeader: true },
-        ...(collapsedProjectIds.has(project.id) ? [] : projectItems)
+        ...(collapsedProjectIds.has(project.id) ? [] : flattenWorkGroups(projectItems, collapsedGroupIds))
       ];
     }
 
@@ -193,10 +249,10 @@ export default function GanttPage() {
       if (items.length === 0) return [];
       return [
         { id: `project-heading-${project.id}`, projectId: project.id, title: project.name, isProjectHeader: true },
-        ...(collapsedProjectIds.has(project.id) ? [] : items)
+        ...(collapsedProjectIds.has(project.id) ? [] : flattenWorkGroups(items, collapsedGroupIds))
       ];
     });
-  }, [ganttItems, tasks, projects, selectedProjectId, collapsedProjectIds]);
+  }, [ganttItems, tasks, projects, selectedProjectId, collapsedProjectIds, collapsedGroupIds]);
 
   // Tính toán thời gian bắt đầu và kết thúc tổng thể của Gantt
   // Khung thời gian linh hoạt: bao phủ từ tháng sớm nhất đến tháng muộn nhất của dự án
@@ -332,7 +388,7 @@ export default function GanttPage() {
       if (deps.length === 0 && !item.isGroup && toIndex > 0) {
         for (let p = toIndex - 1; p >= 0; p--) {
           const candidate = filteredGanttItems[p];
-          if (candidate && !candidate.isProjectHeader && candidate.projectId === item.projectId) {
+          if (candidate && !candidate.isProjectHeader && !candidate.isGroup && candidate.projectId === item.projectId) {
             deps = [candidate.id];
             break;
           }
@@ -380,7 +436,12 @@ export default function GanttPage() {
       window.alert(`Ngày task phải nằm trong thời gian dự án (${formatDateVi(project.startDate)} → ${formatDateVi(project.endDate)}).`);
       return;
     }
-    const success = await addGanttItem({ ...taskForm, estimatedHoursPerDay: taskForm.estimatedHours });
+    const assignee = employees.find(employee => employee.id === taskForm.assigneeId);
+    const success = await addGanttItem({
+      ...taskForm,
+      assignee: assignee?.name || '',
+      estimatedHoursPerDay: taskForm.estimatedHours
+    });
     if (success) {
       setTaskForm({
         code: '',
@@ -393,16 +454,74 @@ export default function GanttPage() {
         days: 1,
         estimatedHours: 8,
         estimatedHoursEdited: false,
-        assignee: employees[0]?.name || 'Trần Quốc Hưng',
+        assigneeId: '',
         notes: '',
         color: '#861b36',
         dependencies: [],
         successorId: '',
         speed: 'on_time',
-        insertAfterId: ''
+        parentGroupId: ''
       });
       setShowAddTaskModal(false);
     }
+  };
+
+  const handleGroupSubmit = async event => {
+    event.preventDefault();
+    const project = projects.find(item => item.id === groupForm.projectId);
+    const title = groupForm.title.trim();
+    if (!project || !title) return;
+
+    let codeIndex = 1;
+    while (ganttItems.some(item => item.code === `GR${codeIndex}`)) codeIndex += 1;
+    const projectItems = ganttItems.filter(item => projectIdForItem(item) === project.id);
+    const lastProjectItem = projectItems.at(-1);
+    const startDate = project.startDate || todayIsoDate();
+    const endDate = project.endDate || startDate;
+    const success = await addGanttItem({
+      code: `GR${codeIndex}`,
+      projectId: project.id,
+      title,
+      isGroup: true,
+      unit: 'GR',
+      startDate,
+      endDate,
+      estimatedHoursPerDay: 8,
+      assignee: '',
+      notes: '',
+      color: '#861b36',
+      dependencies: [],
+      insertAfterId: lastProjectItem?.id || ''
+    });
+    if (success) {
+      setGroupForm({ title: '', projectId: project.id });
+      setShowAddGroupModal(false);
+    }
+  };
+
+  const openTaskCreation = () => {
+    const projectId = selectedProjectId === 'ALL' ? projects[0]?.id : selectedProjectId;
+    const currentDate = todayIsoDate();
+    setTaskForm(current => ({
+      ...current,
+      projectId: projectId || '',
+      parentGroupId: '',
+      startDate: currentDate,
+      endDate: currentDate,
+      days: 1,
+      estimatedHours: 8,
+      estimatedHoursEdited: false,
+      dependencies: []
+    }));
+    setCreateMenuOpen(false);
+    setShowAddTaskModal(true);
+  };
+
+  const openGroupCreation = () => {
+    const projectId = selectedProjectId === 'ALL' ? projects[0]?.id : selectedProjectId;
+    setGroupForm({ title: '', projectId: projectId || '' });
+    setCreateMenuOpen(false);
+    setShowAddGroupModal(true);
   };
 
   // Xử lý gửi Form thêm Project
@@ -462,16 +581,28 @@ export default function GanttPage() {
 
   const handleAssignmentsOpen = (item) => {
     const linkedTask = tasks.find(task => task.ganttId === item.id);
-    const currentAssignments = Array.isArray(linkedTask?.assignees) && linkedTask.assignees.length
-      ? linkedTask.assignees
+    const taskHasAssignmentState = hasStoredAssignmentState(linkedTask);
+    const currentAssignments = taskHasAssignmentState
+      ? (Array.isArray(linkedTask.assignees) && linkedTask.assignees.length
+        ? linkedTask.assignees
+        : linkedTask.employeeId || linkedTask.employeeName
+        ? [{
+          employeeId: linkedTask.employeeId || '',
+          employeeName: linkedTask.employeeName || '',
+          startDate: item.startDate,
+          endDate: item.endDate
+        }]
+        : [{ employeeId: '', startDate: item.startDate, endDate: item.endDate }])
       : Array.isArray(item.assignees) && item.assignees.length
         ? item.assignees
-      : [{
-        employeeId: linkedTask?.employeeId || employees.find(employee => employee.name === item.assignee)?.id || '',
-        employeeName: linkedTask?.employeeName || item.assignee || '',
-        startDate: item.startDate,
-        endDate: item.endDate
-      }];
+        : item.assignee
+          ? [{
+            employeeId: employees.find(employee => employee.name === item.assignee)?.id || '',
+            employeeName: item.assignee,
+            startDate: item.startDate,
+            endDate: item.endDate
+          }]
+          : [{ employeeId: '', startDate: item.startDate, endDate: item.endDate }];
     setAssignmentRows(currentAssignments.map(assignment => ({
       employeeId: assignment.employeeId || '',
       startDate: assignment.startDate || item.startDate,
@@ -557,8 +688,49 @@ export default function GanttPage() {
             </button>
           </div>
 
-          <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400 text-xs font-semibold">
-            <span>T{timelineStart.getMonth() + 1}/{timelineStart.getFullYear()} - T{timelineEnd.getMonth() + 1}/{timelineEnd.getFullYear()}</span>
+          {/* Nút Tạo Dự Án Mới */}
+          <button
+            onClick={() => setShowAddProjectModal(true)}
+            className="px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold transition-all"
+          >
+            + Dự Án Mới
+          </button>
+
+          <div className="relative" ref={createMenuRef}>
+            <button
+              type="button"
+              aria-haspopup="menu"
+              aria-expanded={createMenuOpen}
+              disabled={projects.length === 0}
+              onClick={() => setCreateMenuOpen(open => !open)}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-md shadow-sky-600/20 transition-all flex-shrink-0 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Thêm mới</span>
+              <ChevronDown className="w-3.5 h-3.5" />
+            </button>
+            {createMenuOpen && (
+              <div role="menu" className="absolute right-0 top-full z-[100] mt-2 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white p-1 shadow-xl dark:border-slate-700 dark:bg-slate-900">
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={openTaskCreation}
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+                >
+                  <CalendarRange className="h-4 w-4 text-sky-600" />
+                  Tạo công việc mới
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={openGroupCreation}
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+                >
+                  <Layers className="h-4 w-4 text-sky-600" />
+                  Tạo mục công việc mới
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -586,36 +758,9 @@ export default function GanttPage() {
             </button>
           </div>
 
-          {/* Nút Tạo Dự Án Mới */}
-          <button
-            onClick={() => setShowAddProjectModal(true)}
-            className="px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold transition-all"
-          >
-            + Dự Án Mới
-          </button>
-
-          {/* Nút Thêm Công Việc Cho Dự Án */}
-          <button
-            onClick={() => {
-              const projectId = selectedProjectId === 'ALL' ? projects[0]?.id : selectedProjectId;
-              const currentDate = todayIsoDate();
-              setTaskForm(current => ({
-                ...current,
-                projectId: projectId || '',
-                startDate: currentDate,
-                endDate: currentDate,
-                days: 1,
-                estimatedHours: 8,
-                estimatedHoursEdited: false,
-                dependencies: []
-              }));
-              setShowAddTaskModal(true);
-            }}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-md shadow-sky-600/20 transition-all flex-shrink-0"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Thêm Công Việc</span>
-          </button>
+          <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400 text-xs font-semibold">
+            <span>T{timelineStart.getMonth() + 1}/{timelineStart.getFullYear()} - T{timelineEnd.getMonth() + 1}/{timelineEnd.getFullYear()}</span>
+          </div>
 
         </div>
 
@@ -700,6 +845,31 @@ export default function GanttPage() {
                     );
                   }
 
+                  if (isGroup) {
+                    return (
+                      <div
+                        key={item.id}
+                        className="flex items-center border-b border-slate-100 bg-slate-50/80 font-bold text-slate-900 dark:border-slate-800/80 dark:bg-slate-800/80 dark:text-white"
+                        style={{ height: `${rowHeights[itemIndex]}px`, minHeight: `${rowHeights[itemIndex]}px` }}
+                      >
+                        <div className="flex h-full min-w-0 flex-1 items-center gap-1.5 px-3">
+                          <button
+                            type="button"
+                            onClick={() => toggleGroupCollapsed(item.id)}
+                            aria-label={`${collapsedGroupIds.has(item.id) ? 'Mở rộng' : 'Thu gọn'} mục ${item.title}`}
+                            title={`${collapsedGroupIds.has(item.id) ? 'Mở rộng' : 'Thu gọn'} mục công việc`}
+                            className="shrink-0 rounded p-0.5 text-slate-500 hover:bg-slate-200 hover:text-sky-700 dark:hover:bg-slate-700"
+                          >
+                            {collapsedGroupIds.has(item.id)
+                              ? <ChevronUp className="h-3.5 w-3.5" />
+                              : <ChevronDown className="h-3.5 w-3.5" />}
+                          </button>
+                          <span className="min-w-0 truncate" title={item.title}>{item.title}</span>
+                        </div>
+                      </div>
+                    );
+                  }
+
                   const linkedTask = tasks.find(task => task.ganttId === item.id) || tasks.find(task =>
                     task.title?.trim().toLowerCase() === item.title?.trim().toLowerCase() &&
                     (!task.projectId || !item.projectId || task.projectId === item.projectId)
@@ -744,11 +914,19 @@ export default function GanttPage() {
                         className="w-[220px] min-w-[220px] max-w-[220px] h-full min-h-0 px-3 border-r border-slate-100 dark:border-slate-800 overflow-hidden whitespace-nowrap flex items-center gap-1.5 shrink-0"
                       >
                         {isGroup && (
-                          <span
-                            className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                            style={{ backgroundColor: item.color }}
-                          />
+                          <button
+                            type="button"
+                            onClick={() => toggleGroupCollapsed(item.id)}
+                            aria-label={`${collapsedGroupIds.has(item.id) ? 'Mở rộng' : 'Thu gọn'} mục ${item.title}`}
+                            title={`${collapsedGroupIds.has(item.id) ? 'Mở rộng' : 'Thu gọn'} mục công việc`}
+                            className="shrink-0 rounded p-0.5 text-slate-500 hover:bg-slate-200 hover:text-sky-700 dark:hover:bg-slate-700"
+                          >
+                            {collapsedGroupIds.has(item.id)
+                              ? <ChevronUp className="h-3.5 w-3.5" />
+                              : <ChevronDown className="h-3.5 w-3.5" />}
+                          </button>
                         )}
+                        {isGroup && <Layers className="h-3.5 w-3.5 shrink-0 text-sky-600" />}
                         <span className="min-w-0 flex-1 truncate" title={item.title}>
                           {item.title}
                         </span>
@@ -993,10 +1171,23 @@ export default function GanttPage() {
                   const isDependencyHighlighted = hoveredDependency
                     && (hoveredDependency.sourceId === item.id || hoveredDependency.targetId === item.id);
                   const linkedTask = tasks.find(task => task.ganttId === item.id);
-                  const itemAssignees = Array.isArray(linkedTask?.assignees) && linkedTask.assignees.length
-                    ? linkedTask.assignees
+                  const taskHasAssignmentState = hasStoredAssignmentState(linkedTask);
+                  const itemAssignees = taskHasAssignmentState
+                    ? (Array.isArray(linkedTask.assignees) && linkedTask.assignees.length
+                      ? linkedTask.assignees
+                      : linkedTask.employeeId || linkedTask.employeeName
+                        ? [{
+                          employeeId: linkedTask.employeeId || '',
+                          employeeName: linkedTask.employeeName || '',
+                          startDate: linkedTask.startDate || item.startDate,
+                          endDate: linkedTask.endDate || item.endDate
+                        }]
+                        : [])
                     : item.assignees;
-                  const assignee = employees.find(employee => employee.id === linkedTask?.employeeId || employee.name === item.assignee);
+                  const assignee = employees.find(employee =>
+                    employee.id === linkedTask?.employeeId ||
+                    (!taskHasAssignmentState && employee.name === item.assignee)
+                  );
                   // Merge the linked task with its Gantt row so completion timing survives
                   // when one side has not yet received the latest synchronized fields.
                   const progressTask = linkedTask ? { ...item, ...linkedTask } : item;
@@ -1032,8 +1223,10 @@ export default function GanttPage() {
                         : notStarted
                           ? 'url(#grad-slate)'
                           : 'url(#grad-sky)';
-                  const assignmentLabels = !isGroup && !isHoliday
-                    ? (Array.isArray(itemAssignees) && itemAssignees.length
+                  const hasAssignments = Array.isArray(itemAssignees) && itemAssignees.length > 0;
+                  const hasLegacyAssignee = !taskHasAssignmentState && Boolean(item.assignee);
+                  const assignmentLabels = !isGroup && !isHoliday && (hasAssignments || hasLegacyAssignee)
+                    ? (hasAssignments
                       ? itemAssignees
                       : [{ employeeName: item.assignee, startDate: item.startDate, endDate: item.endDate }])
                       .map((assignment, index) => {
@@ -1077,22 +1270,6 @@ export default function GanttPage() {
                         />
                       )}
 
-                      {/* Thanh Gantt: Nhóm tổng hoặc Hạng mục chi tiết */}
-                      {isGroup && (
-                        <rect
-                          x={coord.x}
-                          y={coord.y + 3}
-                          width={coord.width}
-                          height={coord.height - 6}
-                          rx="4"
-                          ry="4"
-                          fill={isDependencyHighlighted ? '#ef4444' : '#861b36'}
-                          stroke={isDependencyHighlighted ? '#b91c1c' : 'transparent'}
-                          strokeWidth={isDependencyHighlighted ? 2 : 0}
-                          className="shadow-sm"
-                          filter="drop-shadow(0 2px 4px rgba(0,0,0,0.15))"
-                        />
-                      )}
                       {isHoliday && !isGroup && (
                         <rect
                           x={coord.x}
@@ -1145,19 +1322,31 @@ export default function GanttPage() {
                       )}
 
                       {/* Nhãn trên thanh hoặc cạnh thanh: Tên người đảm nhận, thời gian, tăng ca */}
-                      {isGroup ? (
-                        <text
-                          x={coord.endX + 8}
-                          y={coord.centerY + 4}
-                          fill="#64748b"
-                          fontSize="11"
-                          fontWeight="600"
-                          className="dark:fill-white select-none pointer-events-none"
-                        >
-                          {`${item.title} (${item.days} ngày)`}
-                        </text>
-                      ) : (
+                      {!isGroup && (
                         <>
+                        {assignmentLabels.length === 0 && (
+                          <g
+                            role="button"
+                            tabIndex={0}
+                            aria-label={`Giao công việc ${item.title}`}
+                            className="select-none"
+                            style={{ cursor: 'pointer', pointerEvents: 'auto' }}
+                            onClick={() => handleAssignmentsOpen(item)}
+                            onKeyDown={event => {
+                              if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault();
+                                handleAssignmentsOpen(item);
+                              }
+                            }}
+                          >
+                            <circle cx={coord.endX + 15} cy={coord.centerY} r="7" fill="none" stroke="#861b36" className="dark:stroke-rose-300" />
+                            <path d={`M ${coord.endX + 12} ${coord.centerY} h 6 M ${coord.endX + 15} ${coord.centerY - 3} v 6`} fill="none" stroke="#861b36" strokeWidth="1.5" strokeLinecap="round" className="dark:stroke-rose-300" />
+                            <text x={coord.endX + 27} y={coord.centerY + 4} fill="#861b36" fontSize="11" fontWeight="700" className="dark:fill-rose-300">
+                              Giao cho
+                            </text>
+                            <title>Giao công việc cho nhân viên</title>
+                          </g>
+                        )}
                         {assignmentLabels.map((bar, index) => (
                         <text
                           key={`label-${bar.key}`}
@@ -1331,7 +1520,6 @@ export default function GanttPage() {
                 Mỗi người có khoảng thời gian đảm nhận riêng; các khoảng thời gian có thể trùng nhau.
               </p>
               {assignmentRows.map((assignment, index) => {
-                const employee = employees.find(item => item.id === assignment.employeeId);
                 const availableEmployees = employees.filter(item =>
                   item.id === assignment.employeeId || !assignmentRows.some(row => row.employeeId === item.id)
                 );
@@ -1342,31 +1530,20 @@ export default function GanttPage() {
                         <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
                           {index === 0 ? 'Người đảm nhận ban đầu' : `Người đảm nhận ${index + 1}`}
                         </label>
-                        {index === 0 ? (
-                          <div className="px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200">
-                            {employee?.name || 'Chưa xác định'}
-                          </div>
-                        ) : (
-                          <select
-                            required
-                            value={assignment.employeeId}
-                            onChange={event => setAssignmentRows(current => current.map((row, rowIndex) => {
-                              if (rowIndex !== index) return row;
-                              const selectedEmployee = employees.find(item => item.id === event.target.value);
-                              return {
+                        <EmployeeCombobox
+                          employees={availableEmployees}
+                          value={assignment.employeeId}
+                          onChange={selectedEmployee => setAssignmentRows(current => current.map((row, rowIndex) =>
+                            rowIndex === index
+                              ? {
                                 ...row,
-                                employeeId: event.target.value,
-                                estimatedHoursPerDay: Number(selectedEmployee?.standardHours) || Number(row.estimatedHoursPerDay) || 8
-                              };
-                            }))}
-                            className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
-                          >
-                            <option value="">-- Chọn nhân viên --</option>
-                            {availableEmployees.map(item => (
-                              <option key={item.id} value={item.id}>{item.name} ({item.title})</option>
-                            ))}
-                          </select>
-                        )}
+                                employeeId: selectedEmployee.id,
+                                estimatedHoursPerDay: Number(selectedEmployee.standardHours) || Number(row.estimatedHoursPerDay) || 8
+                              }
+                              : row
+                          ))}
+                          placeholder="Giao cho"
+                        />
                       </div>
                       <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                         Giờ dự kiến / ngày
@@ -1382,16 +1559,14 @@ export default function GanttPage() {
                           className="mt-1 w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
                         />
                       </label>
-                      {index > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => setAssignmentRows(current => current.filter((_, rowIndex) => rowIndex !== index))}
-                          className="p-2 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40"
-                          aria-label={`Xóa người đảm nhận ${index + 1}`}
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => setAssignmentRows(current => current.filter((_, rowIndex) => rowIndex !== index))}
+                        className="p-2 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                        aria-label={`Xóa người đảm nhận ${index + 1}`}
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
                     </div>
                     <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
@@ -1424,18 +1599,21 @@ export default function GanttPage() {
                   </div>
                 );
               })}
+              {assignmentRows.length === 0 && (
+                <p className="rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                  Chưa giao cho nhân viên nào.
+                </p>
+              )}
 
               <button
                 type="button"
                 disabled={assignmentRows.length >= employees.length}
                 onClick={() => {
-                  const nextEmployee = employees.find(employee => !assignmentRows.some(row => row.employeeId === employee.id));
-                  if (!nextEmployee) return;
                   setAssignmentRows(current => [...current, {
-                    employeeId: nextEmployee.id,
+                    employeeId: '',
                     startDate: assignmentEditorItem.startDate,
                     endDate: assignmentEditorItem.endDate,
-                    estimatedHoursPerDay: Number(nextEmployee.standardHours) || 8
+                    estimatedHoursPerDay: 8
                   }]);
                 }}
                 className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-sky-200 dark:border-sky-800 text-xs font-bold text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-950/30 disabled:opacity-50"
@@ -1447,6 +1625,73 @@ export default function GanttPage() {
               <div className="flex justify-end gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">
                 <button type="button" onClick={() => setAssignmentEditorItem(null)} className="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">Hủy</button>
                 <button type="submit" className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs">Lưu phân công</button>
+              </div>
+            </form>
+          </div>
+        </ModalOverlay>
+      )}
+
+      {showAddGroupModal && (
+        <ModalOverlay>
+          <div className="w-full max-w-lg space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3 dark:border-slate-800">
+              <h3 className="flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-white">
+                <Layers className="h-5 w-5 text-sky-600" />
+                Tạo mục công việc mới
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowAddGroupModal(false)}
+                aria-label="Đóng"
+                className="text-slate-400 hover:text-slate-700 dark:hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+            <form onSubmit={handleGroupSubmit} className="space-y-4">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Tên mục công việc *
+                <input
+                  autoFocus
+                  required
+                  type="text"
+                  maxLength={120}
+                  value={groupForm.title}
+                  onChange={event => setGroupForm(current => ({ ...current, title: event.target.value }))}
+                  placeholder="Nhập tên mục công việc"
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800"
+                />
+              </label>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Dự án *
+                <select
+                  required
+                  value={groupForm.projectId}
+                  onChange={event => setGroupForm(current => ({ ...current, projectId: event.target.value }))}
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800"
+                >
+                  {projects.map(project => (
+                    <option key={project.id} value={project.id}>{project.name}</option>
+                  ))}
+                </select>
+              </label>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Sau khi tạo, bạn có thể thêm công việc vào mục này và thu gọn hoặc mở rộng danh sách công việc.
+              </p>
+              <div className="flex justify-end gap-3 border-t border-slate-200 pt-3 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowAddGroupModal(false)}
+                  className="rounded-xl px-4 py-2 text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="rounded-xl bg-sky-600 px-5 py-2 text-xs font-bold text-white shadow-md hover:bg-sky-500"
+                >
+                  Tạo mục công việc
+                </button>
               </div>
             </form>
           </div>
@@ -1490,15 +1735,12 @@ export default function GanttPage() {
                   <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
                     Người Đảm Nhận
                   </label>
-                  <select
-                    value={taskForm.assignee}
-                    onChange={(e) => setTaskForm({ ...taskForm, assignee: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
-                  >
-                    {employees.map(employee => (
-                      <option key={employee.id} value={employee.name}>{employee.name} ({employee.title})</option>
-                    ))}
-                  </select>
+                  <EmployeeCombobox
+                    employees={employees}
+                    value={taskForm.assigneeId}
+                    onChange={employee => setTaskForm(current => ({ ...current, assigneeId: employee.id }))}
+                    placeholder="Giao cho"
+                  />
                 </div>
               </div>
 
@@ -1514,35 +1756,6 @@ export default function GanttPage() {
                   onChange={(e) => setTaskForm({ ...taskForm, title: e.target.value })}
                   className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-semibold"
                 />
-              </div>
-
-              {/* VỊ TRÍ CHÈN TRONG TIẾN ĐỘ WBS */}
-              <div className="p-3 rounded-xl bg-sky-50/60 dark:bg-sky-950/20 border border-sky-200/80 dark:border-sky-800/60 space-y-1.5">
-                <label className="text-xs font-bold text-sky-800 dark:text-sky-300 flex items-center gap-1.5">
-                  <Layers className="w-3.5 h-3.5 text-sky-600" />
-                  Vị Trí Đặt Trong Tiến Độ Dự Án
-                </label>
-                <select
-                  value={taskForm.insertAfterId}
-                  onChange={(e) => setTaskForm({ ...taskForm, insertAfterId: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-sky-500"
-                >
-                  <option value="">
-                    ⚡ Tự động theo mã STT (Ví dụ: A1.3 sẽ tự động nằm ngay sau A1.2 và trước A2)
-                  </option>
-                  <optgroup label="Hoặc chọn chèn sau một công việc cụ thể:">
-                    {ganttItems.map((g) => (
-                      <option key={g.id} value={g.id}>
-                        Nằm ngay sau [{g.code}] {g.title}
-                      </option>
-                    ))}
-                  </optgroup>
-                </select>
-                {taskForm.code && !taskForm.insertAfterId && (
-                  <p className="text-[11px] text-sky-600 dark:text-sky-400 italic">
-                    💡 Khi nhập mã <strong>{taskForm.code}</strong>, hệ thống tự động tìm vị trí thích hợp nhất trong cây WBS (sau các mã nhỏ hơn và trước các mã lớn hơn).
-                  </p>
-                )}
               </div>
 
               <div className="w-full">
@@ -1561,7 +1774,7 @@ export default function GanttPage() {
                       const startDate = clampToProject(taskForm.startDate);
                       let endDate = clampToProject(taskForm.endDate);
                       if (endDate < startDate) endDate = startDate;
-                      setTaskForm(current => ({ ...current, projectId: e.target.value, dependencies: [], successorId: '', startDate, endDate, days: inclusiveDays(startDate, endDate), estimatedHours: current.estimatedHoursEdited ? current.estimatedHours : 8 }));
+                      setTaskForm(current => ({ ...current, projectId: e.target.value, parentGroupId: '', dependencies: [], successorId: '', startDate, endDate, days: inclusiveDays(startDate, endDate), estimatedHours: current.estimatedHoursEdited ? current.estimatedHours : 8 }));
                     }}
                     className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
                   >
@@ -1570,6 +1783,24 @@ export default function GanttPage() {
                     ))}
                   </select>
                 </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                  Mục công việc
+                </label>
+                <select
+                  value={taskForm.parentGroupId}
+                  onChange={event => setTaskForm(current => ({ ...current, parentGroupId: event.target.value }))}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
+                >
+                  <option value="">-- Không thuộc mục nào --</option>
+                  {ganttItems
+                    .filter(item => item.isGroup && projectIdForItem(item) === taskForm.projectId)
+                    .map(group => (
+                      <option key={group.id} value={group.id}>{group.title}</option>
+                    ))}
+                </select>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1590,7 +1821,7 @@ export default function GanttPage() {
                     className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
                   >
                     <option value="">-- Không có liên kết FS --</option>
-                    {ganttItems.filter(g => projectIdForItem(g) === taskForm.projectId).map(g => (
+                    {ganttItems.filter(g => !g.isGroup && projectIdForItem(g) === taskForm.projectId).map(g => (
                       <option key={g.id} value={g.id}>[{g.code}] {g.title}</option>
                     ))}
                   </select>
@@ -1606,7 +1837,7 @@ export default function GanttPage() {
                   >
                     <option value="">-- Tự động nối tới công việc bên dưới gần nhất --</option>
                     {ganttItems
-                      .filter(g => projectIdForItem(g) === taskForm.projectId && g.id !== taskForm.dependencies[0])
+                      .filter(g => !g.isGroup && projectIdForItem(g) === taskForm.projectId && g.id !== taskForm.dependencies[0])
                       .map(g => (
                         <option key={g.id} value={g.id}>[{g.code}] {g.title}</option>
                       ))}
