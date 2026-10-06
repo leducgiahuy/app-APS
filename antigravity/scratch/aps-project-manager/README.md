@@ -77,6 +77,8 @@ npm run dev
   + Dải ruy-băng nền vàng đánh dấu **NGHỈ LỄ VIỆT NAM** (Tết Dương lịch, Tết Nguyên Đán, Giỗ Tổ, 30/4...) kéo dài ngang qua biểu đồ.
   + Hiển thị nhãn: Người đảm nhận, số ngày, huy hiệu làm sớm/chậm, và số giờ OT (+x h OT).
   + Chế độ thu phóng (Zoom): Xem theo Tháng, Tuần, hoặc Chi tiết từng ngày.
+- Task trong các trang liên quan hiển thị tên nhóm công việc nếu task thuộc nhóm; nếu không có nhóm thì dùng tên dự án, không dùng nhãn phase cũ.
+- Menu ba chấm trên nhóm Gantt cho phép đổi tên hoặc xóa nhóm; khi xóa nhóm, các task con được giữ lại và bỏ liên kết nhóm.
 
 ### 4. Phân hệ Thống Kê & Báo Cáo Hiệu Suất (`/dashboard`)
 - Thống kê tỷ lệ hoàn thành dự án, công việc quá hạn/chậm trễ.
@@ -88,11 +90,12 @@ npm run dev
 - User xem lịch cá nhân sau khi tài khoản được ghép với hồ sơ nhân sự theo `employeeId`, email hoặc tên.
 - Ngày làm việc tính Thứ 2–6 đủ định mức, Thứ 7 nửa định mức, Chủ nhật không tính.
 - Chế độ ngày hiển thị task và nhật ký giờ thực tế, gồm phiên đang chạy; chế độ tháng/năm tổng hợp tiến độ và giờ theo công trình.
+- Khung lịch và thanh chọn ngày/tháng được giữ ổn định khi chuyển kỳ; trang có thanh cuộn dọc kể cả khi nội dung ngắn.
 
 ### 6. Đăng Nhập, Tài Khoản & Nhật Ký Quản Trị (`/login`, `/account`)
 - Có màn hình đăng nhập, ghi nhớ phiên đăng nhập, đăng xuất, trang hồ sơ, đổi mật khẩu và cập nhật ảnh đại diện.
 - Admin có thể tạo tài khoản user, chỉnh hồ sơ/ảnh và cấp lại mật khẩu. User không tự cấp quyền admin.
-- Admin có trang nhật ký hoạt động: tìm kiếm, lọc theo nhóm/user, thống kê, xuất CSV và xóa nhật ký. Nhật ký dùng backend để chia sẻ giữa trình duyệt, tối đa 1.000 sự kiện gần nhất; backend tắt thì dùng bản cục bộ.
+- Admin có trang nhật ký thay đổi dữ liệu quan trọng như thêm/xóa nhân sự, công việc, tăng ca, dự án và cập nhật hạng mục tiến độ; hỗ trợ tìm kiếm, lọc theo loại dữ liệu/người dùng, phân trang và xuất CSV. Sự kiện chuyển trang, đăng nhập, hồ sơ và thao tác không trọng yếu không hiển thị trong danh sách này. Nhật ký dùng backend để chia sẻ giữa trình duyệt, tối đa 1.000 sự kiện gần nhất; backend tắt thì dùng bản cục bộ.
 - Tài khoản demo trên màn hình đăng nhập: `demo@aps.vn` / `APS@2026`.
 - **Giới hạn cần biết:** đăng nhập, vai trò và tài khoản hiện xử lý ở frontend, dữ liệu mật khẩu lưu trong `localStorage`; backend API chưa tự xác thực/ủy quyền. Đây là bản xem trước, không nên dùng làm lớp bảo vệ dữ liệu nhạy cảm hoặc công khai API trước khi bổ sung xác thực ở server.
 
@@ -141,3 +144,11 @@ Chi tiết luồng dữ liệu, tên trường lưu và vị trí mã nguồn đ
 - Trang Phân công gộp tab, tìm task và nút tạo task trên một thanh sticky toàn chiều ngang bên dưới header; thanh ngoài phẳng, riêng ô tìm kiếm có bo góc.
 - Footer bản quyền được hiển thị ở cuối khung ứng dụng dùng chung.
 - Gantt giữ header cột trong vùng cuộn nội bộ, có cột trái đóng băng; chiều cao vùng biểu đồ căn theo viewport để header cột luôn hiện khi xem danh sách task.
+
+### Cập nhật giao diện và nhật ký dữ liệu
+
+- Trên trang Phân công, thao tác điều hướng sang phân hệ tiến độ dự án mở trang Gantt; nút tạo task riêng trên thanh công cụ đã được bỏ, việc tạo/chỉnh sửa task tiếp tục thực hiện ở các luồng hiện có.
+- Các bộ chọn ngày/tháng và khung lịch được cố định kích thước để không co giãn khi đổi ngày hoặc tháng. Thanh cuộn dọc của trang luôn được giữ ổn định.
+- Trang Nhật ký hoạt động chỉ trình bày các sự kiện dữ liệu quan trọng, phân trang 50 sự kiện mỗi trang; bộ lọc tác động lên toàn bộ dữ liệu phù hợp và CSV xuất toàn bộ kết quả lọc. Dữ liệu nhật ký cũ không bị tự động xóa; các sự kiện ngoài danh sách quan trọng chỉ được ẩn khỏi giao diện.
+- `backend/data/seed.json` được giữ lại làm dữ liệu fallback khi khởi tạo/khôi phục cơ sở dữ liệu; không xóa file seed khi dọn dữ liệu đang chạy.
+- Các trường phase cũ không còn dùng đã được gỡ khỏi một số task trong `backend/data/db.json` theo xác nhận; không áp dụng việc dọn này lên `seed.json`.

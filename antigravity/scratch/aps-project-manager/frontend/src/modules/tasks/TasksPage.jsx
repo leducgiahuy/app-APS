@@ -700,8 +700,8 @@ export default function TasksPage() {
                   value={taskForm.employeeId}
                   onChange={employee => setTaskForm(current => ({
                     ...current,
-                    employeeId: employee.id,
-                    estimatedHours: current.estimatedHoursEdited ? current.estimatedHours : current.estimatedDays * (Number(employee.standardHours) || 8)
+                    employeeId: employee?.id || '',
+                    estimatedHours: current.estimatedHoursEdited ? current.estimatedHours : current.estimatedDays * (Number(employee?.standardHours) || 8)
                   }))}
                   placeholder="Giao cho"
                 />

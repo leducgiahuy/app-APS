@@ -83,7 +83,7 @@ aps-project-manager/
 | **Trang Thống kê:** Bảng liệt kê dự án, công việc, nhân viên, thời gian hoàn thành | `frontend/src/modules/dashboard/DashboardPage.jsx` |
 | **Trang Theo dõi giờ & công việc:** Phân bổ giờ dự kiến, giờ đã ghi và công suất còn trống | `frontend/src/modules/workload/WorkloadPage.jsx` |
 | **Đăng nhập, hồ sơ và quản lý tài khoản** | `frontend/src/modules/auth/LoginPage.jsx`, `AccountPage.jsx`, `authSession.js` |
-| **Nhật ký hoạt động dành cho admin** | `frontend/src/modules/auth/AdminActivityPage.jsx`, `backend/src/controllers/activityController.js` |
+| **Nhật ký cập nhật dữ liệu quan trọng dành cho admin** | `frontend/src/modules/auth/AdminActivityPage.jsx`, `frontend/src/modules/auth/AdminActivityPage.css`, `frontend/src/context/AppContext.jsx`, `backend/src/controllers/activityController.js` |
 | **Thêm trực tiếp dữ liệu mẫu:** Thêm nhân viên, dự án mới bằng tay | `backend/data/db.json` |
 
 ---
@@ -223,9 +223,19 @@ flowchart TD
 
 ### Nhật ký hoạt động
 
-- `authSession.js` ghi các sự kiện đăng nhập/đăng xuất, thay đổi tài khoản và hồ sơ; `AppContext.jsx` ghi lần mở phân hệ; các thao tác dữ liệu chính ghi thêm sự kiện nghiệp vụ.
+- Các thao tác dữ liệu quan trọng được ghi sau khi API thành công: tạo/xóa nhân sự, task, OT, dự án và tạo/cập nhật/xóa hạng mục Gantt. Cập nhật thông tin dự án cũng được ghi nhận. Không ghi thao tác điều hướng phân hệ vào nhật ký.
 - Sự kiện được lưu ở nhật ký trình duyệt và gửi lên `POST /api/activity`. Backend lưu trong `activityLog` của `db.json`, giữ tối đa 1.000 mục gần nhất. Khi backend không sẵn sàng, giao diện có thể dùng nhật ký cục bộ.
-- Trang admin có bộ lọc theo nhóm/user, tìm kiếm, thống kê, xuất CSV và xóa nhật ký. Endpoint tương ứng là `GET`, `POST`, `DELETE /api/activity`.
+- `AdminActivityPage.jsx` chỉ hiển thị whitelist sự kiện dữ liệu quan trọng; sự kiện đăng nhập, hồ sơ, điểm danh, điều hướng và sắp xếp Gantt không hiển thị. Trang có tìm kiếm, lọc theo loại dữ liệu/user, phân trang 50 dòng và xuất CSV toàn bộ kết quả lọc. Xóa nhật ký cần admin xác nhận. Các sự kiện không hiển thị vẫn có thể tồn tại trong dữ liệu nhật ký cho đến khi bị xóa thủ công.
+- Endpoint tương ứng là `GET`, `POST`, `DELETE /api/activity`.
+
+### Các cập nhật giao diện gần đây
+
+- Trong Gantt, task thuộc nhóm hiển thị tên nhóm; task không thuộc nhóm hiển thị tên dự án thay cho phase cũ. Menu ba chấm của nhóm hỗ trợ sửa tên và xóa nhóm; xóa nhóm giữ lại task con nhưng bỏ liên kết tới nhóm.
+- Nút điều hướng từ thao tác phân công mở trang Tiến độ dự án (Gantt). Nút tạo task riêng trên thanh công cụ Phân công được bỏ; các chức năng tạo task khác vẫn dùng theo luồng hiện có.
+- Khung lịch và điều khiển ngày/tháng được cố định để không đổi kích thước khi chuyển kỳ; thanh cuộn dọc trang luôn hiện ổn định.
+- Nhật ký hoạt động chỉ hiển thị các thay đổi dữ liệu quan trọng, phân trang 50 sự kiện mỗi trang để giảm lượng DOM phải dựng. Polling 5 giây chỉ cập nhật state nếu danh sách ID sự kiện thực sự thay đổi.
+- `backend/data/seed.json` được giữ lại làm fallback; không xóa seed khi dọn dữ liệu đang chạy. Dữ liệu thực tế đang chạy được lưu riêng trong `backend/data/db.json`.
+- Một số trường `phase` cũ không còn dùng đã được gỡ khỏi task trong `db.json` theo xác nhận; file seed không bị chỉnh bởi thao tác dọn dữ liệu này.
 
 ### Trang Theo dõi giờ & công việc
 

@@ -66,23 +66,128 @@ const hasStoredAssignmentState = task => Boolean(task && (
   Object.hasOwn(task, 'employeeName')
 ));
 
-const flattenWorkGroups = (items, collapsedGroupIds) => {
-  const groupIds = new Set(items.filter(item => item.isGroup).map(item => item.id));
-  const childrenByGroup = new Map();
+const orderByDependencies = items => {
+  const itemIds = new Set(items.map(item => item.id));
+  const itemById = new Map(items.map(item => [item.id, item]));
+  const indegrees = new Map(items.map(item => [item.id, 0]));
+  const successors = new Map(items.map(item => [item.id, []]));
+
   items.forEach(item => {
-    if (!groupIds.has(item.parentGroupId)) return;
-    const children = childrenByGroup.get(item.parentGroupId) || [];
-    children.push(item);
-    childrenByGroup.set(item.parentGroupId, children);
+    [...new Set(Array.isArray(item.dependencies) ? item.dependencies : [])]
+      .filter(predecessorId => itemIds.has(predecessorId) && predecessorId !== item.id)
+      .forEach(predecessorId => {
+        indegrees.set(item.id, indegrees.get(item.id) + 1);
+        successors.get(predecessorId).push(item.id);
+      });
   });
 
-  return items
-    .filter(item => !groupIds.has(item.parentGroupId))
-    .flatMap(item => {
-      if (!item.isGroup) return [item];
-      const children = childrenByGroup.get(item.id) || [];
-      return [item, ...(collapsedGroupIds.has(item.id) ? [] : children)];
+  const ordered = [];
+  const remaining = new Set(items.map(item => item.id));
+  while (remaining.size) {
+    // Keep existing order whenever dependencies do not require a different position.
+    const next = items.find(item => remaining.has(item.id) && indegrees.get(item.id) === 0)
+      || itemById.get(remaining.values().next().value);
+    ordered.push(next);
+    remaining.delete(next.id);
+    successors.get(next.id).forEach(successorId => {
+      if (remaining.has(successorId)) indegrees.set(successorId, indegrees.get(successorId) - 1);
     });
+  }
+  return ordered;
+};
+
+const GANTT_PHASE_PRESETS = [
+  { code: 'A', title: 'A. THIẾT KẾ XÂY DỰNG', color: '#2563eb' },
+  { code: 'B', title: 'B. XIN PHÉP / PHÁP LÍ', color: '#dc2626' },
+  { code: 'C', title: 'C. THẦU THI CÔNG', color: '#16a34a' },
+  { code: 'L', title: 'L. NGHỈ LỄ VIỆT NAM', color: '#eab308' }
+];
+
+const flattenWorkGroups = (items, collapsedGroupIds) => {
+  // Older rows may not have parentGroupId persisted yet. Infer the standard
+  // phase -> subsection -> task hierarchy from their codes so phase collapse
+  // works consistently for both legacy and newly-created data.
+  const hierarchyItems = items.map(item => ({ ...item }));
+  const groups = hierarchyItems.filter(item => item.isGroup && !item.isProjectHeader);
+  const phaseByProjectAndCode = new Map();
+  groups.forEach(group => {
+    const phaseCode = String(group.title || '').match(/^\s*([A-Z])\s*\./i)?.[1]?.toUpperCase();
+    if (phaseCode) phaseByProjectAndCode.set(`${group.projectId || ''}:${phaseCode}`, group);
+  });
+
+  groups.forEach(group => {
+    if (group.parentGroupId) return;
+    const subsectionCode = String(group.title || '').match(/^\s*([A-Z]\d+)\s*[. ]/i)?.[1]?.toUpperCase();
+    if (!subsectionCode) return;
+    const phase = phaseByProjectAndCode.get(`${group.projectId || ''}:${subsectionCode[0]}`);
+    if (phase && phase.id !== group.id) group.parentGroupId = phase.id;
+  });
+
+  const subsectionGroups = groups
+    .map(group => ({ group, code: String(group.title || '').match(/^\s*([A-Z]\d+)\s*[. ]/i)?.[1]?.toUpperCase() }))
+    .filter(entry => entry.code)
+    .sort((a, b) => b.code.length - a.code.length);
+  hierarchyItems.forEach(item => {
+    if (item.isGroup || item.isProjectHeader || item.parentGroupId) return;
+    const code = String(item.code || '').trim().toUpperCase();
+    const parent = subsectionGroups.find(entry =>
+      entry.group.projectId === item.projectId && (code === entry.code || code.startsWith(`${entry.code}.`))
+    );
+    if (parent) item.parentGroupId = parent.group.id;
+  });
+
+  const childrenByParent = new Map();
+  hierarchyItems.filter(item => !item.isProjectHeader).forEach(item => {
+    const parentId = item.parentGroupId || '';
+    const children = childrenByParent.get(parentId) || [];
+    children.push(item);
+    childrenByParent.set(parentId, children);
+  });
+
+  const descendantsOf = (group, visited = new Set()) => {
+    if (visited.has(group.id)) return [];
+    const nextVisited = new Set(visited).add(group.id);
+    const descendants = [];
+    (childrenByParent.get(group.id) || []).forEach(child => {
+      if (child.isGroup) descendants.push(...descendantsOf(child, nextVisited));
+      else descendants.push(child);
+    });
+    return descendants;
+  };
+
+  const orderSiblings = siblings => {
+    const ownerByTaskId = new Map();
+    siblings.forEach(sibling => {
+      const descendantTasks = sibling.isGroup ? descendantsOf(sibling) : [sibling];
+      descendantTasks.forEach(task => ownerByTaskId.set(task.id, sibling.id));
+    });
+    const dependencyRows = siblings.map(sibling => {
+      const descendantTasks = sibling.isGroup ? descendantsOf(sibling) : [sibling];
+      return {
+        id: sibling.id,
+        dependencies: [...new Set(descendantTasks.flatMap(task =>
+          (Array.isArray(task.dependencies) ? task.dependencies : [])
+            .map(dependencyId => ownerByTaskId.get(dependencyId))
+            .filter(ownerId => ownerId && ownerId !== sibling.id)
+        ))]
+      };
+    });
+    const orderedIds = orderByDependencies(dependencyRows).map(item => item.id);
+    const siblingById = new Map(siblings.map(item => [item.id, item]));
+    return orderedIds.map(id => siblingById.get(id));
+  };
+
+  const visibleRows = hierarchyItems.filter(item => item.isProjectHeader);
+  const appendSiblings = siblings => {
+    orderSiblings(siblings).forEach(item => {
+      visibleRows.push(item);
+      if (item.isGroup && !collapsedGroupIds.has(item.id)) {
+        appendSiblings(childrenByParent.get(item.id) || []);
+      }
+    });
+  };
+  appendSiblings(childrenByParent.get('') || []);
+  return visibleRows;
 };
 
 export default function GanttPage() {
@@ -105,11 +210,30 @@ export default function GanttPage() {
 
   // Chọn dự án đang xem
   const [selectedProjectId, setSelectedProjectId] = useState(projects[0]?.id || 'proj-1');
+  const [leftPanelWidth, setLeftPanelWidth] = useState(788);
+  const leftPanelResizeRef = useRef(null);
   const [collapsedProjectIds, setCollapsedProjectIds] = useState(() => new Set());
   const [collapsedGroupIds, setCollapsedGroupIds] = useState(() => new Set());
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
+  const [phaseMenuOpen, setPhaseMenuOpen] = useState(false);
   const createMenuRef = useRef(null);
+  const phaseMenuRef = useRef(null);
   const groupMenuRef = useRef(null);
+
+  const startLeftPanelResize = event => {
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    leftPanelResizeRef.current = { pointerX: event.clientX, width: leftPanelWidth };
+  };
+  const resizeLeftPanel = event => {
+    const resizeStart = leftPanelResizeRef.current;
+    if (!resizeStart) return;
+    setLeftPanelWidth(Math.min(788, Math.max(120, resizeStart.width + event.clientX - resizeStart.pointerX)));
+  };
+  const stopLeftPanelResize = event => {
+    leftPanelResizeRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  };
 
   const toggleProjectCollapsed = (projectId) => {
     setCollapsedProjectIds(current => {
@@ -135,6 +259,8 @@ export default function GanttPage() {
   // Trạng thái modal
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
   const [showAddGroupModal, setShowAddGroupModal] = useState(false);
+  const [showPhaseDateModal, setShowPhaseDateModal] = useState(false);
+  const [phaseDateForm, setPhaseDateForm] = useState({ phase: null, projectId: '', itemId: '', startDate: today, endDate: today });
   const [editingGroup, setEditingGroup] = useState(null);
   const [groupEditTitle, setGroupEditTitle] = useState('');
   const [groupMenuOpenId, setGroupMenuOpenId] = useState(null);
@@ -154,6 +280,21 @@ export default function GanttPage() {
     const updateViewportHeight = () => setViewportHeight(window.innerHeight);
     window.addEventListener('resize', updateViewportHeight);
     return () => window.removeEventListener('resize', updateViewportHeight);
+  }, []);
+
+  useEffect(() => {
+    const closeOnOutsideClick = event => {
+      if (!phaseMenuRef.current?.contains(event.target)) setPhaseMenuOpen(false);
+    };
+    const closeOnEscape = event => {
+      if (event.key === 'Escape') setPhaseMenuOpen(false);
+    };
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
   }, []);
 
   // Form thêm công việc cho dự án
@@ -176,7 +317,7 @@ export default function GanttPage() {
     speed: 'on_time',
     parentGroupId: ''
   });
-  const [groupForm, setGroupForm] = useState({ title: '', projectId: projects[0]?.id || '' });
+  const [groupForm, setGroupForm] = useState({ title: '', projectId: projects[0]?.id || '', parentGroupId: '', startDate: today, endDate: today });
 
   const updateDateRange = (setter, field, value) => {
     setter(current => {
@@ -192,6 +333,39 @@ export default function GanttPage() {
   };
 
   const projectIdForItem = (item) => item.projectId || tasks.find(task => task.ganttId === item.id)?.projectId;
+  const phaseColorForGroup = item => {
+    const groupsById = new Map(ganttItems.filter(entry => entry.isGroup).map(entry => [entry.id, entry]));
+    let current = item;
+    const seen = new Set();
+    while (current && !seen.has(current.id)) {
+      seen.add(current.id);
+      const phase = GANTT_PHASE_PRESETS.find(preset => preset.title === current.title);
+      if (phase) return phase.color;
+      current = current.parentGroupId ? groupsById.get(current.parentGroupId) : null;
+    }
+
+    const subsectionCode = String(item.title || '').match(/^\s*([A-Z]\d+)\s*[. ]/i)?.[1]?.toUpperCase();
+    if (!subsectionCode) return item.color || '#64748b';
+    const phase = ganttItems.find(candidate =>
+      candidate.isGroup && projectIdForItem(candidate) === projectIdForItem(item) &&
+      String(candidate.title || '').match(/^\s*([A-Z])\s*\./i)?.[1]?.toUpperCase() === subsectionCode[0]
+    );
+    return GANTT_PHASE_PRESETS.find(preset => preset.title === phase?.title)?.color || item.color || '#64748b';
+  };
+  const groupDepthForItem = item => {
+    const groupsById = new Map(ganttItems.filter(entry => entry.isGroup).map(entry => [entry.id, entry]));
+    let parentGroupId = item.parentGroupId;
+    let depth = 0;
+    const seen = new Set();
+    while (parentGroupId && !seen.has(parentGroupId)) {
+      seen.add(parentGroupId);
+      const parent = groupsById.get(parentGroupId);
+      if (!parent) break;
+      depth += 1;
+      parentGroupId = parent.parentGroupId;
+    }
+    return depth;
+  };
 
   useEffect(() => {
     if (!createMenuOpen) return undefined;
@@ -335,11 +509,13 @@ export default function GanttPage() {
 
   // Chiều cao mỗi dòng trong bảng & biểu đồ (khóa cứng pixel để không bao giờ bị lệch)
   const ROW_HEIGHT = 44;
+  const GROUP_ROW_HEIGHT = 36;
   const HEADER_HEIGHT = zoomLevel === 'month' ? 72 : 52;
   const BAR_HEIGHT = 24;
-  const LEFT_PANEL_WIDTH = 788;
+  const LEFT_PANEL_WIDTH = leftPanelWidth;
   const rowHeights = filteredGanttItems.map(item => {
     if (item.isProjectHeader) return 36;
+    if (item.isGroup) return GROUP_ROW_HEIGHT;
     const linkedTask = tasks.find(task => task.ganttId === item.id);
     const savedAssignees = Array.isArray(linkedTask?.assignees) && linkedTask.assignees.length
       ? linkedTask.assignees
@@ -497,13 +673,15 @@ export default function GanttPage() {
     while (ganttItems.some(item => item.code === `GR${codeIndex}`)) codeIndex += 1;
     const projectItems = ganttItems.filter(item => projectIdForItem(item) === project.id);
     const lastProjectItem = projectItems.at(-1);
-    const startDate = project.startDate || todayIsoDate();
-    const endDate = project.endDate || startDate;
+    const startDate = groupForm.startDate || project.startDate || todayIsoDate();
+    const endDate = groupForm.endDate || startDate;
+    if (endDate < startDate) return;
     const success = await addGanttItem({
       code: `GR${codeIndex}`,
       projectId: project.id,
       title,
       isGroup: true,
+      parentGroupId: groupForm.parentGroupId,
       unit: 'GR',
       startDate,
       endDate,
@@ -515,7 +693,7 @@ export default function GanttPage() {
       insertAfterId: lastProjectItem?.id || ''
     });
     if (success) {
-      setGroupForm({ title: '', projectId: project.id });
+      setGroupForm({ title: '', projectId: project.id, parentGroupId: groupForm.parentGroupId, startDate, endDate });
       setShowAddGroupModal(false);
     }
   };
@@ -553,9 +731,81 @@ export default function GanttPage() {
 
   const openGroupCreation = () => {
     const projectId = selectedProjectId === 'ALL' ? projects[0]?.id : selectedProjectId;
-    setGroupForm({ title: '', projectId: projectId || '' });
+    const project = projects.find(item => item.id === projectId);
+    const startDate = project?.startDate || todayIsoDate();
+    const phaseGroup = ganttItems.find(item =>
+      item.isGroup && projectIdForItem(item) === projectId && GANTT_PHASE_PRESETS.some(phase => phase.title === item.title)
+    );
+    setGroupForm({ title: '', projectId: projectId || '', parentGroupId: phaseGroup?.id || '', startDate, endDate: project?.endDate || startDate });
     setCreateMenuOpen(false);
     setShowAddGroupModal(true);
+  };
+
+  const openPhaseDateForm = phase => {
+    const projectId = selectedProjectId === 'ALL' ? projects[0]?.id : selectedProjectId;
+    const project = projects.find(item => item.id === projectId);
+    if (!project) return;
+
+    setPhaseMenuOpen(false);
+    const existingGroup = ganttItems.find(item =>
+      item.isGroup && projectIdForItem(item) === project.id && item.title === phase.title
+    );
+    const startDate = existingGroup?.startDate || project.startDate || todayIsoDate();
+    const endDate = existingGroup?.endDate || project.endDate || startDate;
+    setPhaseDateForm({
+      phase,
+      projectId: project.id,
+      itemId: existingGroup?.id || '',
+      startDate,
+      endDate: endDate < startDate ? startDate : endDate
+    });
+    setShowPhaseDateModal(true);
+  };
+
+  const handlePhaseDateSubmit = async event => {
+    event.preventDefault();
+    const { phase, projectId, itemId, startDate, endDate } = phaseDateForm;
+    const project = projects.find(item => item.id === projectId);
+    if (!phase || !project || !startDate || !endDate || endDate < startDate) return;
+
+    if (itemId) {
+      if (await updateGanttItem(itemId, { startDate, endDate })) {
+        setSelectedProjectId(project.id);
+        setCollapsedProjectIds(current => {
+          const next = new Set(current);
+          next.delete(project.id);
+          return next;
+        });
+        setCollapsedGroupIds(current => {
+          const next = new Set(current);
+          next.delete(itemId);
+          return next;
+        });
+        setShowPhaseDateModal(false);
+      }
+      return;
+    }
+
+    let codeIndex = 1;
+    while (ganttItems.some(item => item.code === `GR${codeIndex}`)) codeIndex += 1;
+    const projectItems = ganttItems.filter(item => projectIdForItem(item) === project.id);
+    const lastProjectItem = projectItems.at(-1);
+    const success = await addGanttItem({
+      code: `GR${codeIndex}`,
+      projectId: project.id,
+      title: phase.title,
+      isGroup: true,
+      unit: 'GR',
+      startDate,
+      endDate,
+      estimatedHoursPerDay: 8,
+      assignee: '',
+      notes: '',
+      color: phase.color,
+      dependencies: [],
+      insertAfterId: lastProjectItem?.id || ''
+    });
+    if (success) setShowPhaseDateModal(false);
   };
 
   // Xử lý gửi Form thêm Project
@@ -766,6 +1016,37 @@ export default function GanttPage() {
               </div>
             )}
           </div>
+
+          <div className="relative" ref={phaseMenuRef}>
+            <button
+              type="button"
+              aria-haspopup="menu"
+              aria-expanded={phaseMenuOpen}
+              disabled={projects.length === 0}
+              onClick={() => setPhaseMenuOpen(open => !open)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-all disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+            >
+              <Layers className="h-3.5 w-3.5" />
+              <span>Giai đoạn</span>
+              <ChevronDown className="h-3.5 w-3.5" />
+            </button>
+            {phaseMenuOpen && (
+              <div role="menu" className="absolute left-0 top-full z-[100] mt-2 w-64 overflow-hidden rounded-xl border border-slate-200 bg-white p-1 shadow-xl dark:border-slate-700 dark:bg-slate-900">
+                {GANTT_PHASE_PRESETS.map(phase => (
+                  <button
+                    key={phase.code}
+                    type="button"
+                    role="menuitem"
+                    onClick={() => openPhaseDateForm(phase)}
+                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+                  >
+                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: phase.color }} />
+                    <span>{phase.title}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Thu phóng & Nút thêm */}
@@ -811,7 +1092,28 @@ export default function GanttPage() {
           <div className="flex bg-slate-100 dark:bg-slate-950" style={{ width: `${LEFT_PANEL_WIDTH + ganttWidth}px`, minWidth: '100%' }}>
             
             {/* ================= KHUNG TRÁI: BẢNG DỮ LIỆU CÔNG VIỆC (ĐÓNG BĂNG FREEZE) ================= */}
-            <div className="w-[788px] min-w-[788px] max-w-[788px] flex-shrink-0 sticky left-0 z-40 bg-white dark:bg-slate-900 border-r-2 border-slate-300 dark:border-slate-700 shadow-md">
+            <div
+              className="relative flex-shrink-0 sticky left-0 z-40 overflow-hidden bg-white dark:bg-slate-900 border-r-2 border-slate-300 dark:border-slate-700 shadow-md"
+              style={{ width: `${LEFT_PANEL_WIDTH}px`, minWidth: `${LEFT_PANEL_WIDTH}px`, maxWidth: `${LEFT_PANEL_WIDTH}px` }}
+            >
+              <div
+                role="separator"
+                aria-label="Thay đổi độ rộng bảng"
+                aria-orientation="vertical"
+                aria-valuemin={120}
+                aria-valuemax={788}
+                aria-valuenow={LEFT_PANEL_WIDTH}
+                tabIndex={0}
+                className="absolute right-0 top-0 z-[70] h-full w-2 cursor-col-resize touch-none bg-transparent transition-colors hover:bg-sky-500/30 focus-visible:bg-sky-500/30"
+                onPointerDown={startLeftPanelResize}
+                onPointerMove={resizeLeftPanel}
+                onPointerUp={stopLeftPanelResize}
+                onPointerCancel={stopLeftPanelResize}
+                onKeyDown={event => {
+                  if (event.key === 'ArrowLeft') setLeftPanelWidth(width => Math.max(120, width - 16));
+                  if (event.key === 'ArrowRight') setLeftPanelWidth(width => Math.min(788, width + 16));
+                }}
+              />
               
               {/* Header Bảng Bên Trái - Khóa cứng 52px */}
               <div
@@ -880,13 +1182,23 @@ export default function GanttPage() {
                   }
 
                   if (isGroup) {
+                    const phaseColor = phaseColorForGroup(item);
                     return (
                       <div
                         key={item.id}
-                        className="flex items-center border-b border-slate-100 bg-slate-50/80 font-bold text-slate-900 dark:border-slate-800/80 dark:bg-slate-800/80 dark:text-white"
-                        style={{ height: `${rowHeights[itemIndex]}px`, minHeight: `${rowHeights[itemIndex]}px` }}
+                        className="flex items-center border-b border-slate-100 bg-slate-50/80 text-[13px] font-bold text-slate-900 dark:border-slate-800/80 dark:bg-slate-800/80 dark:text-white"
+                        style={{
+                          height: `${rowHeights[itemIndex]}px`,
+                          minHeight: `${rowHeights[itemIndex]}px`,
+                          borderLeft: `4px solid ${phaseColor}`,
+                          backgroundColor: `${phaseColor}14`,
+                          color: phaseColor
+                        }}
                       >
-                        <div className="flex h-full min-w-0 flex-1 items-center gap-1.5 px-3">
+                        <div
+                          className="flex h-full w-[276px] min-w-[276px] max-w-[276px] items-center gap-1.5 border-r border-slate-200/70 pr-3 dark:border-slate-700/70"
+                          style={{ paddingLeft: `${12 + groupDepthForItem(item) * 16}px` }}
+                        >
                           <button
                             type="button"
                             onClick={() => toggleGroupCollapsed(item.id)}
@@ -899,7 +1211,19 @@ export default function GanttPage() {
                               : <ChevronDown className="h-3.5 w-3.5" />}
                           </button>
                           <span className="min-w-0 truncate" title={item.title}>{item.title}</span>
-                          <div className="relative ml-auto shrink-0" ref={groupMenuOpenId === item.id ? groupMenuRef : null}>
+                        </div>
+                        <div className="flex h-full w-[76px] min-w-[76px] items-center justify-center border-r border-slate-200/70 px-1 text-[11px] font-semibold dark:border-slate-700/70">
+                          {formatDateVi(item.startDate) || '—'}
+                        </div>
+                        <div className="flex h-full w-[76px] min-w-[76px] items-center justify-center border-r border-slate-200/70 px-1 text-[11px] font-semibold dark:border-slate-700/70">
+                          {formatDateVi(item.endDate) || '—'}
+                        </div>
+                        <div className="flex h-full w-[72px] min-w-[72px] items-center justify-center border-r border-slate-200/70 px-1 text-[11px] font-bold dark:border-slate-700/70">
+                          {inclusiveDays(item.startDate, item.endDate)}
+                        </div>
+                        <div className="h-full w-[88px] min-w-[88px] border-r border-slate-200/70 dark:border-slate-700/70" />
+                        <div className="h-full w-24 min-w-[96px] border-r border-slate-200/70 dark:border-slate-700/70" />
+                        <div className="relative flex h-full w-[104px] min-w-[104px] items-center justify-center" ref={groupMenuOpenId === item.id ? groupMenuRef : null}>
                             <button
                               type="button"
                               aria-label={`Tùy chọn mục công việc ${item.title}`}
@@ -935,7 +1259,6 @@ export default function GanttPage() {
                                 </button>
                               </div>
                             )}
-                          </div>
                         </div>
                       </div>
                     );
@@ -983,6 +1306,7 @@ export default function GanttPage() {
                       {/* Cột Tên Công Việc (Có thụt dòng theo cấp WBS) */}
                       <div
                         className="w-[220px] min-w-[220px] max-w-[220px] h-full min-h-0 px-3 border-r border-slate-100 dark:border-slate-800 overflow-hidden whitespace-nowrap flex items-center gap-1.5 shrink-0"
+                        style={{ paddingLeft: `${isGroup ? 12 + groupDepthForItem(item) * 16 : 4 + Math.max(0, groupDepthForItem(item) - 1) * 6}px` }}
                       >
                         {isGroup && (
                           <button
@@ -1702,6 +2026,82 @@ export default function GanttPage() {
         </ModalOverlay>
       )}
 
+      {showPhaseDateModal && (
+        <ModalOverlay>
+          <div className="w-full max-w-lg space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3 dark:border-slate-800">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Thiết lập thời gian giai đoạn</h3>
+                <p className="mt-1 text-xs font-semibold" style={{ color: phaseDateForm.phase?.color }}>
+                  {phaseDateForm.phase?.title}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPhaseDateModal(false)}
+                aria-label="Đóng"
+                className="text-slate-400 hover:text-slate-700 dark:hover:text-white"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <form onSubmit={handlePhaseDateSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Ngày bắt đầu *
+                  <DateInput
+                    required
+                    min={projects.find(project => project.id === phaseDateForm.projectId)?.startDate}
+                    max={projects.find(project => project.id === phaseDateForm.projectId)?.endDate}
+                    value={phaseDateForm.startDate}
+                    onChange={value => setPhaseDateForm(current => ({
+                      ...current,
+                      startDate: value,
+                      endDate: current.endDate < value ? value : current.endDate
+                    }))}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs dark:border-slate-700 dark:bg-slate-800"
+                  />
+                </label>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Ngày kết thúc *
+                  <DateInput
+                    required
+                    min={phaseDateForm.startDate || projects.find(project => project.id === phaseDateForm.projectId)?.startDate}
+                    max={projects.find(project => project.id === phaseDateForm.projectId)?.endDate}
+                    value={phaseDateForm.endDate}
+                    onChange={value => setPhaseDateForm(current => ({ ...current, endDate: value }))}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs dark:border-slate-700 dark:bg-slate-800"
+                  />
+                </label>
+              </div>
+              <div className="rounded-xl bg-slate-50 px-4 py-3 text-sm dark:bg-slate-800">
+                <span className="text-slate-500 dark:text-slate-400">Tổng thời gian: </span>
+                <strong className="text-slate-900 dark:text-white">
+                  {inclusiveDays(phaseDateForm.startDate, phaseDateForm.endDate)} ngày
+                </strong>
+              </div>
+              <div className="flex justify-end gap-3 border-t border-slate-200 pt-3 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowPhaseDateModal(false)}
+                  className="rounded-xl px-4 py-2 text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={!phaseDateForm.startDate || !phaseDateForm.endDate || phaseDateForm.endDate < phaseDateForm.startDate}
+                  className="rounded-xl px-5 py-2 text-xs font-bold text-white shadow-md disabled:cursor-not-allowed disabled:opacity-50"
+                  style={{ backgroundColor: phaseDateForm.phase?.color || '#2563eb' }}
+                >
+                  {phaseDateForm.itemId ? 'Lưu thời gian' : 'Thêm giai đoạn'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </ModalOverlay>
+      )}
+
       {showAddGroupModal && (
         <ModalOverlay>
           <div className="w-full max-w-lg space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
@@ -1738,7 +2138,20 @@ export default function GanttPage() {
                 <select
                   required
                   value={groupForm.projectId}
-                  onChange={event => setGroupForm(current => ({ ...current, projectId: event.target.value }))}
+                  onChange={event => {
+                    const project = projects.find(item => item.id === event.target.value);
+                    const startDate = project?.startDate || todayIsoDate();
+                    const phaseGroup = ganttItems.find(item =>
+                      item.isGroup && projectIdForItem(item) === event.target.value && GANTT_PHASE_PRESETS.some(phase => phase.title === item.title)
+                    );
+                    setGroupForm(current => ({
+                      ...current,
+                      projectId: event.target.value,
+                      parentGroupId: phaseGroup?.id || '',
+                      startDate,
+                      endDate: project?.endDate || startDate
+                    }));
+                  }}
                   className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800"
                 >
                   {projects.map(project => (
@@ -1746,6 +2159,53 @@ export default function GanttPage() {
                   ))}
                 </select>
               </label>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Thuộc giai đoạn
+                <select
+                  value={groupForm.parentGroupId}
+                  onChange={event => setGroupForm(current => ({ ...current, parentGroupId: event.target.value }))}
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800"
+                >
+                  <option value="">-- Mục gốc dự án --</option>
+                  {ganttItems
+                    .filter(item => item.isGroup && projectIdForItem(item) === groupForm.projectId && GANTT_PHASE_PRESETS.some(phase => phase.title === item.title))
+                    .map(item => <option key={item.id} value={item.id}>{item.title}</option>)}
+                </select>
+              </label>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Ngày bắt đầu *
+                  <DateInput
+                    required
+                    min={projects.find(project => project.id === groupForm.projectId)?.startDate}
+                    max={projects.find(project => project.id === groupForm.projectId)?.endDate}
+                    value={groupForm.startDate}
+                    onChange={value => setGroupForm(current => ({
+                      ...current,
+                      startDate: value,
+                      endDate: current.endDate < value ? value : current.endDate
+                    }))}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs dark:border-slate-700 dark:bg-slate-800"
+                  />
+                </label>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Ngày kết thúc *
+                  <DateInput
+                    required
+                    min={groupForm.startDate || projects.find(project => project.id === groupForm.projectId)?.startDate}
+                    max={projects.find(project => project.id === groupForm.projectId)?.endDate}
+                    value={groupForm.endDate}
+                    onChange={value => setGroupForm(current => ({ ...current, endDate: value }))}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs dark:border-slate-700 dark:bg-slate-800"
+                  />
+                </label>
+              </div>
+              <div className="rounded-xl bg-slate-50 px-4 py-3 text-sm dark:bg-slate-800">
+                <span className="text-slate-500 dark:text-slate-400">Tổng thời gian: </span>
+                <strong className="text-slate-900 dark:text-white">
+                  {inclusiveDays(groupForm.startDate, groupForm.endDate)} ngày
+                </strong>
+              </div>
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 Sau khi tạo, bạn có thể thêm công việc vào mục này và thu gọn hoặc mở rộng danh sách công việc.
               </p>
@@ -1859,7 +2319,7 @@ export default function GanttPage() {
                   <EmployeeCombobox
                     employees={employees}
                     value={taskForm.assigneeId}
-                    onChange={employee => setTaskForm(current => ({ ...current, assigneeId: employee.id }))}
+                    onChange={employee => setTaskForm(current => ({ ...current, assigneeId: employee?.id || '' }))}
                     placeholder="Giao cho"
                   />
                 </div>
@@ -1919,7 +2379,7 @@ export default function GanttPage() {
                   {ganttItems
                     .filter(item => item.isGroup && projectIdForItem(item) === taskForm.projectId)
                     .map(group => (
-                      <option key={group.id} value={group.id}>{group.title}</option>
+                      <option key={group.id} value={group.id}>{group.parentGroupId ? `↳ ${group.title}` : group.title}</option>
                     ))}
                 </select>
               </div>
@@ -1931,6 +2391,7 @@ export default function GanttPage() {
                     Công Việc Trước (Mũi tên liên kết FS)
                   </label>
                   <select
+                    value={taskForm.dependencies[0] || ''}
                     onChange={(e) => {
                       const val = e.target.value;
                       setTaskForm(current => ({
@@ -1956,7 +2417,11 @@ export default function GanttPage() {
                     onChange={(e) => setTaskForm(current => ({ ...current, successorId: e.target.value }))}
                     className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
                   >
-                    <option value="">-- Tự động nối tới công việc bên dưới gần nhất --</option>
+                    <option value="">
+                      {taskForm.dependencies[0]
+                        ? '-- Bỏ trống để thêm task ở cuối dự án --'
+                        : '-- Tự động nối theo thứ tự hiện tại --'}
+                    </option>
                     {ganttItems
                       .filter(g => !g.isGroup && projectIdForItem(g) === taskForm.projectId && g.id !== taskForm.dependencies[0])
                       .map(g => (

@@ -188,8 +188,50 @@ export function deleteProject(req, res) {
 }
 
 // Lấy danh sách hạng mục cho biểu đồ Gantt
+export function normalizeGanttGroupHierarchy(ganttItems, tasks = []) {
+  let changed = false;
+  const taskFor = item => tasks.find(task => task.ganttId === item.id);
+  const projectIdFor = item => item.projectId || taskFor(item)?.projectId || 'proj-1';
+  const groups = ganttItems.filter(item => item.isGroup);
+  const phaseGroups = groups.filter(group => /^([A-Z])\.\s/i.test(group.title || ''));
+
+  groups.forEach(group => {
+    if (group.parentGroupId) return;
+    const subgroupCode = String(group.title || '').match(/^([A-Z]\d+)\s*[. ]/i)?.[1]?.toUpperCase();
+    if (!subgroupCode) return;
+    const phaseLetter = subgroupCode[0];
+    const phase = phaseGroups.find(candidate =>
+      projectIdFor(candidate) === projectIdFor(group) &&
+      String(candidate.title || '').trim().toUpperCase().startsWith(`${phaseLetter}.`)
+    );
+    if (phase) {
+      group.parentGroupId = phase.id;
+      changed = true;
+    }
+  });
+
+  ganttItems.filter(item => !item.isGroup && !item.parentGroupId).forEach(item => {
+    const code = String(item.code || '').trim().toUpperCase();
+    if (!code) return;
+    const matchingGroup = groups
+      .filter(group => projectIdFor(group) === projectIdFor(item))
+      .map(group => ({ group, prefix: String(group.title || '').match(/^([A-Z]\d+)\s*[. ]/i)?.[1]?.toUpperCase() }))
+      .filter(candidate => candidate.prefix && (code === candidate.prefix || code.startsWith(`${candidate.prefix}.`)))
+      .sort((left, right) => right.prefix.length - left.prefix.length)[0]?.group;
+    if (matchingGroup) {
+      item.parentGroupId = matchingGroup.id;
+      const linkedTask = taskFor(item);
+      if (linkedTask) linkedTask.parentGroupId = matchingGroup.id;
+      changed = true;
+    }
+  });
+
+  return changed;
+}
+
 export function getGanttItems(req, res) {
   const db = readDb();
+  if (normalizeGanttGroupHierarchy(db.ganttItems || [], db.tasks || [])) writeDb(db);
   const tasksByGanttId = new Map((db.tasks || []).filter(task => task.ganttId).map(task => [task.ganttId, task]));
   const approvedOvertimes = (db.overtimes || []).filter(overtime => !overtime.status || overtime.status === 'approved');
   const data = (db.ganttItems || []).map(item => {
@@ -456,6 +498,20 @@ export function updateGanttItem(req, res) {
   }
 
   const calculatedDays = Math.floor((endTimestamp - startTimestamp) / 86400000) + 1;
+  if (item.isGroup) {
+    item.startDate = nextStartDate;
+    item.endDate = nextEndDate;
+    item.days = calculatedDays;
+    if (!writeDb(db)) {
+      return res.status(500).json({ success: false, message: 'Không thể lưu thời gian giai đoạn. Vui lòng thử lại.' });
+    }
+    return res.json({
+      success: true,
+      message: 'Đã cập nhật ngày bắt đầu, ngày kết thúc và tổng số ngày của giai đoạn',
+      data: item
+    });
+  }
+
   const requestedHoursPerDay = Number(estimatedHoursPerDay);
   if (estimatedHoursPerDay !== undefined && (!Number.isFinite(requestedHoursPerDay) || requestedHoursPerDay <= 0)) {
     return res.status(400).json({ success: false, message: 'Giờ làm dự kiến mỗi ngày phải lớn hơn 0' });
@@ -619,6 +675,7 @@ export function updateGanttItem(req, res) {
 // TỰ ĐỘNG CHÈN ĐÚNG VỊ TRÍ PHÂN TẦNG WBS (VD: A1.3 NẰM SAU A1.2) VÀ ĐỒNG BỘ SANG TASKS
 export function createGanttItem(req, res) {
   const db = readDb();
+  if (normalizeGanttGroupHierarchy(db.ganttItems || [], db.tasks || [])) writeDb(db);
   const {
     code,
     projectId,
@@ -650,7 +707,7 @@ export function createGanttItem(req, res) {
   const parentGroup = parentGroupId
     ? (db.ganttItems || []).find(item => item.id === parentGroupId && item.isGroup)
     : null;
-  if (parentGroupId && (!parentGroup || parentGroup.projectId !== project.id || isGroup)) {
+  if (parentGroupId && (!parentGroup || parentGroup.projectId !== project.id)) {
     return res.status(400).json({ success: false, message: 'Mục công việc được chọn không hợp lệ hoặc không thuộc dự án này' });
   }
 
@@ -684,29 +741,70 @@ export function createGanttItem(req, res) {
   const formattedCode = code ? String(code).trim() : `T${db.ganttItems.length + 1}`;
   const newGanttId = `G-${Date.now()}`;
 
-  // === 1. TÍNH TOÁN VỊ TRÍ CHÈN WBS ===
-  let insertIdx = -1;
-  if (insertAfterId) {
-    insertIdx = db.ganttItems.findIndex(g => g.id === insertAfterId);
-  } else {
-    for (let i = 0; i < db.ganttItems.length; i++) {
-      if (compareWbs(db.ganttItems[i].code, formattedCode) < 0) {
-        insertIdx = i;
-      }
-    }
-  }
-  if (parentGroup) {
-    insertIdx = db.ganttItems.findIndex(item => item.id === parentGroup.id);
-    db.ganttItems.forEach((item, index) => {
-      if (item.parentGroupId === parentGroup.id && index > insertIdx) insertIdx = index;
-    });
-  }
-
   const belongsToProject = item => {
     const linkedTask = (db.tasks || []).find(task => task.ganttId === item.id);
     return !item.isGroup && (item.projectId || linkedTask?.projectId || 'proj-1') === project.id;
   };
+  const belongsToProjectRow = item => {
+    const linkedTask = (db.tasks || []).find(task => task.ganttId === item.id);
+    return (item.projectId || linkedTask?.projectId || 'proj-1') === project.id;
+  };
   const projectItems = db.ganttItems.filter(belongsToProject);
+  const projectRows = db.ganttItems.filter(belongsToProjectRow);
+  const explicitPredecessorIds = Array.isArray(dependencies)
+    ? [...new Set(dependencies.filter(Boolean))]
+    : [];
+  const validPredecessors = explicitPredecessorIds.filter(id => projectItems.some(item => item.id === id));
+  const requestedSuccessorId = successorId && projectItems.some(item => item.id === successorId)
+    ? successorId
+    : null;
+  if (successorId && !requestedSuccessorId) {
+    return res.status(400).json({ success: false, message: 'Vui lòng chọn một công việc sau thuộc cùng dự án' });
+  }
+  if (validPredecessors.length !== explicitPredecessorIds.length) {
+    return res.status(400).json({ success: false, message: 'Công việc trước phải thuộc cùng dự án' });
+  }
+  if (requestedSuccessorId && validPredecessors.includes(requestedSuccessorId)) {
+    return res.status(400).json({ success: false, message: 'Công việc trước và sau phải là hai công việc khác nhau' });
+  }
+  const dependsOn = (itemId, targetId, visited = new Set()) => {
+    if (itemId === targetId) return true;
+    if (visited.has(itemId)) return false;
+    visited.add(itemId);
+    const item = projectItems.find(candidate => candidate.id === itemId);
+    return (Array.isArray(item?.dependencies) ? item.dependencies : [])
+      .some(dependencyId => dependsOn(dependencyId, targetId, visited));
+  };
+  if (requestedSuccessorId && validPredecessors.some(predecessorId => dependsOn(predecessorId, requestedSuccessorId))) {
+    return res.status(400).json({ success: false, message: 'Liên kết trước/sau này sẽ tạo vòng lặp trong tiến độ Gantt' });
+  }
+
+  // Chọn cả trước và sau để chèn vào giữa; chỉ chọn trước nghĩa là thêm nối tiếp ở cuối dự án.
+  let insertIdx = -1;
+  const selectedPredecessor = validPredecessors.length
+    ? projectItems.find(item => item.id === validPredecessors[0])
+    : null;
+  const selectedSuccessor = requestedSuccessorId
+    ? projectItems.find(item => item.id === requestedSuccessorId)
+    : null;
+  if (insertAfterId) {
+    insertIdx = db.ganttItems.findIndex(item => item.id === insertAfterId);
+  } else if (selectedPredecessor && requestedSuccessorId) {
+    insertIdx = db.ganttItems.findIndex(item => item.id === selectedPredecessor.id);
+  } else if (selectedPredecessor) {
+    const lastProjectRow = projectRows.at(-1);
+    insertIdx = lastProjectRow ? db.ganttItems.findIndex(item => item.id === lastProjectRow.id) : -1;
+  } else if (selectedSuccessor) {
+    insertIdx = db.ganttItems.findIndex(item => item.id === selectedSuccessor.id) - 1;
+  } else {
+    const precedingProjectItem = projectItems
+      .filter(item => compareWbs(item.code, formattedCode) <= 0)
+      .reduce((latest, item) => !latest || compareWbs(item.code, latest.code) > 0 ? item : latest, null);
+    insertIdx = precedingProjectItem
+      ? db.ganttItems.findIndex(item => item.id === precedingProjectItem.id)
+      : parentGroup ? db.ganttItems.findIndex(item => item.id === parentGroup.id) : -1;
+  }
+
   const previousInProject = !isGroup
     ? db.ganttItems
       .slice(0, insertIdx + 1)
@@ -716,26 +814,15 @@ export function createGanttItem(req, res) {
   const downstreamProjectItems = db.ganttItems
     .slice(insertIdx + 1)
     .filter(belongsToProject);
-  const linkedSuccessor = successorId
-    ? projectItems.find(item => item.id === successorId)
-    : downstreamProjectItems[0];
-  if (successorId && !linkedSuccessor) {
-    return res.status(400).json({ success: false, message: 'Vui lòng chọn một công việc sau thuộc cùng dự án' });
-  }
-
   // === 2. TỰ ĐỘNG TẠO ĐƯỜNG MŨI TÊN LIÊN KẾT FS NỐI XUỐNG ===
-  const explicitPredecessorIds = Array.isArray(dependencies)
-    ? [...new Set(dependencies.filter(Boolean))]
-    : [];
-  const defaultPredecessorIds = explicitPredecessorIds.length > 0
-    ? explicitPredecessorIds
+  const defaultPredecessorIds = validPredecessors.length > 0
+    ? validPredecessors
     : (previousInProject ? [previousInProject.id] : []);
-  const requestedSuccessorId = successorId && projectItems.some(item => item.id === successorId)
-    ? successorId
-    : null;
-  const selectedSuccessor = requestedSuccessorId
-    ? projectItems.find(item => item.id === requestedSuccessorId)
-    : downstreamProjectItems[0] || null;
+  const successorToReconnect = requestedSuccessorId
+    ? selectedSuccessor
+    : validPredecessors.length > 0
+      ? null
+      : downstreamProjectItems[0] || null;
 
   const newItem = {
     id: newGanttId,
@@ -772,14 +859,14 @@ export function createGanttItem(req, res) {
     db.ganttItems.splice(insertIdx + 1, 0, newItem);
   }
 
-  if (selectedSuccessor && !isGroup) {
+  if (successorToReconnect && !isGroup) {
     const predecessorIdsToReplace = new Set([
       ...defaultPredecessorIds,
       ...(previousInProject ? [previousInProject.id] : [])
     ]);
-    const existingReplacedPredecessors = (Array.isArray(selectedSuccessor.dependencies) ? selectedSuccessor.dependencies : [])
+    const existingReplacedPredecessors = (Array.isArray(successorToReconnect.dependencies) ? successorToReconnect.dependencies : [])
       .filter(dependencyId => predecessorIdsToReplace.has(dependencyId));
-    replaceGanttPredecessorLink(selectedSuccessor, existingReplacedPredecessors, newItem.id);
+    replaceGanttPredecessorLink(successorToReconnect, existingReplacedPredecessors, newItem.id);
   }
 
   // === 3. ĐỒNG BỘ SANG MỤC 1 (PHÂN CÔNG CÔNG VIỆC) & TRANG NHÂN SỰ ===
