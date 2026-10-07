@@ -408,6 +408,63 @@ export function replaceGanttPredecessorLink(successor, predecessorIds, insertedI
   ];
 }
 
+function getTaskLeafDescendants(ganttItems, parentTaskId) {
+  const childrenByParent = new Map();
+  ganttItems.filter(item => !item.isGroup && item.parentTaskId).forEach(item => {
+    const children = childrenByParent.get(item.parentTaskId) || [];
+    children.push(item);
+    childrenByParent.set(item.parentTaskId, children);
+  });
+  const leaves = [];
+  const visit = parentId => {
+    (childrenByParent.get(parentId) || []).forEach(child => {
+      const grandchildren = childrenByParent.get(child.id) || [];
+      if (grandchildren.length) visit(child.id);
+      else leaves.push(child);
+    });
+  };
+  visit(parentTaskId);
+  return leaves;
+}
+
+function syncTaskContainerDates(db, parentTaskId) {
+  const items = db.ganttItems || [];
+  const tasks = db.tasks || [];
+  let currentParentId = parentTaskId;
+  const visited = new Set();
+  while (currentParentId && !visited.has(currentParentId)) {
+    visited.add(currentParentId);
+    const parent = items.find(item => item.id === currentParentId && !item.isGroup);
+    if (!parent) break;
+    const leaves = getTaskLeafDescendants(items, parent.id);
+    if (leaves.length) {
+      const starts = leaves.map(item => item.startDate).filter(Boolean).sort();
+      const ends = leaves.map(item => item.endDate).filter(Boolean).sort();
+      const startDate = starts[0];
+      const endDate = ends.at(-1);
+      const days = Math.floor((Date.parse(`${endDate}T00:00:00Z`) - Date.parse(`${startDate}T00:00:00Z`)) / 86400000) + 1;
+      parent.startDate = startDate;
+      parent.endDate = endDate;
+      parent.days = days;
+      const totalHours = leaves.reduce((total, leaf) => {
+        const linkedTask = tasks.find(task => task.ganttId === leaf.id);
+        return total + (Number(linkedTask?.estimatedHours) || Number(leaf.estimatedHours) || 0);
+      }, 0);
+      parent.estimatedHours = Math.round(totalHours * 100) / 100;
+      parent.estimatedHoursPerDay = days > 0 ? Math.round(totalHours / days * 100) / 100 : 0;
+      const linkedParentTask = tasks.find(task => task.ganttId === parent.id);
+      if (linkedParentTask) {
+        linkedParentTask.startDate = startDate;
+        linkedParentTask.endDate = endDate;
+        linkedParentTask.estimatedDays = days;
+        linkedParentTask.estimatedHours = parent.estimatedHours;
+        linkedParentTask.estimatedHoursPerDay = parent.estimatedHoursPerDay;
+      }
+    }
+    currentParentId = parent.parentTaskId;
+  }
+}
+
 // Cập nhật thời gian Gantt và đồng bộ sang task được giao.
 export function updateGanttItem(req, res) {
   const db = readDb();
@@ -598,6 +655,7 @@ export function updateGanttItem(req, res) {
     item.days = calculatedDays;
     if (title !== undefined) item.title = title.trim();
     if (contractWork !== undefined) item.contractWork = normalizedContractWork;
+    if (ganttNote !== undefined) item.ganttNote = ganttNote;
     if (!writeDb(db)) {
       return res.status(500).json({ success: false, message: 'Không thể lưu thời gian giai đoạn. Vui lòng thử lại.' });
     }
@@ -759,6 +817,7 @@ export function updateGanttItem(req, res) {
       linkedTaskForAssignments.employeeName = item.assignees[0]?.employeeName || '';
     }
   }
+  if (item.parentTaskId) syncTaskContainerDates(db, item.parentTaskId);
   if (!writeDb(db)) {
     return res.status(500).json({ success: false, message: 'Không thể lưu thời gian task. Vui lòng thử lại.' });
   }
@@ -792,6 +851,7 @@ export function createGanttItem(req, res) {
     dependencies,
     speed,
     parentGroupId,
+    parentTaskId,
     insertAfterId, // Tùy chọn: người dùng chỉ định chèn cụ thể sau công việc nào
     successorId
   } = req.body;
@@ -810,6 +870,19 @@ export function createGanttItem(req, res) {
   if (parentGroupId && (!parentGroup || parentGroup.projectId !== project.id)) {
     return res.status(400).json({ success: false, message: 'Mục công việc được chọn không hợp lệ hoặc không thuộc dự án này' });
   }
+  const parentTask = parentTaskId
+    ? (db.ganttItems || []).find(item => {
+      if (item.id !== parentTaskId || item.isGroup) return false;
+      const linkedTask = (db.tasks || []).find(task => task.ganttId === item.id);
+      return (item.projectId || linkedTask?.projectId || 'proj-1') === project.id;
+    })
+    : null;
+  if (parentTaskId && !parentTask) {
+    return res.status(400).json({ success: false, message: 'The selected parent task is invalid or belongs to another project' });
+  }
+  const effectiveParentGroup = parentTask?.parentGroupId
+    ? (db.ganttItems || []).find(item => item.id === parentTask.parentGroupId && item.isGroup)
+    : parentGroup;
 
   if ((project.startDate && startDate < project.startDate) || (project.endDate && endDate > project.endDate)) {
     return res.status(400).json({ success: false, message: `Ngày task phải nằm trong thời gian dự án (${project.startDate} → ${project.endDate})` });
@@ -838,7 +911,16 @@ export function createGanttItem(req, res) {
     : Number(assignedEmployee?.standardHours) || 8;
   const calculatedEstimatedHours = Math.round(calculatedHoursPerDay * calculatedDays * 100) / 100;
 
-  const formattedCode = code ? String(code).trim() : `T${db.ganttItems.length + 1}`;
+  const childCodeIndexes = parentTask
+    ? (db.ganttItems || []).filter(item => item.parentTaskId === parentTask.id)
+      .map(item => Number(String(item.code || '').split('.').at(-1)))
+      .filter(Number.isFinite)
+    : [];
+  const formattedCode = code
+    ? String(code).trim()
+    : parentTask
+      ? `${parentTask.code}.${(childCodeIndexes.length ? Math.max(...childCodeIndexes) : 0) + 1}`
+      : `T${db.ganttItems.length + 1}`;
   const newGanttId = `G-${Date.now()}`;
   const createdAt = new Date().toISOString();
 
@@ -888,8 +970,36 @@ export function createGanttItem(req, res) {
   const selectedSuccessor = requestedSuccessorId
     ? projectItems.find(item => item.id === requestedSuccessorId)
     : null;
-  if (insertAfterId) {
-    insertIdx = db.ganttItems.findIndex(item => item.id === insertAfterId);
+  if (parentTask) {
+    const descendantIds = new Set([parentTask.id]);
+    let addedDescendant = true;
+    while (addedDescendant) {
+      addedDescendant = false;
+      db.ganttItems.forEach(item => {
+        if (item.parentTaskId && descendantIds.has(item.parentTaskId) && !descendantIds.has(item.id)) {
+          descendantIds.add(item.id);
+          addedDescendant = true;
+        }
+      });
+    }
+    insertIdx = db.ganttItems.reduce((lastIndex, item, index) => descendantIds.has(item.id) ? index : lastIndex, -1);
+  } else if (insertAfterId) {
+    const afterIndex = db.ganttItems.findIndex(item => item.id === insertAfterId);
+    const insertAfterItem = db.ganttItems[afterIndex];
+    const descendantIds = new Set([insertAfterId]);
+    let addedDescendant = true;
+    while (addedDescendant) {
+      addedDescendant = false;
+      db.ganttItems.forEach(item => {
+        const isNestedUnderGroup = insertAfterItem?.isGroup && item.parentGroupId && descendantIds.has(item.parentGroupId);
+        const isNestedUnderTask = item.parentTaskId && descendantIds.has(item.parentTaskId);
+        if ((isNestedUnderGroup || isNestedUnderTask) && !descendantIds.has(item.id)) {
+          descendantIds.add(item.id);
+          addedDescendant = true;
+        }
+      });
+    }
+    insertIdx = db.ganttItems.reduce((lastIndex, item, index) => descendantIds.has(item.id) ? index : lastIndex, afterIndex);
   } else if (selectedPredecessor && requestedSuccessorId) {
     insertIdx = db.ganttItems.findIndex(item => item.id === selectedPredecessor.id);
   } else if (selectedPredecessor) {
@@ -907,10 +1017,12 @@ export function createGanttItem(req, res) {
   }
 
   const previousInProject = !isGroup
-    ? db.ganttItems
+    ? (parentTask
+      ? db.ganttItems.slice(0, insertIdx + 1).filter(item => !item.isGroup && item.parentTaskId === parentTask.id).at(-1) || null
+      : db.ganttItems
       .slice(0, insertIdx + 1)
       .filter(belongsToProject)
-      .at(-1)
+      .at(-1))
     : null;
   const downstreamProjectItems = db.ganttItems
     .slice(insertIdx + 1)
@@ -919,7 +1031,9 @@ export function createGanttItem(req, res) {
   const defaultPredecessorIds = validPredecessors.length > 0
     ? validPredecessors
     : (previousInProject ? [previousInProject.id] : []);
-  const successorToReconnect = requestedSuccessorId
+  const successorToReconnect = parentTask
+    ? null
+    : requestedSuccessorId
     ? selectedSuccessor
     : validPredecessors.length > 0
       ? null
@@ -942,7 +1056,8 @@ export function createGanttItem(req, res) {
     contractWork: null,
     ganttNote: '',
     assignee: assignedEmployee?.name || '',
-    ...(parentGroup ? { parentGroupId: parentGroup.id } : {}),
+    ...(effectiveParentGroup ? { parentGroupId: effectiveParentGroup.id } : {}),
+    ...(parentTask ? { parentTaskId: parentTask.id } : {}),
     assignees: assignedEmployee ? [{
       employeeId: assignedEmployee.id,
       employeeName: assignedEmployee.name,
@@ -994,7 +1109,8 @@ export function createGanttItem(req, res) {
       title: newItem.title,
       code: newItem.code,
       createdAt: newItem.createdAt,
-      ...(parentGroup ? { parentGroupId: parentGroup.id } : {}),
+      ...(effectiveParentGroup ? { parentGroupId: effectiveParentGroup.id } : {}),
+      ...(parentTask ? { parentTaskId: parentTask.id } : {}),
       employeeId: emp?.id || '',
       employeeName: emp?.name || '',
       assignees: newItem.assignees,
@@ -1015,6 +1131,7 @@ export function createGanttItem(req, res) {
     // Đẩy vào db.tasks
     if (!db.tasks) db.tasks = [];
     db.tasks.push(matchedTask);
+    if (parentTask) syncTaskContainerDates(db, parentTask.id);
   }
 
   normalizeGanttDependencies(db.ganttItems, db.tasks || []);
@@ -1075,6 +1192,15 @@ export function deleteGanttItem(req, res) {
   const removed = db.ganttItems.splice(index, 1);
   const removedItem = removed[0];
 
+  if (!removedItem.isGroup) {
+    (db.ganttItems || []).forEach(item => {
+      if (item.parentTaskId === removedItem.id) {
+        if (removedItem.parentTaskId) item.parentTaskId = removedItem.parentTaskId;
+        else delete item.parentTaskId;
+      }
+    });
+  }
+
   if (removedItem.isGroup) {
     (db.ganttItems || []).forEach(item => {
       if (item.parentGroupId === removedItem.id) delete item.parentGroupId;
@@ -1105,6 +1231,8 @@ export function deleteGanttItem(req, res) {
   if (db.overtimes) {
     db.overtimes = db.overtimes.filter(overtime => !linkedTaskIds.has(overtime.taskId));
   }
+
+  if (removedItem.parentTaskId) syncTaskContainerDates(db, removedItem.parentTaskId);
 
   normalizeGanttDependencies(db.ganttItems, db.tasks || []);
   writeDb(db);

@@ -142,36 +142,38 @@ const GANTT_PHASE_PRESETS = [
   { code: 'L', title: 'L. NGHỈ LỄ VIỆT NAM', color: '#eab308' }
 ];
 
-const flattenWorkGroups = (items, collapsedGroupIds) => {
+const flattenWorkGroups = (items, collapsedGroupIds, collapsedTaskIds = new Set()) => {
   const hierarchyItems = inferGanttGroupHierarchy(items);
-
-  const childrenByParent = new Map();
+  const groupsByParent = new Map();
+  const tasksByParent = new Map();
   hierarchyItems.filter(item => !item.isProjectHeader).forEach(item => {
+    if (item.parentTaskId && !item.isGroup) {
+      const children = tasksByParent.get(item.parentTaskId) || [];
+      children.push(item);
+      tasksByParent.set(item.parentTaskId, children);
+      return;
+    }
     const parentId = item.parentGroupId || '';
-    const children = childrenByParent.get(parentId) || [];
+    const children = groupsByParent.get(parentId) || [];
     children.push(item);
-    childrenByParent.set(parentId, children);
+    groupsByParent.set(parentId, children);
   });
 
-  const descendantsOf = (group, visited = new Set()) => {
-    if (visited.has(group.id)) return [];
-    const nextVisited = new Set(visited).add(group.id);
-    const descendants = [];
-    (childrenByParent.get(group.id) || []).forEach(child => {
-      if (child.isGroup) descendants.push(...descendantsOf(child, nextVisited));
-      else descendants.push(child);
-    });
-    return descendants;
+  const descendantLeaves = (item, visited = new Set()) => {
+    if (!item || visited.has(item.id)) return [];
+    const nextVisited = new Set(visited).add(item.id);
+    const children = item.isGroup ? groupsByParent.get(item.id) || [] : tasksByParent.get(item.id) || [];
+    return children.length ? children.flatMap(child => descendantLeaves(child, nextVisited)) : [item];
   };
 
   const orderSiblings = siblings => {
     const ownerByTaskId = new Map();
     siblings.forEach(sibling => {
-      const descendantTasks = sibling.isGroup ? descendantsOf(sibling) : [sibling];
+      const descendantTasks = descendantLeaves(sibling);
       descendantTasks.forEach(task => ownerByTaskId.set(task.id, sibling.id));
     });
     const dependencyRows = siblings.map(sibling => {
-      const descendantTasks = sibling.isGroup ? descendantsOf(sibling) : [sibling];
+      const descendantTasks = descendantLeaves(sibling);
       return {
         id: sibling.id,
         dependencies: [...new Set(descendantTasks.flatMap(task =>
@@ -187,16 +189,42 @@ const flattenWorkGroups = (items, collapsedGroupIds) => {
   };
 
   const visibleRows = hierarchyItems.filter(item => item.isProjectHeader);
-  const appendSiblings = siblings => {
+  const appendTasks = siblings => {
     orderSiblings(siblings).forEach(item => {
-      visibleRows.push(item);
-      if (item.isGroup && !collapsedGroupIds.has(item.id)) {
-        appendSiblings(childrenByParent.get(item.id) || []);
-      }
+      const children = tasksByParent.get(item.id) || [];
+      visibleRows.push({ ...item, hasTaskChildren: children.length > 0 });
+      if (children.length && !collapsedTaskIds.has(item.id)) appendTasks(children);
     });
   };
-  appendSiblings(childrenByParent.get('') || []);
+  const appendSiblings = siblings => {
+    orderSiblings(siblings).forEach(item => {
+      if (!item.isGroup) {
+        appendTasks([item]);
+        return;
+      }
+      visibleRows.push(item);
+      if (!collapsedGroupIds.has(item.id)) appendSiblings(groupsByParent.get(item.id) || []);
+    });
+  };
+  appendSiblings(groupsByParent.get('') || []);
   return visibleRows;
+};
+
+const getTaskLeafDescendants = (parentId, items) => {
+  const childrenByParent = new Map();
+  items.filter(item => !item.isGroup && item.parentTaskId).forEach(item => {
+    const children = childrenByParent.get(item.parentTaskId) || [];
+    children.push(item);
+    childrenByParent.set(item.parentTaskId, children);
+  });
+  const leaves = [];
+  const visit = currentParentId => (childrenByParent.get(currentParentId) || []).forEach(child => {
+    const children = childrenByParent.get(child.id) || [];
+    if (children.length) visit(child.id);
+    else leaves.push(child);
+  });
+  visit(parentId);
+  return leaves;
 };
 
 export default function GanttPage() {
@@ -226,6 +254,11 @@ export default function GanttPage() {
   const columnFilterRef = useRef(null);
   const [collapsedProjectIds, setCollapsedProjectIds] = useState(() => new Set());
   const [collapsedGroupIds, setCollapsedGroupIds] = useState(() => new Set());
+  const [collapsedTaskIds, setCollapsedTaskIds] = useState(() => new Set());
+  const [hoveredTaskCodeId, setHoveredTaskCodeId] = useState(null);
+  const [taskCreateMenuId, setTaskCreateMenuId] = useState(null);
+  const [taskCreateMenuPosition, setTaskCreateMenuPosition] = useState(null);
+  const [quickCreateContext, setQuickCreateContext] = useState(null);
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const [phaseMenuOpen, setPhaseMenuOpen] = useState(false);
   const createMenuRef = useRef(null);
@@ -281,6 +314,15 @@ export default function GanttPage() {
     });
   };
 
+  const toggleTaskCollapsed = taskId => {
+    setCollapsedTaskIds(current => {
+      const next = new Set(current);
+      if (next.has(taskId)) next.delete(taskId);
+      else next.add(taskId);
+      return next;
+    });
+  };
+
   // Chế độ thu phóng (Zoom: 'day' | 'week' | 'month')
   const [zoomLevel, setZoomLevel] = useState('week'); // 1 day = 18px (day), 1 day = 6px (week), 1 day = 3px (month)
 
@@ -292,6 +334,7 @@ export default function GanttPage() {
   const [editingGroup, setEditingGroup] = useState(null);
   const [groupEditForm, setGroupEditForm] = useState({ title: '', startDate: '', endDate: '' });
   const [groupMenuOpenId, setGroupMenuOpenId] = useState(null);
+  const [groupCreateContext, setGroupCreateContext] = useState(null);
   const [showAddProjectModal, setShowAddProjectModal] = useState(false);
   const [showEditProjectModal, setShowEditProjectModal] = useState(false);
   const [assignmentEditorItem, setAssignmentEditorItem] = useState(null);
@@ -343,7 +386,8 @@ export default function GanttPage() {
     dependencies: [],
     successorId: '',
     speed: 'on_time',
-    parentGroupId: ''
+    parentGroupId: '',
+    parentTaskId: ''
   });
   const [groupForm, setGroupForm] = useState({ title: '', projectId: projects[0]?.id || '', parentGroupId: '', startDate: today, endDate: today });
 
@@ -464,7 +508,7 @@ export default function GanttPage() {
       if (!project) return projectItems;
       return [
         { id: `project-heading-${project.id}`, projectId: project.id, title: project.name, isProjectHeader: true },
-        ...(collapsedProjectIds.has(project.id) ? [] : flattenWorkGroups(projectItems, collapsedGroupIds))
+        ...(collapsedProjectIds.has(project.id) ? [] : flattenWorkGroups(projectItems, collapsedGroupIds, collapsedTaskIds))
       ];
     }
 
@@ -473,10 +517,10 @@ export default function GanttPage() {
       if (items.length === 0) return [];
       return [
         { id: `project-heading-${project.id}`, projectId: project.id, title: project.name, isProjectHeader: true },
-        ...(collapsedProjectIds.has(project.id) ? [] : flattenWorkGroups(items, collapsedGroupIds))
+        ...(collapsedProjectIds.has(project.id) ? [] : flattenWorkGroups(items, collapsedGroupIds, collapsedTaskIds))
       ];
     });
-  }, [ganttItems, tasks, projects, selectedProjectId, collapsedProjectIds, collapsedGroupIds]);
+  }, [ganttItems, tasks, projects, selectedProjectId, collapsedProjectIds, collapsedGroupIds, collapsedTaskIds]);
 
   // Keep a complete hierarchy for aggregate bars and dependency routing even when rows are collapsed.
   const dependencyRows = useMemo(() => {
@@ -586,8 +630,10 @@ export default function GanttPage() {
     filteredGanttItems.forEach((item, index) => {
       if (item.isProjectHeader) return;
       const aggregateTasks = item.isGroup && collapsedGroupIds.has(item.id)
-        ? getGroupDescendantTasks(item.id, hierarchyGanttItems)
-        : null;
+        ? getGroupDescendantTasks(item.id, hierarchyGanttItems).filter(task => !hierarchyGanttItems.some(candidate => candidate.parentTaskId === task.id))
+        : item.hasTaskChildren
+          ? getTaskLeafDescendants(item.id, hierarchyGanttItems)
+          : null;
       const dateTasks = aggregateTasks?.length ? aggregateTasks : null;
       const startDate = dateTasks
         ? dateTasks.map(task => task.startDate).filter(Boolean).sort()[0]
@@ -624,6 +670,7 @@ export default function GanttPage() {
         rowHeight,
         item,
         isAggregate: Boolean(dateTasks),
+        isTaskAggregate: Boolean(item.hasTaskChildren && dateTasks),
         aggregateTasks: dateTasks || []
       };
     });
@@ -638,6 +685,12 @@ export default function GanttPage() {
       let item = hierarchyGanttItems.find(candidate => candidate.id === itemId);
       const groupsById = new Map(hierarchyGanttItems.filter(candidate => candidate.isGroup).map(group => [group.id, group]));
       const seen = new Set();
+      while (item?.parentTaskId && !seen.has(item.parentTaskId)) {
+        const parentId = item.parentTaskId;
+        seen.add(parentId);
+        if (collapsedTaskIds.has(parentId) && taskCoordinates[parentId]) return parentId;
+        item = hierarchyGanttItems.find(candidate => candidate.id === parentId);
+      }
       while (item?.parentGroupId && !seen.has(item.parentGroupId)) {
         const parentId = item.parentGroupId;
         seen.add(parentId);
@@ -654,7 +707,7 @@ export default function GanttPage() {
       if (deps.length === 0 && !item.isGroup && toIndex > 0) {
         for (let p = toIndex - 1; p >= 0; p--) {
           const candidate = dependencyRows[p];
-          if (candidate && !candidate.isProjectHeader && !candidate.isGroup && candidate.projectId === item.projectId) {
+          if (candidate && !candidate.isProjectHeader && !candidate.isGroup && candidate.projectId === item.projectId && candidate.parentTaskId === item.parentTaskId) {
             deps = [candidate.id];
             break;
           }
@@ -692,7 +745,7 @@ export default function GanttPage() {
         targetId
       };
     });
-  }, [dependencyRows, hierarchyGanttItems, collapsedGroupIds, taskCoordinates]);
+  }, [dependencyRows, hierarchyGanttItems, collapsedGroupIds, collapsedTaskIds, taskCoordinates]);
 
   const hoveredDependency = dependencyLines.find(line => line.key === hoveredDependencyKey) || null;
 
@@ -700,6 +753,10 @@ export default function GanttPage() {
   const handleTaskSubmit = async (e) => {
     e.preventDefault();
     if (!taskForm.title) return;
+    if (!taskForm.startDate || !taskForm.endDate || taskForm.endDate < taskForm.startDate) {
+      window.alert('Vui lòng chọn khoảng ngày bắt đầu và kết thúc hợp lệ.');
+      return;
+    }
     const project = projects.find(item => item.id === taskForm.projectId);
     if (project && ((project.startDate && taskForm.startDate < project.startDate) || (project.endDate && taskForm.endDate > project.endDate))) {
       window.alert(`Ngày task phải nằm trong thời gian dự án (${formatDateVi(project.startDate)} → ${formatDateVi(project.endDate)}).`);
@@ -709,7 +766,8 @@ export default function GanttPage() {
     const success = await addGanttItem({
       ...taskForm,
       assignee: assignee?.name || '',
-      estimatedHoursPerDay: taskForm.estimatedHours
+      estimatedHoursPerDay: taskForm.estimatedHours,
+      insertAfterId: quickCreateContext?.mode === 'sibling' ? quickCreateContext.anchorTaskId : ''
     });
     if (success) {
       setTaskForm({
@@ -729,9 +787,11 @@ export default function GanttPage() {
         dependencies: [],
         successorId: '',
         speed: 'on_time',
-        parentGroupId: ''
+        parentGroupId: '',
+        parentTaskId: ''
       });
       setShowAddTaskModal(false);
+      setQuickCreateContext(null);
     }
   };
 
@@ -747,7 +807,10 @@ export default function GanttPage() {
     const lastProjectItem = projectItems.at(-1);
     const startDate = groupForm.startDate || project.startDate || todayIsoDate();
     const endDate = groupForm.endDate || startDate;
-    if (endDate < startDate) return;
+    if (endDate < startDate) {
+      window.alert('Vui lòng chọn ngày kết thúc không sớm hơn ngày bắt đầu.');
+      return;
+    }
     const success = await addGanttItem({
       code: `GR${codeIndex}`,
       projectId: project.id,
@@ -762,11 +825,12 @@ export default function GanttPage() {
       notes: '',
       color: '#861b36',
       dependencies: [],
-      insertAfterId: lastProjectItem?.id || ''
+      insertAfterId: groupCreateContext?.insertAfterId || lastProjectItem?.id || ''
     });
     if (success) {
       setGroupForm({ title: '', projectId: project.id, parentGroupId: groupForm.parentGroupId, startDate, endDate });
       setShowAddGroupModal(false);
+      setGroupCreateContext(null);
     }
   };
 
@@ -800,6 +864,7 @@ export default function GanttPage() {
       ...current,
       projectId: projectId || '',
       parentGroupId: '',
+      parentTaskId: '',
       startDate: currentDate,
       endDate: currentDate,
       days: 1,
@@ -808,6 +873,42 @@ export default function GanttPage() {
       dependencies: []
     }));
     setCreateMenuOpen(false);
+    setQuickCreateContext(null);
+    setShowAddTaskModal(true);
+  };
+
+  const openInlineTaskCreation = (item, mode) => {
+    const siblings = hierarchyGanttItems.filter(candidate => !candidate.isGroup && candidate.parentTaskId === (mode === 'child' ? item.id : item.parentTaskId) && candidate.parentGroupId === item.parentGroupId);
+    const targetSiblings = siblings;
+    const codePrefix = mode === 'child' ? `${item.code}.` : `${String(item.code || '').replace(/\.[^.]+$/, '')}.`;
+    const nextCodeNumber = targetSiblings
+      .map(candidate => String(candidate.code || '').startsWith(codePrefix) ? Number(String(candidate.code).slice(codePrefix.length)) : NaN)
+      .filter(Number.isFinite)
+      .reduce((max, value) => Math.max(max, value), 0) + 1;
+    const startDate = item.startDate || todayIsoDate();
+    const endDate = item.endDate || startDate;
+    const anchorIndex = hierarchyGanttItems.findIndex(candidate => candidate.id === item.id);
+    const nextSibling = mode === 'sibling'
+      ? hierarchyGanttItems.slice(anchorIndex + 1).find(candidate => !candidate.isGroup && candidate.parentTaskId === item.parentTaskId && candidate.parentGroupId === item.parentGroupId)
+      : null;
+    setQuickCreateContext({ mode, anchorTaskId: item.id });
+    setTaskForm(current => ({
+      ...current,
+      code: `${codePrefix}${nextCodeNumber}`,
+      projectId: projectIdForItem(item) || current.projectId,
+      parentGroupId: item.parentGroupId || '',
+      parentTaskId: mode === 'child' ? item.id : (item.parentTaskId || ''),
+      title: '',
+      startDate,
+      endDate,
+      days: inclusiveDays(startDate, endDate),
+      estimatedHours: 8,
+      estimatedHoursEdited: false,
+      assigneeId: '',
+      dependencies: mode === 'sibling' ? [item.id] : (siblings.at(-1) ? [siblings.at(-1).id] : []),
+      successorId: nextSibling?.id || ''
+    }));
+    setTaskCreateMenuId(null);
     setShowAddTaskModal(true);
   };
 
@@ -819,7 +920,20 @@ export default function GanttPage() {
       item.isGroup && projectIdForItem(item) === projectId && GANTT_PHASE_PRESETS.some(phase => phase.title === item.title)
     );
     setGroupForm({ title: '', projectId: projectId || '', parentGroupId: phaseGroup?.id || '', startDate, endDate: project?.endDate || startDate });
+    setGroupCreateContext(null);
     setCreateMenuOpen(false);
+    setShowAddGroupModal(true);
+  };
+
+  const openInlineGroupCreation = item => {
+    const projectId = projectIdForItem(item) || (selectedProjectId === 'ALL' ? projects[0]?.id : selectedProjectId);
+    const project = projects.find(candidate => candidate.id === projectId);
+    if (!project) return;
+    const startDate = item.startDate || project.startDate || todayIsoDate();
+    const endDate = item.endDate || project.endDate || startDate;
+    setGroupForm({ title: '', projectId, parentGroupId: item.parentGroupId || '', startDate, endDate });
+    setGroupCreateContext({ insertAfterId: item.id });
+    setGroupMenuOpenId(null);
     setShowAddGroupModal(true);
   };
 
@@ -1265,10 +1379,11 @@ export default function GanttPage() {
                   if (item.isProjectHeader) {
                     const project = projects.find(candidate => candidate.id === item.projectId);
                     const projectContractRow = { ...item, contractWork: project?.contractWork };
+                    const taskContainerIds = new Set(hierarchyGanttItems.filter(ganttItem => ganttItem.parentTaskId).map(ganttItem => ganttItem.parentTaskId));
                     const projectPlannedPersonDays = hierarchyGanttItems
-                      .filter(ganttItem => projectIdForItem(ganttItem) === item.projectId && !ganttItem.isGroup && ganttItem.status !== 'holiday')
+                      .filter(ganttItem => projectIdForItem(ganttItem) === item.projectId && !ganttItem.isGroup && ganttItem.status !== 'holiday' && !taskContainerIds.has(ganttItem.id))
                       .reduce((total, ganttItem) => total + calculatePlannedPersonDays(ganttItem), 0);
-                    const projectTasks = tasks.filter(task => task.projectId === item.projectId || (!task.projectId && task.projectName === project?.name));
+                    const projectTasks = tasks.filter(task => (task.projectId === item.projectId || (!task.projectId && task.projectName === project?.name)) && !taskContainerIds.has(task.ganttId));
                     const projectTaskGanttIds = new Set(projectTasks.map(task => task.ganttId).filter(Boolean));
                     const projectTaskTitles = new Set(projectTasks.map(task => task.title?.trim().toLowerCase()).filter(Boolean));
                     const ganttOnlyProjectItems = ganttItems.filter(ganttItem =>
@@ -1371,7 +1486,9 @@ export default function GanttPage() {
                         {visibleColumns.actualWork && <div className="flex h-full w-[72px] min-w-[72px] items-center justify-center border-r border-slate-200/70 text-[11px] font-semibold dark:border-slate-700/70">
                           {calculateGroupPlannedPersonDays(item.id, hierarchyGanttItems) || '\u2014'}
                         </div>}
-                        {visibleColumns.note && <div className="h-full w-[180px] min-w-[180px] border-r border-slate-200/70 dark:border-slate-700/70" />}
+                        {visibleColumns.note && <div className="flex h-full w-[180px] min-w-[180px] items-center border-r border-slate-200/70 px-1 dark:border-slate-700/70">
+                          <GanttEditableWorkCell item={item} field="ganttNote" onSave={updateGanttItem} placeholder={'Ghi chú...'} />
+                        </div>}
                         {visibleColumns.status && <div className="h-full w-24 min-w-[96px] border-r border-slate-200/70 dark:border-slate-700/70" />}
                         {visibleColumns.actions && <div className="relative flex h-full w-[104px] min-w-[104px] items-center justify-center" ref={groupMenuOpenId === item.id ? groupMenuRef : null}>
                             <button
@@ -1394,6 +1511,15 @@ export default function GanttPage() {
                                 >
                                   <Pencil className="h-3.5 w-3.5" />
                                   Chỉnh sửa mục công việc
+                                </button>
+                                <button
+                                  type="button"
+                                  role="menuitem"
+                                  onClick={() => openInlineGroupCreation(item)}
+                                  className="flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+                                >
+                                  <Plus className="h-3.5 w-3.5" />
+                                  Tạo mục công việc
                                 </button>
                                 <button
                                   type="button"
@@ -1449,14 +1575,19 @@ export default function GanttPage() {
                       style={{ height: `${rowHeights[itemIndex]}px`, minHeight: `${rowHeights[itemIndex]}px` }}
                     >
                       {/* Cột STT */}
-                      {visibleColumns.code && <div className="w-14 min-w-[56px] text-center py-1 px-1 font-mono font-semibold border-r border-slate-100 dark:border-slate-800 truncate shrink-0">
-                        {item.code}
+                      {visibleColumns.code && <div className="relative flex w-14 min-w-[56px] shrink-0 items-center justify-center border-r border-slate-100 py-1 px-1 font-mono font-semibold dark:border-slate-800" onMouseEnter={() => setHoveredTaskCodeId(item.id)} onMouseLeave={() => setHoveredTaskCodeId(current => current === item.id ? null : current)}>
+                        <button type="button" title="Tạo task nhanh" aria-label={`Tạo task tại ${item.code}`} onClick={event => { const rect = event.currentTarget.getBoundingClientRect(); setTaskCreateMenuPosition({ left: rect.left, top: rect.bottom }); setTaskCreateMenuId(current => current === item.id ? null : item.id); }} className={`absolute inset-0 z-10 flex items-center justify-center rounded text-sky-700 transition-opacity hover:bg-sky-100 dark:text-sky-300 dark:hover:bg-slate-700 ${hoveredTaskCodeId === item.id || taskCreateMenuId === item.id ? 'opacity-100' : 'pointer-events-none opacity-0'}`}><Plus className="h-4 w-4" /></button>
+                        <span className={`truncate transition-opacity ${hoveredTaskCodeId === item.id || taskCreateMenuId === item.id ? 'opacity-0' : 'opacity-100'}`}>{item.code}</span>
+                        {taskCreateMenuId === item.id && <div role="menu" style={{ position: 'fixed', left: taskCreateMenuPosition?.left ?? 0, top: taskCreateMenuPosition?.top ?? 0 }} className="z-[120] w-40 overflow-hidden rounded-lg border border-slate-200 bg-white p-1 font-sans text-xs shadow-xl dark:border-slate-700 dark:bg-slate-900">
+                          <button type="button" role="menuitem" onClick={() => openInlineTaskCreation(item, 'sibling')} className="block w-full rounded-md px-3 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-800">Tạo task</button>
+                          <button type="button" role="menuitem" onClick={() => openInlineTaskCreation(item, 'child')} className="block w-full rounded-md px-3 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-800">Tạo task con</button>
+                        </div>}
                       </div>}
 
                       {/* Cột Tên Công Việc (Có thụt dòng theo cấp WBS) */}
                       {visibleColumns.title && <div
                         className="w-[220px] min-w-[220px] max-w-[220px] h-full min-h-0 px-3 border-r border-slate-100 dark:border-slate-800 overflow-hidden whitespace-nowrap flex items-center gap-1.5 shrink-0"
-                        style={{ paddingLeft: `${isGroup ? 12 + groupDepthForItem(item) * 16 : 4 + Math.max(0, groupDepthForItem(item) - 1) * 6}px` }}
+                        style={{ paddingLeft: `${isGroup ? 12 + groupDepthForItem(item) * 16 : 4 + Math.max(0, groupDepthForItem(item) - 1) * 6 + (() => { let depth = 0; let parentId = item.parentTaskId; while (parentId) { depth += 1; parentId = hierarchyGanttItems.find(candidate => candidate.id === parentId)?.parentTaskId; } return depth * 14; })()}px` }}
                       >
                         {isGroup && (
                           <button
@@ -1472,7 +1603,8 @@ export default function GanttPage() {
                           </button>
                         )}
                         {isGroup && <Layers className="h-3.5 w-3.5 shrink-0 text-sky-600" />}
-                        <span className="min-w-0 flex-1 truncate" title={item.title}>
+                        {item.hasTaskChildren && <button type="button" onClick={() => toggleTaskCollapsed(item.id)} aria-label={`${collapsedTaskIds.has(item.id) ? 'Mở rộng' : 'Thu gọn'} task con ${item.title}`} title="Thu gọn / mở task con" className="shrink-0 rounded p-0.5 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700">{collapsedTaskIds.has(item.id) ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}</button>}
+                        <span className={`min-w-0 flex-1 truncate ${item.parentTaskId ? 'italic text-orange-600 dark:text-orange-400' : ''}`} title={item.title}>
                           {item.title}
                         </span>
                       </div>}
@@ -1513,8 +1645,9 @@ export default function GanttPage() {
                       {/* Cột Thao Tác */}
                       {visibleColumns.actions && <div className="w-[104px] min-w-[104px] flex items-center justify-center gap-0.5 py-1 px-1 shrink-0">
                         <button
-                          onClick={() => handleEditOpen(item)}
-                          className="p-1 rounded text-slate-400 hover:text-sky-500 hover:bg-sky-50 dark:hover:bg-slate-800 transition-colors"
+                          onClick={() => !item.hasTaskChildren && handleEditOpen(item)}
+                          disabled={item.hasTaskChildren}
+                          className="p-1 rounded text-slate-400 hover:text-sky-500 hover:bg-sky-50 dark:hover:bg-slate-800 transition-colors disabled:cursor-not-allowed disabled:opacity-40"
                           title="Chỉnh sửa thời gian công việc"
                         >
                           <Pencil className="w-3.5 h-3.5" />
@@ -1724,7 +1857,7 @@ export default function GanttPage() {
                   const coord = taskCoordinates[item.id];
                   if (!coord) return null;
 
-                  if (item.isGroup) {
+                  if (item.isGroup || coord.isTaskAggregate) {
                     if (!coord.isAggregate) return null;
                     const clipId = `aggregate-bar-clip-${String(item.id).replace(/[^a-zA-Z0-9_-]/g, '-')}`;
                     const aggregateStart = new Date(`${coord.aggregateTasks.map(task => task.startDate).filter(Boolean).sort()[0]}T00:00:00`);
@@ -2357,7 +2490,7 @@ export default function GanttPage() {
               </h3>
               <button
                 type="button"
-                onClick={() => setShowAddGroupModal(false)}
+                onClick={() => { setShowAddGroupModal(false); setGroupCreateContext(null); }}
                 aria-label="Đóng"
                 className="text-slate-400 hover:text-slate-700 dark:hover:text-white"
               >
@@ -2382,6 +2515,7 @@ export default function GanttPage() {
                 Dự án *
                 <select
                   required
+                  disabled={Boolean(groupCreateContext)}
                   value={groupForm.projectId}
                   onChange={event => {
                     const project = projects.find(item => item.id === event.target.value);
@@ -2397,7 +2531,7 @@ export default function GanttPage() {
                       endDate: project?.endDate || startDate
                     }));
                   }}
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800"
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm disabled:cursor-default disabled:opacity-100 disabled:text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:disabled:text-slate-200"
                 >
                   {projects.map(project => (
                     <option key={project.id} value={project.id}>{project.name}</option>
@@ -2407,9 +2541,10 @@ export default function GanttPage() {
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                 Thuộc giai đoạn
                 <select
+                  disabled={Boolean(groupCreateContext)}
                   value={groupForm.parentGroupId}
                   onChange={event => setGroupForm(current => ({ ...current, parentGroupId: event.target.value }))}
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800"
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm disabled:cursor-default disabled:opacity-100 disabled:text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:disabled:text-slate-200"
                 >
                   <option value="">-- Mục gốc dự án --</option>
                   {ganttItems
@@ -2425,11 +2560,7 @@ export default function GanttPage() {
                     min={projects.find(project => project.id === groupForm.projectId)?.startDate}
                     max={projects.find(project => project.id === groupForm.projectId)?.endDate}
                     value={groupForm.startDate}
-                    onChange={value => setGroupForm(current => ({
-                      ...current,
-                      startDate: value,
-                      endDate: current.endDate < value ? value : current.endDate
-                    }))}
+                    onChange={value => setGroupForm(current => ({ ...current, startDate: value }))}
                     className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs dark:border-slate-700 dark:bg-slate-800"
                   />
                 </label>
@@ -2437,7 +2568,7 @@ export default function GanttPage() {
                   Ngày kết thúc *
                   <DateInput
                     required
-                    min={groupForm.startDate || projects.find(project => project.id === groupForm.projectId)?.startDate}
+                    min={projects.find(project => project.id === groupForm.projectId)?.startDate}
                     max={projects.find(project => project.id === groupForm.projectId)?.endDate}
                     value={groupForm.endDate}
                     onChange={value => setGroupForm(current => ({ ...current, endDate: value }))}
@@ -2457,7 +2588,7 @@ export default function GanttPage() {
               <div className="flex justify-end gap-3 border-t border-slate-200 pt-3 dark:border-slate-800">
                 <button
                   type="button"
-                  onClick={() => setShowAddGroupModal(false)}
+                  onClick={() => { setShowAddGroupModal(false); setGroupCreateContext(null); }}
                   className="rounded-xl px-4 py-2 text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
                 >
                   Hủy
@@ -2566,7 +2697,7 @@ export default function GanttPage() {
                 Thêm Công Việc Mới Vào Tiến Độ Dự Án
               </h3>
               <button
-                onClick={() => setShowAddTaskModal(false)}
+                onClick={() => { setShowAddTaskModal(false); setQuickCreateContext(null); }}
                 className="text-slate-400 hover:text-white font-bold"
               >
                 ✕
@@ -2616,7 +2747,7 @@ export default function GanttPage() {
                 />
               </div>
 
-              <div className="w-full">
+              {!quickCreateContext && <div className="w-full">
                 <div>
                   <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
                     Dự Án
@@ -2641,9 +2772,9 @@ export default function GanttPage() {
                     ))}
                   </select>
                 </div>
-              </div>
+              </div>}
 
-              <div>
+              {!quickCreateContext && <div>
                 <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
                   Mục công việc
                 </label>
@@ -2659,7 +2790,7 @@ export default function GanttPage() {
                       <option key={group.id} value={group.id}>{group.parentGroupId ? `↳ ${group.title}` : group.title}</option>
                     ))}
                 </select>
-              </div>
+              </div>}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
 
@@ -2716,7 +2847,11 @@ export default function GanttPage() {
                   <DateInput
                     required
                     value={taskForm.startDate}
-                    onChange={(value) => updateDateRange(setTaskForm, 'startDate', value)}
+                    onChange={value => setTaskForm(current => {
+                      const next = { ...current, startDate: value };
+                      next.days = inclusiveDays(next.startDate, next.endDate);
+                      return next;
+                    })}
                     min={projects.find(project => project.id === taskForm.projectId)?.startDate}
                     max={projects.find(project => project.id === taskForm.projectId)?.endDate}
                     className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
@@ -2730,7 +2865,11 @@ export default function GanttPage() {
                   <DateInput
                     required
                     value={taskForm.endDate}
-                    onChange={(value) => updateDateRange(setTaskForm, 'endDate', value)}
+                    onChange={value => setTaskForm(current => {
+                      const next = { ...current, endDate: value };
+                      next.days = inclusiveDays(next.startDate, next.endDate);
+                      return next;
+                    })}
                     min={projects.find(project => project.id === taskForm.projectId)?.startDate}
                     max={projects.find(project => project.id === taskForm.projectId)?.endDate}
                     className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
@@ -2768,7 +2907,7 @@ export default function GanttPage() {
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">
                 <button
                   type="button"
-                  onClick={() => setShowAddTaskModal(false)}
+                  onClick={() => { setShowAddTaskModal(false); setQuickCreateContext(null); }}
                   className="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
                 >
                   Hủy

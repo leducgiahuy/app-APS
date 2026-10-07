@@ -744,10 +744,10 @@
       "employeeName": "",
       "assignees": [],
       "startDate": "2027-03-25",
-      "endDate": "2027-04-01",
-      "estimatedHours": 64,
+      "endDate": "2027-03-27",
+      "estimatedHours": 24,
       "estimatedHoursPerDay": 8,
-      "estimatedDays": 8,
+      "estimatedDays": 3,
       "status": "in_progress",
       "speedStatus": "on_time",
       "priority": "high",
@@ -836,10 +836,10 @@
       "employeeName": "",
       "assignees": [],
       "startDate": "2027-05-03",
-      "endDate": "2027-05-11",
-      "estimatedHours": 72,
+      "endDate": "2027-05-10",
+      "estimatedHours": 64,
       "estimatedHoursPerDay": 8,
-      "estimatedDays": 9,
+      "estimatedDays": 8,
       "status": "in_progress",
       "speedStatus": "on_time",
       "priority": "high",
@@ -893,43 +893,30 @@
       "notes": ""
     },
     {
-      "id": "task-1791269332868",
-      "ganttId": "G-1791269332863",
+      "id": "task-1791342266480",
+      "ganttId": "G-1791342266479",
       "projectId": "proj-1791194688389",
       "projectName": "NHÀ MÁY BETRAMEX - CÀNG LONG / VĨNH LONG",
       "phase": "A. THIẾT KẾ XÂY DỰNG",
-      "title": "Thống nhất đầu vào + Kick-off scope TKXD",
+      "title": "Abc",
       "code": "A1.1",
+      "createdAt": "2026-10-07T03:04:26.479Z",
       "parentGroupId": "G-1791215207730",
-      "employeeId": "emp-1791247951249",
-      "employeeName": "Hiếu",
-      "assignees": [
-        {
-          "employeeId": "emp-1791247951249",
-          "employeeName": "Hiếu",
-          "startDate": "2026-11-01",
-          "endDate": "2026-11-03",
-          "estimatedHoursPerDay": 8
-        },
-        {
-          "employeeId": "emp-1791247978716",
-          "employeeName": "Yến",
-          "startDate": "2026-11-03",
-          "endDate": "2026-11-03",
-          "estimatedHoursPerDay": 8
-        }
-      ],
+      "employeeId": "",
+      "employeeName": "",
+      "assignees": [],
       "startDate": "2026-11-01",
       "endDate": "2026-11-03",
       "estimatedHours": 24,
       "estimatedHoursPerDay": 8,
       "estimatedDays": 3,
+      "contractWork": null,
+      "ganttNote": "",
       "status": "in_progress",
       "speedStatus": "on_time",
       "priority": "high",
       "progress": 0,
-      "notes": "",
-      "ganttNote": ""
+      "notes": ""
     }
   ],
   "overtimes": [],
@@ -978,42 +965,29 @@
       "parentGroupId": "G-1791215150469"
     },
     {
-      "id": "G-1791269332863",
+      "id": "G-1791342266479",
       "projectId": "proj-1791194688389",
       "code": "A1.1",
-      "title": "Thống nhất đầu vào + Kick-off scope TKXD",
+      "title": "Abc",
       "isGroup": false,
       "color": "#861b36",
       "unit": "TK",
       "startDate": "2026-11-01",
       "endDate": "2026-11-03",
+      "createdAt": "2026-10-07T03:04:26.479Z",
       "days": 3,
       "estimatedHours": 24,
       "estimatedHoursPerDay": 8,
-      "assignee": "Hiếu",
+      "contractWork": null,
+      "ganttNote": "",
+      "assignee": "",
       "parentGroupId": "G-1791215207730",
-      "assignees": [
-        {
-          "employeeId": "emp-1791247951249",
-          "employeeName": "Hiếu",
-          "startDate": "2026-11-01",
-          "endDate": "2026-11-03",
-          "estimatedHoursPerDay": 8
-        },
-        {
-          "employeeId": "emp-1791247978716",
-          "employeeName": "Yến",
-          "startDate": "2026-11-03",
-          "endDate": "2026-11-03",
-          "estimatedHoursPerDay": 8
-        }
-      ],
+      "assignees": [],
       "notes": "",
       "status": "in_progress",
       "speed": "on_time",
       "progress": 0,
-      "dependencies": [],
-      "ganttNote": ""
+      "dependencies": []
     },
     {
       "id": "G-1791215460009",
@@ -1058,7 +1032,7 @@
       "speed": "on_time",
       "progress": 0,
       "dependencies": [
-        "G-1791269332863"
+        "G-1791342266479"
       ]
     },
     {
@@ -2096,9 +2070,9 @@
       "color": "#861b36",
       "unit": "TK",
       "startDate": "2027-03-25",
-      "endDate": "2027-04-01",
-      "days": 8,
-      "estimatedHours": 64,
+      "endDate": "2027-03-27",
+      "days": 3,
+      "estimatedHours": 24,
       "estimatedHoursPerDay": 8,
       "assignee": "",
       "parentGroupId": "G-1791221620582",
@@ -2192,9 +2166,9 @@
       "color": "#861b36",
       "unit": "TK",
       "startDate": "2027-05-03",
-      "endDate": "2027-05-11",
-      "days": 9,
-      "estimatedHours": 72,
+      "endDate": "2027-05-10",
+      "days": 8,
+      "estimatedHours": 64,
       "estimatedHoursPerDay": 8,
       "assignee": "",
       "parentGroupId": "G-1791221620582",
@@ -2257,6 +2231,501 @@
     }
   ],
   "activityLog": [
+    {
+      "id": "f6ab76b5-24de-4504-ae4d-d3cde8e3f9e2",
+      "timestamp": "2026-10-07T04:25:36.969Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.delete",
+      "details": "Xóa hạng mục Gantt Task 1."
+    },
+    {
+      "id": "f575c7df-5d29-454f-95b6-92c26925c6fb",
+      "timestamp": "2026-10-07T04:25:24.328Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật hạng mục Nhà thầu chuẩn bị HSDT."
+    },
+    {
+      "id": "e44feb8c-bb12-45e4-87f6-897f6489fc29",
+      "timestamp": "2026-10-07T04:24:28.735Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.create",
+      "details": "Thêm hạng mục Task 1 vào Gantt."
+    },
+    {
+      "id": "1f2bee68-64f6-42ab-82a3-4458cc4b28c0",
+      "timestamp": "2026-10-07T04:24:06.668Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.delete",
+      "details": "Xóa hạng mục Gantt Test."
+    },
+    {
+      "id": "bc161c1a-ac78-4b03-93b3-041134e36a1a",
+      "timestamp": "2026-10-07T04:23:55.846Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.create",
+      "details": "Thêm hạng mục Test vào Gantt."
+    },
+    {
+      "id": "fb502f22-584e-41df-9f8e-8f4c5644b054",
+      "timestamp": "2026-10-07T04:23:12.079Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.delete",
+      "details": "Xóa hạng mục Gantt A3a . Test."
+    },
+    {
+      "id": "5837916f-7b41-41b3-8ea5-f7055d9b6f2f",
+      "timestamp": "2026-10-07T04:22:45.142Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.create",
+      "details": "Thêm hạng mục A3a . Test vào Gantt."
+    },
+    {
+      "id": "88173fa2-f0a7-4687-9203-b4d68a7e066d",
+      "timestamp": "2026-10-07T04:01:32.865Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật hạng mục Chuẩn bị hồ sơ mời thầu."
+    },
+    {
+      "id": "fedc0d20-2943-433e-bb02-6cd90539d786",
+      "timestamp": "2026-10-07T04:01:19.930Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.delete",
+      "details": "Xóa hạng mục Gantt Task 4."
+    },
+    {
+      "id": "402e50d3-b17f-49a5-812e-e08408a5c052",
+      "timestamp": "2026-10-07T04:01:17.045Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.delete",
+      "details": "Xóa hạng mục Gantt task3."
+    },
+    {
+      "id": "47b797d5-c9cc-4449-b323-b51e8ee0056b",
+      "timestamp": "2026-10-07T04:01:06.435Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "task.update",
+      "details": "Cập nhật công việc task3."
+    },
+    {
+      "id": "cd80285d-e851-437f-810d-9d7b354d759d",
+      "timestamp": "2026-10-07T03:58:59.024Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.delete",
+      "details": "Xóa hạng mục Gantt task2."
+    },
+    {
+      "id": "f4c88b25-f705-4280-8a9a-289ae196f139",
+      "timestamp": "2026-10-07T03:58:57.457Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.delete",
+      "details": "Xóa hạng mục Gantt Task1."
+    },
+    {
+      "id": "3929e9fb-b05a-46c0-b1ac-d7efdf41a25c",
+      "timestamp": "2026-10-07T03:58:49.998Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật hạng mục Nhà thầu chuẩn bị HSDT."
+    },
+    {
+      "id": "13699f63-1be5-40bf-a1eb-62eb07177249",
+      "timestamp": "2026-10-07T03:58:36.480Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật hạng mục Nhà thầu chuẩn bị HSDT."
+    },
+    {
+      "id": "7f04e4d9-a960-4b95-9743-380dc3e04d66",
+      "timestamp": "2026-10-07T03:58:19.019Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.create",
+      "details": "Thêm hạng mục Task 4 vào Gantt."
+    },
+    {
+      "id": "8ad57fe3-ead5-4694-8b32-8cea8fdbf759",
+      "timestamp": "2026-10-07T03:57:16.003Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.create",
+      "details": "Thêm hạng mục task3 vào Gantt."
+    },
+    {
+      "id": "dbbc5201-1e74-4b51-9492-39967fb01422",
+      "timestamp": "2026-10-07T03:56:43.079Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.create",
+      "details": "Thêm hạng mục task2 vào Gantt."
+    },
+    {
+      "id": "5bb1de5b-4518-4875-a841-9cd63edef8a2",
+      "timestamp": "2026-10-07T03:56:10.659Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.create",
+      "details": "Thêm hạng mục Task1 vào Gantt."
+    },
+    {
+      "id": "47cdccbb-d4ac-48f9-b760-c3607b40ba7e",
+      "timestamp": "2026-10-07T03:55:55.035Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.delete",
+      "details": "Xóa hạng mục Gantt Tesk task."
+    },
+    {
+      "id": "9a202a00-edc5-4c07-b18e-ea170351bd45",
+      "timestamp": "2026-10-07T03:55:43.484Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.create",
+      "details": "Thêm hạng mục Tesk task vào Gantt."
+    },
+    {
+      "id": "40076904-3481-4182-a47b-e798fb57477f",
+      "timestamp": "2026-10-07T03:55:05.451Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.delete",
+      "details": "Xóa hạng mục Gantt Task 2."
+    },
+    {
+      "id": "5da59471-aba8-4240-97f1-8daf4a588651",
+      "timestamp": "2026-10-07T03:55:03.335Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.delete",
+      "details": "Xóa hạng mục Gantt Task 1."
+    },
+    {
+      "id": "287aa863-d39e-4d75-ab2b-32eec61c8823",
+      "timestamp": "2026-10-07T03:54:29.071Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật hạng mục Thương lượng & thương thảo HĐ."
+    },
+    {
+      "id": "ff628841-683e-486a-8c9f-74d3e09eda21",
+      "timestamp": "2026-10-07T03:54:15.875Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật hạng mục Đánh giá chi tiết HSDT."
+    },
+    {
+      "id": "0b411a90-2fc6-4c8a-9052-8dacc8520901",
+      "timestamp": "2026-10-07T03:53:54.452Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật hạng mục Làm rõ hồ sơ dự thầu."
+    },
+    {
+      "id": "acda3279-1e98-436c-b771-78bac8984a3c",
+      "timestamp": "2026-10-07T03:53:41.020Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật hạng mục Đánh giá sơ bộ HSDT."
+    },
+    {
+      "id": "741c914a-fb6c-4cd8-a310-65fea48636c0",
+      "timestamp": "2026-10-07T03:53:07.915Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật hạng mục Nhà thầu chuẩn bị HSDT."
+    },
+    {
+      "id": "8625c43b-aeb8-444c-b7a0-aa46b7361ccf",
+      "timestamp": "2026-10-07T03:52:37.149Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.delete",
+      "details": "Xóa hạng mục Gantt Task 3."
+    },
+    {
+      "id": "edf53d19-a61c-47b9-b0fa-0b8c894b3599",
+      "timestamp": "2026-10-07T03:51:18.982Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật hạng mục Task 3."
+    },
+    {
+      "id": "9c618e30-e316-4fe9-af5c-f957ff54fce6",
+      "timestamp": "2026-10-07T03:50:30.997Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật hạng mục Task 3."
+    },
+    {
+      "id": "08b8a477-1f7b-477d-8858-33227278d9b4",
+      "timestamp": "2026-10-07T03:50:19.528Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.create",
+      "details": "Thêm hạng mục Task 3 vào Gantt."
+    },
+    {
+      "id": "daba7e8d-2f2b-43f3-a07d-2f21bd275a85",
+      "timestamp": "2026-10-07T03:48:34.467Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật hạng mục Task 2."
+    },
+    {
+      "id": "27efd6a3-9e68-42ab-95ca-25ed2066d452",
+      "timestamp": "2026-10-07T03:48:24.936Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.create",
+      "details": "Thêm hạng mục Task 2 vào Gantt."
+    },
+    {
+      "id": "1e7bed6d-c2ef-4762-b78f-cf7934540419",
+      "timestamp": "2026-10-07T03:47:59.228Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.create",
+      "details": "Thêm hạng mục Task 1 vào Gantt."
+    },
+    {
+      "id": "eaa91a8d-74db-42be-8e3c-65655caa4960",
+      "timestamp": "2026-10-07T03:47:28.535Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.delete",
+      "details": "Xóa hạng mục Gantt Task con 1."
+    },
+    {
+      "id": "77e9f045-70ec-4e3a-ad3c-c158daf34938",
+      "timestamp": "2026-10-07T03:47:17.319Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.create",
+      "details": "Thêm hạng mục Task con 1 vào Gantt."
+    },
+    {
+      "id": "ed7aa50d-6d24-4786-9833-dcdeed80c7f4",
+      "timestamp": "2026-10-07T03:47:08.051Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.delete",
+      "details": "Xóa hạng mục Gantt g."
+    },
+    {
+      "id": "2dda0625-2de2-400d-b6c4-9973e91a5789",
+      "timestamp": "2026-10-07T03:45:24.013Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.create",
+      "details": "Thêm hạng mục g vào Gantt."
+    },
+    {
+      "id": "f421f47f-ecbc-4634-b902-1586f2fcfa80",
+      "timestamp": "2026-10-07T03:43:08.805Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.delete",
+      "details": "Xóa hạng mục Gantt Task con 2."
+    },
+    {
+      "id": "19198380-cd69-4d54-b1ef-6135dc0fde6e",
+      "timestamp": "2026-10-07T03:43:04.457Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.delete",
+      "details": "Xóa hạng mục Gantt Task con 1."
+    },
+    {
+      "id": "29ed16c7-78fe-4a7e-af1d-b729b69f8741",
+      "timestamp": "2026-10-07T03:42:17.308Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.create",
+      "details": "Thêm hạng mục Task con 2 vào Gantt."
+    },
+    {
+      "id": "faf28a14-3733-41f3-abe4-8efe0bc6206b",
+      "timestamp": "2026-10-07T03:41:42.596Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.create",
+      "details": "Thêm hạng mục Task con 1 vào Gantt."
+    },
+    {
+      "id": "2b24be8e-ab99-42e4-b2dd-60f39d449cb7",
+      "timestamp": "2026-10-07T03:41:18.281Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.delete",
+      "details": "Xóa hạng mục Gantt TEST."
+    },
+    {
+      "id": "97010fb5-9ea6-4887-8d40-f831231c4090",
+      "timestamp": "2026-10-07T03:41:03.304Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.create",
+      "details": "Thêm hạng mục TEST vào Gantt."
+    },
+    {
+      "id": "eabb4392-2697-4f8e-b0df-f3a63ff6b815",
+      "timestamp": "2026-10-07T03:32:24.587Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "auth.login",
+      "details": "Đăng nhập thành công."
+    },
+    {
+      "id": "c02b086c-e609-4317-8e64-8fc26767eade",
+      "timestamp": "2026-10-07T03:13:12.273Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.delete",
+      "details": "Xóa hạng mục Gantt Task."
+    },
+    {
+      "id": "86e0ddb2-a526-41b3-a575-390e5a7d84bd",
+      "timestamp": "2026-10-07T03:13:02.892Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.delete",
+      "details": "Xóa hạng mục Gantt test."
+    },
+    {
+      "id": "1a4fc4f7-4a98-48e2-ba5e-6c603c880d08",
+      "timestamp": "2026-10-07T03:12:12.203Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.create",
+      "details": "Thêm hạng mục test vào Gantt."
+    },
+    {
+      "id": "28edbce4-ea3f-4c48-b84a-2d49eb65d4ca",
+      "timestamp": "2026-10-07T03:10:49.933Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.create",
+      "details": "Thêm hạng mục Task vào Gantt."
+    },
+    {
+      "id": "b6064da7-7c50-4ff6-8420-d3f24a8a4491",
+      "timestamp": "2026-10-07T03:04:26.485Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.create",
+      "details": "Thêm hạng mục Abc vào Gantt."
+    },
+    {
+      "id": "4e1f40c3-272a-4866-8674-bee22c2c3da0",
+      "timestamp": "2026-10-07T03:03:51.563Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.delete",
+      "details": "Xóa hạng mục Gantt Test1."
+    },
+    {
+      "id": "c59c5400-e2b4-4352-85fb-cd2464469414",
+      "timestamp": "2026-10-07T03:03:25.934Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "auth.login",
+      "details": "Đăng nhập thành công."
+    },
+    {
+      "id": "af7eb05f-6e8f-4fe1-a61e-6f778c1cc939",
+      "timestamp": "2026-10-07T02:58:36.518Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.delete",
+      "details": "Xóa hạng mục Gantt Thống nhất đầu vào + Kick-off scope TKXD."
+    },
+    {
+      "id": "1f5ef434-af53-4a69-97a1-0ae15cd29cd5",
+      "timestamp": "2026-10-07T02:57:57.562Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.create",
+      "details": "Thêm hạng mục Test1 vào Gantt."
+    },
     {
       "id": "72c9cb93-12d5-4263-9ca8-3f6cfa5abd7f",
       "timestamp": "2026-10-07T01:48:07.148Z",
