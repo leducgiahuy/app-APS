@@ -105,8 +105,10 @@ export function createProject(req, res) {
     manager: manager || 'Trần Quốc Hưng',
     startDate,
     endDate,
+    createdAt: new Date().toISOString(),
     status: 'planning',
-    progress: 0
+    progress: 0,
+    contractWork: null
   };
 
   db.projects.push(newProject);
@@ -125,15 +127,21 @@ export function updateProject(req, res) {
   const project = (db.projects || []).find(item => item.id === req.params.id);
   if (!project) return res.status(404).json({ success: false, message: 'Không tìm thấy dự án' });
 
-  const { startDate, endDate } = req.body;
+  const { startDate, endDate, contractWork } = req.body;
   const nextStartDate = startDate || project.startDate;
   const nextEndDate = endDate || project.endDate;
+  const normalizedContractWork = contractWork === null || contractWork === '' ? null : Number(contractWork);
+  if (contractWork !== undefined && normalizedContractWork !== null &&
+    (!Number.isFinite(normalizedContractWork) || normalizedContractWork < 0)) {
+    return res.status(400).json({ success: false, message: 'contractWork must be a non-negative number' });
+  }
   if (!nextStartDate || !nextEndDate || !Number.isFinite(Date.parse(`${nextStartDate}T00:00:00Z`)) || !Number.isFinite(Date.parse(`${nextEndDate}T00:00:00Z`)) || nextEndDate < nextStartDate) {
     return res.status(400).json({ success: false, message: 'Khoảng ngày bắt đầu và kết thúc của dự án không hợp lệ' });
   }
 
   project.startDate = nextStartDate;
   project.endDate = nextEndDate;
+  if (contractWork !== undefined) project.contractWork = normalizedContractWork;
   writeDb(db);
   return res.json({ success: true, data: project, message: 'Đã cập nhật thời gian dự án' });
 }
@@ -316,6 +324,8 @@ export function getGanttItems(req, res) {
           Number(linkedTask?.estimatedHours) / (Number(linkedTask?.estimatedDays) || 1) ||
           Number(item.estimatedHoursPerDay) || 8,
         estimatedHours: Number(linkedTask?.estimatedHours ?? item.estimatedHours) || (Number(item.days) || 1) * 8,
+        contractWork: item.contractWork ?? linkedTask?.contractWork ?? null,
+        ganttNote: item.ganttNote ?? linkedTask?.ganttNote ?? '',
         overtimeContributions,
         // Keep older saved OT totals visible when their request records are unavailable.
         overtimeHours: overtimeContributions.length
@@ -402,14 +412,15 @@ export function replaceGanttPredecessorLink(successor, predecessorIds, insertedI
 export function updateGanttItem(req, res) {
   const db = readDb();
   const { id } = req.params;
-  const { startDate, endDate, estimatedHoursPerDay, assignees, title } = req.body;
+  normalizeGanttGroupHierarchy(db.ganttItems || [], db.tasks || []);
+  const { startDate, endDate, estimatedHoursPerDay, assignees, title, contractWork, ganttNote } = req.body;
   const item = (db.ganttItems || []).find(ganttItem => ganttItem.id === id);
 
   if (!item) {
     return res.status(404).json({ success: false, message: 'Không tìm thấy hạng mục Gantt' });
   }
 
-  if (title !== undefined) {
+  if (title !== undefined && startDate === undefined && endDate === undefined && contractWork === undefined && ganttNote === undefined) {
     const normalizedTitle = typeof title === 'string' ? title.trim() : '';
     if (!item.isGroup || !normalizedTitle || normalizedTitle.length > 120) {
       return res.status(400).json({ success: false, message: 'Tên mục công việc không hợp lệ' });
@@ -425,16 +436,34 @@ export function updateGanttItem(req, res) {
     });
   }
 
+  if (title !== undefined && (typeof title !== 'string' || !item.isGroup || !title.trim() || title.trim().length > 120)) {
+    return res.status(400).json({ success: false, message: 'Invalid group title' });
+  }
+
   const nextStartDate = startDate || item.startDate;
   const nextEndDate = endDate || item.endDate;
   const startTimestamp = Date.parse(`${nextStartDate}T00:00:00Z`);
   const endTimestamp = Date.parse(`${nextEndDate}T00:00:00Z`);
+  const normalizedContractWork = contractWork === null || contractWork === '' ? null : Number(contractWork);
+  if (contractWork !== undefined && normalizedContractWork !== null &&
+    (!Number.isFinite(normalizedContractWork) || normalizedContractWork < 0)) {
+    return res.status(400).json({ success: false, message: 'contractWork must be a non-negative number' });
+  }
+  if (ganttNote !== undefined && typeof ganttNote !== 'string') {
+    return res.status(400).json({ success: false, message: 'ganttNote must be a string' });
+  }
   if (!Number.isFinite(startTimestamp) || !Number.isFinite(endTimestamp) || endTimestamp < startTimestamp) {
     return res.status(400).json({ success: false, message: 'Khoảng thời gian không hợp lệ' });
   }
 
   const itemProjectId = item.projectId || (db.tasks || []).find(task => task.ganttId === item.id)?.projectId || 'proj-1';
   const project = (db.projects || []).find(candidate => candidate.id === itemProjectId);
+  if (item.isGroup && item.parentGroupId) {
+    const parentGroup = (db.ganttItems || []).find(candidate => candidate.id === item.parentGroupId && candidate.isGroup);
+    if (parentGroup && ((parentGroup.startDate && nextStartDate < parentGroup.startDate) || (parentGroup.endDate && nextEndDate > parentGroup.endDate))) {
+      return res.status(400).json({ success: false, message: 'The group dates must remain inside its parent group range' });
+    }
+  }
   if (project && ((project.startDate && nextStartDate < project.startDate) || (project.endDate && nextEndDate > project.endDate))) {
     return res.status(400).json({ success: false, message: `Ngày task phải nằm trong thời gian dự án (${project.startDate} → ${project.endDate})` });
   }
@@ -499,9 +528,76 @@ export function updateGanttItem(req, res) {
 
   const calculatedDays = Math.floor((endTimestamp - startTimestamp) / 86400000) + 1;
   if (item.isGroup) {
+    const oldStartTimestamp = Date.parse(`${item.startDate}T00:00:00Z`);
+    const oldEndTimestamp = Date.parse(`${item.endDate}T00:00:00Z`);
+    if (!Number.isFinite(oldStartTimestamp) || !Number.isFinite(oldEndTimestamp) || oldEndTimestamp < oldStartTimestamp) {
+      return res.status(400).json({ success: false, message: 'Invalid current group date range' });
+    }
+    const oldGroupDays = Math.floor((oldEndTimestamp - oldStartTimestamp) / 86400000) + 1;
+    const mapDate = dateValue => {
+      const timestamp = Date.parse(`${dateValue}T00:00:00Z`);
+      if (!Number.isFinite(timestamp)) return dateValue;
+      const oldOffset = Math.max(0, Math.min(oldGroupDays - 1, Math.round((timestamp - oldStartTimestamp) / 86400000)));
+      const newOffset = oldGroupDays <= 1 || calculatedDays <= 1
+        ? 0
+        : Math.round(oldOffset * (calculatedDays - 1) / (oldGroupDays - 1));
+      const mapped = new Date(startTimestamp);
+      mapped.setUTCDate(mapped.getUTCDate() + newOffset);
+      return mapped.toISOString().slice(0, 10);
+    };
+    const descendantGroupIds = new Set([item.id]);
+    let foundChildGroup = true;
+    while (foundChildGroup) {
+      foundChildGroup = false;
+      (db.ganttItems || []).forEach(candidate => {
+        if (candidate.isGroup && descendantGroupIds.has(candidate.parentGroupId) && !descendantGroupIds.has(candidate.id)) {
+          descendantGroupIds.add(candidate.id);
+          foundChildGroup = true;
+        }
+      });
+    }
+    const descendants = (db.ganttItems || []).filter(candidate => candidate.id !== item.id && descendantGroupIds.has(candidate.parentGroupId));
+    for (const descendant of descendants) {
+      const previousChildDays = Number(descendant.days) || Math.max(1, Math.floor((Date.parse(`${descendant.endDate}T00:00:00Z`) - Date.parse(`${descendant.startDate}T00:00:00Z`)) / 86400000) + 1);
+      const childStart = mapDate(descendant.startDate);
+      const mappedEnd = mapDate(descendant.endDate);
+      const childEnd = mappedEnd < childStart ? childStart : mappedEnd;
+      if (project && ((project.startDate && childStart < project.startDate) || (project.endDate && childEnd > project.endDate))) {
+        return res.status(400).json({ success: false, message: 'The updated group range would move a child outside the project dates' });
+      }
+      const childDays = Math.floor((Date.parse(`${childEnd}T00:00:00Z`) - Date.parse(`${childStart}T00:00:00Z`)) / 86400000) + 1;
+      descendant.startDate = childStart;
+      descendant.endDate = childEnd;
+      descendant.days = childDays;
+      const childHoursPerDay = Number(descendant.estimatedHoursPerDay) || Number(descendant.estimatedHours) / previousChildDays || 8;
+      descendant.estimatedHoursPerDay = childHoursPerDay;
+      descendant.estimatedHours = Math.round(childHoursPerDay * childDays * 100) / 100;
+      if (Array.isArray(descendant.assignees)) {
+        descendant.assignees = descendant.assignees.map(assignment => {
+          const mappedStart = mapDate(assignment.startDate || childStart);
+          const mappedAssignmentEnd = mapDate(assignment.endDate || childEnd);
+          const assignmentStart = mappedStart < childStart ? childStart : mappedStart > childEnd ? childEnd : mappedStart;
+          const assignmentEnd = mappedAssignmentEnd < assignmentStart ? assignmentStart : mappedAssignmentEnd > childEnd ? childEnd : mappedAssignmentEnd;
+          return { ...assignment, startDate: assignmentStart, endDate: assignmentEnd };
+        });
+      }
+      const childTask = (db.tasks || []).find(task => task.ganttId === descendant.id);
+      if (childTask) {
+        childTask.startDate = childStart;
+        childTask.endDate = childEnd;
+        childTask.estimatedDays = childDays;
+        if (Array.isArray(descendant.assignees)) childTask.assignees = descendant.assignees;
+        const standardHours = Number((db.employees || []).find(employee => employee.id === childTask.employeeId)?.standardHours) || 8;
+        const hoursPerDay = Number(descendant.estimatedHoursPerDay) || Number(childTask.estimatedHoursPerDay) || standardHours;
+        childTask.estimatedHoursPerDay = hoursPerDay;
+        childTask.estimatedHours = Math.round(hoursPerDay * childDays * 100) / 100;
+      }
+    }
     item.startDate = nextStartDate;
     item.endDate = nextEndDate;
     item.days = calculatedDays;
+    if (title !== undefined) item.title = title.trim();
+    if (contractWork !== undefined) item.contractWork = normalizedContractWork;
     if (!writeDb(db)) {
       return res.status(500).json({ success: false, message: 'Không thể lưu thời gian giai đoạn. Vui lòng thử lại.' });
     }
@@ -547,6 +643,8 @@ export function updateGanttItem(req, res) {
   item.startDate = nextStartDate;
   item.endDate = nextEndDate;
   item.days = calculatedDays;
+  if (contractWork !== undefined) item.contractWork = normalizedContractWork;
+  if (ganttNote !== undefined) item.ganttNote = ganttNote;
   item.assignees = nextAssignees;
   if (assignees !== undefined) item.assignee = nextAssignees[0]?.employeeName || '';
   if (estimatedHoursPerDay !== undefined) item.estimatedHoursPerDay = Math.round(requestedHoursPerDay * 100) / 100;
@@ -654,6 +752,8 @@ export function updateGanttItem(req, res) {
       (!item.projectId || !task.projectId || task.projectId === item.projectId));
   if (linkedTaskForAssignments) {
     linkedTaskForAssignments.assignees = item.assignees;
+    if (contractWork !== undefined) linkedTaskForAssignments.contractWork = normalizedContractWork;
+    if (ganttNote !== undefined) linkedTaskForAssignments.ganttNote = ganttNote;
     if (assignees !== undefined) {
       linkedTaskForAssignments.employeeId = item.assignees[0]?.employeeId || '';
       linkedTaskForAssignments.employeeName = item.assignees[0]?.employeeName || '';
@@ -740,6 +840,7 @@ export function createGanttItem(req, res) {
 
   const formattedCode = code ? String(code).trim() : `T${db.ganttItems.length + 1}`;
   const newGanttId = `G-${Date.now()}`;
+  const createdAt = new Date().toISOString();
 
   const belongsToProject = item => {
     const linkedTask = (db.tasks || []).find(task => task.ganttId === item.id);
@@ -834,9 +935,12 @@ export function createGanttItem(req, res) {
     unit: unit || 'TK',
     startDate,
     endDate,
+    createdAt,
     days: calculatedDays,
     estimatedHours: calculatedEstimatedHours,
     estimatedHoursPerDay: calculatedHoursPerDay,
+    contractWork: null,
+    ganttNote: '',
     assignee: assignedEmployee?.name || '',
     ...(parentGroup ? { parentGroupId: parentGroup.id } : {}),
     assignees: assignedEmployee ? [{
@@ -889,6 +993,7 @@ export function createGanttItem(req, res) {
       phase: phaseName,
       title: newItem.title,
       code: newItem.code,
+      createdAt: newItem.createdAt,
       ...(parentGroup ? { parentGroupId: parentGroup.id } : {}),
       employeeId: emp?.id || '',
       employeeName: emp?.name || '',
@@ -898,6 +1003,8 @@ export function createGanttItem(req, res) {
       estimatedHours: newItem.estimatedHours,
       estimatedHoursPerDay: newItem.estimatedHoursPerDay,
       estimatedDays: newItem.days,
+      contractWork: newItem.contractWork,
+      ganttNote: newItem.ganttNote,
       status: 'in_progress',
       speedStatus: newItem.speed || 'on_time',
       priority: 'high',

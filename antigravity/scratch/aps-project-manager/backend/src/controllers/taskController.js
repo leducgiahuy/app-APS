@@ -122,6 +122,7 @@ export function createTask(req, res) {
 
   const newTask = {
     id: `task-${Date.now()}`,
+    createdAt: new Date().toISOString(),
     ganttId: newGanttId,
     projectId: project.id,
     projectName: project.name,
@@ -179,6 +180,7 @@ export function createTask(req, res) {
 
   const newGanttItem = {
     id: newGanttId,
+    createdAt: newTask.createdAt,
     projectId: project.id,
     code: wbsCode,
     title,

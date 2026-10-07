@@ -10,7 +10,8 @@
       "startDate": "2026-10-26",
       "endDate": "2027-06-07",
       "status": "planning",
-      "progress": 0
+      "progress": 0,
+      "contractWork": 500
     }
   ],
   "employees": [
@@ -32,7 +33,10 @@
       "workSessionStartedAt": null,
       "activeTaskId": null,
       "activeTaskTitle": null,
-      "avatar": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80"
+      "avatar": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80",
+      "lastShiftCheckInAt": "2026-10-06T04:35:40.525Z",
+      "lastShiftCheckOutAt": "2026-10-06T06:44:45.450Z",
+      "lastShiftCheckOutTime": "13:44"
     },
     {
       "id": "emp-1791247978716",
@@ -97,29 +101,6 @@
   ],
   "tasks": [
     {
-      "id": "task-1791215292038",
-      "ganttId": "G-1791215292037",
-      "projectId": "proj-1791194688389",
-      "projectName": "NHÀ MÁY BETRAMEX - CÀNG LONG / VĨNH LONG",
-      "phase": "A. THIẾT KẾ XÂY DỰNG",
-      "title": "Thống nhất đầu vào + Kick-off scope TKXD",
-      "code": "A1.1",
-      "parentGroupId": "G-1791215207730",
-      "employeeId": "",
-      "employeeName": "",
-      "assignees": [],
-      "startDate": "2026-11-01",
-      "endDate": "2026-11-03",
-      "estimatedHours": 24,
-      "estimatedHoursPerDay": 8,
-      "estimatedDays": 3,
-      "status": "in_progress",
-      "speedStatus": "on_time",
-      "priority": "high",
-      "progress": 0,
-      "notes": ""
-    },
-    {
       "id": "task-1791215460028",
       "ganttId": "G-1791215460009",
       "projectId": "proj-1791194688389",
@@ -128,9 +109,31 @@
       "title": "Khảo sát hiện trạng mặt bằng",
       "code": "A1.2",
       "parentGroupId": "G-1791215207730",
-      "employeeId": "",
-      "employeeName": "",
-      "assignees": [],
+      "employeeId": "emp-1791247951249",
+      "employeeName": "Hiếu",
+      "assignees": [
+        {
+          "employeeId": "emp-1791247951249",
+          "employeeName": "Hiếu",
+          "startDate": "2026-11-01",
+          "endDate": "2026-11-01",
+          "estimatedHoursPerDay": 8
+        },
+        {
+          "employeeId": "emp-1791247978716",
+          "employeeName": "Yến",
+          "startDate": "2026-11-03",
+          "endDate": "2026-11-03",
+          "estimatedHoursPerDay": 8
+        },
+        {
+          "employeeId": "emp-1791248021248",
+          "employeeName": "Duy",
+          "startDate": "2026-11-01",
+          "endDate": "2026-11-03",
+          "estimatedHoursPerDay": 8
+        }
+      ],
       "startDate": "2026-11-01",
       "endDate": "2026-11-03",
       "estimatedHours": 24,
@@ -174,19 +177,30 @@
       "title": "Khoan KSĐC + lập báo cáo ĐCCT",
       "code": "A2.2",
       "parentGroupId": "G-1791215539780",
-      "employeeId": "",
-      "employeeName": "",
-      "assignees": [],
-      "startDate": "2026-11-02",
+      "employeeId": "emp-1791247978716",
+      "employeeName": "Yến",
+      "assignees": [
+        {
+          "employeeId": "emp-1791247978716",
+          "employeeName": "Yến",
+          "startDate": "2026-11-03",
+          "endDate": "2026-11-25",
+          "estimatedHoursPerDay": 8
+        }
+      ],
+      "startDate": "2026-11-03",
       "endDate": "2026-11-25",
-      "estimatedHours": 192,
+      "estimatedHours": 184,
       "estimatedHoursPerDay": 8,
-      "estimatedDays": 24,
-      "status": "in_progress",
-      "speedStatus": "on_time",
+      "estimatedDays": 23,
+      "status": "completed",
+      "speedStatus": "early",
       "priority": "high",
-      "progress": 0,
-      "notes": ""
+      "progress": 100,
+      "notes": "",
+      "completedAt": "2026-10-06T01:49:03.086Z",
+      "delayHours": 0,
+      "earlyHours": 0
     },
     {
       "id": "task-1791215999293",
@@ -200,11 +214,11 @@
       "employeeId": "",
       "employeeName": "",
       "assignees": [],
-      "startDate": "2026-11-04",
+      "startDate": "2026-11-05",
       "endDate": "2026-11-08",
-      "estimatedHours": 40,
+      "estimatedHours": 32,
       "estimatedHoursPerDay": 8,
-      "estimatedDays": 5,
+      "estimatedDays": 4,
       "status": "in_progress",
       "speedStatus": "on_time",
       "priority": "high",
@@ -223,11 +237,11 @@
       "employeeId": "",
       "employeeName": "",
       "assignees": [],
-      "startDate": "2026-11-09",
-      "endDate": "2026-11-13",
-      "estimatedHours": 40,
+      "startDate": "2026-11-08",
+      "endDate": "2026-11-14",
+      "estimatedHours": 56,
       "estimatedHoursPerDay": 8,
-      "estimatedDays": 5,
+      "estimatedDays": 7,
       "status": "in_progress",
       "speedStatus": "on_time",
       "priority": "high",
@@ -269,11 +283,11 @@
       "employeeId": "",
       "employeeName": "",
       "assignees": [],
-      "startDate": "2026-11-26",
+      "startDate": "2026-11-25",
       "endDate": "2026-12-07",
-      "estimatedHours": 96,
+      "estimatedHours": 104,
       "estimatedHoursPerDay": 8,
-      "estimatedDays": 12,
+      "estimatedDays": 13,
       "status": "in_progress",
       "speedStatus": "on_time",
       "priority": "high",
@@ -292,8 +306,8 @@
       "employeeId": "",
       "employeeName": "",
       "assignees": [],
-      "startDate": "2026-12-05",
-      "endDate": "2026-12-10",
+      "startDate": "2026-12-06",
+      "endDate": "2026-12-11",
       "estimatedHours": 48,
       "estimatedHoursPerDay": 8,
       "estimatedDays": 6,
@@ -338,8 +352,8 @@
       "employeeId": "",
       "employeeName": "",
       "assignees": [],
-      "startDate": "2026-12-14",
-      "endDate": "2027-01-05",
+      "startDate": "2026-12-15",
+      "endDate": "2027-01-06",
       "estimatedHours": 184,
       "estimatedHoursPerDay": 8,
       "estimatedDays": 23,
@@ -360,11 +374,11 @@
       "employeeId": "",
       "employeeName": "",
       "assignees": [],
-      "startDate": "2027-01-03",
-      "endDate": "2027-01-08",
-      "estimatedHours": 48,
+      "startDate": "2027-01-04",
+      "endDate": "2027-01-07",
+      "estimatedHours": 32,
       "estimatedHoursPerDay": 8,
-      "estimatedDays": 6,
+      "estimatedDays": 4,
       "status": "in_progress",
       "speedStatus": "on_time",
       "priority": "high",
@@ -730,10 +744,10 @@
       "employeeName": "",
       "assignees": [],
       "startDate": "2027-03-25",
-      "endDate": "2027-03-31",
-      "estimatedHours": 56,
+      "endDate": "2027-04-01",
+      "estimatedHours": 64,
       "estimatedHoursPerDay": 8,
-      "estimatedDays": 7,
+      "estimatedDays": 8,
       "status": "in_progress",
       "speedStatus": "on_time",
       "priority": "high",
@@ -822,10 +836,10 @@
       "employeeName": "",
       "assignees": [],
       "startDate": "2027-05-03",
-      "endDate": "2027-05-10",
-      "estimatedHours": 64,
+      "endDate": "2027-05-11",
+      "estimatedHours": 72,
       "estimatedHoursPerDay": 8,
-      "estimatedDays": 8,
+      "estimatedDays": 9,
       "status": "in_progress",
       "speedStatus": "on_time",
       "priority": "high",
@@ -877,6 +891,45 @@
       "priority": "high",
       "progress": 0,
       "notes": ""
+    },
+    {
+      "id": "task-1791269332868",
+      "ganttId": "G-1791269332863",
+      "projectId": "proj-1791194688389",
+      "projectName": "NHÀ MÁY BETRAMEX - CÀNG LONG / VĨNH LONG",
+      "phase": "A. THIẾT KẾ XÂY DỰNG",
+      "title": "Thống nhất đầu vào + Kick-off scope TKXD",
+      "code": "A1.1",
+      "parentGroupId": "G-1791215207730",
+      "employeeId": "emp-1791247951249",
+      "employeeName": "Hiếu",
+      "assignees": [
+        {
+          "employeeId": "emp-1791247951249",
+          "employeeName": "Hiếu",
+          "startDate": "2026-11-01",
+          "endDate": "2026-11-03",
+          "estimatedHoursPerDay": 8
+        },
+        {
+          "employeeId": "emp-1791247978716",
+          "employeeName": "Yến",
+          "startDate": "2026-11-03",
+          "endDate": "2026-11-03",
+          "estimatedHoursPerDay": 8
+        }
+      ],
+      "startDate": "2026-11-01",
+      "endDate": "2026-11-03",
+      "estimatedHours": 24,
+      "estimatedHoursPerDay": 8,
+      "estimatedDays": 3,
+      "status": "in_progress",
+      "speedStatus": "on_time",
+      "priority": "high",
+      "progress": 0,
+      "notes": "",
+      "ganttNote": ""
     }
   ],
   "overtimes": [],
@@ -925,7 +978,7 @@
       "parentGroupId": "G-1791215150469"
     },
     {
-      "id": "G-1791215292037",
+      "id": "G-1791269332863",
       "projectId": "proj-1791194688389",
       "code": "A1.1",
       "title": "Thống nhất đầu vào + Kick-off scope TKXD",
@@ -937,14 +990,30 @@
       "days": 3,
       "estimatedHours": 24,
       "estimatedHoursPerDay": 8,
-      "assignee": "",
+      "assignee": "Hiếu",
       "parentGroupId": "G-1791215207730",
-      "assignees": [],
+      "assignees": [
+        {
+          "employeeId": "emp-1791247951249",
+          "employeeName": "Hiếu",
+          "startDate": "2026-11-01",
+          "endDate": "2026-11-03",
+          "estimatedHoursPerDay": 8
+        },
+        {
+          "employeeId": "emp-1791247978716",
+          "employeeName": "Yến",
+          "startDate": "2026-11-03",
+          "endDate": "2026-11-03",
+          "estimatedHoursPerDay": 8
+        }
+      ],
       "notes": "",
       "status": "in_progress",
       "speed": "on_time",
       "progress": 0,
-      "dependencies": []
+      "dependencies": [],
+      "ganttNote": ""
     },
     {
       "id": "G-1791215460009",
@@ -959,15 +1028,37 @@
       "days": 3,
       "estimatedHours": 24,
       "estimatedHoursPerDay": 8,
-      "assignee": "",
+      "assignee": "Hiếu",
       "parentGroupId": "G-1791215207730",
-      "assignees": [],
+      "assignees": [
+        {
+          "employeeId": "emp-1791247951249",
+          "employeeName": "Hiếu",
+          "startDate": "2026-11-01",
+          "endDate": "2026-11-01",
+          "estimatedHoursPerDay": 8
+        },
+        {
+          "employeeId": "emp-1791247978716",
+          "employeeName": "Yến",
+          "startDate": "2026-11-03",
+          "endDate": "2026-11-03",
+          "estimatedHoursPerDay": 8
+        },
+        {
+          "employeeId": "emp-1791248021248",
+          "employeeName": "Duy",
+          "startDate": "2026-11-01",
+          "endDate": "2026-11-03",
+          "estimatedHoursPerDay": 8
+        }
+      ],
       "notes": "",
       "status": "in_progress",
       "speed": "on_time",
       "progress": 0,
       "dependencies": [
-        "G-1791215292037"
+        "G-1791269332863"
       ]
     },
     {
@@ -1024,21 +1115,32 @@
       "isGroup": false,
       "color": "#861b36",
       "unit": "TK",
-      "startDate": "2026-11-02",
+      "startDate": "2026-11-03",
       "endDate": "2026-11-25",
-      "days": 24,
-      "estimatedHours": 192,
+      "days": 23,
+      "estimatedHours": 184,
       "estimatedHoursPerDay": 8,
-      "assignee": "",
+      "assignee": "Yến",
       "parentGroupId": "G-1791215539780",
-      "assignees": [],
+      "assignees": [
+        {
+          "employeeId": "emp-1791247978716",
+          "employeeName": "Yến",
+          "startDate": "2026-11-03",
+          "endDate": "2026-11-25",
+          "estimatedHoursPerDay": 8
+        }
+      ],
       "notes": "",
-      "status": "in_progress",
-      "speed": "on_time",
-      "progress": 0,
+      "status": "completed",
+      "speed": "early",
+      "progress": 100,
       "dependencies": [
         "G-1791215739830"
-      ]
+      ],
+      "completedAt": "2026-10-06T01:49:03.086Z",
+      "delayHours": 0,
+      "earlyHours": 0
     },
     {
       "id": "G-1791215999292",
@@ -1048,10 +1150,10 @@
       "isGroup": false,
       "color": "#861b36",
       "unit": "TK",
-      "startDate": "2026-11-04",
+      "startDate": "2026-11-05",
       "endDate": "2026-11-08",
-      "days": 5,
-      "estimatedHours": 40,
+      "days": 4,
+      "estimatedHours": 32,
       "estimatedHoursPerDay": 8,
       "assignee": "",
       "parentGroupId": "G-1791215539780",
@@ -1072,10 +1174,10 @@
       "isGroup": false,
       "color": "#861b36",
       "unit": "TK",
-      "startDate": "2026-11-09",
-      "endDate": "2026-11-13",
-      "days": 5,
-      "estimatedHours": 40,
+      "startDate": "2026-11-08",
+      "endDate": "2026-11-14",
+      "days": 7,
+      "estimatedHours": 56,
       "estimatedHoursPerDay": 8,
       "assignee": "",
       "parentGroupId": "G-1791215539780",
@@ -1120,10 +1222,10 @@
       "isGroup": true,
       "color": "#861b36",
       "unit": "GR",
-      "startDate": "2026-11-26",
+      "startDate": "2026-11-25",
       "endDate": "2026-12-13",
-      "days": 18,
-      "estimatedHours": 144,
+      "days": 19,
+      "estimatedHours": 152,
       "estimatedHoursPerDay": 8,
       "assignee": "",
       "assignees": [],
@@ -1142,10 +1244,10 @@
       "isGroup": false,
       "color": "#861b36",
       "unit": "TK",
-      "startDate": "2026-11-26",
+      "startDate": "2026-11-25",
       "endDate": "2026-12-07",
-      "days": 12,
-      "estimatedHours": 96,
+      "days": 13,
+      "estimatedHours": 104,
       "estimatedHoursPerDay": 8,
       "assignee": "",
       "parentGroupId": "G-1791216212702",
@@ -1166,8 +1268,8 @@
       "isGroup": false,
       "color": "#861b36",
       "unit": "TK",
-      "startDate": "2026-12-05",
-      "endDate": "2026-12-10",
+      "startDate": "2026-12-06",
+      "endDate": "2026-12-11",
       "days": 6,
       "estimatedHours": 48,
       "estimatedHoursPerDay": 8,
@@ -1214,10 +1316,10 @@
       "isGroup": true,
       "color": "#861b36",
       "unit": "GR",
-      "startDate": "2026-12-14",
+      "startDate": "2026-12-15",
       "endDate": "2027-01-11",
-      "days": 29,
-      "estimatedHours": 232,
+      "days": 28,
+      "estimatedHours": 224,
       "estimatedHoursPerDay": 8,
       "assignee": "",
       "assignees": [],
@@ -1236,8 +1338,8 @@
       "isGroup": false,
       "color": "#861b36",
       "unit": "TK",
-      "startDate": "2026-12-14",
-      "endDate": "2027-01-05",
+      "startDate": "2026-12-15",
+      "endDate": "2027-01-06",
       "days": 23,
       "estimatedHours": 184,
       "estimatedHoursPerDay": 8,
@@ -1260,10 +1362,10 @@
       "isGroup": false,
       "color": "#861b36",
       "unit": "TK",
-      "startDate": "2027-01-03",
-      "endDate": "2027-01-08",
-      "days": 6,
-      "estimatedHours": 48,
+      "startDate": "2027-01-04",
+      "endDate": "2027-01-07",
+      "days": 4,
+      "estimatedHours": 32,
       "estimatedHoursPerDay": 8,
       "assignee": "",
       "assignees": [],
@@ -1994,9 +2096,9 @@
       "color": "#861b36",
       "unit": "TK",
       "startDate": "2027-03-25",
-      "endDate": "2027-03-31",
-      "days": 7,
-      "estimatedHours": 56,
+      "endDate": "2027-04-01",
+      "days": 8,
+      "estimatedHours": 64,
       "estimatedHoursPerDay": 8,
       "assignee": "",
       "parentGroupId": "G-1791221620582",
@@ -2090,9 +2192,9 @@
       "color": "#861b36",
       "unit": "TK",
       "startDate": "2027-05-03",
-      "endDate": "2027-05-10",
-      "days": 8,
-      "estimatedHours": 64,
+      "endDate": "2027-05-11",
+      "days": 9,
+      "estimatedHours": 72,
       "estimatedHoursPerDay": 8,
       "assignee": "",
       "parentGroupId": "G-1791221620582",
@@ -2155,6 +2257,672 @@
     }
   ],
   "activityLog": [
+    {
+      "id": "72c9cb93-12d5-4263-9ca8-3f6cfa5abd7f",
+      "timestamp": "2026-10-07T01:48:07.148Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật hạng mục A. THIẾT KẾ XÂY DỰNG."
+    },
+    {
+      "id": "934fe5f4-7a08-4194-a57e-9853a90c8278",
+      "timestamp": "2026-10-07T01:47:50.901Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật hạng mục A. THIẾT KẾ XÂY DỰNG."
+    },
+    {
+      "id": "00a3d1c2-e498-4f33-a0c4-cf7e388b79ca",
+      "timestamp": "2026-10-07T01:45:35.609Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "employee.delete",
+      "details": "Xóa nhân sự thanh."
+    },
+    {
+      "id": "ecace18a-68ab-415e-8b7f-2e981bd34599",
+      "timestamp": "2026-10-07T01:45:33.195Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "employee.delete",
+      "details": "Xóa nhân sự huy."
+    },
+    {
+      "id": "c4266f24-58f5-41bc-855f-1107dc7ce54a",
+      "timestamp": "2026-10-07T01:42:42.343Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "auth.login",
+      "details": "Đăng nhập thành công."
+    },
+    {
+      "id": "a0843671-9dd3-4eeb-9136-468cae6746ff",
+      "timestamp": "2026-10-06T16:31:17.673Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật người đảm nhận cho hạng mục Định vị hố khoang khảo sát địa chất."
+    },
+    {
+      "id": "23e6d986-17bd-4816-9555-189db6036cb7",
+      "timestamp": "2026-10-06T16:31:01.995Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật người đảm nhận cho hạng mục Định vị hố khoang khảo sát địa chất."
+    },
+    {
+      "id": "0cac9d19-ec7b-4780-a6fd-9255e035a806",
+      "timestamp": "2026-10-06T16:28:05.664Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật hạng mục C. THẦU THI CÔNG."
+    },
+    {
+      "id": "5835410f-f929-4b24-927c-a2ef24b0d9aa",
+      "timestamp": "2026-10-06T16:27:03.525Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật hạng mục C. THẦU THI CÔNG."
+    },
+    {
+      "id": "4fc9d1d7-6089-4007-838c-48b22c396a8c",
+      "timestamp": "2026-10-06T16:26:51.007Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật hạng mục Đánh giá sơ bộ HSDT."
+    },
+    {
+      "id": "7bb0da98-ecf1-4cbc-8050-71efcaebd14c",
+      "timestamp": "2026-10-06T16:26:23.178Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật hạng mục Đánh giá sơ bộ HSDT."
+    },
+    {
+      "id": "2e5613ae-fe67-4979-8d37-845d44fdec8f",
+      "timestamp": "2026-10-06T16:26:10.940Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật hạng mục Chuẩn bị hồ sơ mời thầu."
+    },
+    {
+      "id": "05c19f5c-1891-4e8c-94df-3a413898e834",
+      "timestamp": "2026-10-06T16:25:03.771Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật hạng mục Chuẩn bị hồ sơ mời thầu."
+    },
+    {
+      "id": "be154871-a37d-4813-9d67-a000df901522",
+      "timestamp": "2026-10-06T16:19:32.658Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật hạng mục A. THIẾT KẾ XÂY DỰNG."
+    },
+    {
+      "id": "5a603659-c7b2-4cbb-8f79-360c4e237989",
+      "timestamp": "2026-10-06T16:18:33.460Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật hạng mục A. THIẾT KẾ XÂY DỰNG."
+    },
+    {
+      "id": "41312453-e856-4d37-9480-83185d48a7c9",
+      "timestamp": "2026-10-06T16:10:38.730Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật hạng mục Chuẩn bị hồ sơ mời thầu."
+    },
+    {
+      "id": "59c5cc61-0ce0-42db-acda-2e03fb761fdd",
+      "timestamp": "2026-10-06T16:10:21.218Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật hạng mục Chuẩn bị hồ sơ mời thầu."
+    },
+    {
+      "id": "85a5f096-5599-4251-9c4f-d8c6f0c6e053",
+      "timestamp": "2026-10-06T16:09:18.342Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật hạng mục A. THIẾT KẾ XÂY DỰNG."
+    },
+    {
+      "id": "34c2249a-582c-40cc-ae09-615ac6926ce0",
+      "timestamp": "2026-10-06T16:08:25.870Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật hạng mục A. THIẾT KẾ XÂY DỰNG."
+    },
+    {
+      "id": "2cde99b0-6a50-4082-8129-158a7ac9c095",
+      "timestamp": "2026-10-06T16:07:56.944Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật hạng mục C. THẦU THI CÔNG."
+    },
+    {
+      "id": "29f4e8a7-e23d-4008-853d-24fd52e58159",
+      "timestamp": "2026-10-06T16:07:43.767Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật hạng mục C. THẦU THI CÔNG."
+    },
+    {
+      "id": "10fa5e63-c991-4166-9c4f-5d6b0742a355",
+      "timestamp": "2026-10-06T16:07:33.453Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "auth.login",
+      "details": "Đăng nhập thành công."
+    },
+    {
+      "id": "dd3a9cce-0ad8-41b7-b31e-2ff05f10a555",
+      "timestamp": "2026-10-06T16:04:43.492Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật hạng mục C. THẦU THI CÔNG."
+    },
+    {
+      "id": "d9966ebf-4e41-4707-b6a8-efb387336eae",
+      "timestamp": "2026-10-06T16:04:18.641Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật hạng mục A. THIẾT KẾ XÂY DỰNG."
+    },
+    {
+      "id": "545ae7b2-7115-4e78-bd16-d45a6d1640cd",
+      "timestamp": "2026-10-06T15:52:12.223Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "auth.login",
+      "details": "Đăng nhập thành công."
+    },
+    {
+      "id": "e9bd4d12-d304-41ce-a899-a210b3b722e1",
+      "timestamp": "2026-10-06T15:29:59.507Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật người đảm nhận cho hạng mục Khảo sát hiện trạng mặt bằng."
+    },
+    {
+      "id": "1a943d3b-9f2b-46b3-8cca-dd0e2f723b30",
+      "timestamp": "2026-10-06T15:29:47.305Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật người đảm nhận cho hạng mục Khảo sát hiện trạng mặt bằng."
+    },
+    {
+      "id": "96d6623f-8498-4235-9346-cc3d0af29e81",
+      "timestamp": "2026-10-06T15:29:34.949Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật người đảm nhận cho hạng mục Khảo sát hiện trạng mặt bằng."
+    },
+    {
+      "id": "788095e1-f0bd-4804-b88f-123b07fa103a",
+      "timestamp": "2026-10-06T15:29:22.865Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật người đảm nhận cho hạng mục Thống nhất đầu vào + Kick-off scope TKXD."
+    },
+    {
+      "id": "469d0a28-9095-4c54-bfc5-1cdcf75f4394",
+      "timestamp": "2026-10-06T15:29:11.900Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật người đảm nhận cho hạng mục Thống nhất đầu vào + Kick-off scope TKXD."
+    },
+    {
+      "id": "547d6d5b-a5e8-4a3d-8a2f-0366dc0e4706",
+      "timestamp": "2026-10-06T15:27:54.331Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "project.update",
+      "details": "Cập nhật thông tin dự án NHÀ MÁY BETRAMEX - CÀNG LONG / VĨNH LONG."
+    },
+    {
+      "id": "c7594e37-3f09-4353-8a83-f94a2c0edaad",
+      "timestamp": "2026-10-06T15:23:10.440Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật hạng mục Thống nhất đầu vào + Kick-off scope TKXD."
+    },
+    {
+      "id": "b842c992-300d-484d-b028-e3ae22cb93bc",
+      "timestamp": "2026-10-06T15:23:06.855Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật hạng mục Thống nhất đầu vào + Kick-off scope TKXD."
+    },
+    {
+      "id": "fc49d939-0048-4d4a-813d-f34e1e05c960",
+      "timestamp": "2026-10-06T15:18:23.232Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "auth.login",
+      "details": "Đăng nhập thành công."
+    },
+    {
+      "id": "bdc3f8d6-9914-48d7-b881-1c5ecdcf1940",
+      "timestamp": "2026-10-06T10:30:26.458Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "project.update",
+      "details": "Cập nhật thông tin dự án NHÀ MÁY BETRAMEX - CÀNG LONG / VĨNH LONG."
+    },
+    {
+      "id": "09dc790f-4662-414a-a16b-db11a53a5b68",
+      "timestamp": "2026-10-06T10:30:24.576Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "project.update",
+      "details": "Cập nhật thông tin dự án NHÀ MÁY BETRAMEX - CÀNG LONG / VĨNH LONG."
+    },
+    {
+      "id": "1ccf9d5d-ae99-40bf-9f82-bfbf7ee2e3cf",
+      "timestamp": "2026-10-06T09:35:09.982Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật hạng mục Khảo sát hiện trạng mặt bằng."
+    },
+    {
+      "id": "e366e96f-723c-4ce8-9b34-3afc039daf3c",
+      "timestamp": "2026-10-06T09:35:05.053Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật hạng mục Thống nhất đầu vào + Kick-off scope TKXD."
+    },
+    {
+      "id": "49b1cdf6-3638-47bb-8c98-c6406d17d4b3",
+      "timestamp": "2026-10-06T06:49:02.469Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật người đảm nhận cho hạng mục Thiết kế ý tưởng và CĐT phê duyệt."
+    },
+    {
+      "id": "c9121825-87b8-456d-8e5d-51ededaf93fc",
+      "timestamp": "2026-10-06T06:48:52.874Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.create",
+      "details": "Thêm hạng mục Thống nhất đầu vào + Kick-off scope TKXD vào Gantt."
+    },
+    {
+      "id": "37240275-4a04-4e52-a8a6-8d297f45f774",
+      "timestamp": "2026-10-06T06:47:40.540Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật hạng mục Khảo sát hiện trạng mặt bằng."
+    },
+    {
+      "id": "a88fc5ce-3e3b-422d-b84f-5f4b7b6ceb5d",
+      "timestamp": "2026-10-06T06:47:25.628Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.delete",
+      "details": "Xóa hạng mục Gantt ABC."
+    },
+    {
+      "id": "eb30712e-4a86-449d-bff4-f4c3468f4918",
+      "timestamp": "2026-10-06T06:47:14.701Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật hạng mục ABC."
+    },
+    {
+      "id": "3ad307f3-c6c2-45ac-98d4-4150e410e6a3",
+      "timestamp": "2026-10-06T06:46:52.707Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật hạng mục A. THIẾT KẾ XÂY DỰNG."
+    },
+    {
+      "id": "c4e15ec3-f5b7-4169-8a8c-e6b5bf1f3781",
+      "timestamp": "2026-10-06T06:45:36.031Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật hạng mục A. THIẾT KẾ XÂY DỰNG."
+    },
+    {
+      "id": "dbd8d22e-c0e7-4ca6-81e6-359bc1298cb1",
+      "timestamp": "2026-10-06T06:44:45.458Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "employee.attendance",
+      "details": "Hiếu: cập nhật điểm danh."
+    },
+    {
+      "id": "4fdcc572-7825-4d7e-aee1-1576f2877eee",
+      "timestamp": "2026-10-06T04:35:40.530Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "employee.attendance",
+      "details": "Hiếu: có mặt tại công trường."
+    },
+    {
+      "id": "123353e4-9b2e-48c4-8709-75cc83d34db7",
+      "timestamp": "2026-10-06T03:51:26.677Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "employee.attendance",
+      "details": "Hiếu: cập nhật điểm danh."
+    },
+    {
+      "id": "d5e2be14-0407-4f67-9591-7f5dc1f101bf",
+      "timestamp": "2026-10-06T03:51:18.068Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "auth.login",
+      "details": "Đăng nhập thành công."
+    },
+    {
+      "id": "c41295bb-cdfb-46eb-bf26-1e3983b4adcf",
+      "timestamp": "2026-10-06T03:51:02.992Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "auth.logout",
+      "details": "Đăng xuất khỏi hệ thống."
+    },
+    {
+      "id": "69057b4c-f93e-41ff-a543-3d191195a408",
+      "timestamp": "2026-10-06T03:13:54.772Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.delete",
+      "details": "Xóa hạng mục Gantt Test."
+    },
+    {
+      "id": "30dff1f9-eae7-42f9-a5d9-7cea7c1892e8",
+      "timestamp": "2026-10-06T03:10:31.474Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật hạng mục Thiết kế ý tưởng và CĐT phê duyệt."
+    },
+    {
+      "id": "8f85741f-d094-48f5-9e22-caca4ea80913",
+      "timestamp": "2026-10-06T03:10:23.609Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật hạng mục Thiết kế ý tưởng và CĐT phê duyệt."
+    },
+    {
+      "id": "1aecaa3c-769c-4976-b794-afc3682df5bc",
+      "timestamp": "2026-10-06T03:07:52.938Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật hạng mục Thiết kế ý tưởng và CĐT phê duyệt."
+    },
+    {
+      "id": "0de62b1f-c340-4e4f-90db-e9a26c02550e",
+      "timestamp": "2026-10-06T03:03:22.423Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật hạng mục Thiết kế ý tưởng và CĐT phê duyệt."
+    },
+    {
+      "id": "f1cffd60-2d2c-4f4d-b547-418d383fb3b9",
+      "timestamp": "2026-10-06T02:57:15.214Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật hạng mục A. THIẾT KẾ XÂY DỰNG."
+    },
+    {
+      "id": "e9ada592-4c4c-4acb-954d-2fc48b3f22c3",
+      "timestamp": "2026-10-06T02:46:45.090Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "employee.create",
+      "details": "Thêm nhân sự thanh."
+    },
+    {
+      "id": "88d53f41-d287-4654-8cb8-a033a3a77a27",
+      "timestamp": "2026-10-06T02:46:32.898Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "employee.create",
+      "details": "Thêm nhân sự huy."
+    },
+    {
+      "id": "189d0204-593a-4cc5-a75b-2c37baa55d5d",
+      "timestamp": "2026-10-06T02:39:09.848Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật người đảm nhận cho hạng mục Thiết kế ý tưởng và CĐT phê duyệt."
+    },
+    {
+      "id": "3e8f45ca-3678-4c9b-8a13-19d057f39476",
+      "timestamp": "2026-10-06T02:33:47.873Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật người đảm nhận cho hạng mục Thiết kế ý tưởng và CĐT phê duyệt."
+    },
+    {
+      "id": "49b2ed20-61e6-45b5-9125-9f17dea7a7b3",
+      "timestamp": "2026-10-06T02:27:15.743Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật hạng mục Chuẩn bị hồ sơ mời thầu."
+    },
+    {
+      "id": "7ecce8b2-d94b-4014-88b3-96dc0b4a0d22",
+      "timestamp": "2026-10-06T02:27:05.551Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật hạng mục Chuẩn bị hồ sơ mời thầu."
+    },
+    {
+      "id": "f093d245-4425-4fab-9027-08765be99a19",
+      "timestamp": "2026-10-06T02:23:15.956Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.create",
+      "details": "Thêm hạng mục Test vào Gantt."
+    },
+    {
+      "id": "1dff076f-6d11-483e-b535-03c219399003",
+      "timestamp": "2026-10-06T01:49:03.095Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "task.update",
+      "details": "Cập nhật công việc Khoan KSĐC + lập báo cáo ĐCCT."
+    },
+    {
+      "id": "393700ad-8937-47dd-8e04-cf8653fa2a04",
+      "timestamp": "2026-10-06T01:47:51.269Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật người đảm nhận cho hạng mục Khoan KSĐC + lập báo cáo ĐCCT."
+    },
+    {
+      "id": "5375871d-46ad-456e-949d-5afccc13e7d1",
+      "timestamp": "2026-10-06T01:46:54.224Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.create",
+      "details": "Thêm hạng mục ABC vào Gantt."
+    },
+    {
+      "id": "8e67c5b4-d164-4548-a504-907a4a5b37e4",
+      "timestamp": "2026-10-06T01:46:03.384Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.delete",
+      "details": "Xóa hạng mục Gantt Thống nhất đầu vào + Kick-off scope TKXD."
+    },
+    {
+      "id": "a52fbddc-423e-40f7-adfe-176754df0688",
+      "timestamp": "2026-10-06T01:44:35.721Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "project.delete",
+      "details": "Xóa dự án APS."
+    },
+    {
+      "id": "9e9a9183-8cfa-40d0-9420-9d5c3f7b324d",
+      "timestamp": "2026-10-06T01:39:18.505Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "project.create",
+      "details": "Tạo dự án APS."
+    },
+    {
+      "id": "f4d9a5cc-c08f-43f3-a1be-f2f4edaf9c4f",
+      "timestamp": "2026-10-06T01:38:50.827Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật người đảm nhận cho hạng mục Thống nhất đầu vào + Kick-off scope TKXD."
+    },
+    {
+      "id": "9062cb44-1518-4999-bd22-7dc6fb47aadd",
+      "timestamp": "2026-10-06T01:38:36.402Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.update",
+      "details": "Cập nhật người đảm nhận cho hạng mục Thống nhất đầu vào + Kick-off scope TKXD."
+    },
+    {
+      "id": "3b068248-0d22-415d-8c64-dd988630ead5",
+      "timestamp": "2026-10-06T01:36:30.808Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "employee.attendance",
+      "details": "Hiếu: có mặt tại công trường."
+    },
+    {
+      "id": "a9950b3c-b4b5-4159-8f89-9305e2eda858",
+      "timestamp": "2026-10-06T01:36:03.899Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "auth.login",
+      "details": "Đăng nhập thành công."
+    },
+    {
+      "id": "10100bbe-785f-4b53-b9d3-1132f4bdf62f",
+      "timestamp": "2026-10-06T01:32:40.188Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "auth.logout",
+      "details": "Đăng xuất khỏi hệ thống."
+    },
     {
       "id": "a13576cb-72ea-486e-9269-bfdee7b0c356",
       "timestamp": "2026-10-06T00:54:06.478Z",

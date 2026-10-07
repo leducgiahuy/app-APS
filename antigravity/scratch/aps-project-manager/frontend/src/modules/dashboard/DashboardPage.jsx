@@ -11,7 +11,7 @@ const formatDate = (value) => value
 const formatHours = (value) => Number(value || 0).toLocaleString('vi-VN', { maximumFractionDigits: 1 });
 
 export default function DashboardPage() {
-  const { projects, tasks, employees, overtimes, currentTime } = useApp();
+  const { projects, tasks, employees, overtimes, ganttItems, currentTime } = useApp();
   const [selectedProjectId, setSelectedProjectId] = useState('');
   const [projectListSearch, setProjectListSearch] = useState('');
   const [copiedReport, setCopiedReport] = useState(false);
@@ -35,17 +35,25 @@ export default function DashboardPage() {
       (task.speedStatus === 'delayed' || taskDelayHours(task, currentTime) > 0)).length;
     const needsReport = !complete && !overdue && delayedTasks > 0;
     const team = new Map();
+    const resolveCurrentEmployee = (employeeId, employeeName) => {
+      if (employeeId) return employees.find((employee) => employee.id === employeeId) || null;
+      const normalizedName = String(employeeName || '').trim().toLocaleLowerCase('vi');
+      return normalizedName
+        ? employees.find((employee) => String(employee.name || '').trim().toLocaleLowerCase('vi') === normalizedName) || null
+        : null;
+    };
 
     projectTasks.forEach((task) => {
       const assignments = Array.isArray(task.assignees) && task.assignees.length
         ? task.assignees
         : [{ employeeId: task.employeeId, employeeName: task.employeeName, startDate: task.startDate }];
       assignments.forEach((assignment) => {
-        const employee = employees.find((item) => item.id === assignment.employeeId);
-        const id = assignment.employeeId || assignment.employeeName || task.id;
+        const employee = resolveCurrentEmployee(assignment.employeeId, assignment.employeeName);
+        if (!employee) return;
+        const id = employee.id;
         if (!team.has(id)) team.set(id, {
           id,
-          name: assignment.employeeName || employee?.name || task.employeeName || 'Chưa rõ nhân sự',
+          name: employee.name || 'Chưa rõ nhân sự',
           hours: 0,
           overtime: 0,
           tracked: false,
@@ -55,12 +63,15 @@ export default function DashboardPage() {
 
       // Old task totals are attributable only when there is one assignee.
       if (!(task.actualWorkEntries || []).length && assignments.length === 1 && Number(task.actualWorkHours) > 0) {
-        const person = team.get(assignments[0].employeeId || assignments[0].employeeName || task.id);
+        const employee = resolveCurrentEmployee(assignments[0].employeeId, assignments[0].employeeName);
+        const person = employee ? team.get(employee.id) : null;
         if (person) { person.hours += Number(task.actualWorkHours); person.tracked = true; }
       }
       (task.actualWorkEntries || []).forEach((entry) => {
-        const id = entry.employeeId || entry.employeeName || task.id;
-        const person = team.get(id) || { id, name: entry.employeeName || 'Nhân sự đã lưu trữ', hours: 0, overtime: 0, tracked: false, addedLater: false };
+        const employee = resolveCurrentEmployee(entry.employeeId, entry.employeeName);
+        if (!employee) return;
+        const id = employee.id;
+        const person = team.get(id) || { id, name: employee.name, hours: 0, overtime: 0, tracked: false, addedLater: false };
         person.hours += Number(entry.hours) || 0;
         person.tracked = true;
         team.set(id, person);
@@ -78,11 +89,27 @@ export default function DashboardPage() {
 
     const projectTaskIds = new Set(projectTasks.map((task) => task.id));
     overtimes.filter((entry) => projectTaskIds.has(entry.taskId) && (!entry.status || entry.status === 'approved')).forEach((entry) => {
-      const id = entry.employeeId || entry.employeeName || 'unknown';
-      const person = team.get(id) || { id, name: entry.employeeName || 'Nhân sự đã lưu trữ', hours: 0, overtime: 0, tracked: false, addedLater: false };
+      const employee = resolveCurrentEmployee(entry.employeeId, entry.employeeName);
+      if (!employee) return;
+      const id = employee.id;
+      const person = team.get(id) || { id, name: employee.name, hours: 0, overtime: 0, tracked: false, addedLater: false };
       person.overtime += Number(entry.hours) || 0;
       team.set(id, person);
     });
+
+    const projectTaskGanttIds = new Set(projectTasks.map((task) => task.ganttId).filter(Boolean));
+    const projectTaskTitles = new Set(projectTasks.map((task) => task.title?.trim().toLowerCase()).filter(Boolean));
+    const ganttOnlyProjectItems = ganttItems.filter((item) =>
+      (item.projectId === project.id || projectTasks.some((task) => task.ganttId === item.id && task.projectId === project.id)) &&
+      !item.isGroup && item.status !== 'holiday' &&
+      !projectTaskGanttIds.has(item.id) && !projectTaskTitles.has(item.title?.trim().toLowerCase())
+    );
+    const plannedHours = [
+      ...projectTasks.map((task) => Number(task.estimatedHours) ||
+        (Number(task.estimatedHoursPerDay) || 8) * (Number(task.estimatedDays) || 1)),
+      ...ganttOnlyProjectItems.map((item) => Number(item.estimatedHours) ||
+        (Number(item.estimatedHoursPerDay) || 8) * (Number(item.days) || 1)),
+    ].reduce((sum, hours) => sum + hours, 0);
 
     return {
       ...project,
@@ -95,7 +122,7 @@ export default function DashboardPage() {
       dueSoon,
       delayedTasks,
       needsReport,
-      plannedHours: projectTasks.reduce((sum, task) => sum + (Number(task.estimatedHours) || 0), 0),
+      plannedHours,
       team: [...team.values()],
       // Project actual effort comes from task totals; attribution by employee is
       // shown only when individual attendance entries exist.
@@ -103,7 +130,7 @@ export default function DashboardPage() {
         employees.filter((employee) => projectTasks.some((task) => task.id === employee.activeTaskId) && employee.workSessionStartedAt)
           .reduce((sum, employee) => sum + Math.max(0, (currentTime.getTime() - Date.parse(employee.workSessionStartedAt)) / 3600000), 0),
     };
-  }), [projects, tasks, employees, overtimes, currentTime, today]);
+  }), [projects, tasks, employees, overtimes, ganttItems, currentTime, today]);
 
   const selected = projectReports.find((project) => project.id === selectedProjectId) || projectReports[0];
   const visibleProjects = projectReports.filter((project) =>
