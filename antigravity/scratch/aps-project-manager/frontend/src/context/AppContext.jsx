@@ -331,7 +331,7 @@ export function AppProvider({ children }) {
       await api.updateProject(id, projectData);
       const projectName = projects.find(item => item.id === id)?.name || id;
       recordActivity('project.update', `Cập nhật thông tin dự án ${projectName}.`);
-      showToast('Đã cập nhật thời gian dự án');
+      showToast('\u0110\u00e3 c\u1eadp nh\u1eadt th\u00f4ng tin d\u1ef1 \u00e1n');
       await refreshAllData();
       return true;
     } catch (err) {

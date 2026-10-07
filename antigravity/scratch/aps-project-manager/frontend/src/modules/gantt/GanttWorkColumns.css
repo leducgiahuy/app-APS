@@ -1,0 +1,10 @@
+.gantt-work-number-input {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.gantt-work-number-input::-webkit-inner-spin-button,
+.gantt-work-number-input::-webkit-outer-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
+}

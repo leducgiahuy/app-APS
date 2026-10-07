@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { AlertTriangle, CalendarDays, Clock3, Search, Send, Users } from 'lucide-react';
+import { AlertTriangle, CalendarDays, Clock3, Search, Send } from 'lucide-react';
 import { taskDelayHours } from '../../utils/date';
 import './DashboardPage.css';
 
@@ -9,9 +9,24 @@ const formatDate = (value) => value
   ? new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(`${value}T00:00:00`))
   : 'Chưa đặt';
 const formatHours = (value) => Number(value || 0).toLocaleString('vi-VN', { maximumFractionDigits: 1 });
+const PHASE_CHART_COLORS = ['#861b36', '#bd8418', '#3978c5', '#16835d', '#8b5cf6', '#d0788b', '#64748b'];
+const DEPARTMENT_CHART_COLORS = ['#3978c5', '#16835d', '#bd8418', '#861b36', '#8b5cf6', '#d0788b', '#64748b'];
+
+// Convert normalized category shares into contiguous pie slices. The input
+// percentages are already corrected to total exactly 100.0 after display rounding.
+const distributionGradient = (rows, colors) => {
+  if (!rows.length) return 'conic-gradient(var(--chart-track) 0 100%)';
+  let cursor = 0;
+  const slices = rows.map((row, index) => {
+    const start = cursor;
+    cursor += row.percent;
+    return `${colors[index % colors.length]} ${start}% ${cursor}%`;
+  });
+  return `conic-gradient(${slices.join(', ')})`;
+};
 
 export default function DashboardPage() {
-  const { projects, tasks, employees, overtimes, currentTime } = useApp();
+  const { projects, tasks, employees, overtimes, ganttItems, currentTime } = useApp();
   const [selectedProjectId, setSelectedProjectId] = useState('');
   const [projectListSearch, setProjectListSearch] = useState('');
   const [copiedReport, setCopiedReport] = useState(false);
@@ -35,17 +50,25 @@ export default function DashboardPage() {
       (task.speedStatus === 'delayed' || taskDelayHours(task, currentTime) > 0)).length;
     const needsReport = !complete && !overdue && delayedTasks > 0;
     const team = new Map();
+    const resolveCurrentEmployee = (employeeId, employeeName) => {
+      if (employeeId) return employees.find((employee) => employee.id === employeeId) || null;
+      const normalizedName = String(employeeName || '').trim().toLocaleLowerCase('vi');
+      return normalizedName
+        ? employees.find((employee) => String(employee.name || '').trim().toLocaleLowerCase('vi') === normalizedName) || null
+        : null;
+    };
 
     projectTasks.forEach((task) => {
       const assignments = Array.isArray(task.assignees) && task.assignees.length
         ? task.assignees
         : [{ employeeId: task.employeeId, employeeName: task.employeeName, startDate: task.startDate }];
       assignments.forEach((assignment) => {
-        const employee = employees.find((item) => item.id === assignment.employeeId);
-        const id = assignment.employeeId || assignment.employeeName || task.id;
+        const employee = resolveCurrentEmployee(assignment.employeeId, assignment.employeeName);
+        if (!employee) return;
+        const id = employee.id;
         if (!team.has(id)) team.set(id, {
           id,
-          name: assignment.employeeName || employee?.name || task.employeeName || 'Chưa rõ nhân sự',
+          name: employee.name || 'Chưa rõ nhân sự',
           hours: 0,
           overtime: 0,
           tracked: false,
@@ -55,12 +78,15 @@ export default function DashboardPage() {
 
       // Old task totals are attributable only when there is one assignee.
       if (!(task.actualWorkEntries || []).length && assignments.length === 1 && Number(task.actualWorkHours) > 0) {
-        const person = team.get(assignments[0].employeeId || assignments[0].employeeName || task.id);
+        const employee = resolveCurrentEmployee(assignments[0].employeeId, assignments[0].employeeName);
+        const person = employee ? team.get(employee.id) : null;
         if (person) { person.hours += Number(task.actualWorkHours); person.tracked = true; }
       }
       (task.actualWorkEntries || []).forEach((entry) => {
-        const id = entry.employeeId || entry.employeeName || task.id;
-        const person = team.get(id) || { id, name: entry.employeeName || 'Nhân sự đã lưu trữ', hours: 0, overtime: 0, tracked: false, addedLater: false };
+        const employee = resolveCurrentEmployee(entry.employeeId, entry.employeeName);
+        if (!employee) return;
+        const id = employee.id;
+        const person = team.get(id) || { id, name: employee.name, hours: 0, overtime: 0, tracked: false, addedLater: false };
         person.hours += Number(entry.hours) || 0;
         person.tracked = true;
         team.set(id, person);
@@ -78,11 +104,27 @@ export default function DashboardPage() {
 
     const projectTaskIds = new Set(projectTasks.map((task) => task.id));
     overtimes.filter((entry) => projectTaskIds.has(entry.taskId) && (!entry.status || entry.status === 'approved')).forEach((entry) => {
-      const id = entry.employeeId || entry.employeeName || 'unknown';
-      const person = team.get(id) || { id, name: entry.employeeName || 'Nhân sự đã lưu trữ', hours: 0, overtime: 0, tracked: false, addedLater: false };
+      const employee = resolveCurrentEmployee(entry.employeeId, entry.employeeName);
+      if (!employee) return;
+      const id = employee.id;
+      const person = team.get(id) || { id, name: employee.name, hours: 0, overtime: 0, tracked: false, addedLater: false };
       person.overtime += Number(entry.hours) || 0;
       team.set(id, person);
     });
+
+    const projectTaskGanttIds = new Set(projectTasks.map((task) => task.ganttId).filter(Boolean));
+    const projectTaskTitles = new Set(projectTasks.map((task) => task.title?.trim().toLowerCase()).filter(Boolean));
+    const ganttOnlyProjectItems = ganttItems.filter((item) =>
+      (item.projectId === project.id || projectTasks.some((task) => task.ganttId === item.id && task.projectId === project.id)) &&
+      !item.isGroup && item.status !== 'holiday' &&
+      !projectTaskGanttIds.has(item.id) && !projectTaskTitles.has(item.title?.trim().toLowerCase())
+    );
+    const plannedHours = [
+      ...projectTasks.map((task) => Number(task.estimatedHours) ||
+        (Number(task.estimatedHoursPerDay) || 8) * (Number(task.estimatedDays) || 1)),
+      ...ganttOnlyProjectItems.map((item) => Number(item.estimatedHours) ||
+        (Number(item.estimatedHoursPerDay) || 8) * (Number(item.days) || 1)),
+    ].reduce((sum, hours) => sum + hours, 0);
 
     return {
       ...project,
@@ -95,7 +137,7 @@ export default function DashboardPage() {
       dueSoon,
       delayedTasks,
       needsReport,
-      plannedHours: projectTasks.reduce((sum, task) => sum + (Number(task.estimatedHours) || 0), 0),
+      plannedHours,
       team: [...team.values()],
       // Project actual effort comes from task totals; attribution by employee is
       // shown only when individual attendance entries exist.
@@ -103,9 +145,62 @@ export default function DashboardPage() {
         employees.filter((employee) => projectTasks.some((task) => task.id === employee.activeTaskId) && employee.workSessionStartedAt)
           .reduce((sum, employee) => sum + Math.max(0, (currentTime.getTime() - Date.parse(employee.workSessionStartedAt)) / 3600000), 0),
     };
-  }), [projects, tasks, employees, overtimes, currentTime, today]);
+  }), [projects, tasks, employees, overtimes, ganttItems, currentTime, today]);
 
   const selected = projectReports.find((project) => project.id === selectedProjectId) || projectReports[0];
+  // Build two comparable 100% distributions from the selected project's task rows.
+  // Phase allocation counts each task once. Department allocation splits a task
+  // evenly across its distinct assignee departments so shared tasks never inflate
+  // the department total; tasks without a resolvable department remain visible.
+  const taskDistribution = useMemo(() => {
+    if (!selected) return { phases: [], departments: [] };
+    const phaseCounts = new Map();
+    const departmentCounts = new Map();
+    const employeesById = new Map(employees.map((employee) => [employee.id, employee]));
+    const employeesByName = new Map(employees.map((employee) => [String(employee.name || '').trim().toLocaleLowerCase('vi'), employee]));
+    selected.tasks.forEach((task) => {
+      const phase = String(task.phase || '').trim() || 'Chưa phân loại';
+      phaseCounts.set(phase, (phaseCounts.get(phase) || 0) + 1);
+      const assignments = Array.isArray(task.assignees) && task.assignees.length
+        ? task.assignees
+        : (task.employeeId || task.employeeName ? [{ employeeId: task.employeeId, employeeName: task.employeeName }] : []);
+      const departments = new Set(assignments.map((assignment) => {
+        const employee = (assignment.employeeId && employeesById.get(assignment.employeeId)) ||
+          employeesByName.get(String(assignment.employeeName || '').trim().toLocaleLowerCase('vi'));
+        return String(employee?.team || '').trim() || 'Chưa phân công';
+      }));
+      if (!departments.size) departments.add('Chưa phân công');
+      const taskShare = 1 / departments.size;
+      departments.forEach((department) => departmentCounts.set(department, (departmentCounts.get(department) || 0) + taskShare));
+    });
+    const total = selected.tasks.length;
+    const toRows = (counts) => {
+      const rows = [...counts.entries()]
+        .map(([name, count]) => ({ name, count, percent: total ? (count / total) * 100 : 0 }))
+        .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'vi'));
+      // Match the displayed one-decimal percentages to exactly 100.0 despite rounding.
+      if (total && rows.length) {
+        rows.forEach((row) => { row.percent = Math.round(row.percent * 10) / 10; });
+        rows[0].percent = Math.round((rows[0].percent + 100 - rows.reduce((sum, row) => sum + row.percent, 0)) * 10) / 10;
+      }
+      return rows;
+    };
+    return { phases: toRows(phaseCounts), departments: toRows(departmentCounts) };
+  }, [selected, employees]);
+
+  // Actual duration is shown only when a completed project has real work-session
+  // start timestamps and task completion timestamps. Planned dates are not used
+  // as a substitute for missing actual dates.
+  const actualProjectDays = useMemo(() => {
+    if (!selected?.complete || !selected.tasks.length) return null;
+    const actualStarts = selected.tasks.flatMap((task) => (task.actualWorkEntries || [])
+      .map((entry) => Date.parse(entry.startAt || '')).filter(Number.isFinite));
+    const actualFinishes = selected.tasks.map((task) => Date.parse(task.completedAt || '')).filter(Number.isFinite);
+    if (!actualStarts.length || !actualFinishes.length) return null;
+    const firstStart = Math.min(...actualStarts);
+    const lastFinish = Math.max(...actualFinishes);
+    return lastFinish < firstStart ? null : Math.floor((lastFinish - firstStart) / 86400000) + 1;
+  }, [selected]);
   const visibleProjects = projectReports.filter((project) =>
     [project.name, project.code, project.manager].some((value) => String(value || '').toLocaleLowerCase('vi').includes(projectListSearch.trim().toLocaleLowerCase('vi'))),
   );
@@ -142,18 +237,62 @@ export default function DashboardPage() {
         <div className="dashboard-date"><Clock3 size={15} />{new Intl.DateTimeFormat('vi-VN', { dateStyle: 'long' }).format(currentTime)}</div>
       </header>
 
+      {/* Company-wide project directory; selecting a row updates the detail panel above. */}
+      <section className="dashboard-card all-projects-card" aria-label="Tất cả dự án của công ty">
+        <div className="all-projects-heading">
+          <div><h2>Tất cả dự án của công ty</h2></div>
+          <label className="all-projects-search"><Search size={16} aria-hidden="true" /><input type="search" aria-label="Tìm trong tất cả dự án" placeholder="Tìm theo tên, mã hoặc quản lý..." value={projectListSearch} onChange={(event) => setProjectListSearch(event.target.value)} /></label>
+        </div>
+        <div className="all-projects-list">
+          {visibleProjects.length ? visibleProjects.map((project) => {
+            const status = project.complete ? 'completed' : project.overdue ? 'overdue' : project.needsReport ? 'delayed' : project.dueSoon ? 'due-soon' : 'in-progress';
+            const statusLabel = project.complete ? 'Hoàn thành' : project.overdue ? 'Quá hạn' : project.needsReport ? 'Cần báo cáo' : project.dueSoon ? 'Sắp đến hạn' : 'Đang thực hiện';
+            return <button type="button" className={`all-project-row ${selected?.id === project.id ? 'selected' : ''}`} key={project.id} onClick={() => setSelectedProjectId(project.id)} aria-pressed={selected?.id === project.id}>
+              <span className="all-project-name"><strong>{project.name}</strong><small>{project.code || project.manager || 'Chưa cập nhật thông tin'}</small></span>
+              <span className="all-project-progress"><span><i style={{ width: `${Math.min(100, Math.max(0, project.progress))}%` }} /></span><strong>{project.progress}%</strong></span>
+              <span className={`all-project-status ${status}`}>{statusLabel}</span>
+              <span className="all-project-deadline">Hạn {formatDate(project.endDate)}</span>
+              <span className="all-project-tasks">{project.completeCount}/{project.tasks.length} việc</span>
+            </button>;
+          }) : <div className="dashboard-empty">{projectReports.length ? 'Không tìm thấy dự án phù hợp.' : 'Chưa có dự án nào trong danh mục.'}</div>}
+        </div>
+      </section>
+
       <section className="dashboard-card project-overview-layout" aria-label="Tổng quan dự án và chi tiết dự án được chọn">
         <div className="project-overview-left">
-          <div className="company-overview-heading"><div><h2>{selected?.name || 'Tổng quan dự án'}</h2><p>Tiến độ và khối lượng dự kiến của dự án</p></div></div>
+          <div className="company-overview-heading"><div><h2>{selected?.name || 'Tổng quan dự án'}</h2><p>Phân bổ task theo hạng mục và phòng ban</p></div></div>
           <div className="project-overview-chart-area">
-            <div className="company-progress-chart" style={{ background: `conic-gradient(var(--dash-accent) 0 ${selected?.progress || 0}%, var(--chart-track) ${selected?.progress || 0}% 100%)` }} role="img" aria-label={`Tiến độ dự án ${selected?.name || ''}: ${selected?.progress || 0}%`}>
-              <div><strong>{selected?.progress || 0}%</strong><span>Tiến độ dự án</span></div>
+            <div className="task-distribution-panel">
+              <div className="task-distribution-heading"><h3>Task lớn theo hạng mục</h3><span>{selected?.tasks.length || 0} task · tổng 100%</span></div>
+              <p className="task-distribution-note">Mỗi task được tính một lần theo hạng mục/phase đang lưu trong dự án.</p>
+              <div className="task-pie-chart" style={{ background: distributionGradient(taskDistribution.phases, PHASE_CHART_COLORS) }} role="img" aria-label="Biểu đồ tròn phân bổ task theo hạng mục">
+                <div><strong>{selected?.tasks.length || 0}</strong><span>task</span></div>
+              </div>
+              <div className="task-distribution-list">
+                {taskDistribution.phases.length ? taskDistribution.phases.map((item) => <div className="task-distribution-row" key={item.name}>
+                  <i className="task-distribution-swatch" style={{ background: PHASE_CHART_COLORS[taskDistribution.phases.indexOf(item) % PHASE_CHART_COLORS.length] }} aria-hidden="true" />
+                  <span className="task-distribution-name" title={item.name}>{item.name}</span><strong>{formatHours(item.count)} task</strong><em>{formatHours(item.percent)}%</em>
+                </div>) : <div className="dashboard-empty">Dự án chưa có task để phân bổ.</div>}
+              </div>
             </div>
-            <div className="company-metrics">
-              <div className="overview-number"><span>Công dự kiến</span><strong>{formatHours((selected?.plannedHours || 0) / 8)} <small>công</small></strong><em>{formatHours(selected?.plannedHours || 0)} giờ · 8 giờ = 1 công</em></div>
-              <div className="overview-number"><span>Công việc hoàn thành</span><strong>{selected?.completeCount || 0}<small>/{selected?.tasks.length || 0}</small></strong><em>{selected?.tasks.length ? `${selected.progress}% tiến độ` : 'Chưa có công việc'}</em></div>
-              <div className="overview-number"><span>Tình trạng hạn</span><strong className={selected?.overdue ? 'overview-red' : selected?.dueSoon ? 'overview-gold' : ''}>{selected?.complete ? 'Xong' : selected?.overdue ? 'Quá hạn' : selected?.dueSoon ? 'Sắp hạn' : 'Còn hạn'}</strong><em>{selected?.endDate ? `Hạn ${formatDate(selected.endDate)}` : 'Chưa đặt hạn'}</em></div>
+            <div className="task-distribution-panel department-distribution-panel">
+              <div className="task-distribution-heading"><h3>Task theo phòng ban</h3><span>Phân bổ cộng đủ 100%</span></div>
+              <p className="task-distribution-note">Task có nhiều phòng ban được chia đều giữa các phòng ban được giao; task thiếu người nhận nằm ở “Chưa phân công”.</p>
+              <div className="task-pie-chart" style={{ background: distributionGradient(taskDistribution.departments, DEPARTMENT_CHART_COLORS) }} role="img" aria-label="Biểu đồ tròn phân bổ task theo phòng ban">
+                <div><strong>{selected?.tasks.length || 0}</strong><span>task</span></div>
+              </div>
+              <div className="task-distribution-list">
+                {taskDistribution.departments.length ? taskDistribution.departments.map((item) => <div className="task-distribution-row" key={item.name}>
+                  <i className="task-distribution-swatch" style={{ background: DEPARTMENT_CHART_COLORS[taskDistribution.departments.indexOf(item) % DEPARTMENT_CHART_COLORS.length] }} aria-hidden="true" />
+                  <span className="task-distribution-name" title={item.name}>{item.name}</span><strong>{formatHours(item.count)} task quy đổi</strong><em>{formatHours(item.percent)}%</em>
+                </div>) : <div className="dashboard-empty">Dự án chưa có task để phân bổ.</div>}
+              </div>
             </div>
+          </div>
+          <div className="project-outcome-metrics" aria-label="Chỉ số tổng kết dự án">
+            <div className="outcome-metric"><span>Công dự án đã chốt</span><strong>{selected?.contractWork == null ? 'Chưa nhập' : `${formatHours(selected.contractWork)} công`}</strong><small>Nguồn: công hợp đồng đã lưu ở dự án.</small></div>
+            <div className="outcome-metric"><span>Công thực tế khi kết thúc</span><strong>{selected?.complete ? `${formatHours((selected.actualHours || 0) / 8)} công` : 'Chưa kết thúc'}</strong><small>{selected?.complete ? `${formatHours(selected.actualHours || 0)} giờ đã ghi nhận · quy đổi 8 giờ/công.` : 'Chỉ chốt số thực tế sau khi dự án hoàn thành.'}</small></div>
+            <div className="outcome-metric"><span>Số ngày thực tế của dự án</span><strong>{selected?.complete ? (actualProjectDays == null ? 'Chưa đủ dữ liệu' : `${actualProjectDays} ngày`) : 'Chưa kết thúc'}</strong><small>{actualProjectDays == null ? 'Cần có giờ bắt đầu làm thực tế và thời điểm hoàn thành task.' : 'Tính từ phiên làm việc thực tế đầu tiên đến lúc hoàn thành task cuối.'}</small></div>
           </div>
         </div>
 
@@ -183,26 +322,7 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      {/* Company-wide project directory; selecting a row updates the detail panel above. */}
-      <section className="dashboard-card all-projects-card" aria-label="Tất cả dự án của công ty">
-        <div className="all-projects-heading">
-          <div><h2>Tất cả dự án của công ty</h2><p>{projectReports.length} dự án trong danh mục</p></div>
-          <label className="all-projects-search"><Search size={16} aria-hidden="true" /><input type="search" aria-label="Tìm trong tất cả dự án" placeholder="Tìm theo tên, mã hoặc quản lý..." value={projectListSearch} onChange={(event) => setProjectListSearch(event.target.value)} /></label>
-        </div>
-        <div className="all-projects-list">
-          {visibleProjects.length ? visibleProjects.map((project) => {
-            const status = project.complete ? 'completed' : project.overdue ? 'overdue' : project.needsReport ? 'delayed' : project.dueSoon ? 'due-soon' : 'in-progress';
-            const statusLabel = project.complete ? 'Hoàn thành' : project.overdue ? 'Quá hạn' : project.needsReport ? 'Cần báo cáo' : project.dueSoon ? 'Sắp đến hạn' : 'Đang thực hiện';
-            return <button type="button" className={`all-project-row ${selected?.id === project.id ? 'selected' : ''}`} key={project.id} onClick={() => setSelectedProjectId(project.id)} aria-pressed={selected?.id === project.id}>
-              <span className="all-project-name"><strong>{project.name}</strong><small>{project.code || project.manager || 'Chưa cập nhật thông tin'}</small></span>
-              <span className="all-project-progress"><span><i style={{ width: `${Math.min(100, Math.max(0, project.progress))}%` }} /></span><strong>{project.progress}%</strong></span>
-              <span className={`all-project-status ${status}`}>{statusLabel}</span>
-              <span className="all-project-deadline">Hạn {formatDate(project.endDate)}</span>
-              <span className="all-project-tasks">{project.completeCount}/{project.tasks.length} việc</span>
-            </button>;
-          }) : <div className="dashboard-empty">{projectReports.length ? 'Không tìm thấy dự án phù hợp.' : 'Chưa có dự án nào trong danh mục.'}</div>}
-        </div>
-      </section>
+
     </div>
   );
 }
