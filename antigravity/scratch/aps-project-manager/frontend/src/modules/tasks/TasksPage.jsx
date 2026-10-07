@@ -54,6 +54,7 @@ export default function TasksPage() {
   const [overtimeTaskDropdownOpen, setOvertimeTaskDropdownOpen] = useState(false);
   const overtimeTaskDropdownRef = useRef(null);
   const overtimeTaskTriggerRef = useRef(null);
+  const workloadNoteTimersRef = useRef({});
   const [employeeSearch, setEmployeeSearch] = useState('');
   const selectedDateKey = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
   const tasksForSelectedDate = tasks.filter(task => {
@@ -370,10 +371,10 @@ export default function TasksPage() {
                   </div>
 
                   {/* Hàng 2: Tên công việc & Người đảm nhận */}
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
                     
                     {/* Tên công việc */}
-                    <div className="lg:col-span-5 min-w-0">
+                    <div className="lg:col-span-4 min-w-0">
                       <div className="flex items-center gap-2">
                         {taskCode && (
                           <span className="px-2 py-0.5 rounded bg-sky-500/10 text-sky-600 dark:text-sky-400 font-mono font-bold text-xs flex-shrink-0">
@@ -406,7 +407,7 @@ export default function TasksPage() {
                     </div>
 
                     {/* HIỂN THỊ TÊN NHÂN SỰ & THỜI GIAN LÀM 1 NGÀY (8h/ngày) */}
-                    <div className="lg:col-span-7 min-w-0 w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 flex items-center justify-between gap-4">
+                    <div className="lg:col-span-4 min-w-0 w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 flex items-start justify-between gap-4">
                       <div className="min-w-0 flex-1">
                           {(Array.isArray(task.assignees) && task.assignees.length
                             ? task.assignees
@@ -459,6 +460,38 @@ export default function TasksPage() {
                           {standardHours}h / ngày
                         </span>
                       </div>
+                    </div>
+
+                    {/* Đánh giá khối lượng công việc thực tế */}
+                    <div className="lg:col-span-4 min-w-0 w-full p-3 rounded-xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-800/60 flex flex-col">
+                      <label className="block text-xs font-bold text-slate-800 dark:text-slate-100" htmlFor={`actual-workload-${task.id}`}>Đánh giá khối lượng thực tế</label>
+                      <textarea
+                          id={`actual-workload-${task.id}`}
+                          rows={1}
+                          maxLength={5000}
+                          defaultValue={task.actualWorkloadNotes || ''}
+                          placeholder="Đánh giá khối lượng công việc thực tế..."
+                          onChange={event => {
+                            const value = event.target.value;
+                            clearTimeout(workloadNoteTimersRef.current[task.id]);
+                            workloadNoteTimersRef.current[task.id] = setTimeout(() => {
+                              delete workloadNoteTimersRef.current[task.id];
+                              if (value !== (task.actualWorkloadNotes || '')) updateTask(task.id, { actualWorkloadNotes: value });
+                            }, 600);
+                          }}
+                          onBlur={event => {
+                            const value = event.target.value;
+                            clearTimeout(workloadNoteTimersRef.current[task.id]);
+                            delete workloadNoteTimersRef.current[task.id];
+                            if (value !== (task.actualWorkloadNotes || '')) updateTask(task.id, { actualWorkloadNotes: value });
+                          }}
+                          onInput={event => {
+                            event.currentTarget.style.height = 'auto';
+                            event.currentTarget.style.height = `${event.currentTarget.scrollHeight}px`;
+                          }}
+                          className="mt-2 min-h-[40px] w-full flex-1 resize-y rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-amber-500 dark:border-amber-800 dark:bg-slate-900 dark:text-white"
+                          aria-label="Ghi chú đánh giá khối lượng công việc thực tế"
+                      />
                     </div>
 
                   </div>

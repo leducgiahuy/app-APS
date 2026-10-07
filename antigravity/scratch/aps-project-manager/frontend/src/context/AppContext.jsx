@@ -258,13 +258,16 @@ export function AppProvider({ children }) {
   // Hành động: Cập nhật task (tiến độ, trạng thái)
   const updateTask = async (id, data) => {
     try {
-      await api.updateTask(id, data);
+      const response = await api.updateTask(id, data);
+      if (data.actualWorkloadNotes !== undefined && response?.data?.actualWorkloadNotes !== data.actualWorkloadNotes) {
+        throw new Error('Máy chủ chưa hỗ trợ lưu ghi chú. Hãy khởi động lại backend rồi thử lại.');
+      }
       recordActivity('task.update', `Cập nhật công việc ${tasks.find(item => item.id === id)?.title || id}.`);
       showToast('Cập nhật tiến độ thành công');
       await refreshAllData();
       return true;
-    } catch {
-      showToast('Lỗi khi cập nhật công việc', 'error');
+    } catch (err) {
+      showToast(err.message || 'Lỗi khi cập nhật công việc', 'error');
       return false;
     }
   };
