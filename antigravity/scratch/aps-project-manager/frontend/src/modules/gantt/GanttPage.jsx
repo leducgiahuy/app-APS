@@ -726,6 +726,41 @@ export default function GanttPage() {
       });
     });
 
+    // If a task is inserted between two siblings with the exact same schedule,
+    // keep the direct outer dependency as well as the normal sequential links.
+    // This gives A1.1 -> A1.2, A1.1 -> A1.3, and A1.3 -> A1.2 when A1.3 is
+    // scheduled inside A1.1/A1.2's shared date range.
+    dependencyRows.forEach((target, targetIndex) => {
+      if (target.isProjectHeader || target.isGroup || !target.startDate || !target.endDate) return;
+      for (let sourceIndex = targetIndex - 2; sourceIndex >= 0; sourceIndex -= 1) {
+        const source = dependencyRows[sourceIndex];
+        if (source.isProjectHeader || source.isGroup) break;
+        if (source.projectId !== target.projectId || source.parentGroupId !== target.parentGroupId || source.parentTaskId !== target.parentTaskId) break;
+        if (source.startDate !== target.startDate || source.endDate !== target.endDate) continue;
+
+        const hasIntermediateTaskInsideRange = dependencyRows
+          .slice(sourceIndex + 1, targetIndex)
+          .some(candidate => !candidate.isProjectHeader && !candidate.isGroup &&
+            candidate.projectId === source.projectId &&
+            candidate.parentGroupId === source.parentGroupId &&
+            candidate.parentTaskId === source.parentTaskId &&
+            candidate.startDate > source.startDate &&
+            candidate.startDate <= source.endDate &&
+            candidate.endDate >= source.startDate &&
+            candidate.endDate <= source.endDate);
+        if (!hasIntermediateTaskInsideRange) continue;
+
+        const sourceId = visibleRepresentative(source.id);
+        const targetId = visibleRepresentative(target.id);
+        if (!sourceId || !targetId || sourceId === targetId) continue;
+        const from = taskCoordinates[sourceId];
+        const to = taskCoordinates[targetId];
+        if (!from || !to) continue;
+        const key = `${sourceId}->${targetId}`;
+        if (!edges.has(key)) edges.set(key, { key, from, to, sourceId, targetId });
+      }
+    });
+
     return [...edges.values()].map(({ key, from, to, sourceId, targetId }) => {
       const startX = from.x + 6;
       const startY = from.centerY;

@@ -917,6 +917,32 @@
       "priority": "high",
       "progress": 0,
       "notes": ""
+    },
+    {
+      "id": "task-1791350215869",
+      "ganttId": "G-1791350215869",
+      "projectId": "proj-1791194688389",
+      "projectName": "NHÀ MÁY BETRAMEX - CÀNG LONG / VĨNH LONG",
+      "phase": "A. THIẾT KẾ XÂY DỰNG",
+      "title": "Test ",
+      "code": "A1.3",
+      "createdAt": "2026-10-07T05:16:55.869Z",
+      "parentGroupId": "G-1791215207730",
+      "employeeId": "",
+      "employeeName": "",
+      "assignees": [],
+      "startDate": "2026-11-02",
+      "endDate": "2026-11-03",
+      "estimatedHours": 16,
+      "estimatedHoursPerDay": 8,
+      "estimatedDays": 2,
+      "contractWork": null,
+      "ganttNote": "",
+      "status": "in_progress",
+      "speedStatus": "on_time",
+      "priority": "high",
+      "progress": 0,
+      "notes": ""
     }
   ],
   "overtimes": [],
@@ -990,6 +1016,33 @@
       "dependencies": []
     },
     {
+      "id": "G-1791350215869",
+      "projectId": "proj-1791194688389",
+      "code": "A1.3",
+      "title": "Test ",
+      "isGroup": false,
+      "color": "#861b36",
+      "unit": "TK",
+      "startDate": "2026-11-02",
+      "endDate": "2026-11-03",
+      "createdAt": "2026-10-07T05:16:55.869Z",
+      "days": 2,
+      "estimatedHours": 16,
+      "estimatedHoursPerDay": 8,
+      "contractWork": null,
+      "ganttNote": "",
+      "assignee": "",
+      "parentGroupId": "G-1791215207730",
+      "assignees": [],
+      "notes": "",
+      "status": "in_progress",
+      "speed": "on_time",
+      "progress": 0,
+      "dependencies": [
+        "G-1791342266479"
+      ]
+    },
+    {
       "id": "G-1791215460009",
       "projectId": "proj-1791194688389",
       "code": "A1.2",
@@ -1032,7 +1085,7 @@
       "speed": "on_time",
       "progress": 0,
       "dependencies": [
-        "G-1791342266479"
+        "G-1791350215869"
       ]
     },
     {
@@ -2231,6 +2284,51 @@
     }
   ],
   "activityLog": [
+    {
+      "id": "79bd3248-6d5e-4a5b-b7f9-f0a4796d0715",
+      "timestamp": "2026-10-07T05:16:55.873Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.create",
+      "details": "Thêm hạng mục Test  vào Gantt."
+    },
+    {
+      "id": "162e77f0-9225-4a00-ae79-5340fc3dac44",
+      "timestamp": "2026-10-07T05:02:44.358Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.delete",
+      "details": "Xóa hạng mục Gantt Test."
+    },
+    {
+      "id": "513aa9db-d92f-4ab3-b61c-07f349e9af9d",
+      "timestamp": "2026-10-07T05:02:26.932Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.create",
+      "details": "Thêm hạng mục Test vào Gantt."
+    },
+    {
+      "id": "1e5e6330-7796-42d0-86fb-5328d0d27e90",
+      "timestamp": "2026-10-07T05:01:32.758Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.delete",
+      "details": "Xóa hạng mục Gantt Test."
+    },
+    {
+      "id": "584b36c8-b939-4381-9b8a-a32c0fc480d3",
+      "timestamp": "2026-10-07T05:01:05.196Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "gantt.create",
+      "details": "Thêm hạng mục Test vào Gantt."
+    },
     {
       "id": "f6ab76b5-24de-4504-ae4d-d3cde8e3f9e2",
       "timestamp": "2026-10-07T04:25:36.969Z",

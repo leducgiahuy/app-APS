@@ -165,3 +165,4 @@ Chi tiết luồng dữ liệu, tên trường lưu và vị trí mã nguồn đ
 - Modal khong lam toi hoac lam mo nen trang; thao tac modal van khoa cuon body trong khi mo.
 - Modal Gantt duoc portal truc tiep vao `document.body` de vi tri giua man hinh khong bi anh huong boi transform/cuon ngang cua `.app-shell`; body van duoc khoa cuon khi modal mo.
 - Cot Ghi chu cho phep sua tren task, giai doan va muc cong viec. Ghi chu cua hang giai doan/muc duoc luu tren Gantt item qua `updateGanttItem` va tai lai tu API.
+- Khi co task chen giua hai task cung cap co cung ngay bat dau/ket thuc, bieu do van hien lien ket truc tiep giua hai task ngoai, dong thoi giu cac lien ket FS tuan tu qua task chen giua.
