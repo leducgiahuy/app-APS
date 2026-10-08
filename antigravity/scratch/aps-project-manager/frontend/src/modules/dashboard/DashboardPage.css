@@ -37,13 +37,13 @@ html.dark .aps-dashboard { --dash-ink:#f0ebea; --dash-muted:#c9c0be; --dash-line
 .task-distribution-name { overflow:hidden; color:var(--dash-ink); font-size:12px; font-weight:680; text-overflow:ellipsis; white-space:nowrap; }
 .task-distribution-row strong { color:var(--dash-ink); font-size:11px; white-space:nowrap; }
 .task-distribution-row em { min-width:48px; color:var(--dash-ink); font-size:12px; font-style:normal; font-weight:800; text-align:right; }
-.project-outcome-metrics { display:grid; width:100%; box-sizing:border-box; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-top:18px; padding:0 0 16px; }
+.project-outcome-metrics { display:grid; width:100%; box-sizing:border-box; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin-top:18px; padding:0 0 16px; }
 .outcome-metric { display:flex; min-width:0; min-height:92px; flex-direction:column; justify-content:center; gap:7px; padding:13px 15px; border:1px solid var(--dash-line); border-radius:10px; background:var(--dash-soft); }
 .outcome-metric > span { color:var(--dash-muted); font-size:12px; font-weight:680; }
 .outcome-metric strong { color:var(--dash-ink); font-size:19px; line-height:1.25; }
 .outcome-metric small { color:var(--dash-muted); font-size:10px; line-height:1.45; }
-@media (max-width:800px) { .project-outcome-metrics { grid-template-columns:1fr; }.task-distribution-row { grid-template-columns:9px minmax(60px,1fr) auto auto; gap:6px; } }
-@media (max-width:560px) { .project-overview-chart-area { grid-template-columns:minmax(0,1fr); }.task-distribution-panel { padding:13px; }.task-distribution-note { min-height:0; }.task-distribution-row { grid-template-columns:10px minmax(55px,1fr) auto auto; gap:6px; }.task-distribution-row strong,.task-distribution-row em { font-size:10px; }.project-outcome-metrics { padding:0 0 13px; }.outcome-metric { padding:11px; } }
+@media (max-width:800px) { .project-outcome-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }.task-distribution-row { grid-template-columns:9px minmax(60px,1fr) auto auto; gap:6px; } }
+@media (max-width:560px) { .project-overview-chart-area { grid-template-columns:minmax(0,1fr); }.task-distribution-panel { padding:13px; }.task-distribution-note { min-height:0; }.task-distribution-row { grid-template-columns:10px minmax(55px,1fr) auto auto; gap:6px; }.task-distribution-row strong,.task-distribution-row em { font-size:10px; }.project-outcome-metrics { grid-template-columns:1fr; padding:0 0 13px; }.outcome-metric { padding:11px; } }
 
 /* Raise dashboard type sizes for comfortable reading at normal zoom. */
 .dashboard-eyebrow { font-size:11px; }

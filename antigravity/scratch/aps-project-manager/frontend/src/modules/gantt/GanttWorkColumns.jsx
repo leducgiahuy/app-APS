@@ -55,7 +55,8 @@ export const getGroupDescendantTasks = (groupId, items) => {
     });
   } while (addedGroup);
 
-  return items.filter(item => !item.isGroup && item.status !== 'holiday' && descendantGroupIds.has(item.parentGroupId));
+  const taskContainerIds = new Set(items.filter(item => !item.isGroup && item.parentTaskId).map(item => item.parentTaskId));
+  return items.filter(item => !item.isGroup && item.status !== 'holiday' && !taskContainerIds.has(item.id) && descendantGroupIds.has(item.parentGroupId));
 };
 
 export const calculateGroupPlannedPersonDays = (groupId, items) =>

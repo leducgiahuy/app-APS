@@ -1,0 +1,2 @@
+# Runtime database lives outside this source checkout.
+/backend/data/db.json

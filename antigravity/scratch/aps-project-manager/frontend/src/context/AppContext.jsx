@@ -52,7 +52,7 @@ export function AppProvider({ children }) {
       .filter(employee => endedIds.includes(employee.id))
       .map(employee => employee.name);
     if (endedNames.length) {
-      showToast(`Đã đủ giờ ca làm. ${endedNames.join(', ')} đã được tự động kết thúc ca; trạng thái đã chuyển về “Vào công trường”.`, 'info');
+      showToast(`Đã đủ giờ ca làm. ${endedNames.join(', ')} đã được tự động kết thúc ca; trạng thái đã chuyển về “Vào văn phòng”.`, 'info');
     }
   };
 
@@ -183,7 +183,7 @@ export function AppProvider({ children }) {
     try {
       const res = await api.toggleOnSite(id);
       const employee = employees.find(item => item.id === id);
-      recordActivity('employee.attendance', `${employee?.name || id}: ${res.data?.isOnSite ? 'có mặt tại công trường' : 'cập nhật điểm danh'}.`);
+      recordActivity('employee.attendance', `${employee?.name || id}: ${res.data?.isOnSite ? 'có mặt tại văn phòng' : 'cập nhật điểm danh'}.`);
       showToast(res.message || 'Cập nhật trạng thái thành công');
       if (res.data) setEmployees(prev => prev.map(emp => emp.id === id ? { ...emp, ...res.data } : emp));
     } catch {

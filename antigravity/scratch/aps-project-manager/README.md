@@ -152,3 +152,17 @@ Chi tiết luồng dữ liệu, tên trường lưu và vị trí mã nguồn đ
 - Trang Nhật ký hoạt động chỉ trình bày các sự kiện dữ liệu quan trọng, phân trang 50 sự kiện mỗi trang; bộ lọc tác động lên toàn bộ dữ liệu phù hợp và CSV xuất toàn bộ kết quả lọc. Dữ liệu nhật ký cũ không bị tự động xóa; các sự kiện ngoài danh sách quan trọng chỉ được ẩn khỏi giao diện.
 - `backend/data/seed.json` được giữ lại làm dữ liệu fallback khi khởi tạo/khôi phục cơ sở dữ liệu; không xóa file seed khi dọn dữ liệu đang chạy.
 - Các trường phase cũ không còn dùng đã được gỡ khỏi một số task trong `backend/data/db.json` theo xác nhận; không áp dụng việc dọn này lên `seed.json`.
+
+## Ghi chu cap nhat Gantt (tong hop thay doi 06-07/10/2026)
+
+- Bang Gantt co bo loc an/hien cot, cot ngay tao chi hien ngay thang nam, cac cot duoc can thang hang va co the thu hep vung bang de mo rong bieu do.
+- Cac cot Cong HD, Cong TT va Ghi chu duoc luu theo hang; Cong TT tong hop tu cac task con va khong tinh lap task cha.
+- Tong cong du kien tren trang chi tiet du an lay theo tong cong tren hang du an Gantt; so nguoi tham gia chi tinh nhan su dang duoc gan cho du an, khong tinh nguoi da xoa.
+- Co the tao task nhanh tu o STT. Task con nam long trong task cha, co the thu gon/mo rong; ten task con hien chu nghieng mau cam. Ngay va thanh Gantt tong cua task cha duoc tinh tu cac task la.
+- Khi thu gon giai doan, thanh Gantt tong bao phu khoang ngay cua cac task con va tien do duoc ghep theo tung ngay; lien ket FS van tro toi thanh tong dang hien.
+- Menu ba cham cua muc cong viec co chuc nang tao muc moi ngay sau muc dang chon, giu nguyen du an/giai doan va cac hang con cua muc cu.
+- O ngay bat dau va ngay ket thuc trong form tao task/muc duoc chinh doc lap; so ngay cap nhat theo hai moc va form kiem tra khoang ngay truoc khi luu.
+- Modal khong lam toi hoac lam mo nen trang; thao tac modal van khoa cuon body trong khi mo.
+- Modal Gantt duoc portal truc tiep vao `document.body` de vi tri giua man hinh khong bi anh huong boi transform/cuon ngang cua `.app-shell`; body van duoc khoa cuon khi modal mo.
+- Cot Ghi chu cho phep sua tren task, giai doan va muc cong viec. Ghi chu cua hang giai doan/muc duoc luu tren Gantt item qua `updateGanttItem` va tai lai tu API.
+- Khi co task chen giua hai task cung cap co cung ngay bat dau/ket thuc, bieu do van hien lien ket truc tiep giua hai task ngoai, dong thoi giu cac lien ket FS tuan tu qua task chen giua.

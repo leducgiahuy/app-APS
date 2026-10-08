@@ -9,8 +9,11 @@ const formatDate = (value) => value
   ? new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(`${value}T00:00:00`))
   : 'Chưa đặt';
 const formatHours = (value) => Number(value || 0).toLocaleString('vi-VN', { maximumFractionDigits: 1 });
-const PHASE_CHART_COLORS = ['#861b36', '#bd8418', '#3978c5', '#16835d', '#8b5cf6', '#d0788b', '#64748b'];
-const DEPARTMENT_CHART_COLORS = ['#3978c5', '#16835d', '#bd8418', '#861b36', '#8b5cf6', '#d0788b', '#64748b'];
+// Gantt phase colors are authoritative for the phase chart; these dashboard
+// tokens are fallbacks for categories without a matching Gantt group.
+const PHASE_CHART_COLORS = ['var(--dash-accent)', 'var(--dash-gold)', 'var(--dash-blue)', 'var(--dash-green)', 'color-mix(in srgb,var(--dash-accent) 55%,var(--dash-blue))', 'color-mix(in srgb,var(--dash-accent) 55%,var(--dash-gold))', 'var(--dash-muted)'];
+const PHASE_CODE_COLORS = { A: '#a8c4f7', B: '#dc2626', C: '#b8dfc4' };
+const DEPARTMENT_CHART_COLORS = ['var(--dash-blue)', 'var(--dash-green)', 'var(--dash-gold)', 'color-mix(in srgb,var(--dash-blue) 55%,var(--dash-green))', 'color-mix(in srgb,var(--dash-green) 55%,var(--dash-gold))', 'var(--dash-muted)'];
 
 // Convert normalized category shares into contiguous pie slices. The input
 // percentages are already corrected to total exactly 100.0 after display rounding.
@@ -20,7 +23,7 @@ const distributionGradient = (rows, colors) => {
   const slices = rows.map((row, index) => {
     const start = cursor;
     cursor += row.percent;
-    return `${colors[index % colors.length]} ${start}% ${cursor}%`;
+    return `${row.color || colors[index % colors.length]} ${start}% ${cursor}%`;
   });
   return `conic-gradient(${slices.join(', ')})`;
 };
@@ -185,8 +188,19 @@ export default function DashboardPage() {
       }
       return rows;
     };
-    return { phases: toRows(phaseCounts), departments: toRows(departmentCounts) };
-  }, [selected, employees]);
+    const ganttPhaseColors = new Map(ganttItems
+      .filter((item) => item.projectId === selected.id && item.isGroup && item.color)
+      .map((item) => [String(item.title || '').trim().toLocaleLowerCase('vi'), item.color]));
+    const phases = toRows(phaseCounts).map((row) => {
+      const ganttColor = ganttPhaseColors.get(row.name.trim().toLocaleLowerCase('vi'));
+      const phaseCode = row.name.match(/^([A-Z])\./)?.[1];
+      // Match the Gantt's visual phase treatment: A/C use light tints, while B
+      // keeps its strong red so its slice remains clear and consistent with Gantt.
+      const color = PHASE_CODE_COLORS[phaseCode] || ganttColor || null;
+      return { ...row, color };
+    });
+    return { phases, departments: toRows(departmentCounts) };
+  }, [selected, employees, ganttItems]);
 
   // Actual duration is shown only when a completed project has real work-session
   // start timestamps and task completion timestamps. Planned dates are not used
@@ -233,7 +247,7 @@ export default function DashboardPage() {
   return (
     <div className="aps-dashboard">
       <header className="dashboard-heading">
-        <div><p className="dashboard-eyebrow">APS VIỆT NAM · BÁO CÁO DỰ ÁN</p><h1>Thống kê & Báo cáo</h1><p className="dashboard-subtitle">Tình trạng, tiến độ và nhân sự tham gia các dự án.</p></div>
+        <div><p className="dashboard-eyebrow">APS VIỆT NAM · BÁO CÁO DỰ ÁN</p><h1>Thống kê & Báo cáo</h1></div>
         <div className="dashboard-date"><Clock3 size={15} />{new Intl.DateTimeFormat('vi-VN', { dateStyle: 'long' }).format(currentTime)}</div>
       </header>
 
@@ -248,7 +262,7 @@ export default function DashboardPage() {
             const status = project.complete ? 'completed' : project.overdue ? 'overdue' : project.needsReport ? 'delayed' : project.dueSoon ? 'due-soon' : 'in-progress';
             const statusLabel = project.complete ? 'Hoàn thành' : project.overdue ? 'Quá hạn' : project.needsReport ? 'Cần báo cáo' : project.dueSoon ? 'Sắp đến hạn' : 'Đang thực hiện';
             return <button type="button" className={`all-project-row ${selected?.id === project.id ? 'selected' : ''}`} key={project.id} onClick={() => setSelectedProjectId(project.id)} aria-pressed={selected?.id === project.id}>
-              <span className="all-project-name"><strong>{project.name}</strong><small>{project.code || project.manager || 'Chưa cập nhật thông tin'}</small></span>
+              <span className="all-project-name"><strong>{project.name}</strong></span>
               <span className="all-project-progress"><span><i style={{ width: `${Math.min(100, Math.max(0, project.progress))}%` }} /></span><strong>{project.progress}%</strong></span>
               <span className={`all-project-status ${status}`}>{statusLabel}</span>
               <span className="all-project-deadline">Hạn {formatDate(project.endDate)}</span>
@@ -260,26 +274,24 @@ export default function DashboardPage() {
 
       <section className="dashboard-card project-overview-layout" aria-label="Tổng quan dự án và chi tiết dự án được chọn">
         <div className="project-overview-left">
-          <div className="company-overview-heading"><div><h2>{selected?.name || 'Tổng quan dự án'}</h2><p>Phân bổ task theo hạng mục và phòng ban</p></div></div>
+          <div className="company-overview-heading"><div><h2>{selected?.name || 'Tổng quan dự án'}</h2></div></div>
           <div className="project-overview-chart-area">
             <div className="task-distribution-panel">
               <div className="task-distribution-heading"><h3>Task lớn theo hạng mục</h3><span>{selected?.tasks.length || 0} task · tổng 100%</span></div>
-              <p className="task-distribution-note">Mỗi task được tính một lần theo hạng mục/phase đang lưu trong dự án.</p>
               <div className="task-pie-chart" style={{ background: distributionGradient(taskDistribution.phases, PHASE_CHART_COLORS) }} role="img" aria-label="Biểu đồ tròn phân bổ task theo hạng mục">
-                <div><strong>{selected?.tasks.length || 0}</strong><span>task</span></div>
+                <div><strong>{selected?.tasks.length ? '100%' : '0%'}</strong><span>tỷ lệ</span></div>
               </div>
               <div className="task-distribution-list">
-                {taskDistribution.phases.length ? taskDistribution.phases.map((item) => <div className="task-distribution-row" key={item.name}>
-                  <i className="task-distribution-swatch" style={{ background: PHASE_CHART_COLORS[taskDistribution.phases.indexOf(item) % PHASE_CHART_COLORS.length] }} aria-hidden="true" />
+                {taskDistribution.phases.length ? taskDistribution.phases.map((item, index) => <div className="task-distribution-row" key={item.name}>
+                  <i className="task-distribution-swatch" style={{ background: item.color || PHASE_CHART_COLORS[index % PHASE_CHART_COLORS.length] }} aria-hidden="true" />
                   <span className="task-distribution-name" title={item.name}>{item.name}</span><strong>{formatHours(item.count)} task</strong><em>{formatHours(item.percent)}%</em>
                 </div>) : <div className="dashboard-empty">Dự án chưa có task để phân bổ.</div>}
               </div>
             </div>
             <div className="task-distribution-panel department-distribution-panel">
-              <div className="task-distribution-heading"><h3>Task theo phòng ban</h3><span>Phân bổ cộng đủ 100%</span></div>
-              <p className="task-distribution-note">Task có nhiều phòng ban được chia đều giữa các phòng ban được giao; task thiếu người nhận nằm ở “Chưa phân công”.</p>
+              <div className="task-distribution-heading"><h3>Task theo phòng ban</h3><span>100%</span></div>
               <div className="task-pie-chart" style={{ background: distributionGradient(taskDistribution.departments, DEPARTMENT_CHART_COLORS) }} role="img" aria-label="Biểu đồ tròn phân bổ task theo phòng ban">
-                <div><strong>{selected?.tasks.length || 0}</strong><span>task</span></div>
+                <div><strong>{selected?.tasks.length ? '100%' : '0%'}</strong><span>tỷ lệ</span></div>
               </div>
               <div className="task-distribution-list">
                 {taskDistribution.departments.length ? taskDistribution.departments.map((item) => <div className="task-distribution-row" key={item.name}>
@@ -290,16 +302,17 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="project-outcome-metrics" aria-label="Chỉ số tổng kết dự án">
-            <div className="outcome-metric"><span>Công dự án đã chốt</span><strong>{selected?.contractWork == null ? 'Chưa nhập' : `${formatHours(selected.contractWork)} công`}</strong><small>Nguồn: công hợp đồng đã lưu ở dự án.</small></div>
-            <div className="outcome-metric"><span>Công thực tế khi kết thúc</span><strong>{selected?.complete ? `${formatHours((selected.actualHours || 0) / 8)} công` : 'Chưa kết thúc'}</strong><small>{selected?.complete ? `${formatHours(selected.actualHours || 0)} giờ đã ghi nhận · quy đổi 8 giờ/công.` : 'Chỉ chốt số thực tế sau khi dự án hoàn thành.'}</small></div>
-            <div className="outcome-metric"><span>Số ngày thực tế của dự án</span><strong>{selected?.complete ? (actualProjectDays == null ? 'Chưa đủ dữ liệu' : `${actualProjectDays} ngày`) : 'Chưa kết thúc'}</strong><small>{actualProjectDays == null ? 'Cần có giờ bắt đầu làm thực tế và thời điểm hoàn thành task.' : 'Tính từ phiên làm việc thực tế đầu tiên đến lúc hoàn thành task cuối.'}</small></div>
+            <div className="outcome-metric"><span>Công dự án theo hợp đồng </span><strong>{selected?.contractWork == null ? 'Chưa nhập' : `${formatHours(selected.contractWork)} công`}</strong></div>
+            <div className="outcome-metric"><span>Công thực tế theo tiến độ</span><strong>{selected ? `${formatHours((selected.actualHours || 0) / 8)} công` : '—'}</strong></div>
+            <div className="outcome-metric"><span>Công thực tế khi kết thúc</span><strong>{selected?.complete ? `${formatHours((selected.actualHours || 0) / 8)} công` : 'Chưa kết thúc'}</strong></div>
+            <div className="outcome-metric"><span>Số ngày thực tế của dự án</span><strong>{selected?.complete ? (actualProjectDays == null ? 'Chưa đủ dữ liệu' : `${actualProjectDays} ngày`) : 'Chưa kết thúc'}</strong></div>
           </div>
         </div>
 
         <div className="project-overview-right">
           {selected ? <>
             <div className="selected-project-heading">
-              <div><p className="dashboard-eyebrow">CHI TIẾT DỰ ÁN</p><h2>{selected.name}</h2><p>{selected.code || 'Chưa có mã'} · {selected.manager || 'Chưa cập nhật quản lý'}</p></div>
+              <div><p className="dashboard-eyebrow">CHI TIẾT DỰ ÁN</p><h2>{selected.name}</h2></div>
               <div className="selected-project-actions">
                 <button type="button" className="report-share-button" onClick={handleCopyReport}><Send size={14} />{copiedReport ? 'Đã sao chép' : 'Báo cáo'}</button>
               </div>
@@ -307,18 +320,17 @@ export default function DashboardPage() {
             {(selected.overdue || selected.needsReport || selected.dueSoon) && <div className={`project-alert ${selected.overdue ? 'overdue' : selected.needsReport ? 'delayed' : ''}`}><AlertTriangle size={15} /><span><strong>{selected.overdue ? 'Trễ hạn.' : selected.needsReport ? 'Trễ tiến độ · Cần báo cáo.' : 'Sắp đến hạn.'}</strong> {selected.overdue ? `Quá ${Math.abs(selected.remainingDays)} ngày` : selected.needsReport ? `${selected.delayedTasks} công việc đang chậm` : `Còn ${selected.remainingDays} ngày`} · Hoàn thành {selected.completeCount}/{selected.tasks.length} việc.</span></div>}
             <div className="project-metrics">
               <div><span>Công dự kiến</span><strong>{formatHours(selected.plannedHours / 8)} <small>công</small></strong><em>{formatHours(selected.plannedHours)} giờ · 8h/công</em></div>
-              <div><span>Nhân sự tham gia</span><strong>{selected.team.length} <small>người</small></strong><em>{selected.team.filter((person) => person.addedLater).length} bổ sung</em></div>
+              <div><span>Nhân sự tham gia</span><strong>{selected.team.length} <small>người</small></strong></div>
               <div><span>Tiến độ</span><strong>{selected.progress}<small>%</small></strong><em>{selected.complete ? 'Hoàn thành' : selected.overdue ? 'Trễ hạn' : selected.needsReport ? 'Trễ tiến độ · Cần báo cáo' : 'Đang thực hiện'}</em></div>
-              <div><span>Công thực tế</span><strong>{formatHours(selected.actualHours / 8)} <small>công</small></strong><em>{formatHours(selected.actualHours)} giờ đã ghi</em></div>
+              <div><span>Công thực tế</span><strong>{formatHours(selected.actualHours / 8)} <small>công</small></strong></div>
             </div>
             <div className="team-summary-heading"><div><h3>Nhân sự & giờ công</h3><p>Giờ làm và OT đã duyệt</p></div><div className="hours-legend"><span><i className="regular-key" />Giờ làm</span><span><i className="overtime-key" />OT</span></div></div>
             <div className="employee-report-list compact-team-list">{selected.team.length ? selected.team.map((person) => <div className="employee-report-row" key={person.id}>
               <span className="employee-initial">{person.name.charAt(0)}</span><span className="employee-report-name">{person.name}{person.addedLater && <small>Bổ sung</small>}</span>
               <span className="employee-hour regular-hour">{person.tracked ? `${formatHours(person.hours)}h` : '—'}</span><span className="employee-hour overtime-hour">{formatHours(person.overtime)}h</span>
             </div>) : <div className="dashboard-empty">Chưa có nhân sự được phân công.</div>}</div>
-            {selected.team.some((person) => !person.tracked) && <p className="report-data-note">Một số người chưa có nhật ký giờ cá nhân; số giờ chưa được ước đoán.</p>}
-            <div className="project-period"><CalendarDays size={14} />{formatDate(selected.startDate)} – {formatDate(selected.endDate)}<span>·</span>{selected.tasks.length - selected.completeCount} việc còn lại</div>
-          </> : <div className="dashboard-empty">Chưa có dự án để hiển thị.</div>}
+            <div className="project-period"><CalendarDays size={14} />{formatDate(selected.startDate)} – {formatDate(selected.endDate)}</div>
+          </> : <div className="dashboard-empty">Chưa có dự án để hiển thị</div>}
         </div>
       </section>
 

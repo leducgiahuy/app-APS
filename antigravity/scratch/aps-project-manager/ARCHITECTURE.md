@@ -248,3 +248,24 @@ flowchart TD
 
 - Đăng nhập/phân quyền tài khoản hiện thực hiện ở frontend; tài khoản và mật khẩu lưu trong `localStorage`. Đây là cơ chế xem trước, không phải xác thực máy chủ.
 - Các API Express hiện chưa xác thực/ủy quyền theo user. Không công khai backend hoặc dùng dữ liệu nhạy cảm thực tế qua mạng công cộng trước khi bổ sung xác thực và kiểm tra quyền ở backend.
+
+## 8. Tong hop thay doi Gantt (06-07/10/2026)
+
+### Bang va cot
+- `frontend/src/modules/gantt/GanttPage.jsx` quan ly bang Gantt, bo loc cot, co gian vung bang/bieu do, ngay tao dang ngay-thang-nam, cac cot Cong HD/Cong TT/Ghi chu va can chinh dong cho cac hang duoc tao sau.
+- Cong TT cap task duoc tinh tu cac phan cong; cac hang task cha khong bi cong trung voi task la.
+- Trang chi tiet du an dung tong cong du kien tu hang du an Gantt va dem nhan su hien dang gan; nguoi da xoa khong con duoc tinh.
+- Giai doan thu gon hien thanh Gantt tong theo khoang ngay task con, ghep tien do theo ngay va giu cac duong Finish-to-Start den hang tong.
+
+### Phan cap task va muc
+- Tao task nhanh tu o STT co hai luong: tao task cung cap sau task hien tai va tao task con trong task cha.
+- `parentTaskId` la lien ket cha-con duoc luu tren Gantt item va task lien ket. Task con hien nghieng mau cam, co the thu gon/mo rong; thanh tong va ngay cua task cha theo ngay som nhat/ngay muon nhat cua cac task la.
+- Menu ba cham cua nhom cho phep tao muc cung cap sau muc dang chon. Backend chen muc sau toan bo cac hang con cua muc neo de khong tach cac task hien co.
+- Quy tac hien thi WBS va tong hop cong lien quan nam trong `GanttPage.jsx`, `GanttWorkColumns.jsx`; thao tac tao/cap nhat/dong bo du lieu nam trong `backend/src/controllers/projectController.js`.
+
+### Ngay va modal
+- Form tao task va form tao muc cap nhat rieng ngay bat dau/ngay ket thuc; khong tu dong doi moc con lai. So ngay duoc tinh lai va khoang ngay khong hop le bi chan khi luu.
+- `frontend/src/components/layout/ModalOverlay.jsx` khong con lop nen toi/lam mo. Body van duoc khoa cuon trong thoi gian modal mo.
+- Modal duoc portal vao `document.body` de fixed overlay khong bi transform hoac vung cuon cua `.app-shell` lam lech vi tri.
+- Cot Ghi chu co the sua cho task, giai doan va muc cong viec; frontend dung `GanttEditableWorkCell`, backend luu `ganttNote` tren group item trong `updateGanttItem`.
+- Trong `dependencyLines`, neu task trung gian nam trong khoang ngay chung cua hai task cung cap va hai task ngoai co cung ngay bat dau/ket thuc, them lien ket truc tiep giua hai task ngoai ben canh cac lien ket FS tuan tu.

@@ -108,11 +108,11 @@ export default function HRPage() {
           </div>
         </div>
 
-        {/* KPI 2: Nhân sự tại công trường */}
+        {/* KPI 2: Nhân sự tại văn phòng */}
         <div className="p-3 rounded-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-              Có Mặt Tại Công Trường
+              Có Mặt Tại Văn Phòng
             </p>
             <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
               {onSiteCount} <span className="text-sm font-normal text-slate-500">/ {totalEmployees}</span>
@@ -229,7 +229,7 @@ export default function HRPage() {
           const handleOnSiteAction = () => {
             if (!emp.isOnSite) {
               if (activeTasks.length > 0 && !activeTasks.some(task => task.id === emp.activeTaskId && task.status !== 'completed')) {
-                window.alert('Hãy chọn task muốn bắt đầu trước khi vào công trường.');
+                window.alert('Hãy chọn task muốn bắt đầu trước khi vào văn phòng.');
                 return;
               }
               toggleOnSite(emp.id);
@@ -261,7 +261,7 @@ export default function HRPage() {
                 const formatDuration = minutes => `${Math.floor(minutes / 60)} giờ ${minutes % 60} phút`;
                 const remaining = requiredMinutes - workedMinutes;
                 const confirmed = window.confirm(
-                  `${emp.name} mới làm ${formatDuration(workedMinutes)}, còn thiếu ${formatDuration(remaining)} theo giờ ca và OT đã duyệt. Bạn có chắc chắn muốn rời công trường và kết thúc ca không?`
+                  `${emp.name} mới làm ${formatDuration(workedMinutes)}, còn thiếu ${formatDuration(remaining)} theo giờ ca và OT đã duyệt. Bạn có chắc chắn muốn rời văn phòng và kết thúc ca không?`
                 );
                 if (!confirmed) return;
               }
@@ -401,7 +401,7 @@ export default function HRPage() {
                         emp.isOnBreak ? 'text-amber-600 dark:text-amber-400' : emp.isOnSite ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500'
                       }`}
                     >
-                      {emp.isOnBreak ? 'Đang tạm nghỉ' : emp.isOnSite ? 'Tại công trường' : 'Vắng mặt'}
+                      {emp.isOnBreak ? 'Đang tạm nghỉ' : emp.isOnSite ? 'Tại văn phòng' : 'Vắng mặt'}
                     </span>
                     {emp.isOnSite && emp.checkInTime && (
                       <span className="text-[10px] text-slate-400">
@@ -433,7 +433,7 @@ export default function HRPage() {
                         : 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-sm'
                     }`}
                   >
-                    {emp.isOnSite ? 'Rời công trường' : 'Vào công trường'}
+                    {emp.isOnSite ? 'Rời văn phòng' : 'Vào văn phòng'}
                   </button>
                 </div>
               </div>
