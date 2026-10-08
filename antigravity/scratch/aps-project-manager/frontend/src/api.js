@@ -30,9 +30,9 @@ export const api = {
   // === NHÂN SỰ ===
   getEmployees: () => fetchApi('/employees'),
   createEmployee: (data) => fetchApi('/employees', { method: 'POST', body: JSON.stringify(data) }),
-  toggleOnSite: (id) => fetchApi(`/employees/${id}/toggle-onsite`, { method: 'PATCH' }),
+  toggleOnSite: (id, shiftType = 'regular') => fetchApi(`/employees/${id}/toggle-onsite`, { method: 'PATCH', body: JSON.stringify({ shiftType }) }),
   toggleBreak: (id) => fetchApi(`/employees/${id}/toggle-break`, { method: 'PATCH' }),
-  setActiveTask: (id, taskId) => fetchApi(`/employees/${id}/active-task`, { method: 'PATCH', body: JSON.stringify({ taskId }) }),
+  setActiveTask: (id, taskId, shiftType = 'regular') => fetchApi(`/employees/${id}/active-task`, { method: 'PATCH', body: JSON.stringify({ taskId, shiftType }) }),
   deleteEmployee: (id) => fetchApi(`/employees/${id}`, { method: 'DELETE' }),
 
   // === PHÂN CÔNG & TĂNG CA ===

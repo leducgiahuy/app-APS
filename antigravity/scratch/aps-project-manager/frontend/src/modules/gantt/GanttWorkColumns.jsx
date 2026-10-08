@@ -68,14 +68,25 @@ export const calculatePlannedPersonDays = item => {
     ? item.assignees.filter(assignment => assignment.employeeId || assignment.employeeName)
     : [];
   if (assignments.length) {
-    return assignments.reduce((total, assignment) => total + countInclusiveDays(
-      assignment.startDate || item.startDate,
-      assignment.endDate || item.endDate
-    ), 0);
+    const total = assignments.reduce((sum, assignment) => {
+      const days = countInclusiveDays(
+        assignment.startDate || item.startDate,
+        assignment.endDate || item.endDate
+      );
+      const hoursPerDay = Number(assignment.estimatedHoursPerDay) ||
+        Number(item.estimatedHoursPerDay) ||
+        Number(item.estimatedHours) / (Number(item.days) || 1) || 8;
+      return sum + days * hoursPerDay / 8;
+    }, 0);
+    return Math.round(total * 100) / 100;
   }
 
   const hasLegacyAssignee = item.assignee || item.employeeId || item.employeeName;
-  return hasLegacyAssignee ? countInclusiveDays(item.startDate, item.endDate) : 0;
+  if (!hasLegacyAssignee) return 0;
+  const days = countInclusiveDays(item.startDate, item.endDate);
+  const hoursPerDay = Number(item.estimatedHoursPerDay) ||
+    Number(item.estimatedHours) / (Number(item.days) || days) || 8;
+  return Math.round(days * hoursPerDay / 8 * 100) / 100;
 };
 
 export function GanttEditableWorkCell({ item, field, onSave, type = 'text', placeholder = '' }) {

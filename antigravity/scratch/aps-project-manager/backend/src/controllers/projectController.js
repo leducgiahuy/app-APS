@@ -284,8 +284,12 @@ export function getGanttItems(req, res) {
         ? taskAssignments.length ? taskAssignments : legacyTaskAssignment
         : ganttAssignments;
       const assignees = savedAssignees.length
-        ? savedAssignees.map(assignment => {
-          const ganttAssignment = ganttAssignments.find(candidate => candidate.employeeId === assignment.employeeId);
+        ? savedAssignees.map((assignment, assignmentIndex) => {
+          const employeeOccurrence = savedAssignees
+            .slice(0, assignmentIndex + 1)
+            .filter(candidate => candidate.employeeId === assignment.employeeId).length - 1;
+          const ganttAssignment = ganttAssignments
+            .filter(candidate => candidate.employeeId === assignment.employeeId)[employeeOccurrence];
           const employee = (db.employees || []).find(candidate => candidate.id === assignment.employeeId);
           return {
             ...assignment,
@@ -477,9 +481,9 @@ export function updateGanttItem(req, res) {
     return res.status(404).json({ success: false, message: 'Không tìm thấy hạng mục Gantt' });
   }
 
-  if (title !== undefined && startDate === undefined && endDate === undefined && contractWork === undefined && ganttNote === undefined) {
+  if (title !== undefined && startDate === undefined && endDate === undefined && contractWork === undefined && ganttNote === undefined && item.isGroup) {
     const normalizedTitle = typeof title === 'string' ? title.trim() : '';
-    if (!item.isGroup || !normalizedTitle || normalizedTitle.length > 120) {
+    if (!normalizedTitle || normalizedTitle.length > 120) {
       return res.status(400).json({ success: false, message: 'Tên mục công việc không hợp lệ' });
     }
     item.title = normalizedTitle;
@@ -493,9 +497,10 @@ export function updateGanttItem(req, res) {
     });
   }
 
-  if (title !== undefined && (typeof title !== 'string' || !item.isGroup || !title.trim() || title.trim().length > 120)) {
-    return res.status(400).json({ success: false, message: 'Invalid group title' });
+  if (title !== undefined && (typeof title !== 'string' || !title.trim() || title.trim().length > 120)) {
+    return res.status(400).json({ success: false, message: 'Task title must be a non-empty string of at most 120 characters' });
   }
+  const normalizedTitle = title === undefined ? undefined : title.trim();
 
   const nextStartDate = startDate || item.startDate;
   const nextEndDate = endDate || item.endDate;
@@ -525,7 +530,9 @@ export function updateGanttItem(req, res) {
     return res.status(400).json({ success: false, message: `Ngày task phải nằm trong thời gian dự án (${project.startDate} → ${project.endDate})` });
   }
 
-  const linkedTask = (db.tasks || []).find(task => task.ganttId === id);
+  const linkedTask = (db.tasks || []).find(task => task.ganttId === id) ||
+    (db.tasks || []).find(task => !task.ganttId && task.title === item.title &&
+      (!item.projectId || !task.projectId || task.projectId === item.projectId));
   const primaryEmployee = (db.employees || []).find(employee => employee.name === item.assignee);
   const taskHasAssignmentState = hasStoredAssignmentState(linkedTask);
   const legacyTaskAssignment = linkedTask?.employeeId || linkedTask?.employeeName
@@ -553,7 +560,6 @@ export function updateGanttItem(req, res) {
     if (!Array.isArray(assignees)) {
       return res.status(400).json({ success: false, message: 'Danh sách người đảm nhận không hợp lệ' });
     }
-    const seenEmployeeIds = new Set();
     nextAssignees = [];
     for (const assignment of assignees) {
       const employee = (db.employees || []).find(candidate => candidate.id === assignment?.employeeId);
@@ -564,15 +570,13 @@ export function updateGanttItem(req, res) {
       };
       const validDates = isValidDate(assignment?.startDate) && isValidDate(assignment?.endDate);
       if (!employee || !validDates || assignment.startDate > assignment.endDate ||
-        assignment.startDate < nextStartDate || assignment.endDate > nextEndDate ||
-        seenEmployeeIds.has(assignment.employeeId)) {
+        assignment.startDate < nextStartDate || assignment.endDate > nextEndDate) {
         return res.status(400).json({ success: false, message: 'Vui lòng kiểm tra người đảm nhận và khoảng thời gian đã chọn' });
       }
       const assignmentHoursPerDay = Number(assignment.estimatedHoursPerDay);
       if (!Number.isFinite(assignmentHoursPerDay) || assignmentHoursPerDay <= 0) {
         return res.status(400).json({ success: false, message: 'Giờ làm dự kiến mỗi ngày phải lớn hơn 0 cho từng người đảm nhận' });
       }
-      seenEmployeeIds.add(assignment.employeeId);
       nextAssignees.push({
         employeeId: employee.id,
         employeeName: employee.name,
@@ -653,7 +657,7 @@ export function updateGanttItem(req, res) {
     item.startDate = nextStartDate;
     item.endDate = nextEndDate;
     item.days = calculatedDays;
-    if (title !== undefined) item.title = title.trim();
+    if (normalizedTitle !== undefined) item.title = normalizedTitle;
     if (contractWork !== undefined) item.contractWork = normalizedContractWork;
     if (ganttNote !== undefined) item.ganttNote = ganttNote;
     if (!writeDb(db)) {
@@ -701,6 +705,7 @@ export function updateGanttItem(req, res) {
   item.startDate = nextStartDate;
   item.endDate = nextEndDate;
   item.days = calculatedDays;
+  if (normalizedTitle !== undefined) item.title = normalizedTitle;
   if (contractWork !== undefined) item.contractWork = normalizedContractWork;
   if (ganttNote !== undefined) item.ganttNote = ganttNote;
   item.assignees = nextAssignees;
@@ -756,8 +761,7 @@ export function updateGanttItem(req, res) {
 
   (db.tasks || []).forEach(task => {
     const linkedById = task.ganttId === id;
-    const linkedLegacyTask = !task.ganttId && task.title === item.title &&
-      (!item.projectId || !task.projectId || task.projectId === item.projectId);
+    const linkedLegacyTask = !task.ganttId && task === linkedTask;
     const shiftedWithGantt = task.ganttId && shiftedIds.has(task.ganttId);
     if (linkedById || linkedLegacyTask || shiftedWithGantt) {
       task.startDate = linkedById || linkedLegacyTask ? nextStartDate : (db.ganttItems.find(ganttItem => ganttItem.id === task.ganttId)?.startDate || task.startDate);
@@ -805,10 +809,9 @@ export function updateGanttItem(req, res) {
     }
   });
 
-  const linkedTaskForAssignments = (db.tasks || []).find(task => task.ganttId === id) ||
-    (db.tasks || []).find(task => !task.ganttId && task.title === item.title &&
-      (!item.projectId || !task.projectId || task.projectId === item.projectId));
+  const linkedTaskForAssignments = linkedTask;
   if (linkedTaskForAssignments) {
+    if (normalizedTitle !== undefined) linkedTaskForAssignments.title = normalizedTitle;
     linkedTaskForAssignments.assignees = item.assignees;
     if (contractWork !== undefined) linkedTaskForAssignments.contractWork = normalizedContractWork;
     if (ganttNote !== undefined) linkedTaskForAssignments.ganttNote = ganttNote;

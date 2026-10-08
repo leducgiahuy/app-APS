@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import GanttRowGrid from './GanttRowGrid';
 import { useApp } from '../../context/AppContext';
 import ModalOverlay from '../../components/layout/ModalOverlay';
 import DateInput from '../../components/DateInput';
@@ -135,6 +136,22 @@ const GANTT_COLUMNS = [
   { key: 'actions', label: 'THAO TÁC', width: 104 }
 ];
 
+const GANTT_COLUMN_VISIBILITY_STORAGE_KEY = 'aps_gantt_visible_columns';
+const getInitialVisibleColumns = () => {
+  const defaults = Object.fromEntries(GANTT_COLUMNS.map(column => [column.key, true]));
+  if (typeof window === 'undefined') return defaults;
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(GANTT_COLUMN_VISIBILITY_STORAGE_KEY) || 'null');
+    if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return defaults;
+    return Object.fromEntries(GANTT_COLUMNS.map(column => [
+      column.key,
+      typeof saved[column.key] === 'boolean' ? saved[column.key] : defaults[column.key]
+    ]));
+  } catch {
+    return defaults;
+  }
+};
+
 const GANTT_PHASE_PRESETS = [
   { code: 'A', title: 'A. THIẾT KẾ XÂY DỰNG', color: '#2563eb' },
   { code: 'B', title: 'B. XIN PHÉP / PHÁP LÍ', color: '#dc2626' },
@@ -250,8 +267,15 @@ export default function GanttPage() {
   const [leftPanelWidth, setLeftPanelWidth] = useState(GANTT_TABLE_MAX_WIDTH);
   const leftPanelResizeRef = useRef(null);
   const [columnFilterOpen, setColumnFilterOpen] = useState(false);
-  const [visibleColumns, setVisibleColumns] = useState(() => Object.fromEntries(GANTT_COLUMNS.map(column => [column.key, true])));
+  const [visibleColumns, setVisibleColumns] = useState(getInitialVisibleColumns);
   const columnFilterRef = useRef(null);
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(GANTT_COLUMN_VISIBILITY_STORAGE_KEY, JSON.stringify(visibleColumns));
+    } catch {
+      // Keep the in-memory filter usable when browser storage is unavailable.
+    }
+  }, [visibleColumns]);
   const [collapsedProjectIds, setCollapsedProjectIds] = useState(() => new Set());
   const [collapsedGroupIds, setCollapsedGroupIds] = useState(() => new Set());
   const [collapsedTaskIds, setCollapsedTaskIds] = useState(() => new Set());
@@ -343,8 +367,14 @@ export default function GanttPage() {
   const [locationSuggestionsOpen, setLocationSuggestionsOpen] = useState(false);
   const [locationSearch, setLocationSearch] = useState('');
   const [editingItem, setEditingItem] = useState(null);
-  const [editForm, setEditForm] = useState({ startDate: '', endDate: '', days: 1, estimatedHours: 8, estimatedHoursEdited: true });
+  const [editForm, setEditForm] = useState({ title: '', startDate: '', endDate: '', days: 1, estimatedHours: 8, estimatedHoursEdited: true });
   const timelineScrollRef = useRef(null);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.add('gantt-no-page-scroll');
+    return () => root.classList.remove('gantt-no-page-scroll');
+  }, []);
   const [viewportHeight, setViewportHeight] = useState(() => typeof window === 'undefined' ? 768 : window.innerHeight);
 
   useEffect(() => {
@@ -601,7 +631,7 @@ export default function GanttPage() {
   const BAR_HEIGHT = 24;
   const visibleTableWidth = GANTT_COLUMNS.reduce((width, column) => width + (visibleColumns[column.key] ? column.width : 0), 0);
   const LEFT_PANEL_WIDTH = Math.min(leftPanelWidth, Math.max(56, visibleTableWidth));
-  const rowHeights = filteredGanttItems.map(item => {
+  const rowHeights = useMemo(() => filteredGanttItems.map(item => {
     if (item.isProjectHeader) return 36;
     if (item.isGroup) return GROUP_ROW_HEIGHT;
     const linkedTask = tasks.find(task => task.ganttId === item.id);
@@ -616,11 +646,11 @@ export default function GanttPage() {
     );
     const additionalOvertimeRows = (item.overtimeContributions || []).filter(contribution => !hasAssignee(contribution)).length;
     return Math.max(ROW_HEIGHT, 8 + assigneeCount * 22) + additionalOvertimeRows * 18;
-  });
-  const rowOffsets = rowHeights.reduce((offsets, height, index) => {
+  }), [filteredGanttItems, tasks]);
+  const rowOffsets = useMemo(() => rowHeights.reduce((offsets, height, index) => {
     offsets.push((offsets[index] || 0) + height);
     return offsets;
-  }, [0]);
+  }, [0]), [rowHeights]);
   const rowsHeight = rowHeights.reduce((sum, height) => sum + height, 0);
   const chartBodyHeight = Math.max(sidebarCollapsed ? 360 : 200, rowsHeight + 20, viewportHeight - 170);
 
@@ -1080,7 +1110,7 @@ export default function GanttPage() {
     const days = inclusiveDays(item.startDate, item.endDate);
     const assignedEmployee = employees.find(employee => employee.name === item.assignee);
     const estimatedHours = Number(item.estimatedHoursPerDay) || (Number(item.estimatedHours) > 0 ? Number(item.estimatedHours) / days : Number(assignedEmployee?.standardHours) || 8);
-    setEditForm({ startDate: item.startDate, endDate: item.endDate, days, estimatedHours, estimatedHoursEdited: true });
+    setEditForm({ title: item.title || '', startDate: item.startDate, endDate: item.endDate, days, estimatedHours, estimatedHoursEdited: true });
   };
 
   const handleEditSubmit = async (e) => {
@@ -1094,7 +1124,11 @@ export default function GanttPage() {
       window.alert(`Ngày task phải nằm trong thời gian dự án (${formatDateVi(project.startDate)} → ${formatDateVi(project.endDate)}).`);
       return;
     }
-    const success = await updateGanttItem(editingItem.id, { ...editForm, estimatedHoursPerDay: editForm.estimatedHours });
+    if (!editForm.title.trim()) {
+      window.alert('Vui lòng nhập tên công việc.');
+      return;
+    }
+    const success = await updateGanttItem(editingItem.id, { ...editForm, title: editForm.title.trim(), estimatedHoursPerDay: editForm.estimatedHours });
     if (success) setEditingItem(null);
   };
 
@@ -1141,13 +1175,6 @@ export default function GanttPage() {
       !Number.isFinite(Number(assignment.estimatedHoursPerDay)) || Number(assignment.estimatedHoursPerDay) <= 0
     )) {
       window.alert('Vui lòng chọn người đảm nhận và khoảng thời gian hợp lệ cho từng người.');
-      return;
-    }
-    const duplicateEmployee = assignmentRows.some((assignment, index) =>
-      assignmentRows.findIndex(row => row.employeeId === assignment.employeeId) !== index
-    );
-    if (duplicateEmployee) {
-      window.alert('Mỗi người chỉ được xuất hiện một lần trong danh sách đảm nhận.');
       return;
     }
     const outsideTaskDates = assignmentRows.some(assignment =>
@@ -1820,48 +1847,16 @@ export default function GanttPage() {
                 </defs>
 
                 {/* 1. Vẽ các đường kẻ ngang phân tách từng dòng */}
-                {filteredGanttItems.map(item => {
-                  const coord = taskCoordinates[item.id];
-                  if (!coord || item.isGroup) return null;
-                  const rowCellRects = zoomLevel === 'month'
-                    ? monthColumns.flatMap((month, monthIndex) => Array.from({ length: month.days }, (_, dayIndex) => ({
-                        key: `day-cell-${item.id}-${monthIndex}-${dayIndex}`,
-                        x: month.left + dayIndex * pxPerDay,
-                        width: pxPerDay
-                      })))
-                    : monthColumns.flatMap((month, monthIndex) => Array.from({ length: 4 }, (_, weekIndex) => ({
-                        key: `week-cell-${item.id}-${monthIndex}-${weekIndex}`,
-                        x: month.left + month.width * weekIndex / 4,
-                        width: month.width / 4
-                      })));
-                  return rowCellRects.map(cell => (
-                    <rect
-                      key={cell.key}
-                      x={cell.x}
-                      y={coord.rowTop}
-                      width={cell.width}
-                      height={coord.rowHeight}
-                      fill="none"
-                      stroke="#cbd5e1"
-                      strokeOpacity="0.75"
-                      strokeWidth="0.7"
-                      shapeRendering="crispEdges"
-                      className="dark:stroke-slate-700"
-                    />
-                  ));
-                })}
-                {filteredGanttItems.map((_, idx) => (
-                  <line
-                    key={idx}
-                    x1="0"
-                    y1={rowOffsets[idx + 1]}
-                    x2={ganttWidth}
-                    y2={rowOffsets[idx + 1]}
-                    stroke="#e2e8f0"
-                    strokeWidth="1"
-                    className="dark:stroke-slate-800/60"
-                  />
-                ))}
+                <GanttRowGrid
+                  items={filteredGanttItems}
+                  coordinates={taskCoordinates}
+                  monthColumns={monthColumns}
+                  zoomLevel={zoomLevel}
+                  pxPerDay={pxPerDay}
+                  width={ganttWidth}
+                  height={chartBodyHeight}
+                  rowOffsets={rowOffsets}
+                />
 
                 {/* 2. HIỂN THỊ MŨI TÊN KẺ XUỐNG CÔNG VIỆC TIẾP THEO TRONG DỰ ÁN (FS Dependency) */}
                 {dependencyLines.map(line => {
@@ -2031,7 +2026,7 @@ export default function GanttPage() {
                       : [{ employeeName: item.assignee, startDate: item.startDate, endDate: item.endDate }])
                       .map((assignment, index) => {
                         return {
-                          key: `${item.id}-${assignment.employeeId || index}`,
+                          key: `${item.id}-assignment-${index}`,
                           employeeName: assignment.employeeName || item.assignee,
                           startDate: assignment.startDate || item.startDate,
                           endDate: assignment.endDate || item.endDate,
@@ -2252,6 +2247,17 @@ export default function GanttPage() {
             </div>
 
             <form onSubmit={handleEditSubmit} className="space-y-4">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Tên task
+                <input
+                  type="text"
+                  required
+                  maxLength={120}
+                  value={editForm.title}
+                  onChange={event => setEditForm(current => ({ ...current, title: event.target.value }))}
+                  className="mt-1 w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
+                />
+              </label>
               <div className="grid grid-cols-2 gap-3">
                 <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                   Ngày bắt đầu
@@ -2328,9 +2334,7 @@ export default function GanttPage() {
                 Mỗi người có khoảng thời gian đảm nhận riêng; các khoảng thời gian có thể trùng nhau.
               </p>
               {assignmentRows.map((assignment, index) => {
-                const availableEmployees = employees.filter(item =>
-                  item.id === assignment.employeeId || !assignmentRows.some(row => row.employeeId === item.id)
-                );
+                const availableEmployees = employees;
                 return (
                   <div key={`assignment-${index}`} className="rounded-xl border border-slate-200 dark:border-slate-700 p-3">
                     <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_180px_auto] gap-2 items-end">
@@ -2415,7 +2419,6 @@ export default function GanttPage() {
 
               <button
                 type="button"
-                disabled={assignmentRows.length >= employees.length}
                 onClick={() => {
                   setAssignmentRows(current => [...current, {
                     employeeId: '',

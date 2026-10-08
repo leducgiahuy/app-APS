@@ -1,23 +1,19 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { isTaskActiveOnDate } from '../../utils/date';
 import ModalOverlay from '../../components/layout/ModalOverlay';
+import { isTaskActiveOnDate } from '../../utils/date';
 import {
   Users,
   UserCheck,
-  UserX,
   Clock,
-  Briefcase,
   Plus,
   Search,
-  Phone,
-  Mail,
-  CheckCircle,
-  AlertTriangle,
   Flame,
-  Trash2,
   HardHat,
-  Filter
+  Filter,
+  Trash2,
+  Briefcase,
+  Phone,
 } from 'lucide-react';
 
 export default function HRPage() {

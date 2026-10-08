@@ -269,3 +269,7 @@ flowchart TD
 - Modal duoc portal vao `document.body` de fixed overlay khong bi transform hoac vung cuon cua `.app-shell` lam lech vi tri.
 - Cot Ghi chu co the sua cho task, giai doan va muc cong viec; frontend dung `GanttEditableWorkCell`, backend luu `ganttNote` tren group item trong `updateGanttItem`.
 - Trong `dependencyLines`, neu task trung gian nam trong khoang ngay chung cua hai task cung cap va hai task ngoai co cung ngay bat dau/ket thuc, them lien ket truc tiep giua hai task ngoai ben canh cac lien ket FS tuan tu.
+- `GanttPage.jsx` them class tam thoi vao `documentElement` de an cuon doc cap trang trong thoi gian trang Gantt mount; vung timeline tiep tuc quan ly cuon doc/ngang va class duoc go khi roi trang.
+- Bo loc cot Gantt nap va luu trang thai theo key `aps_gantt_visible_columns` trong `localStorage`, chi chap nhan gia tri boolean cho cac cot hien co va mac dinh hien cot moi neu chua co gia tri.
+- Danh sach assignees cho phep lap lai `employeeId`; frontend, `projectController.getGanttItems` va `taskController.getTasks` ghep tung lan theo thu tu, khong gop theo nhan su. Khi tinh Cong TT, moi assignment dong gop so ngay trong khoang nhan voi `estimatedHoursPerDay / 8`.
+- Form Chinh thoi gian cong viec co the doi ten task; `updateGanttItem` kiem tra ten, cap nhat Gantt item va dong bo ten sang task lien ket.

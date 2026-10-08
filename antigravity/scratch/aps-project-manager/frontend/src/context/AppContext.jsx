@@ -133,8 +133,10 @@ export function AppProvider({ children }) {
 
       // If getEmployees just initialized sessions for already-open shifts,
       // reload task data after that database write has completed.
-      if (empRes?.meta?.taskSessionsSyncedIds?.length) {
-        [taskRes, ganttRes] = await Promise.all([api.getTasks(), api.getGanttItems()]);
+      if (empRes?.meta?.taskSessionsSyncedIds?.length || empRes?.meta?.autoCheckedOutIds?.length) {
+        [taskRes, ganttRes, projRes, statRes] = await Promise.all([
+          api.getTasks(), api.getGanttItems(), api.getProjects(), api.getStats()
+        ]);
       }
 
       if (empRes?.data) setEmployees(empRes.data);
@@ -179,15 +181,18 @@ export function AppProvider({ children }) {
   }, [employees]);
 
   // Hành động: Chuyển trạng thái điểm danh nhân sự (On-site / Vắng mặt)
-  const toggleOnSite = async (id) => {
+  const toggleOnSite = async (id, shiftType = 'regular') => {
     try {
-      const res = await api.toggleOnSite(id);
+      const res = await api.toggleOnSite(id, shiftType);
       const employee = employees.find(item => item.id === id);
       recordActivity('employee.attendance', `${employee?.name || id}: ${res.data?.isOnSite ? 'có mặt tại văn phòng' : 'cập nhật điểm danh'}.`);
       showToast(res.message || 'Cập nhật trạng thái thành công');
       if (res.data) setEmployees(prev => prev.map(emp => emp.id === id ? { ...emp, ...res.data } : emp));
-    } catch {
-      showToast('Lỗi khi cập nhật trạng thái', 'error');
+      await refreshAllData();
+      return true;
+    } catch (err) {
+      showToast(err.message || 'Lỗi khi cập nhật trạng thái', 'error');
+      return false;
     }
   };
 
@@ -201,9 +206,9 @@ export function AppProvider({ children }) {
     }
   };
 
-  const setActiveTask = async (id, taskId) => {
+  const setActiveTask = async (id, taskId, shiftType = 'regular') => {
     try {
-      const res = await api.setActiveTask(id, taskId);
+      const res = await api.setActiveTask(id, taskId, shiftType);
       showToast(res.message || 'Đã chuyển công việc đang thực hiện');
       await refreshAllData();
       return true;

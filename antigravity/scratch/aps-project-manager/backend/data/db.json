@@ -24,19 +24,19 @@
       "phone": "0912345678",
       "email": "",
       "standardHours": 8,
-      "isOnSite": true,
+      "isOnSite": false,
       "isOnBreak": false,
-      "checkInAt": "2026-10-08T01:55:40.376Z",
-      "checkInTime": "08:55",
+      "checkInAt": null,
+      "checkInTime": null,
       "breakStartedAt": null,
       "totalBreakMs": 0,
       "workSessionStartedAt": null,
       "activeTaskId": null,
       "activeTaskTitle": null,
       "avatar": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80",
-      "lastShiftCheckInAt": "2026-10-07T07:46:32.054Z",
-      "lastShiftCheckOutAt": "2026-10-07T07:46:36.931Z",
-      "lastShiftCheckOutTime": "14:46"
+      "lastShiftCheckInAt": "2026-10-08T01:55:40.376Z",
+      "lastShiftCheckOutAt": "2026-10-08T06:55:11.135Z",
+      "lastShiftCheckOutTime": "13:55"
     },
     {
       "id": "emp-1791247978716",
@@ -47,16 +47,19 @@
       "phone": "0912345678",
       "email": "",
       "standardHours": 8,
-      "isOnSite": true,
+      "isOnSite": false,
       "isOnBreak": false,
-      "checkInAt": "2026-10-08T01:55:42.403Z",
-      "checkInTime": "08:55",
+      "checkInAt": null,
+      "checkInTime": null,
       "breakStartedAt": null,
       "totalBreakMs": 0,
       "workSessionStartedAt": null,
       "activeTaskId": null,
       "activeTaskTitle": null,
-      "avatar": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80"
+      "avatar": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80",
+      "lastShiftCheckInAt": "2026-10-08T01:55:42.403Z",
+      "lastShiftCheckOutAt": "2026-10-08T06:55:13.117Z",
+      "lastShiftCheckOutTime": "13:55"
     },
     {
       "id": "emp-1791248021248",
@@ -67,16 +70,19 @@
       "phone": "0912345678",
       "email": "",
       "standardHours": 8,
-      "isOnSite": true,
+      "isOnSite": false,
       "isOnBreak": false,
-      "checkInAt": "2026-10-08T01:55:44.534Z",
-      "checkInTime": "08:55",
+      "checkInAt": null,
+      "checkInTime": null,
       "breakStartedAt": null,
       "totalBreakMs": 0,
       "workSessionStartedAt": null,
       "activeTaskId": null,
       "activeTaskTitle": null,
-      "avatar": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80"
+      "avatar": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80",
+      "lastShiftCheckInAt": "2026-10-08T01:55:44.534Z",
+      "lastShiftCheckOutAt": "2026-10-08T06:55:18.575Z",
+      "lastShiftCheckOutTime": "13:55"
     },
     {
       "id": "emp-1791248046472",
@@ -109,31 +115,9 @@
       "title": "Khảo sát hiện trạng mặt bằng",
       "code": "A1.2",
       "parentGroupId": "G-1791215207730",
-      "employeeId": "emp-1791247951249",
-      "employeeName": "Hiếu",
-      "assignees": [
-        {
-          "employeeId": "emp-1791247951249",
-          "employeeName": "Hiếu",
-          "startDate": "2026-11-01",
-          "endDate": "2026-11-01",
-          "estimatedHoursPerDay": 8
-        },
-        {
-          "employeeId": "emp-1791247978716",
-          "employeeName": "Yến",
-          "startDate": "2026-11-03",
-          "endDate": "2026-11-03",
-          "estimatedHoursPerDay": 8
-        },
-        {
-          "employeeId": "emp-1791248021248",
-          "employeeName": "Duy",
-          "startDate": "2026-11-01",
-          "endDate": "2026-11-03",
-          "estimatedHoursPerDay": 8
-        }
-      ],
+      "employeeId": "",
+      "employeeName": "",
+      "assignees": [],
       "startDate": "2026-11-01",
       "endDate": "2026-11-03",
       "estimatedHours": 24,
@@ -230,7 +214,10 @@
       "priority": "high",
       "progress": 0,
       "notes": "",
-      "actualWorkloadNotes": ""
+      "actualWorkloadNotes": "hjgjyhg",
+      "completedAt": "2026-10-08T09:23:37.402Z",
+      "delayHours": 0,
+      "earlyHours": 0
     },
     {
       "id": "task-1791215999293",
@@ -984,7 +971,7 @@
       "projectId": "proj-1791194688389",
       "projectName": "NHÀ MÁY BETRAMEX - CÀNG LONG / VĨNH LONG",
       "phase": "A. THIẾT KẾ XÂY DỰNG",
-      "title": "Abc",
+      "title": "Ab",
       "code": "A1.1",
       "createdAt": "2026-10-07T03:04:26.479Z",
       "parentGroupId": "G-1791215207730",
@@ -1003,35 +990,22 @@
       "priority": "high",
       "progress": 0,
       "notes": ""
-    },
-    {
-      "id": "task-1791350215869",
-      "ganttId": "G-1791350215869",
-      "projectId": "proj-1791194688389",
-      "projectName": "NHÀ MÁY BETRAMEX - CÀNG LONG / VĨNH LONG",
-      "phase": "A. THIẾT KẾ XÂY DỰNG",
-      "title": "Test ",
-      "code": "A1.3",
-      "createdAt": "2026-10-07T05:16:55.869Z",
-      "parentGroupId": "G-1791215207730",
-      "employeeId": "",
-      "employeeName": "",
-      "assignees": [],
-      "startDate": "2026-11-02",
-      "endDate": "2026-11-03",
-      "estimatedHours": 16,
-      "estimatedHoursPerDay": 8,
-      "estimatedDays": 2,
-      "contractWork": null,
-      "ganttNote": "",
-      "status": "in_progress",
-      "speedStatus": "on_time",
-      "priority": "high",
-      "progress": 0,
-      "notes": ""
     }
   ],
-  "overtimes": [],
+  "overtimes": [
+    {
+      "id": "ot-1791429566254",
+      "taskId": "task-1791215460028",
+      "taskTitle": "Khảo sát hiện trạng mặt bằng",
+      "employeeId": "emp-1791247951249",
+      "employeeName": "Hiếu",
+      "hours": 2,
+      "date": "2026-10-08",
+      "reason": "4",
+      "approvedBy": "Trần Quốc Hưng (Chỉ huy trưởng)",
+      "status": "approved"
+    }
+  ],
   "ganttItems": [
     {
       "id": "G-1791215150469",
@@ -1080,7 +1054,7 @@
       "id": "G-1791342266479",
       "projectId": "proj-1791194688389",
       "code": "A1.1",
-      "title": "Abc",
+      "title": "Ab",
       "isGroup": false,
       "color": "#861b36",
       "unit": "TK",
@@ -1102,33 +1076,6 @@
       "dependencies": []
     },
     {
-      "id": "G-1791350215869",
-      "projectId": "proj-1791194688389",
-      "code": "A1.3",
-      "title": "Test ",
-      "isGroup": false,
-      "color": "#861b36",
-      "unit": "TK",
-      "startDate": "2026-11-02",
-      "endDate": "2026-11-03",
-      "createdAt": "2026-10-07T05:16:55.869Z",
-      "days": 2,
-      "estimatedHours": 16,
-      "estimatedHoursPerDay": 8,
-      "contractWork": null,
-      "ganttNote": "",
-      "assignee": "",
-      "parentGroupId": "G-1791215207730",
-      "assignees": [],
-      "notes": "",
-      "status": "in_progress",
-      "speed": "on_time",
-      "progress": 0,
-      "dependencies": [
-        "G-1791342266479"
-      ]
-    },
-    {
       "id": "G-1791215460009",
       "projectId": "proj-1791194688389",
       "code": "A1.2",
@@ -1141,31 +1088,9 @@
       "days": 3,
       "estimatedHours": 24,
       "estimatedHoursPerDay": 8,
-      "assignee": "Hiếu",
+      "assignee": "",
       "parentGroupId": "G-1791215207730",
-      "assignees": [
-        {
-          "employeeId": "emp-1791247951249",
-          "employeeName": "Hiếu",
-          "startDate": "2026-11-01",
-          "endDate": "2026-11-01",
-          "estimatedHoursPerDay": 8
-        },
-        {
-          "employeeId": "emp-1791247978716",
-          "employeeName": "Yến",
-          "startDate": "2026-11-03",
-          "endDate": "2026-11-03",
-          "estimatedHoursPerDay": 8
-        },
-        {
-          "employeeId": "emp-1791248021248",
-          "employeeName": "Duy",
-          "startDate": "2026-11-01",
-          "endDate": "2026-11-03",
-          "estimatedHoursPerDay": 8
-        }
-      ],
+      "assignees": [],
       "notes": "",
       "status": "completed",
       "speed": "early",
@@ -1279,11 +1204,11 @@
       "notes": "",
       "status": "completed",
       "speed": "early",
-      "progress": 100,
+      "progress": 0,
       "dependencies": [
         "G-1791215739830"
       ],
-      "completedAt": "2026-10-06T01:49:03.086Z",
+      "completedAt": "2026-10-08T09:23:37.402Z",
       "delayHours": 0,
       "earlyHours": 0
     },
@@ -2458,6 +2383,51 @@
     }
   ],
   "activityLog": [
+    {
+      "id": "6ae62854-8ef8-4d63-9472-6ca1bd1478a2",
+      "timestamp": "2026-10-08T09:23:37.447Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "task.update",
+      "details": "Cập nhật công việc Khoan KSĐC + lập báo cáo ĐCCT."
+    },
+    {
+      "id": "c74406bd-ee78-424c-8308-690c66e17ea9",
+      "timestamp": "2026-10-08T06:55:18.594Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "employee.attendance",
+      "details": "Duy: cập nhật điểm danh."
+    },
+    {
+      "id": "8e56d573-e3ee-478d-b342-ad69ddd269e5",
+      "timestamp": "2026-10-08T06:55:13.131Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "employee.attendance",
+      "details": "Yến: cập nhật điểm danh."
+    },
+    {
+      "id": "a6e30abd-66d7-4fc9-810d-4354d35b9892",
+      "timestamp": "2026-10-08T06:55:11.171Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "employee.attendance",
+      "details": "Hiếu: cập nhật điểm danh."
+    },
+    {
+      "id": "083b534e-db72-488d-ab75-a1f40f6326c9",
+      "timestamp": "2026-10-08T06:53:31.241Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "auth.login",
+      "details": "Đăng nhập thành công."
+    },
     {
       "id": "738c2516-63c1-4a29-b7ab-ecf5ad73fd4e",
       "timestamp": "2026-10-08T02:34:15.320Z",
