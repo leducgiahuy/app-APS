@@ -29,8 +29,12 @@ export function getTasks(req, res) {
         if (!assignments.length) return task;
         return {
           ...task,
-          assignees: assignments.map(assignment => {
-            const ganttAssignment = ganttAssignments.find(candidate => candidate.employeeId === assignment.employeeId);
+          assignees: assignments.map((assignment, assignmentIndex) => {
+            const occurrence = assignments
+              .slice(0, assignmentIndex + 1)
+              .filter(candidate => candidate.employeeId === assignment.employeeId).length - 1;
+            const ganttAssignment = ganttAssignments
+              .filter(candidate => candidate.employeeId === assignment.employeeId)[occurrence];
             const employee = (db.employees || []).find(candidate => candidate.id === assignment.employeeId);
             const estimatedHoursPerDay = Number(ganttAssignment?.estimatedHoursPerDay) ||
               Number(assignment.estimatedHoursPerDay) ||
@@ -330,7 +334,8 @@ export function updateTask(req, res) {
         employeeName: sessionEmployee?.name || task.employeeName,
         startAt: completedSessionStartAt,
         endAt: new Date().toISOString(),
-        hours: Math.round(elapsed * 100) / 100
+        hours: Math.round(elapsed * 100) / 100,
+        shiftType: sessionEmployee?.shiftType === 'overtime' ? 'overtime' : 'regular'
       });
     }
     task.workSessionStartedAt = null;

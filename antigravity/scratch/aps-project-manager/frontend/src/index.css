@@ -4,6 +4,7 @@
 
 @layer base {
   html { min-width: 320px; min-height: 100%; overflow-y: scroll; scrollbar-gutter: stable; background: #f5f3ef; }
+  html.gantt-no-page-scroll { overflow-y: hidden; scrollbar-gutter: auto; }
   body { min-width: 320px; min-height: 100vh; margin: 0; color: #342f30; background: #f5f3ef; font-family: 'Segoe UI', Arial, sans-serif; }
   button, input { font: inherit; }
   ::selection { color: #4b1727; background: #f0d99f; }

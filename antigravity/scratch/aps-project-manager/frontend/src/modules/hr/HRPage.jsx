@@ -1,21 +1,14 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { isTaskActiveOnDate } from '../../utils/date';
 import ModalOverlay from '../../components/layout/ModalOverlay';
+import EmployeeCard from './EmployeeCard';
 import {
   Users,
   UserCheck,
-  UserX,
   Clock,
-  Briefcase,
   Plus,
   Search,
-  Phone,
-  Mail,
-  CheckCircle,
-  AlertTriangle,
   Flame,
-  Trash2,
   HardHat,
   Filter
 } from 'lucide-react';
@@ -30,7 +23,8 @@ export default function HRPage() {
     setActiveTask,
     addEmployee,
     deleteEmployee,
-    selectedDate
+    selectedDate,
+    currentTime
   } = useApp();
 
   // Bộ lọc và tìm kiếm
@@ -202,245 +196,21 @@ export default function HRPage() {
 
       {/* Lưới danh sách nhân sự (Personnel Cards Grid) */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-        {filteredEmployees.map((emp) => {
-          const activeTasks = allTasks.filter(task => {
-            if (Array.isArray(task.assignees) && task.assignees.length > 0) {
-              return task.assignees.some(assignment => {
-                const assignedById = assignment.employeeId === emp.id;
-                const assignedByName = (assignment.employeeName || '').trim().toLowerCase() === emp.name.trim().toLowerCase();
-                const assignmentTask = {
-                  startDate: assignment.startDate || task.startDate,
-                  endDate: assignment.endDate || task.endDate
-                };
-                return (assignedById || assignedByName) && isTaskActiveOnDate(assignmentTask, selectedDate);
-              });
-            }
-            const assignedById = task.employeeId === emp.id;
-            const assignedByName = (task.employeeName || '').trim().toLowerCase() === emp.name.trim().toLowerCase();
-            return (assignedById || assignedByName) && isTaskActiveOnDate(task, selectedDate);
-          });
-          const dailyOtHours = overtimes
-            .filter(ot => (ot.employeeId === emp.id || (ot.employeeName || '').trim().toLowerCase() === emp.name.trim().toLowerCase()) && String(ot.date || '').slice(0, 10) === selectedDateKey && (!ot.status || ot.status === 'approved'))
-            .reduce((sum, ot) => sum + (Number(ot.hours) || 0), 0);
-          const checkInDate = emp.checkInAt ? new Date(emp.checkInAt) : null;
-          const checkInDateLabel = checkInDate && Number.isFinite(checkInDate.getTime())
-            ? checkInDate.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
-            : '';
-          const handleOnSiteAction = () => {
-            if (!emp.isOnSite) {
-              if (activeTasks.length > 0 && !activeTasks.some(task => task.id === emp.activeTaskId && task.status !== 'completed')) {
-                window.alert('Hãy chọn task muốn bắt đầu trước khi vào công trường.');
-                return;
-              }
-              toggleOnSite(emp.id);
-              return;
-            }
-
-            const checkInTimestamp = Date.parse(emp.checkInAt || '');
-            if (Number.isFinite(checkInTimestamp)) {
-              const now = new Date();
-              const checkIn = new Date(checkInTimestamp);
-              const shiftDateKey = `${checkIn.getFullYear()}-${String(checkIn.getMonth() + 1).padStart(2, '0')}-${String(checkIn.getDate()).padStart(2, '0')}`;
-              const shiftOtHours = overtimes
-                .filter(ot =>
-                  (ot.employeeId === emp.id || (ot.employeeName || '').trim().toLowerCase() === emp.name.trim().toLowerCase()) &&
-                  String(ot.date || '').slice(0, 10) === shiftDateKey &&
-                  (!ot.status || ot.status === 'approved')
-                )
-                .reduce((sum, ot) => sum + (Number(ot.hours) || 0), 0);
-              const breakStartedTimestamp = Date.parse(emp.breakStartedAt || '');
-              const activeBreakMs = emp.isOnBreak && Number.isFinite(breakStartedTimestamp)
-                ? Math.max(0, now.getTime() - breakStartedTimestamp)
-                : 0;
-              const workedMinutes = Math.max(0, Math.floor((
-                now.getTime() - checkInTimestamp - (Number(emp.totalBreakMs) || 0) - activeBreakMs
-              ) / 60000));
-              const requiredMinutes = Math.ceil(((Number(emp.standardHours) || 8) + shiftOtHours) * 60);
-
-              if (workedMinutes < requiredMinutes) {
-                const formatDuration = minutes => `${Math.floor(minutes / 60)} giờ ${minutes % 60} phút`;
-                const remaining = requiredMinutes - workedMinutes;
-                const confirmed = window.confirm(
-                  `${emp.name} mới làm ${formatDuration(workedMinutes)}, còn thiếu ${formatDuration(remaining)} theo giờ ca và OT đã duyệt. Bạn có chắc chắn muốn rời công trường và kết thúc ca không?`
-                );
-                if (!confirmed) return;
-              }
-            }
-
-            toggleOnSite(emp.id);
-          };
-          return (
-            <div
-              key={emp.id}
-              className={`p-5 rounded-2xl bg-white dark:bg-slate-900 border transition-all duration-200 shadow-sm hover:shadow-md relative overflow-hidden flex flex-col justify-between
-                ${emp.isOnSite
-                  ? 'border-emerald-500/40 dark:border-emerald-500/30 ring-1 ring-emerald-500/20'
-                  : 'border-slate-200 dark:border-slate-800'
-                }
-              `}
-            >
-              {/* Header của Card: Avatar, Tên, Mã NV, Chức danh */}
-              <div>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3.5">
-                    <img
-                      src={emp.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80'}
-                      alt={emp.name}
-                      className="w-13 h-13 rounded-2xl object-cover border-2 border-slate-200 dark:border-slate-700 shadow-sm"
-                    />
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-bold text-base text-slate-900 dark:text-white">
-                          {emp.name}
-                        </h3>
-                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
-                          {emp.code}
-                        </span>
-                      </div>
-                      <p className="text-xs font-semibold text-sky-600 dark:text-sky-400 mt-0.5">
-                        {emp.title}
-                      </p>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                        {emp.team}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Nút xóa nhân viên */}
-                  <button
-                    onClick={() => deleteEmployee(emp.id)}
-                    title="Xóa nhân sự"
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-
-                {/* Huy hiệu: SỐ LƯỢNG TASK ĐANG ĐẢM NHẬN BÊN DƯỚI TÊN */}
-                <div className="mt-4 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/60">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1.5 font-medium">
-                      <Briefcase className="w-3.5 h-3.5 text-sky-500" />
-                      Công việc phụ trách:
-                    </span>
-                    <span className="font-bold text-sky-600 dark:text-sky-400 px-2 py-0.5 rounded-full bg-sky-500/10">
-                      {activeTasks.length} task
-                    </span>
-                  </div>
-
-                  {/* Danh sách các task dưới dạng tag */}
-                  {activeTasks.length > 0 ? (
-                    <div className="mt-2 space-y-1">
-                      {activeTasks.map((t, idx) => (
-                        <div
-                          key={idx}
-                          className="text-[11px] text-slate-700 dark:text-slate-300 truncate flex items-center gap-1.5"
-                        >
-                          <span className="w-1.5 h-1.5 rounded-full bg-sky-500 flex-shrink-0" />
-                          <span className="truncate">{t.title}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="mt-1 text-[11px] text-slate-400 italic">Chưa được giao task</p>
-                  )}
-                  {activeTasks.length > 0 && (
-                    <div className="mt-3 border-t border-slate-200/70 pt-2 dark:border-slate-700/70">
-                      <label className="mb-1 block text-[10px] font-semibold text-slate-500 dark:text-slate-400">
-                        Task đang thực hiện
-                      </label>
-                      <select
-                        value={activeTasks.some(task => task.id === emp.activeTaskId && task.status !== 'completed') ? emp.activeTaskId : ''}
-                        onChange={event => setActiveTask(emp.id, event.target.value)}
-                        className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-700 outline-none focus:border-sky-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-                      >
-                        <option value="">-- Chọn task --</option>
-                        {activeTasks.filter(task => task.status !== 'completed').map(task => (
-                          <option key={task.id} value={task.id}>{task.code} · {task.title}</option>
-                        ))}
-                      </select>
-                      {emp.activeTaskId && !emp.isOnBreak && emp.isOnSite && (
-                        <p className="mt-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">Đang tính giờ: {emp.activeTaskTitle || activeTasks.find(task => task.id === emp.activeTaskId)?.title}</p>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Giờ làm việc chuẩn & Tăng ca */}
-                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                  <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                    <span className="text-slate-400 text-[10px] block">Ca chuẩn</span>
-                    <span className="font-bold">{emp.standardHours || 8}h / ngày</span>
-                  </div>
-                  <div className="p-2 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
-                    <span className="text-amber-500/70 text-[10px] block">Tăng ca (OT)</span>
-                    <span className="font-bold">{dailyOtHours > 0 ? `+${dailyOtHours}h` : '—'}</span>
-                  </div>
-                </div>
-
-                {/* Thông tin liên hệ */}
-                <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400 space-y-1">
-                  <div className="flex items-center gap-2">
-                    <Phone className="w-3.5 h-3.5 text-slate-400" />
-                    <span>{emp.phone || 'Chưa có SĐT'}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Chân Card: Trạng thái On-Site & Nút Chuyển Đổi Nhanh */}
-              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`w-2.5 h-2.5 rounded-full ${
-                      emp.isOnBreak ? 'bg-amber-500' : emp.isOnSite ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'
-                    }`}
-                  />
-                  <div className="flex flex-col">
-                    <span
-                      className={`text-xs font-bold ${
-                        emp.isOnBreak ? 'text-amber-600 dark:text-amber-400' : emp.isOnSite ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500'
-                      }`}
-                    >
-                      {emp.isOnBreak ? 'Đang tạm nghỉ' : emp.isOnSite ? 'Tại công trường' : 'Vắng mặt'}
-                    </span>
-                    {emp.isOnSite && emp.checkInTime && (
-                      <span className="text-[10px] text-slate-400">
-                        Vào ca: {emp.checkInTime}{checkInDateLabel ? ` · ${checkInDateLabel}` : ''}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Nút Toggle Điểm danh */}
-                <div className="flex items-center gap-2">
-                  {emp.isOnSite && (
-                    <button
-                      onClick={() => toggleBreak(emp.id)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                        emp.isOnBreak
-                          ? 'bg-sky-50 text-sky-700 hover:bg-sky-100 dark:bg-sky-950/40 dark:text-sky-300'
-                          : 'bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-300'
-                      }`}
-                    >
-                      {emp.isOnBreak ? 'Tiếp tục' : 'Tạm nghỉ'}
-                    </button>
-                  )}
-                  <button
-                    onClick={handleOnSiteAction}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                      emp.isOnSite
-                        ? 'bg-rose-50 text-rose-600 hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-300'
-                        : 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-sm'
-                    }`}
-                  >
-                    {emp.isOnSite ? 'Rời công trường' : 'Vào công trường'}
-                  </button>
-                </div>
-              </div>
-
-            </div>
-          );
-        })}
+        {filteredEmployees.map((emp) => (
+          <EmployeeCard
+            key={emp.id}
+            emp={emp}
+            allTasks={allTasks}
+            overtimes={overtimes}
+            selectedDate={selectedDate}
+            selectedDateKey={selectedDateKey}
+            currentTime={currentTime}
+            toggleOnSite={toggleOnSite}
+            toggleBreak={toggleBreak}
+            setActiveTask={setActiveTask}
+            deleteEmployee={deleteEmployee}
+          />
+        ))}
       </div>
 
       {/* Modal: Tạo Nhân Sự Mới */}

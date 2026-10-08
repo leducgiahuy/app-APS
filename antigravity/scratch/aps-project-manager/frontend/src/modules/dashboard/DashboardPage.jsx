@@ -72,14 +72,16 @@ export default function DashboardPage() {
         if (!employee) return;
         const id = employee.id;
         const person = team.get(id) || { id, name: employee.name, hours: 0, overtime: 0, tracked: false, addedLater: false };
-        person.hours += Number(entry.hours) || 0;
-        person.tracked = true;
+        if (entry.shiftType !== 'overtime') {
+          person.hours += Number(entry.hours) || 0;
+          person.tracked = true;
+        }
         team.set(id, person);
       });
 
       // Display the currently running work session without waiting for checkout.
       const activeEmployee = employees.find((employee) => employee.activeTaskId === task.id && employee.workSessionStartedAt);
-      if (activeEmployee) {
+      if (activeEmployee && activeEmployee.shiftType !== 'overtime') {
         const person = team.get(activeEmployee.id) || { id: activeEmployee.id, name: activeEmployee.name, hours: 0, overtime: 0, tracked: true, addedLater: false };
         person.hours += Math.max(0, (currentTime.getTime() - Date.parse(activeEmployee.workSessionStartedAt)) / 3600000);
         person.tracked = true;

@@ -153,6 +153,15 @@ Chi tiết luồng dữ liệu, tên trường lưu và vị trí mã nguồn đ
 - `backend/data/seed.json` được giữ lại làm dữ liệu fallback khi khởi tạo/khôi phục cơ sở dữ liệu; không xóa file seed khi dọn dữ liệu đang chạy.
 - Các trường phase cũ không còn dùng đã được gỡ khỏi một số task trong `backend/data/db.json` theo xác nhận; không áp dụng việc dọn này lên `seed.json`.
 
+### Ca chuẩn và tăng ca trên thẻ nhân sự
+
+- Bấm **Ca chuẩn** hoặc **Tăng ca (OT)** để xem task của đúng nhân sự và ngày đang chọn. Task tăng ca lấy từ các phiếu OT đã duyệt; cùng một task có thể xuất hiện ở cả hai ca nếu được phân công và đăng ký OT.
+- Chọn task rồi bấm **Vào công trường** cho ca chuẩn hoặc **Tăng ca** (nút vàng) cho ca OT. OT chỉ bắt đầu từ **18:00 thứ Hai–thứ Sáu**, **13:30 thứ Bảy**, theo giờ Việt Nam; bấm sớm sẽ báo chưa tới giờ. Chủ nhật chưa mở ca OT.
+- **Tạm nghỉ / Tiếp tục** dừng và tiếp tục ghi giờ task. **Rời văn phòng** kết thúc ca OT và cảnh báo nếu chưa đủ số giờ OT đã duyệt, đã trừ thời gian nghỉ. Ca chuẩn dùng định mức giờ/ngày riêng của nhân sự.
+- Xem ngày trước/sau chỉ đổi danh sách task; vào ca và chọn task áp dụng cho hôm nay. Muốn làm ca khác cần kết thúc ca hiện tại. Backend cũng kiểm tra loại ca và mốc giờ.
+- Giờ task được đồng bộ sang Gantt, lưu loại ca trong từng đoạn giờ làm; dữ liệu liên quan được tải lại sau thao tác ca. Kiểm thử bằng `cd backend` rồi `npm.cmd test` (dùng dữ liệu giả trong bộ nhớ).
+- Khi cập nhật mã, khởi động lại backend đang chạy từ `start-all.bat`, rồi tải lại trang web.
+
 ## Ghi chu cap nhat Gantt (tong hop thay doi 06-07/10/2026)
 
 - Bang Gantt co bo loc an/hien cot, cot ngay tao chi hien ngay thang nam, cac cot duoc can thang hang va co the thu hep vung bang de mo rong bieu do.
@@ -166,3 +175,7 @@ Chi tiết luồng dữ liệu, tên trường lưu và vị trí mã nguồn đ
 - Modal Gantt duoc portal truc tiep vao `document.body` de vi tri giua man hinh khong bi anh huong boi transform/cuon ngang cua `.app-shell`; body van duoc khoa cuon khi modal mo.
 - Cot Ghi chu cho phep sua tren task, giai doan va muc cong viec. Ghi chu cua hang giai doan/muc duoc luu tren Gantt item qua `updateGanttItem` va tai lai tu API.
 - Khi co task chen giua hai task cung cap co cung ngay bat dau/ket thuc, bieu do van hien lien ket truc tiep giua hai task ngoai, dong thoi giu cac lien ket FS tuan tu qua task chen giua.
+- O trang Gantt, an thanh cuon doc cua trang khi Gantt dang mo de chi con mot thanh cuon doc ben trong bang/timeline; tu dong khoi phuc thanh cuon trang khi roi Gantt.
+- Trang thai tich/bo tich tung cot trong bo loc Gantt duoc luu vao `localStorage` va nap lai khi quay ve trang.
+- Phan cong Gantt cho phep cung mot nhan su co nhieu khoang dam nhan; backend doc/luu rieng tung lan theo thu tu. O Chinh thoi gian cong viec co them truong sua ten task va dong bo ten sang task lien ket.
+- Cong TT tren Gantt tinh theo gio phan cong chia cho 8 gio/cong, bao gom ca cong tong tren hang nhom va du an; vi du 4 gio/ngay duoc tinh la 0.5 cong/ngay.
