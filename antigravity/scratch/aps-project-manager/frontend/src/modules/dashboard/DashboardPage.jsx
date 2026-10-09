@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { AlertTriangle, CalendarDays, Clock3, Search, Send } from 'lucide-react';
+import { AlertTriangle, CalendarDays, Search, Send } from 'lucide-react';
 import { inclusiveDays, taskDelayHours } from '../../utils/date';
 import { summarizeProjectGantt } from '../../utils/projectGanttSummary';
 import ProjectDepartmentList from './ProjectDepartmentList';
@@ -193,11 +193,6 @@ export default function DashboardPage() {
 
   return (
     <div className="aps-dashboard">
-      <header className="dashboard-heading">
-        <div><p className="dashboard-eyebrow">APS VIỆT NAM · BÁO CÁO DỰ ÁN</p><h1>Thống kê & Báo cáo</h1></div>
-        <div className="dashboard-date"><Clock3 size={15} />{new Intl.DateTimeFormat('vi-VN', { dateStyle: 'long' }).format(currentTime)}</div>
-      </header>
-
       {/* Company-wide project directory; selecting a row updates the detail panel above. */}
       <section className="dashboard-card all-projects-card" aria-label="Tất cả dự án của công ty">
         <div className="all-projects-heading">

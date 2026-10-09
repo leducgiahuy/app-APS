@@ -1,5 +1,5 @@
 /* Dashboard split view: company progress visualization beside the selected project report. */
-.aps-dashboard { --dash-accent:#861b36; --dash-green:#16835d; --dash-blue:#3978c5; --dash-gold:#bd8418; --dash-red:#c34d53; --dash-ink:#342f30; --dash-muted:#777174; --dash-line:#e8e3dc; --dash-surface:#fbfaf8; --dash-soft:#f5f2ed; --chart-track:#e9e5df; width:100%; min-height:100%; padding:24px clamp(16px,2vw,30px) 30px; color:var(--dash-ink); }
+.aps-dashboard { --dash-accent:#861b36; --dash-green:#16835d; --dash-blue:#3978c5; --dash-gold:#bd8418; --dash-red:#c34d53; --dash-ink:#342f30; --dash-muted:#777174; --dash-line:#e8e3dc; --dash-surface:#fbfaf8; --dash-soft:#f5f2ed; --chart-track:#e9e5df; width:100%; min-height:100%; padding:0 0 30px; color:var(--dash-ink); }
 .dashboard-heading { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:18px; }.dashboard-eyebrow { margin:0 0 5px; color:var(--dash-accent); font-size:9px; font-weight:800; letter-spacing:.13em; }.dashboard-heading h1 { margin:0; font-size:25px; line-height:1.2; font-weight:750; letter-spacing:-.03em; }.dashboard-subtitle { margin:6px 0 0; color:var(--dash-muted); font-size:12px; }.dashboard-date { display:inline-flex; align-items:center; gap:7px; padding:8px 10px; border:1px solid var(--dash-line); border-radius:9px; color:var(--dash-muted); background:var(--dash-surface); font-size:10px; white-space:nowrap; }
 .dashboard-card { min-width:0; border:1px solid var(--dash-line); border-radius:11px; background:var(--dash-surface); box-shadow:0 2px 7px rgb(57 42 39 / 4%); }.project-overview-layout { margin-top:14px; display:grid; grid-template-columns:minmax(0,1fr); overflow:hidden; }.project-overview-left { min-width:0; padding:16px; }.project-overview-right { min-width:0; padding:16px; border-top:1px solid var(--dash-line); }
 .company-overview-heading { display:flex; align-items:center; justify-content:space-between; gap:10px; padding-bottom:11px; border-bottom:1px solid var(--dash-line); }.company-overview-heading h2 { margin:0; color:var(--dash-ink); font-size:13px; font-weight:730; }.company-overview-heading p { margin:4px 0 0; color:var(--dash-muted); font-size:9px; }.company-overview-heading > span { display:inline-flex; align-items:center; gap:5px; padding:6px 8px; border-radius:7px; color:var(--dash-muted); background:var(--dash-soft); font-size:8px; white-space:nowrap; }.company-overview-heading > span strong { color:var(--dash-accent); font-size:12px; }
@@ -11,7 +11,7 @@
 html.dark .aps-dashboard { --dash-ink:#f0ebea; --dash-muted:#c9c0be; --dash-line:#5c5251; --dash-surface:#393536; --dash-soft:#454041; --dash-accent:#d0788b; --dash-green:#70c5a0; --dash-blue:#83afe1; --dash-gold:#edc15b; --dash-red:#e58a8d; --chart-track:#51494a; }
 @media (max-width:1100px) { .project-overview-layout { grid-template-columns:minmax(0,1fr); }.selected-project-heading { align-items:flex-start; flex-direction:column; }.selected-project-actions { width:100%; }.project-search { flex:1; width:auto; } }
 @media (max-width:800px) { .project-overview-layout { grid-template-columns:minmax(0,1fr); }.project-overview-chart-area { grid-template-columns:repeat(2,minmax(0,1fr)); }.company-progress-chart { width:158px; height:158px; }.company-metrics { grid-template-columns:repeat(3,minmax(0,1fr)); } }
-@media (max-width:560px) { .aps-dashboard { padding:17px 12px 22px; }.dashboard-heading { align-items:flex-start; flex-direction:column; gap:9px; }.dashboard-heading h1 { font-size:22px; }.project-overview-left,.project-overview-right { padding:13px 12px; }.project-overview-chart-area { grid-template-columns:repeat(2,minmax(0,1fr)); gap:11px; }.company-progress-chart { width:132px; height:132px; }.company-metrics { grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; }.overview-number { min-height:59px; padding:7px 6px; }.overview-number span { font-size:7px; }.overview-number strong { font-size:15px; }.overview-number em { font-size:6px; }.selected-project-actions { align-items:stretch; flex-wrap:wrap; }.project-search { flex-basis:100%; }.project-metrics { gap:5px; }.project-metrics > div { min-height:58px; padding:7px; }.project-metrics strong { font-size:15px; }.employee-report-row { grid-template-columns:20px minmax(55px,1fr) 39px 35px; gap:5px; } }
+@media (max-width:560px) { .aps-dashboard { padding:0 0 22px; }.dashboard-heading { align-items:flex-start; flex-direction:column; gap:9px; }.dashboard-heading h1 { font-size:22px; }.project-overview-left,.project-overview-right { padding:13px 12px; }.project-overview-chart-area { grid-template-columns:repeat(2,minmax(0,1fr)); gap:11px; }.company-progress-chart { width:132px; height:132px; }.company-metrics { grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; }.overview-number { min-height:59px; padding:7px 6px; }.overview-number span { font-size:7px; }.overview-number strong { font-size:15px; }.overview-number em { font-size:6px; }.selected-project-actions { align-items:stretch; flex-wrap:wrap; }.project-search { flex-basis:100%; }.project-metrics { gap:5px; }.project-metrics > div { min-height:58px; padding:7px; }.project-metrics strong { font-size:15px; }.employee-report-row { grid-template-columns:20px minmax(55px,1fr) 39px 35px; gap:5px; } }
 
 /* Keep the chart as the visual focus and place company metrics beneath it. */
 .project-overview-chart-area { grid-template-columns:repeat(2,minmax(0,1fr)); justify-items:center; gap:15px; }.project-overview-chart-area .company-metrics { grid-column:1 / -1; }
@@ -114,7 +114,7 @@ html.dark .aps-dashboard { --dash-ink:#f0ebea; --dash-muted:#c9c0be; --dash-line
 .all-project-progress strong,.all-project-status { font-size:12px; }
 
 /* Scannable company-wide project list with selection linked to the detail pane. */
-.all-projects-card { margin-top:14px; padding:16px; }
+.all-projects-card { margin-top:0; padding:16px; }
 .all-projects-heading { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
 .all-projects-heading h2 { margin:0; color:var(--dash-ink); font-size:19px; font-weight:750; }
 .all-projects-heading p { margin:4px 0 0; color:var(--dash-muted); font-size:11px; }
@@ -140,3 +140,20 @@ html.dark .aps-dashboard { --dash-ink:#f0ebea; --dash-muted:#c9c0be; --dash-line
 .all-project-status.delayed,.all-project-status.overdue { color:var(--dash-red); background:color-mix(in srgb,var(--dash-red) 12%,var(--dash-surface)); }
 @media (max-width:800px) { .all-project-row { grid-template-columns:minmax(130px,1fr) minmax(100px,.8fr) 110px; gap:9px; }.all-project-deadline,.all-project-tasks { display:none; } }
 @media (max-width:560px) { .all-projects-card { padding:13px 10px; }.all-projects-heading { align-items:stretch; flex-direction:column; gap:9px; }.all-projects-search { width:100%; }.all-project-row { grid-template-columns:minmax(100px,1fr) minmax(80px,.8fr); gap:8px; }.all-project-status { grid-column:2; grid-row:1; justify-self:end; }.all-project-progress { grid-column:1 / -1; }.all-project-name strong { font-size:11px; } }
+
+/* Report frames fill the page below the shared application header. */
+.aps-dashboard .dashboard-card,
+.aps-dashboard .department-card,
+.aps-dashboard .task-distribution-panel,
+.aps-dashboard .overview-number,
+.aps-dashboard .project-metrics > div,
+.aps-dashboard .outcome-metric { border-radius:0; }
+
+/* Keep the directory visible while project reports scroll independently.
+   A long directory gets its own scroll area without consuming the full screen. */
+.app-fixed-controls .app-dashboard-scroll { overflow:hidden; }
+.app-dashboard-scroll .aps-dashboard { display:flex; flex-direction:column; height:100%; min-height:0; padding:0; }
+.app-dashboard-scroll .all-projects-card { display:flex; flex-direction:column; flex:0 0 auto; max-height:45%; min-height:0; }
+.app-dashboard-scroll .all-projects-heading { flex-shrink:0; }
+.app-dashboard-scroll .all-projects-list { min-height:0; overflow:auto; }
+.app-dashboard-scroll .project-overview-layout { flex:1 1 0; min-height:0; overflow:auto; align-content:start; }

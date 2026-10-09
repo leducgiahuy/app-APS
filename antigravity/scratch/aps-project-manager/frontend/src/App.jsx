@@ -16,7 +16,7 @@ import { getCurrentUser } from './modules/auth/authSession';
 
 function MainLayout() {
   const { activeTab, sidebarCollapsed } = useApp();
-  const fixedControls = ['hr', 'tasks', 'activity', 'workload'].includes(activeTab);
+  const fixedControls = ['hr', 'tasks', 'activity', 'workload', 'dashboard'].includes(activeTab);
   useEffect(() => {
     if (!fixedControls) return undefined;
     document.documentElement.classList.add('fixed-controls-page');
@@ -28,7 +28,7 @@ function MainLayout() {
       <Sidebar />
       <div className={`app-content-column flex-1 flex flex-col transition-all duration-300 ${sidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72'}`}>
         <Header />
-        <main key={activeTab} className={`app-page-scroll ${activeTab === 'activity' ? 'app-activity-scroll' : ''} flex-1 w-full animate-fade-in ${activeTab === 'workload' || activeTab === 'gantt' || activeTab === 'tasks' || activeTab === 'hr' || activeTab === 'dashboard' || activeTab === 'activity' ? 'max-w-none mx-0 p-0' : 'p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto'}`}>
+        <main key={activeTab} className={`app-page-scroll ${activeTab === 'activity' ? 'app-activity-scroll' : activeTab === 'dashboard' ? 'app-dashboard-scroll' : ''} flex-1 w-full animate-fade-in ${activeTab === 'workload' || activeTab === 'gantt' || activeTab === 'tasks' || activeTab === 'hr' || activeTab === 'dashboard' || activeTab === 'activity' ? 'max-w-none mx-0 p-0' : 'p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto'}`}>
           {activeTab === 'hr' && <HRPage />}
           {activeTab === 'workload' && <WorkloadPage />}
           {activeTab === 'tasks' && <TasksPage />}
