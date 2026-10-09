@@ -233,7 +233,7 @@ export function createTask(req, res) {
 export function updateTask(req, res) {
   const db = readDb();
   const { id } = req.params;
-  const { status, progress, speedStatus, notes, startDate, endDate, estimatedDays, estimatedHours, estimatedHoursPerDay } = req.body;
+  const { status, progress, actualWorkloadNotes, speedStatus, notes, startDate, endDate, estimatedDays, estimatedHours, estimatedHoursPerDay } = req.body;
 
   const task = db.tasks.find(t => t.id === id);
   if (!task) {
@@ -244,6 +244,7 @@ export function updateTask(req, res) {
   const previousEndDate = task.endDate;
   if (status !== undefined) task.status = status;
   if (progress !== undefined) task.progress = Number(progress);
+  if (actualWorkloadNotes !== undefined) task.actualWorkloadNotes = String(actualWorkloadNotes).slice(0, 5000);
   if (speedStatus !== undefined) task.speedStatus = speedStatus;
   if (notes !== undefined) task.notes = notes;
   if (estimatedHours !== undefined) {

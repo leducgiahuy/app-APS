@@ -1,4 +1,18 @@
 # TÀI LIỆU KIẾN TRÚC MÃ NGUỒN (ARCHITECTURE GUIDE)
+
+## Cập nhật ngày 08/10/2026
+
+- `SearchableSelect.jsx` và `utils/searchOptions.js` bổ sung danh sách chọn có thể gõ tìm, hỗ trợ tên tiếng Việt có/không dấu, STT và từ khóa giai đoạn/mục cha. Áp dụng cho task trong phiếu OT, mục công việc khi tạo task, liên kết FS trước/sau và giai đoạn khi tạo mục. Danh sách lấy từ state hiện tại nên dữ liệu mới xuất hiện ngay; chỉ chọn ID sẵn có, giữ callback lưu và các điều kiện khóa/lọc cũ. Danh sách nổi dùng portal, hỗ trợ phím mũi tên/Enter/Escape và cuộn khi có nhiều task.
+- Các bảng **tạo** task/task con, mục, dự án, phiếu OT và nhân sự dùng `ModalOverlay allowBackgroundScroll`: không khóa body, chuyển thao tác cuộn sang trang hoặc vùng Gantt phía sau khi bảng không cần cuộn. Bảng dài ưu tiên cuộn bên trong; dropdown có vùng cuộn riêng. Các bảng chỉnh sửa khác giữ cơ chế cũ. Ghi chú này thay thế mô tả khóa cuộn cho bảng tạo trong các mục lịch sử bên dưới.
+- `HRPage.jsx` dùng lại `EmployeeCard.jsx` để chọn task riêng cho ca chuẩn/OT. `regularClockInDateWarning` kiểm tra ngày bắt đầu theo phân công của nhân sự mỗi lần vào văn phòng, áp dụng cả task mới; cảnh báo chưa tới ngày và giữ khả năng chọn task khác hợp lệ hôm nay.
+
+- `LoginPage.jsx`: hai nhãn trên trang đăng nhập đổi thành **QUẢN LÝ VĂN PHÒNG** và **VĂN PHÒNG ĐANG HOẠT ĐỘNG**.
+- `DashboardPage.jsx`: ô **Tổng thời gian dự án** thay ô **Công dự kiến**, dùng `inclusiveDays(startDate, endDate)` như cột Ngày của dự án trên Gantt, tính cả hai ngày đầu/cuối. Ví dụ 26/10/2026–07/06/2027 là **225 ngày**; dưới ô hiển thị hai mốc ngày, thiếu mốc ngày thì hiển thị dấu gạch.
+- Ô **Công thực tế theo tiến độ** cộng giá trị **CÔNG TT** của các task thuộc dự án bằng `calculatePlannedPersonDays` đang dùng ở `GanttWorkColumns.jsx`. Bỏ nhóm, ngày nghỉ và task cha có task con để không cộng trùng. Cột Gantt hiện tính theo các khoảng phân công × giờ/ngày ÷ 8; lần chỉnh này giữ nguyên công thức đó. Các chỉ số giờ đã làm, công khi kết thúc, tiến độ và nghiệp vụ ca làm giữ cách tính hiện có.
+- Xóa nhân sự đồng bộ phân công Task/Gantt qua `employeeAssignments.js` và `models/db.js`; tải lại dữ liệu chung sau khi xóa trong `AppContext.jsx`. Tham chiếu nhân sự đã mất trong dữ liệu cũ được dọn ở lần đọc tiếp theo, giữ task và người cùng đảm nhận. Chi tiết dữ liệu đang chạy nằm trong `DATA_STORAGE.md`.
+- Ca chuẩn/OT có kiểm tra mốc giờ Việt Nam, dừng/tiếp tục ghi giờ khi nghỉ, đồng bộ phiên task với Gantt và tự kết thúc ca theo giờ được phép. Bộ kiểm thử backend hiện bao gồm các tình huống ca làm và dọn phân công khi xóa nhân sự.
+- Dữ liệu đang chạy mặc định ở `%LOCALAPPDATA%\APS Project Manager\db.json` hoặc đường dẫn `APS_DB_PATH`, thay cho vị trí trong checkout được mô tả ở các mục cũ bên dưới. `backend/data/db.json` chỉ là nguồn chuyển dữ liệu lần đầu; `seed.json` dùng để khởi tạo khi cần. Xem `DATA_STORAGE.md` để sao lưu và xử lý file Git đang theo dõi.
+
 ### DÀNH CHO IT NỘI BỘ - CÔNG TY APS VIỆT NAM
 
 Tài liệu này được tạo ra để giúp bạn (chuyên viên IT phần cứng) có thể hiểu ngay cấu trúc mã nguồn, vị trí các file điều khiển từng phần trên giao diện web mà **không cần mất thời gian rà soát từng dòng code**.

@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import GanttRowGrid from './GanttRowGrid';
 import { useApp } from '../../context/AppContext';
 import ModalOverlay from '../../components/layout/ModalOverlay';
+import SearchableSelect from '../../components/SearchableSelect';
 import DateInput from '../../components/DateInput';
 import EmployeeCombobox from '../../components/EmployeeCombobox';
 import {
@@ -435,6 +436,19 @@ export default function GanttPage() {
   };
 
   const projectIdForItem = (item) => item.projectId || tasks.find(task => task.ganttId === item.id)?.projectId;
+  const ganttOptionSearchText = item => {
+    const names = [item.code, item.title, item.phase];
+    const seen = new Set([item.id]);
+    let parentId = hierarchyGanttItems.find(candidate => candidate.id === item.id)?.parentGroupId || item.parentGroupId;
+    while (parentId && !seen.has(parentId)) {
+      seen.add(parentId);
+      const parent = hierarchyGanttItems.find(candidate => candidate.id === parentId);
+      if (!parent) break;
+      names.push(parent.code, parent.title);
+      parentId = parent.parentGroupId;
+    }
+    return names.filter(Boolean).join(' ');
+  };
   const hierarchyGanttItems = useMemo(() => inferGanttGroupHierarchy(ganttItems), [ganttItems]);
   const phaseColorForGroup = item => {
     const groupsById = new Map(ganttItems.filter(entry => entry.isGroup).map(entry => [entry.id, entry]));
@@ -627,7 +641,7 @@ export default function GanttPage() {
   // Chiều cao mỗi dòng trong bảng & biểu đồ (khóa cứng pixel để không bao giờ bị lệch)
   const ROW_HEIGHT = 44;
   const GROUP_ROW_HEIGHT = 36;
-  const HEADER_HEIGHT = zoomLevel === 'month' ? 72 : 52;
+  const HEADER_HEIGHT = 60;
   const BAR_HEIGHT = 24;
   const visibleTableWidth = GANTT_COLUMNS.reduce((width, column) => width + (visibleColumns[column.key] ? column.width : 0), 0);
   const LEFT_PANEL_WIDTH = Math.min(leftPanelWidth, Math.max(56, visibleTableWidth));
@@ -1390,6 +1404,7 @@ export default function GanttPage() {
         <div
           ref={timelineScrollRef}
           className="h-[calc(100dvh-124px)] min-h-[320px] overflow-x-auto overflow-y-auto relative isolate bg-slate-100 dark:bg-slate-950"
+          data-modal-background-scroll
         >
           <div className="flex bg-slate-100 dark:bg-slate-950" style={{ width: `${LEFT_PANEL_WIDTH + ganttWidth}px`, minWidth: '100%' }}>
             
@@ -1742,7 +1757,7 @@ export default function GanttPage() {
             {/* ================= KHUNG PHẢI: BIỂU ĐỒ GANTT NẰM BÊN PHẢI (SVG TƯƠNG TÁC) ================= */}
             <div className="relative z-0 flex-none bg-slate-100 dark:bg-slate-950" style={{ width: `${ganttWidth}px` }}>
               
-              {/* Header Tháng & Tuần của Biểu Đồ Gantt - Khóa cứng 52px */}
+              {/* Header tháng/tuần dùng chung chiều cao với bảng bên trái. */}
               <div
                 className="sticky top-0 z-30 bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex box-border"
                 style={{ width: `${ganttWidth}px`, height: `${HEADER_HEIGHT}px`, minHeight: `${HEADER_HEIGHT}px`, maxHeight: `${HEADER_HEIGHT}px` }}
@@ -1753,11 +1768,11 @@ export default function GanttPage() {
                     className={`border-r border-slate-200 dark:border-slate-700 flex flex-col items-center text-center select-none overflow-hidden shrink-0 ${zoomLevel === 'month' ? 'justify-start px-0' : 'justify-center px-1'}`}
                     style={{ width: `${col.width}px` }}
                   >
-                    <span className={`font-extrabold text-xs text-sky-600 dark:text-sky-400 ${zoomLevel === 'month' ? 'flex h-[34px] min-h-[34px] items-center' : ''}`}>
+                    <span className={`font-extrabold text-xs text-sky-600 dark:text-sky-400 ${zoomLevel === 'month' ? 'flex h-[28px] min-h-[28px] items-center' : ''}`}>
                       {col.label}
                     </span>
                     {zoomLevel === 'month' ? (
-                      <div className="flex h-8 min-h-8 w-full border-t border-slate-200 dark:border-slate-700">
+                      <div className="flex h-[30px] min-h-[30px] w-full border-t border-slate-200 dark:border-slate-700">
                         {Array.from({ length: col.days }, (_, dayIndex) => (
                           <div
                             key={dayIndex + 1}
@@ -2519,7 +2534,7 @@ export default function GanttPage() {
       )}
 
       {showAddGroupModal && (
-        <ModalOverlay>
+        <ModalOverlay allowBackgroundScroll>
           <div className="w-full max-w-lg space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
             <div className="flex items-center justify-between border-b border-slate-200 pb-3 dark:border-slate-800">
               <h3 className="flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-white">
@@ -2578,17 +2593,19 @@ export default function GanttPage() {
               </label>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                 Thuộc giai đoạn
-                <select
+                <SearchableSelect
+                  className="mt-1"
                   disabled={Boolean(groupCreateContext)}
+                  label="Giai đoạn của mục công việc"
+                  searchPlaceholder="Tìm tên giai đoạn hoặc STT..."
                   value={groupForm.parentGroupId}
-                  onChange={event => setGroupForm(current => ({ ...current, parentGroupId: event.target.value }))}
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm disabled:cursor-default disabled:opacity-100 disabled:text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:disabled:text-slate-200"
-                >
-                  <option value="">-- Mục gốc dự án --</option>
-                  {ganttItems
-                    .filter(item => item.isGroup && projectIdForItem(item) === groupForm.projectId && GANTT_PHASE_PRESETS.some(phase => phase.title === item.title))
-                    .map(item => <option key={item.id} value={item.id}>{item.title}</option>)}
-                </select>
+                  onChange={parentGroupId => setGroupForm(current => ({ ...current, parentGroupId }))}
+                  options={[
+                    { value: '', label: '-- Mục gốc dự án --' },
+                    ...ganttItems.filter(item => item.isGroup && projectIdForItem(item) === groupForm.projectId && GANTT_PHASE_PRESETS.some(phase => phase.title === item.title))
+                      .map(item => ({ value: item.id, label: item.title, searchText: ganttOptionSearchText(item) }))
+                  ]}
+                />
               </label>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
@@ -2727,7 +2744,7 @@ export default function GanttPage() {
 
       {/* MODAL 1: THÊM CÔNG VIỆC VÀO DỰ ÁN */}
       {showAddTaskModal && (
-        <ModalOverlay>
+        <ModalOverlay allowBackgroundScroll>
           <div className="w-full max-w-xl p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -2816,18 +2833,21 @@ export default function GanttPage() {
                 <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
                   Mục công việc
                 </label>
-                <select
+                <SearchableSelect
+                  label="Mục công việc"
+                  searchPlaceholder="Tìm tên mục, giai đoạn hoặc STT..."
                   value={taskForm.parentGroupId}
-                  onChange={event => setTaskForm(current => ({ ...current, parentGroupId: event.target.value }))}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
-                >
-                  <option value="">-- Không thuộc mục nào --</option>
-                  {ganttItems
-                    .filter(item => item.isGroup && projectIdForItem(item) === taskForm.projectId)
-                    .map(group => (
-                      <option key={group.id} value={group.id}>{group.parentGroupId ? `↳ ${group.title}` : group.title}</option>
-                    ))}
-                </select>
+                  onChange={parentGroupId => setTaskForm(current => ({ ...current, parentGroupId }))}
+                  options={[
+                    { value: '', label: '-- Không thuộc mục nào --' },
+                    ...ganttItems.filter(item => item.isGroup && projectIdForItem(item) === taskForm.projectId)
+                      .map(group => ({
+                        value: group.id,
+                        label: group.parentGroupId ? `↳ ${group.title}` : group.title,
+                        searchText: ganttOptionSearchText(group)
+                      }))
+                  ]}
+                />
               </div>}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -2836,44 +2856,37 @@ export default function GanttPage() {
                   <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
                     Công Việc Trước (Mũi tên liên kết FS)
                   </label>
-                  <select
+                  <SearchableSelect
+                    label="Công việc trước"
                     value={taskForm.dependencies[0] || ''}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setTaskForm(current => ({
-                        ...current,
-                        dependencies: val ? [val] : [],
-                        successorId: current.successorId === val ? '' : current.successorId
-                      }));
-                    }}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
-                  >
-                    <option value="">-- Không có liên kết FS --</option>
-                    {ganttItems.filter(g => !g.isGroup && projectIdForItem(g) === taskForm.projectId).map(g => (
-                      <option key={g.id} value={g.id}>[{g.code}] {g.title}</option>
-                    ))}
-                  </select>
+                    onChange={val => setTaskForm(current => ({
+                      ...current,
+                      dependencies: val ? [val] : [],
+                      successorId: current.successorId === val ? '' : current.successorId
+                    }))}
+                    options={[
+                      { value: '', label: '-- Không có liên kết FS --' },
+                      ...ganttItems.filter(g => !g.isGroup && projectIdForItem(g) === taskForm.projectId)
+                        .map(g => ({ value: g.id, code: g.code, title: g.title, label: `[${g.code}] ${g.title}`, searchText: ganttOptionSearchText(g) }))
+                    ]}
+                  />
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
                     Công Việc Sau (Mũi tên liên kết FS)
                   </label>
-                  <select
+                  <SearchableSelect
+                    label="Công việc sau"
                     value={taskForm.successorId}
-                    onChange={(e) => setTaskForm(current => ({ ...current, successorId: e.target.value }))}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
-                  >
-                    <option value="">
-                      {taskForm.dependencies[0]
+                    onChange={successorId => setTaskForm(current => ({ ...current, successorId }))}
+                    options={[
+                      { value: '', label: taskForm.dependencies[0]
                         ? '-- Bỏ trống để thêm task ở cuối dự án --'
-                        : '-- Tự động nối theo thứ tự hiện tại --'}
-                    </option>
-                    {ganttItems
-                      .filter(g => !g.isGroup && projectIdForItem(g) === taskForm.projectId && g.id !== taskForm.dependencies[0])
-                      .map(g => (
-                        <option key={g.id} value={g.id}>[{g.code}] {g.title}</option>
-                      ))}
-                  </select>
+                        : '-- Tự động nối theo thứ tự hiện tại --' },
+                      ...ganttItems.filter(g => !g.isGroup && projectIdForItem(g) === taskForm.projectId && g.id !== taskForm.dependencies[0])
+                        .map(g => ({ value: g.id, code: g.code, title: g.title, label: `[${g.code}] ${g.title}`, searchText: ganttOptionSearchText(g) }))
+                    ]}
+                  />
                 </div>
               </div>
 
@@ -2965,7 +2978,7 @@ export default function GanttPage() {
 
       {/* MODAL 2: TẠO DỰ ÁN MỚI */}
       {showAddProjectModal && (
-        <ModalOverlay>
+        <ModalOverlay allowBackgroundScroll>
           <div className="w-full max-w-lg p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">

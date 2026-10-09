@@ -52,7 +52,7 @@ export function AppProvider({ children }) {
       .filter(employee => endedIds.includes(employee.id))
       .map(employee => employee.name);
     if (endedNames.length) {
-      showToast(`Đã đủ giờ ca làm. ${endedNames.join(', ')} đã được tự động kết thúc ca.`, 'info');
+      showToast(`Đã đủ giờ ca làm. ${endedNames.join(', ')} đã được tự động kết thúc ca; trạng thái đã chuyển về “Vào văn phòng”.`, 'info');
     }
   };
 
@@ -185,7 +185,7 @@ export function AppProvider({ children }) {
     try {
       const res = await api.toggleOnSite(id, shiftType);
       const employee = employees.find(item => item.id === id);
-      recordActivity('employee.attendance', `${employee?.name || id}: ${res.message || 'cập nhật điểm danh'}.`);
+      recordActivity('employee.attendance', `${employee?.name || id}: ${res.data?.isOnSite ? 'có mặt tại văn phòng' : 'cập nhật điểm danh'}.`);
       showToast(res.message || 'Cập nhật trạng thái thành công');
       if (res.data) setEmployees(prev => prev.map(emp => emp.id === id ? { ...emp, ...res.data } : emp));
       await refreshAllData();
@@ -241,6 +241,7 @@ export function AppProvider({ children }) {
       recordActivity('employee.delete', `Xóa nhân sự ${employee?.name || id}.`);
       showToast('Đã xóa nhân sự thành công');
       setEmployees(prev => prev.filter(e => e.id !== id));
+      await refreshAllData();
     } catch {
       showToast('Lỗi khi xóa nhân sự', 'error');
     }
@@ -263,13 +264,16 @@ export function AppProvider({ children }) {
   // Hành động: Cập nhật task (tiến độ, trạng thái)
   const updateTask = async (id, data) => {
     try {
-      await api.updateTask(id, data);
+      const response = await api.updateTask(id, data);
+      if (data.actualWorkloadNotes !== undefined && response?.data?.actualWorkloadNotes !== data.actualWorkloadNotes) {
+        throw new Error('Máy chủ chưa hỗ trợ lưu ghi chú. Hãy khởi động lại backend rồi thử lại.');
+      }
       recordActivity('task.update', `Cập nhật công việc ${tasks.find(item => item.id === id)?.title || id}.`);
       showToast('Cập nhật tiến độ thành công');
       await refreshAllData();
       return true;
-    } catch {
-      showToast('Lỗi khi cập nhật công việc', 'error');
+    } catch (err) {
+      showToast(err.message || 'Lỗi khi cập nhật công việc', 'error');
       return false;
     }
   };

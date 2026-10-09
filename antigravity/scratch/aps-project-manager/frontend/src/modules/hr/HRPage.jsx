@@ -102,11 +102,11 @@ export default function HRPage() {
           </div>
         </div>
 
-        {/* KPI 2: Nhân sự tại công trường */}
+        {/* KPI 2: Nhân sự tại văn phòng */}
         <div className="p-3 rounded-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-              Có Mặt Tại Công Trường
+              Có Mặt Tại Văn Phòng
             </p>
             <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
               {onSiteCount} <span className="text-sm font-normal text-slate-500">/ {totalEmployees}</span>
@@ -215,7 +215,7 @@ export default function HRPage() {
 
       {/* Modal: Tạo Nhân Sự Mới */}
       {showAddModal && (
-        <ModalOverlay>
+        <ModalOverlay allowBackgroundScroll>
           <div className="w-full max-w-lg p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">

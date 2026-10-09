@@ -34,12 +34,9 @@
       "activeTaskId": null,
       "activeTaskTitle": null,
       "avatar": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80",
-      "lastShiftCheckInAt": "2026-10-08T09:13:08.462Z",
-      "lastShiftCheckOutAt": "2026-10-08T09:13:12.583Z",
-      "lastShiftCheckOutTime": "16:13",
-      "activeTaskShiftType": null,
-      "shiftType": null,
-      "lastShiftType": "regular"
+      "lastShiftCheckInAt": "2026-10-06T04:35:40.525Z",
+      "lastShiftCheckOutAt": "2026-10-06T06:44:45.450Z",
+      "lastShiftCheckOutTime": "13:44"
     },
     {
       "id": "emp-1791247978716",
@@ -59,13 +56,7 @@
       "workSessionStartedAt": null,
       "activeTaskId": null,
       "activeTaskTitle": null,
-      "avatar": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80",
-      "activeTaskShiftType": null,
-      "shiftType": null,
-      "lastShiftCheckInAt": "2026-10-08T09:13:17.097Z",
-      "lastShiftCheckOutAt": "2026-10-08T09:13:19.370Z",
-      "lastShiftCheckOutTime": "16:13",
-      "lastShiftType": "regular"
+      "avatar": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80"
     },
     {
       "id": "emp-1791248021248",
@@ -85,7 +76,10 @@
       "workSessionStartedAt": null,
       "activeTaskId": null,
       "activeTaskTitle": null,
-      "avatar": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80"
+      "avatar": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80",
+      "lastShiftCheckInAt": "2026-10-08T01:55:44.534Z",
+      "lastShiftCheckOutAt": "2026-10-08T06:55:18.575Z",
+      "lastShiftCheckOutTime": "13:55"
     },
     {
       "id": "emp-1791248046472",
@@ -126,11 +120,14 @@
       "estimatedHours": 24,
       "estimatedHoursPerDay": 8,
       "estimatedDays": 3,
-      "status": "in_progress",
-      "speedStatus": "on_time",
+      "status": "completed",
+      "speedStatus": "early",
       "priority": "high",
-      "progress": 0,
-      "notes": ""
+      "progress": 100,
+      "notes": "",
+      "completedAt": "2026-10-08T01:56:45.429Z",
+      "delayHours": 0,
+      "earlyHours": 0
     },
     {
       "id": "task-1791215739830",
@@ -141,14 +138,22 @@
       "title": "Định vị hố khoang khảo sát địa chất",
       "code": "A2.1",
       "parentGroupId": "G-1791215539780",
-      "employeeId": "",
-      "employeeName": "",
-      "assignees": [],
-      "startDate": "2026-11-01",
-      "endDate": "2026-11-01",
-      "estimatedHours": 8,
+      "employeeId": "emp-1791423475590",
+      "employeeName": "tesst",
+      "assignees": [
+        {
+          "employeeId": "emp-1791423475590",
+          "employeeName": "tesst",
+          "startDate": "2026-11-20",
+          "endDate": "2026-11-22",
+          "estimatedHoursPerDay": 8
+        }
+      ],
+      "startDate": "2026-11-20",
+      "endDate": "2026-11-22",
+      "estimatedHours": 24,
       "estimatedHoursPerDay": 8,
-      "estimatedDays": 1,
+      "estimatedDays": 3,
       "status": "in_progress",
       "speedStatus": "on_time",
       "priority": "high",
@@ -164,18 +169,39 @@
       "title": "Khoan KSĐC + lập báo cáo ĐCCT",
       "code": "A2.2",
       "parentGroupId": "G-1791215539780",
-      "employeeId": "emp-1791247978716",
-      "employeeName": "Yến",
+      "employeeId": "emp-1791247951249",
+      "employeeName": "Hiếu",
       "assignees": [
+        {
+          "employeeId": "emp-1791247951249",
+          "employeeName": "Hiếu",
+          "startDate": "2026-11-02",
+          "endDate": "2026-11-06",
+          "estimatedHoursPerDay": 4
+        },
+        {
+          "employeeId": "emp-1791248021248",
+          "employeeName": "Duy",
+          "startDate": "2026-11-02",
+          "endDate": "2026-11-25",
+          "estimatedHoursPerDay": 4
+        },
+        {
+          "employeeId": "emp-1791248046472",
+          "employeeName": "Thịnh",
+          "startDate": "2026-11-02",
+          "endDate": "2026-11-25",
+          "estimatedHoursPerDay": 2
+        },
         {
           "employeeId": "emp-1791247978716",
           "employeeName": "Yến",
-          "startDate": "2026-11-03",
+          "startDate": "2026-11-02",
           "endDate": "2026-11-25",
-          "estimatedHoursPerDay": 8
+          "estimatedHoursPerDay": 5
         }
       ],
-      "startDate": "2026-11-03",
+      "startDate": "2026-11-02",
       "endDate": "2026-11-25",
       "estimatedHours": 184,
       "estimatedHoursPerDay": 8,
@@ -183,9 +209,10 @@
       "status": "completed",
       "speedStatus": "early",
       "priority": "high",
-      "progress": 100,
+      "progress": 0,
       "notes": "",
-      "completedAt": "2026-10-06T01:49:03.086Z",
+      "actualWorkloadNotes": "hjgjyhg",
+      "completedAt": "2026-10-08T09:23:37.402Z",
       "delayHours": 0,
       "earlyHours": 0
     },
@@ -198,9 +225,17 @@
       "title": "Thiết kế ý tưởng và CĐT phê duyệt",
       "code": "A2.3",
       "parentGroupId": "G-1791215539780",
-      "employeeId": "",
-      "employeeName": "",
-      "assignees": [],
+      "employeeId": "emp-1791423491025",
+      "employeeName": "trrrt",
+      "assignees": [
+        {
+          "employeeId": "emp-1791423491025",
+          "employeeName": "trrrt",
+          "startDate": "2026-11-05",
+          "endDate": "2026-11-08",
+          "estimatedHoursPerDay": 8
+        }
+      ],
       "startDate": "2026-11-05",
       "endDate": "2026-11-08",
       "estimatedHours": 32,
@@ -244,9 +279,17 @@
       "title": "CĐT phê duyệt TMB / QH",
       "code": "A2.5",
       "parentGroupId": "G-1791215539780",
-      "employeeId": "",
-      "employeeName": "",
-      "assignees": [],
+      "employeeId": "emp-1791423491025",
+      "employeeName": "trrrt",
+      "assignees": [
+        {
+          "employeeId": "emp-1791423491025",
+          "employeeName": "trrrt",
+          "startDate": "2026-11-14",
+          "endDate": "2026-11-16",
+          "estimatedHoursPerDay": 8
+        }
+      ],
       "startDate": "2026-11-14",
       "endDate": "2026-11-16",
       "estimatedHours": 24,
@@ -267,9 +310,17 @@
       "title": "Lập báo cáo nghiên cứu khả thi (gồm TKCS)",
       "code": "A3.1",
       "parentGroupId": "G-1791216212702",
-      "employeeId": "",
-      "employeeName": "",
-      "assignees": [],
+      "employeeId": "emp-1791423491025",
+      "employeeName": "trrrt",
+      "assignees": [
+        {
+          "employeeId": "emp-1791423491025",
+          "employeeName": "trrrt",
+          "startDate": "2026-11-26",
+          "endDate": "2026-12-07",
+          "estimatedHoursPerDay": 8
+        }
+      ],
       "startDate": "2026-11-25",
       "endDate": "2026-12-07",
       "estimatedHours": 104,
@@ -336,9 +387,17 @@
       "title": "Lập bản vẽ thiết kế thi công (BVTC)",
       "code": "A4.1",
       "parentGroupId": "G-1791216490209",
-      "employeeId": "",
-      "employeeName": "",
-      "assignees": [],
+      "employeeId": "emp-1791423491025",
+      "employeeName": "trrrt",
+      "assignees": [
+        {
+          "employeeId": "emp-1791423491025",
+          "employeeName": "trrrt",
+          "startDate": "2026-12-15",
+          "endDate": "2027-01-06",
+          "estimatedHoursPerDay": 8
+        }
+      ],
       "startDate": "2026-12-15",
       "endDate": "2027-01-06",
       "estimatedHours": 184,
@@ -358,9 +417,17 @@
       "phase": "A. THIẾT KẾ XÂY DỰNG",
       "title": "Kiểm tra nội bộ BVTC và hoàn thiện hồ sơ ",
       "code": "A4.2",
-      "employeeId": "",
-      "employeeName": "",
-      "assignees": [],
+      "employeeId": "emp-1791423475590",
+      "employeeName": "tesst",
+      "assignees": [
+        {
+          "employeeId": "emp-1791423475590",
+          "employeeName": "tesst",
+          "startDate": "2027-01-04",
+          "endDate": "2027-01-07",
+          "estimatedHoursPerDay": 8
+        }
+      ],
       "startDate": "2027-01-04",
       "endDate": "2027-01-07",
       "estimatedHours": 32,
@@ -658,9 +725,17 @@
       "title": "Lập hồ sơ & nộp xin GPXD",
       "code": "B6.1",
       "parentGroupId": "G-1791221315233",
-      "employeeId": "",
-      "employeeName": "",
-      "assignees": [],
+      "employeeId": "emp-1791423475590",
+      "employeeName": "tesst",
+      "assignees": [
+        {
+          "employeeId": "emp-1791423475590",
+          "employeeName": "tesst",
+          "startDate": "2027-02-12",
+          "endDate": "2027-02-21",
+          "estimatedHoursPerDay": 8
+        }
+      ],
       "startDate": "2027-02-12",
       "endDate": "2027-02-21",
       "estimatedHours": 80,
@@ -681,9 +756,17 @@
       "title": "Thẩm định & cấp GPXD",
       "code": "B6.2",
       "parentGroupId": "G-1791221315233",
-      "employeeId": "",
-      "employeeName": "",
-      "assignees": [],
+      "employeeId": "emp-1791423508898",
+      "employeeName": "yrrrr",
+      "assignees": [
+        {
+          "employeeId": "emp-1791423508898",
+          "employeeName": "yrrrr",
+          "startDate": "2027-02-22",
+          "endDate": "2027-03-17",
+          "estimatedHoursPerDay": 8
+        }
+      ],
       "startDate": "2027-02-22",
       "endDate": "2027-03-17",
       "estimatedHours": 192,
@@ -993,12 +1076,13 @@
       "parentGroupId": "G-1791215207730",
       "assignees": [],
       "notes": "",
-      "status": "in_progress",
-      "speed": "on_time",
-      "progress": 0,
+      "status": "completed",
+      "speed": "early",
+      "progress": 100,
       "dependencies": [
         "G-1791342266479"
-      ]
+      ],
+      "overtimeHours": 2
     },
     {
       "id": "G-1791215539780",
@@ -1030,14 +1114,22 @@
       "isGroup": false,
       "color": "#861b36",
       "unit": "TK",
-      "startDate": "2026-11-01",
-      "endDate": "2026-11-01",
-      "days": 1,
-      "estimatedHours": 8,
+      "startDate": "2026-11-20",
+      "endDate": "2026-11-22",
+      "days": 3,
+      "estimatedHours": 24,
       "estimatedHoursPerDay": 8,
-      "assignee": "",
+      "assignee": "tesst",
       "parentGroupId": "G-1791215539780",
-      "assignees": [],
+      "assignees": [
+        {
+          "employeeId": "emp-1791423475590",
+          "employeeName": "tesst",
+          "startDate": "2026-11-20",
+          "endDate": "2026-11-22",
+          "estimatedHoursPerDay": 8
+        }
+      ],
       "notes": "",
       "status": "in_progress",
       "speed": "on_time",
@@ -1059,25 +1151,46 @@
       "days": 23,
       "estimatedHours": 184,
       "estimatedHoursPerDay": 8,
-      "assignee": "Yến",
+      "assignee": "Hiếu",
       "parentGroupId": "G-1791215539780",
       "assignees": [
         {
+          "employeeId": "emp-1791247951249",
+          "employeeName": "Hiếu",
+          "startDate": "2026-11-02",
+          "endDate": "2026-11-06",
+          "estimatedHoursPerDay": 4
+        },
+        {
+          "employeeId": "emp-1791248021248",
+          "employeeName": "Duy",
+          "startDate": "2026-11-02",
+          "endDate": "2026-11-25",
+          "estimatedHoursPerDay": 4
+        },
+        {
+          "employeeId": "emp-1791248046472",
+          "employeeName": "Thịnh",
+          "startDate": "2026-11-02",
+          "endDate": "2026-11-25",
+          "estimatedHoursPerDay": 2
+        },
+        {
           "employeeId": "emp-1791247978716",
           "employeeName": "Yến",
-          "startDate": "2026-11-03",
+          "startDate": "2026-11-02",
           "endDate": "2026-11-25",
-          "estimatedHoursPerDay": 8
+          "estimatedHoursPerDay": 5
         }
       ],
       "notes": "",
       "status": "completed",
       "speed": "early",
-      "progress": 100,
+      "progress": 0,
       "dependencies": [
         "G-1791215739830"
       ],
-      "completedAt": "2026-10-06T01:49:03.086Z",
+      "completedAt": "2026-10-08T09:23:37.402Z",
       "delayHours": 0,
       "earlyHours": 0
     },
@@ -1094,9 +1207,17 @@
       "days": 4,
       "estimatedHours": 32,
       "estimatedHoursPerDay": 8,
-      "assignee": "",
+      "assignee": "trrrt",
       "parentGroupId": "G-1791215539780",
-      "assignees": [],
+      "assignees": [
+        {
+          "employeeId": "emp-1791423491025",
+          "employeeName": "trrrt",
+          "startDate": "2026-11-05",
+          "endDate": "2026-11-08",
+          "estimatedHoursPerDay": 8
+        }
+      ],
       "notes": "",
       "status": "in_progress",
       "speed": "on_time",
@@ -1142,9 +1263,17 @@
       "days": 3,
       "estimatedHours": 24,
       "estimatedHoursPerDay": 8,
-      "assignee": "",
+      "assignee": "trrrt",
       "parentGroupId": "G-1791215539780",
-      "assignees": [],
+      "assignees": [
+        {
+          "employeeId": "emp-1791423491025",
+          "employeeName": "trrrt",
+          "startDate": "2026-11-14",
+          "endDate": "2026-11-16",
+          "estimatedHoursPerDay": 8
+        }
+      ],
       "notes": "",
       "status": "in_progress",
       "speed": "on_time",
@@ -1188,9 +1317,17 @@
       "days": 13,
       "estimatedHours": 104,
       "estimatedHoursPerDay": 8,
-      "assignee": "",
+      "assignee": "trrrt",
       "parentGroupId": "G-1791216212702",
-      "assignees": [],
+      "assignees": [
+        {
+          "employeeId": "emp-1791423491025",
+          "employeeName": "trrrt",
+          "startDate": "2026-11-26",
+          "endDate": "2026-12-07",
+          "estimatedHoursPerDay": 8
+        }
+      ],
       "notes": "",
       "status": "in_progress",
       "speed": "on_time",
@@ -1282,9 +1419,17 @@
       "days": 23,
       "estimatedHours": 184,
       "estimatedHoursPerDay": 8,
-      "assignee": "",
+      "assignee": "trrrt",
       "parentGroupId": "G-1791216490209",
-      "assignees": [],
+      "assignees": [
+        {
+          "employeeId": "emp-1791423491025",
+          "employeeName": "trrrt",
+          "startDate": "2026-12-15",
+          "endDate": "2027-01-06",
+          "estimatedHoursPerDay": 8
+        }
+      ],
       "notes": "",
       "status": "in_progress",
       "speed": "on_time",
@@ -1306,8 +1451,16 @@
       "days": 4,
       "estimatedHours": 32,
       "estimatedHoursPerDay": 8,
-      "assignee": "",
-      "assignees": [],
+      "assignee": "tesst",
+      "assignees": [
+        {
+          "employeeId": "emp-1791423475590",
+          "employeeName": "tesst",
+          "startDate": "2027-01-04",
+          "endDate": "2027-01-07",
+          "estimatedHoursPerDay": 8
+        }
+      ],
       "notes": "",
       "status": "in_progress",
       "speed": "on_time",
@@ -1924,9 +2077,17 @@
       "days": 10,
       "estimatedHours": 80,
       "estimatedHoursPerDay": 8,
-      "assignee": "",
+      "assignee": "tesst",
       "parentGroupId": "G-1791221315233",
-      "assignees": [],
+      "assignees": [
+        {
+          "employeeId": "emp-1791423475590",
+          "employeeName": "tesst",
+          "startDate": "2027-02-12",
+          "endDate": "2027-02-21",
+          "estimatedHoursPerDay": 8
+        }
+      ],
       "notes": "",
       "status": "in_progress",
       "speed": "on_time",
@@ -1948,9 +2109,17 @@
       "days": 24,
       "estimatedHours": 192,
       "estimatedHoursPerDay": 8,
-      "assignee": "",
+      "assignee": "yrrrr",
       "parentGroupId": "G-1791221315233",
-      "assignees": [],
+      "assignees": [
+        {
+          "employeeId": "emp-1791423508898",
+          "employeeName": "yrrrr",
+          "startDate": "2027-02-22",
+          "endDate": "2027-03-17",
+          "estimatedHoursPerDay": 8
+        }
+      ],
       "notes": "",
       "status": "in_progress",
       "speed": "on_time",
@@ -2512,8 +2681,44 @@
       "details": "Cập nhật hạng mục Ab."
     },
     {
-      "id": "c6fe974d-1e4d-4f65-81d0-bda9a0ef4308",
-      "timestamp": "2026-10-08T04:49:19.469Z",
+      "id": "6ae62854-8ef8-4d63-9472-6ca1bd1478a2",
+      "timestamp": "2026-10-08T09:23:37.447Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "task.update",
+      "details": "Cập nhật công việc Khoan KSĐC + lập báo cáo ĐCCT."
+    },
+    {
+      "id": "c74406bd-ee78-424c-8308-690c66e17ea9",
+      "timestamp": "2026-10-08T06:55:18.594Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "employee.attendance",
+      "details": "Duy: cập nhật điểm danh."
+    },
+    {
+      "id": "8e56d573-e3ee-478d-b342-ad69ddd269e5",
+      "timestamp": "2026-10-08T06:55:13.131Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "employee.attendance",
+      "details": "Yến: cập nhật điểm danh."
+    },
+    {
+      "id": "a6e30abd-66d7-4fc9-810d-4354d35b9892",
+      "timestamp": "2026-10-08T06:55:11.171Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "employee.attendance",
+      "details": "Hiếu: cập nhật điểm danh."
+    },
+    {
+      "id": "083b534e-db72-488d-ab75-a1f40f6326c9",
+      "timestamp": "2026-10-08T06:53:31.241Z",
       "email": "demo@aps.vn",
       "name": "Nguyễn Minh Anh",
       "role": "admin",
@@ -2521,8 +2726,8 @@
       "details": "Đăng nhập thành công."
     },
     {
-      "id": "3276151c-8e9c-4ae4-838a-aec50c9d594c",
-      "timestamp": "2026-10-08T04:18:10.405Z",
+      "id": "738c2516-63c1-4a29-b7ab-ecf5ad73fd4e",
+      "timestamp": "2026-10-08T02:34:15.320Z",
       "email": "demo@aps.vn",
       "name": "Nguyễn Minh Anh",
       "role": "admin",
@@ -2530,62 +2735,71 @@
       "details": "Đăng nhập thành công."
     },
     {
-      "id": "1b79335c-8a2b-48d1-b83a-c6fddbca8643",
-      "timestamp": "2026-10-08T03:55:01.749Z",
+      "id": "89e21006-6b90-4517-836d-3d834547de6f",
+      "timestamp": "2026-10-08T01:56:45.439Z",
       "email": "demo@aps.vn",
       "name": "Nguyễn Minh Anh",
       "role": "admin",
-      "action": "auth.login",
-      "details": "Đăng nhập thành công."
+      "action": "task.update",
+      "details": "Cập nhật công việc Khảo sát hiện trạng mặt bằng."
     },
     {
-      "id": "b78cad2c-54ad-4495-afb2-2077d4e378e9",
-      "timestamp": "2026-10-08T03:19:26.258Z",
+      "id": "8467c5d8-c781-470e-a6b6-8c90f18f869e",
+      "timestamp": "2026-10-08T01:55:44.539Z",
       "email": "demo@aps.vn",
       "name": "Nguyễn Minh Anh",
       "role": "admin",
-      "action": "overtime.create",
-      "details": "Tạo đăng ký tăng ca cho nhân sự."
+      "action": "employee.attendance",
+      "details": "Duy: có mặt tại văn phòng."
     },
     {
-      "id": "e045defb-e2ae-4f11-89c5-ee101e83d7e5",
-      "timestamp": "2026-10-08T03:12:00.078Z",
+      "id": "50ab699a-5327-4e7a-8fdd-a1cedddb6c56",
+      "timestamp": "2026-10-08T01:55:42.412Z",
       "email": "demo@aps.vn",
       "name": "Nguyễn Minh Anh",
       "role": "admin",
-      "action": "auth.login",
-      "details": "Đăng nhập thành công."
+      "action": "employee.attendance",
+      "details": "Yến: có mặt tại văn phòng."
     },
     {
-      "id": "babe8a43-6ca2-4ebe-abb2-5ec1ad847f7a",
-      "timestamp": "2026-10-08T02:49:45.620Z",
+      "id": "4fa8b913-b4d7-4f0d-8037-1638b51e6f8e",
+      "timestamp": "2026-10-08T01:55:40.450Z",
       "email": "demo@aps.vn",
       "name": "Nguyễn Minh Anh",
       "role": "admin",
-      "action": "auth.login",
-      "details": "Đăng nhập thành công."
+      "action": "employee.attendance",
+      "details": "Hiếu: có mặt tại văn phòng."
     },
     {
-      "id": "40cfb1d2-caae-4e80-a80a-4b669e1a733e",
-      "timestamp": "2026-10-08T02:46:17.338Z",
+      "id": "ee8ab67a-147a-472d-b00b-a66c496914b0",
+      "timestamp": "2026-10-08T01:55:03.441Z",
       "email": "demo@aps.vn",
       "name": "Nguyễn Minh Anh",
       "role": "admin",
-      "action": "auth.login",
-      "details": "Đăng nhập thành công."
+      "action": "employee.delete",
+      "details": "Xóa nhân sự yrrrr."
     },
     {
-      "id": "207d48de-bda3-49a1-a917-14281d9d2740",
-      "timestamp": "2026-10-08T02:37:26.486Z",
+      "id": "cd651f1b-ebf6-437b-8cc2-57ad36d34b21",
+      "timestamp": "2026-10-08T01:55:00.328Z",
       "email": "demo@aps.vn",
       "name": "Nguyễn Minh Anh",
       "role": "admin",
-      "action": "auth.login",
-      "details": "Đăng nhập thành công."
+      "action": "employee.delete",
+      "details": "Xóa nhân sự trrrt."
     },
     {
-      "id": "721a3318-5ffb-4ff4-8416-5955990aa310",
-      "timestamp": "2026-10-08T02:20:49.406Z",
+      "id": "947277de-0260-48ba-a5a6-4529da53e506",
+      "timestamp": "2026-10-08T01:54:55.179Z",
+      "email": "demo@aps.vn",
+      "name": "Nguyễn Minh Anh",
+      "role": "admin",
+      "action": "employee.delete",
+      "details": "Xóa nhân sự tesst."
+    },
+    {
+      "id": "fdc652ec-4fe7-459a-b012-acf10c50928e",
+      "timestamp": "2026-10-08T01:54:31.996Z",
       "email": "demo@aps.vn",
       "name": "Nguyễn Minh Anh",
       "role": "admin",

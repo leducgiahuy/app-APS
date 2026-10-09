@@ -11,7 +11,7 @@ function Brand() {
 }
 
 function SiteIllustration() {
-  return <div className="site-art" aria-hidden="true"><div className="art-sun" /><div className="art-crane"><span /><i /><b /></div><div className="art-building building-back"><i /><i /><i /><i /></div><div className="art-building building-front"><i /><i /><i /><i /><i /><i /></div><div className="art-ground" /><div className="art-label"><span className="live-dot" /> CÔNG TRƯỜNG ĐANG HOẠT ĐỘNG</div></div>;
+  return <div className="site-art" aria-hidden="true"><div className="art-sun" /><div className="art-crane"><span /><i /><b /></div><div className="art-building building-back"><i /><i /><i /><i /></div><div className="art-building building-front"><i /><i /><i /><i /><i /><i /></div><div className="art-ground" /><div className="art-label"><span className="live-dot" /> VĂN PHÒNG ĐANG HOẠT ĐỘNG</div></div>;
 }
 
 export default function LoginPage() {
@@ -38,7 +38,7 @@ export default function LoginPage() {
       <section className="login-panel" aria-label="Đăng nhập APS">
         <header className="panel-header"><Brand /><span className="secure-note"><ShieldCheck size={15} /> CỔNG THÔNG TIN NỘI BỘ</span></header>
         <div className="form-wrap">
-          <div className="eyebrow"><span /> QUẢN LÝ CÔNG TRƯỜNG</div>
+          <div className="eyebrow"><span /> QUẢN LÝ VĂN PHÒNG</div>
           <h1>Chào mừng<br />bạn trở lại.</h1>
           <p className="form-intro">Đăng nhập để tiếp tục quản lý dự án và đội ngũ của bạn.</p>
           <div className="demo-credentials"><div><span>TÀI KHOẢN DEMO</span><button type="button" onClick={() => { setEmail(DEMO_EMAIL); setPassword(DEMO_PASSWORD); }}>Điền nhanh</button></div><p><b>Email</b><code>{DEMO_EMAIL}</code></p><p><b>Mật khẩu</b><code>{DEMO_PASSWORD}</code></p><small>Đăng nhập bản xem trước · chưa kết nối xác thực máy chủ</small></div>

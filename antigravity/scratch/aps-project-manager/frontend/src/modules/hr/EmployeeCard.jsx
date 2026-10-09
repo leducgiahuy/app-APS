@@ -9,6 +9,7 @@ import {
   matchesEmployee,
   overtimeHoursForDate,
   overtimeTasksFromEntries,
+  regularClockInDateWarning,
   SHIFT_TYPE
 } from '../../utils/shift';
 
@@ -77,6 +78,18 @@ export default function EmployeeCard({
 
   const handleOnSiteAction = async () => {
     if (!emp.isOnSite) {
+      const todayKey = localDateKey(new Date());
+      if (!overtimeView) {
+        const warning = regularClockInDateWarning(allTasks, emp, todayKey, selectedDateKey);
+        if (warning) {
+          window.alert(warning);
+          return;
+        }
+      }
+      if (selectedDateKey !== todayKey) {
+        window.alert('Chỉ có thể vào ca cho ngày hôm nay. Hãy chọn hôm nay để bắt đầu task.');
+        return;
+      }
       if (overtimeView) {
         const gate = isOvertimeClockInAllowed(new Date());
         if (!gate.ok) {
@@ -91,7 +104,7 @@ export default function EmployeeCard({
       if (displayedTasks.some(task => task.status !== 'completed') && !selectedTaskId) {
         window.alert(overtimeView
           ? 'Hãy chọn task tăng ca muốn bắt đầu trước khi vào ca.'
-          : 'Hãy chọn task muốn bắt đầu trước khi vào công trường.');
+          : 'Hãy chọn task muốn bắt đầu trước khi vào văn phòng.');
         return;
       }
       await runAction(() => toggleOnSite(emp.id, overtimeView ? SHIFT_TYPE.OVERTIME : SHIFT_TYPE.REGULAR));
@@ -118,7 +131,7 @@ export default function EmployeeCard({
       if (requiredMinutes > 0 && workedMinutes < requiredMinutes) {
         const remaining = requiredMinutes - workedMinutes;
         const hoursLabel = currentShiftIsOt ? 'giờ tăng ca đã duyệt' : 'giờ ca chuẩn';
-        const leaveLabel = currentShiftIsOt ? 'rời văn phòng' : 'rời công trường';
+        const leaveLabel = 'rời văn phòng';
         const confirmed = window.confirm(
           `${emp.name} mới làm ${formatDuration(workedMinutes)}, còn thiếu ${formatDuration(remaining)} theo ${hoursLabel}. Bạn có chắc chắn muốn ${leaveLabel} và kết thúc ca không?`
         );
@@ -132,10 +145,10 @@ export default function EmployeeCard({
   const presenceLabel = emp.isOnBreak
     ? 'Đang tạm nghỉ'
     : emp.isOnSite
-      ? (currentShiftIsOt ? 'Đang tăng ca' : 'Tại công trường')
+      ? (currentShiftIsOt ? 'Đang tăng ca' : 'Tại văn phòng')
       : 'Vắng mặt';
-  const clockInButtonLabel = overtimeView ? 'Tăng ca' : 'Vào công trường';
-  const clockOutButtonLabel = currentShiftIsOt ? 'Rời văn phòng' : 'Rời công trường';
+  const clockInButtonLabel = overtimeView ? 'Tăng ca' : 'Vào văn phòng';
+  const clockOutButtonLabel = 'Rời văn phòng';
 
   return (
     <div
@@ -326,7 +339,7 @@ export default function EmployeeCard({
           )}
           <button
             onClick={handleOnSiteAction}
-            disabled={pending || (!emp.isOnSite && !isToday)}
+            disabled={pending}
             title={!emp.isOnSite && !isToday ? 'Chỉ vào ca cho ngày hôm nay' : undefined}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
               emp.isOnSite

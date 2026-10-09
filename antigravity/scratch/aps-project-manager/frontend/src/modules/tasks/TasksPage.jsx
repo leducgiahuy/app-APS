@@ -3,6 +3,7 @@ import { useApp } from '../../context/AppContext';
 import ModalOverlay from '../../components/layout/ModalOverlay';
 import DateInput from '../../components/DateInput';
 import EmployeeCombobox from '../../components/EmployeeCombobox';
+import SearchableSelect from '../../components/SearchableSelect';
 import { formatDateVi, inclusiveDays, scheduledProgress, isTaskOverdue, isTaskActiveOnDate, taskDelayHours, formatDelayHours, todayIsoDate } from '../../utils/date';
 import { getGanttTaskCode } from '../../utils/taskCode';
 import {
@@ -18,8 +19,7 @@ import {
   Search,
   Trash2,
   TrendingUp,
-  Tag,
-  ChevronDown
+  Tag
 } from 'lucide-react';
 
 const normalizeEmployeeSearch = value => String(value || '')
@@ -51,9 +51,7 @@ export default function TasksPage() {
   // Trạng thái mở modal
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [showOtModal, setShowOtModal] = useState(false);
-  const [overtimeTaskDropdownOpen, setOvertimeTaskDropdownOpen] = useState(false);
-  const overtimeTaskDropdownRef = useRef(null);
-  const overtimeTaskTriggerRef = useRef(null);
+  const workloadNoteTimersRef = useRef({});
   const [employeeSearch, setEmployeeSearch] = useState('');
   const selectedDateKey = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
   const tasksForSelectedDate = tasks.filter(task => {
@@ -121,30 +119,6 @@ export default function TasksPage() {
     date: today,
     reason: ''
   });
-  const selectedOvertimeTask = tasks.find(task => task.id === otForm.taskId);
-
-  useEffect(() => {
-    if (!overtimeTaskDropdownOpen) return undefined;
-
-    const closeOnOutsideClick = event => {
-      if (!overtimeTaskDropdownRef.current?.contains(event.target)) {
-        setOvertimeTaskDropdownOpen(false);
-      }
-    };
-    const closeOnEscape = event => {
-      if (event.key === 'Escape') {
-        setOvertimeTaskDropdownOpen(false);
-        overtimeTaskTriggerRef.current?.focus();
-      }
-    };
-
-    document.addEventListener('pointerdown', closeOnOutsideClick);
-    document.addEventListener('keydown', closeOnEscape);
-    return () => {
-      document.removeEventListener('pointerdown', closeOnOutsideClick);
-      document.removeEventListener('keydown', closeOnEscape);
-    };
-  }, [overtimeTaskDropdownOpen]);
 
   // Xử lý gửi Form Task
   const handleTaskSubmit = async (e) => {
@@ -370,10 +344,10 @@ export default function TasksPage() {
                   </div>
 
                   {/* Hàng 2: Tên công việc & Người đảm nhận */}
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
                     
                     {/* Tên công việc */}
-                    <div className="lg:col-span-5 min-w-0">
+                    <div className="lg:col-span-4 min-w-0">
                       <div className="flex items-center gap-2">
                         {taskCode && (
                           <span className="px-2 py-0.5 rounded bg-sky-500/10 text-sky-600 dark:text-sky-400 font-mono font-bold text-xs flex-shrink-0">
@@ -406,7 +380,7 @@ export default function TasksPage() {
                     </div>
 
                     {/* HIỂN THỊ TÊN NHÂN SỰ & THỜI GIAN LÀM 1 NGÀY (8h/ngày) */}
-                    <div className="lg:col-span-7 min-w-0 w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 flex items-center justify-between gap-4">
+                    <div className="lg:col-span-4 min-w-0 w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 flex items-start justify-between gap-4">
                       <div className="min-w-0 flex-1">
                           {(Array.isArray(task.assignees) && task.assignees.length
                             ? task.assignees
@@ -459,6 +433,38 @@ export default function TasksPage() {
                           {standardHours}h / ngày
                         </span>
                       </div>
+                    </div>
+
+                    {/* Đánh giá khối lượng công việc thực tế */}
+                    <div className="lg:col-span-4 min-w-0 w-full p-3 rounded-xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-800/60 flex flex-col">
+                      <label className="block text-xs font-bold text-slate-800 dark:text-slate-100" htmlFor={`actual-workload-${task.id}`}>Đánh giá khối lượng thực tế</label>
+                      <textarea
+                          id={`actual-workload-${task.id}`}
+                          rows={1}
+                          maxLength={5000}
+                          defaultValue={task.actualWorkloadNotes || ''}
+                          placeholder="Đánh giá khối lượng công việc thực tế..."
+                          onChange={event => {
+                            const value = event.target.value;
+                            clearTimeout(workloadNoteTimersRef.current[task.id]);
+                            workloadNoteTimersRef.current[task.id] = setTimeout(() => {
+                              delete workloadNoteTimersRef.current[task.id];
+                              if (value !== (task.actualWorkloadNotes || '')) updateTask(task.id, { actualWorkloadNotes: value });
+                            }, 600);
+                          }}
+                          onBlur={event => {
+                            const value = event.target.value;
+                            clearTimeout(workloadNoteTimersRef.current[task.id]);
+                            delete workloadNoteTimersRef.current[task.id];
+                            if (value !== (task.actualWorkloadNotes || '')) updateTask(task.id, { actualWorkloadNotes: value });
+                          }}
+                          onInput={event => {
+                            event.currentTarget.style.height = 'auto';
+                            event.currentTarget.style.height = `${event.currentTarget.scrollHeight}px`;
+                          }}
+                          className="mt-2 min-h-[40px] w-full flex-1 resize-y rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-amber-500 dark:border-amber-800 dark:bg-slate-900 dark:text-white"
+                          aria-label="Ghi chú đánh giá khối lượng công việc thực tế"
+                      />
                     </div>
 
                   </div>
@@ -606,7 +612,7 @@ export default function TasksPage() {
 
       {/* MODAL 1: TẠO TASK CÔNG VIỆC MỚI */}
       {showTaskModal && (
-        <ModalOverlay>
+        <ModalOverlay allowBackgroundScroll>
           <div className="w-full max-w-xl p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -787,7 +793,7 @@ export default function TasksPage() {
 
       {/* MODAL 2: TẠO CA TĂNG CA (OVERTIME) */}
       {showOtModal && (
-        <ModalOverlay>
+        <ModalOverlay allowBackgroundScroll>
           <div className="w-full max-w-lg p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -825,73 +831,18 @@ export default function TasksPage() {
                 <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
                   Gắn Với Công Việc Khẩn Cấp Cần Đẩy Nhanh Tiến Độ
                 </label>
-                <div className="relative" ref={overtimeTaskDropdownRef}>
-                  <button
-                    ref={overtimeTaskTriggerRef}
-                    type="button"
-                    aria-haspopup="listbox"
-                    aria-expanded={overtimeTaskDropdownOpen}
-                    aria-controls="overtime-task-options"
-                    onClick={() => setOvertimeTaskDropdownOpen(open => !open)}
-                    className="flex w-full items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-left text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-                  >
-                    {selectedOvertimeTask ? (
-                      <span className="grid min-w-0 flex-1 grid-cols-[72px_minmax(0,1fr)] items-center gap-2">
-                        <span className="truncate border-r border-slate-200 pr-2 text-center font-mono font-bold text-slate-500 dark:border-slate-600 dark:text-slate-400">
-                          {getGanttTaskCode(selectedOvertimeTask, ganttItems) || selectedOvertimeTask.phase || '—'}
-                        </span>
-                        <span className="truncate">{selectedOvertimeTask.title}</span>
-                      </span>
-                    ) : (
-                      <span className="min-w-0 flex-1 truncate text-slate-500 dark:text-slate-400">
-                        -- Tăng ca đột xuất tại hiện trường --
-                      </span>
-                    )}
-                    <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
-                  </button>
-                  {overtimeTaskDropdownOpen && (
-                    <ul
-                      id="overtime-task-options"
-                      role="listbox"
-                      aria-label="Chọn công việc tăng ca"
-                      className="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-xl dark:border-slate-700 dark:bg-slate-800"
-                    >
-                      <li role="option" aria-selected={!otForm.taskId}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setOtForm(current => ({ ...current, taskId: '' }));
-                            setOvertimeTaskDropdownOpen(false);
-                          }}
-                          className="w-full px-3 py-2 text-left text-xs text-slate-500 hover:bg-sky-50 dark:text-slate-400 dark:hover:bg-slate-700"
-                        >
-                          -- Tăng ca đột xuất tại hiện trường --
-                        </button>
-                      </li>
-                      {tasks.map(task => {
-                        const taskCode = getGanttTaskCode(task, ganttItems) || task.phase || '—';
-                        return (
-                          <li key={task.id} role="option" aria-selected={otForm.taskId === task.id}>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setOtForm(current => ({ ...current, taskId: task.id }));
-                                setOvertimeTaskDropdownOpen(false);
-                              }}
-                              title={task.title}
-                              className="grid w-full grid-cols-[72px_minmax(0,1fr)] items-start gap-2 px-3 py-2 text-left text-xs text-slate-700 hover:bg-sky-50 hover:text-sky-700 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-sky-300"
-                            >
-                              <span className="border-r border-slate-200 pr-2 text-center font-mono font-bold text-slate-500 dark:border-slate-600 dark:text-slate-400">
-                                {taskCode}
-                              </span>
-                              <span className="min-w-0 whitespace-normal break-words leading-4">{task.title}</span>
-                            </button>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-                </div>
+                <SearchableSelect
+                  label="Chọn công việc tăng ca"
+                  value={otForm.taskId}
+                  onChange={taskId => setOtForm(current => ({ ...current, taskId }))}
+                  options={[
+                    { value: '', label: '-- Tăng ca đột xuất tại hiện trường --' },
+                    ...tasks.map(task => {
+                      const code = getGanttTaskCode(task, ganttItems) || task.phase || '—';
+                      return { value: task.id, code, title: task.title, label: `[${code}] ${task.title}` };
+                    })
+                  ]}
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-3">

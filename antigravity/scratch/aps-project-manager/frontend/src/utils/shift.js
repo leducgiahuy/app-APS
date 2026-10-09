@@ -30,6 +30,27 @@ export function matchesEmployee(record, emp) {
   return Boolean(name) && name === (emp.name || '').trim().toLowerCase();
 }
 
+export function regularClockInDateWarning(tasks, emp, todayKey, viewedDateKey = todayKey) {
+  const assignments = (tasks || []).filter(task => task.status !== 'completed').flatMap(task => {
+    const records = Array.isArray(task.assignees) && task.assignees.length ? task.assignees : [task];
+    return records.filter(record => matchesEmployee(record, emp)).map(record => ({
+      task,
+      startDate: record.startDate || task.startDate,
+      endDate: record.endDate || task.endDate
+    }));
+  });
+  const upcoming = assignments.filter(record => record.startDate > todayKey)
+    .sort((a, b) => a.startDate.localeCompare(b.startDate));
+  const activeToday = assignments.some(record =>
+    (!record.startDate || record.startDate <= todayKey) && (!record.endDate || record.endDate >= todayKey)
+  );
+  const candidate = upcoming.find(record => record.task.id === emp.activeTaskId) ||
+    (viewedDateKey > todayKey || !activeToday ? upcoming[0] : null);
+  if (!candidate) return '';
+  const dateLabel = candidate.startDate.split('-').reverse().join('/');
+  return `Chưa tới ngày thực hiện task "${candidate.task.title}" (bắt đầu ${dateLabel}). Bạn chưa thể vào văn phòng để bắt đầu task này.`;
+}
+
 /** T2–T6 từ 18:00, T7 từ 13:30. Chủ nhật không mở tăng ca. */
 export function getOvertimeWindow(date = new Date()) {
   const day = new Date(`${localDateKey(date)}T00:00:00Z`).getUTCDay();
