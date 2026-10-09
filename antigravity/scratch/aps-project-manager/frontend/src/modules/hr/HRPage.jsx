@@ -83,7 +83,7 @@ export default function HRPage() {
 
   return (
     <div className="w-full space-y-6 px-4 sm:px-6 pt-0 pb-6">
-      <div className="sticky top-16 z-20 -mx-4 sm:-mx-6 space-y-0 bg-slate-50 dark:bg-slate-950 pb-1">
+      <div className="hr-fixed-controls sticky top-16 z-20 -mx-4 sm:-mx-6 space-y-0 bg-slate-50 dark:bg-slate-950 pb-1">
       {/* 4 Thẻ KPI Tóm Tắt Đầu Trang */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-0">
         

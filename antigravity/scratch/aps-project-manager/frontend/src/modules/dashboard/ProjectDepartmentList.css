@@ -1,0 +1,27 @@
+.project-department-list { display:grid; gap:10px; max-height:420px; overflow:auto; padding:2px 2px 8px; color:var(--dash-ink); }
+.department-table-row { display:grid; grid-template-columns:minmax(140px,1fr) repeat(3,88px); align-items:center; gap:10px; min-height:44px; padding:0 14px; font-size:12px; font-variant-numeric:tabular-nums; }
+.department-table-row > :not(:first-child) { text-align:center; white-space:nowrap; }
+.department-table-header { position:sticky; top:0; z-index:1; min-width:420px; min-height:28px; border:1px solid transparent; color:var(--dash-muted); background:var(--dash-surface); font-size:10px; font-weight:650; letter-spacing:.04em; text-transform:uppercase; }
+.department-card { min-width:420px; overflow:hidden; border:1px solid var(--dash-line); border-radius:12px; background:var(--dash-surface); box-shadow:0 2px 5px color-mix(in srgb,var(--dash-ink) 3%,transparent); }
+.department-summary-row { min-height:64px; border-left:3px solid var(--dash-green); padding-left:11px; background:linear-gradient(110deg,color-mix(in srgb,var(--dash-green) 6%,var(--dash-surface)),var(--dash-surface)); font-weight:700; }
+.department-toggle { display:flex; align-items:center; gap:10px; min-width:0; padding:10px 0; border:0; background:transparent; color:inherit; text-align:left; cursor:pointer; font:inherit; }
+.department-toggle > svg { flex-shrink:0; color:var(--dash-muted); }
+.department-icon { display:grid; place-items:center; flex-shrink:0; width:34px; height:34px; border:1px solid color-mix(in srgb,var(--dash-green) 15%,var(--dash-line)); border-radius:10px; background:color-mix(in srgb,var(--dash-green) 9%,var(--dash-surface)); color:var(--dash-green); }
+.department-heading-text { display:grid; gap:4px; min-width:0; }
+.department-heading-text > span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; }
+.department-heading-text small { display:flex; align-items:center; gap:4px; color:var(--dash-muted); font-size:10px; font-weight:450; }
+.department-toggle:focus-visible { outline:2px solid var(--dash-blue); outline-offset:-2px; border-radius:4px; }
+.department-task-badge,.person-task-badge { display:inline-grid; place-items:center; min-width:32px; padding:4px 8px; border-radius:7px; background:color-mix(in srgb,var(--dash-blue) 9%,var(--dash-surface)); color:var(--dash-blue); font-weight:700; }
+.department-effort-badge { display:inline-block; padding:6px 10px; border-radius:8px; background:color-mix(in srgb,var(--dash-accent) 9%,var(--dash-surface)); color:var(--dash-accent); }
+.department-person-row { border-top:1px solid color-mix(in srgb,var(--dash-line) 75%,transparent); transition:background .15s ease; }
+.department-person-row:hover { background:var(--dash-soft); }
+.department-person-name { position:relative; display:flex; align-items:center; gap:10px; min-width:0; padding-left:28px; }
+.department-person-name::before { content:''; position:absolute; left:11px; top:0; width:8px; height:14px; border-left:1px solid var(--dash-line); border-bottom:1px solid var(--dash-line); border-bottom-left-radius:4px; }
+.department-person-name .employee-initial { flex-shrink:0; width:27px; height:27px; font-size:10px; }
+.department-person-name .employee-report-name { font-size:12px; }
+.department-person-name .employee-report-name small { display:inline-block; margin-left:7px; padding:2px 5px; border-radius:4px; color:var(--dash-blue); background:color-mix(in srgb,var(--dash-blue) 7%,var(--dash-surface)); font-size:9px; }
+.person-task-badge { background:var(--dash-soft); color:var(--dash-muted); font-weight:550; }
+.person-ot-badge { display:inline-block; min-width:32px; padding:3px 6px; color:var(--dash-muted); }
+.person-ot-badge.has-overtime { border-radius:6px; color:var(--dash-gold); background:color-mix(in srgb,var(--dash-gold) 10%,var(--dash-surface)); font-weight:650; }
+.department-person-row strong { font-size:12px; font-weight:700; }
+@media (max-width:560px) { .department-table-row { grid-template-columns:minmax(140px,1fr) repeat(3,64px); gap:8px; padding-right:10px; }.department-toggle { gap:7px; }.department-icon { width:29px; height:29px; }.department-heading-text > span { font-size:12px; } }

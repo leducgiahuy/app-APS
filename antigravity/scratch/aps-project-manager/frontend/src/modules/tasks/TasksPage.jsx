@@ -196,7 +196,7 @@ export default function TasksPage() {
     <div className="space-y-4">
       
       {/* Thanh chuyển đổi 2 Mục: Phân công task & Đăng ký tăng ca */}
-      <div className="sticky top-16 z-40 w-full min-w-0 flex flex-col 2xl:flex-row 2xl:flex-nowrap items-center justify-between gap-2 px-4 sm:px-5 py-2 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-sm">
+      <div className="tasks-fixed-controls sticky top-16 z-40 w-full min-w-0 flex flex-col 2xl:flex-row 2xl:flex-nowrap items-center justify-between gap-2 px-4 sm:px-5 py-2 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-sm">
         <div className="flex items-center gap-2 w-full 2xl:w-auto 2xl:flex-none min-w-0">
           <button
             onClick={() => setActiveSubTab('tasks')}

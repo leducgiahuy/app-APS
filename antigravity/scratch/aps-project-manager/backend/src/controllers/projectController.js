@@ -1,4 +1,5 @@
 import { readDb, writeDb } from '../models/db.js';
+import { assignmentWorkingDates, normalizeAssignmentSchedules } from '../../../frontend/src/utils/assignmentCalendar.js';
 
 /**
  * Controller Quản Lý Tiến Độ Dự Án & Biểu Đồ Gantt Công Trường
@@ -574,6 +575,12 @@ export function updateGanttItem(req, res) {
         return res.status(400).json({ success: false, message: 'Vui lòng kiểm tra người đảm nhận và khoảng thời gian đã chọn' });
       }
       const assignmentHoursPerDay = Number(assignment.estimatedHoursPerDay);
+      if (assignment.excludeNonWorkingDays !== undefined && typeof assignment.excludeNonWorkingDays !== 'boolean') {
+        return res.status(400).json({ success: false, message: 'Lựa chọn làm ngày nghỉ không hợp lệ' });
+      }
+      if (assignment.excludeNonWorkingDays === true && !assignmentWorkingDates(item, assignment).length) {
+        return res.status(400).json({ success: false, message: 'Khoảng phân công không còn ngày làm việc sau khi bỏ ngày lễ và Chủ nhật' });
+      }
       if (!Number.isFinite(assignmentHoursPerDay) || assignmentHoursPerDay <= 0) {
         return res.status(400).json({ success: false, message: 'Giờ làm dự kiến mỗi ngày phải lớn hơn 0 cho từng người đảm nhận' });
       }
@@ -582,7 +589,8 @@ export function updateGanttItem(req, res) {
         employeeName: employee.name,
         startDate: assignment.startDate,
         endDate: assignment.endDate,
-        estimatedHoursPerDay: Math.round(assignmentHoursPerDay * 100) / 100
+        estimatedHoursPerDay: Math.round(assignmentHoursPerDay * 100) / 100,
+        ...(typeof assignment.excludeNonWorkingDays === 'boolean' ? { excludeNonWorkingDays: assignment.excludeNonWorkingDays } : {})
       });
     }
   }
@@ -780,6 +788,8 @@ export function updateGanttItem(req, res) {
       } else if (!Number(task.estimatedHours) || Math.abs(Number(task.estimatedHours) - defaultEstimatedHours) < 0.01) {
         task.estimatedHours = task.estimatedDays * standardHours;
       }
+      if (linkedById || linkedLegacyTask) task.assignees = item.assignees;
+      normalizeAssignmentSchedules({ tasks: [task] });
       if (task.status === 'completed' && task.completedAt) {
         const completedAt = Date.parse(task.completedAt);
         const plannedHours = Number(task.estimatedHours) || task.estimatedDays * (Number(task.estimatedHoursPerDay) || standardHours);

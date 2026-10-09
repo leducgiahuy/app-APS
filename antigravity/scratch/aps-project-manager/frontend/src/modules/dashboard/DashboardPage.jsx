@@ -2,14 +2,16 @@ import { useMemo, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { AlertTriangle, CalendarDays, Clock3, Search, Send } from 'lucide-react';
 import { inclusiveDays, taskDelayHours } from '../../utils/date';
-import { calculatePlannedPersonDays } from '../gantt/GanttWorkColumns';
+import { summarizeProjectGantt } from '../../utils/projectGanttSummary';
+import ProjectDepartmentList from './ProjectDepartmentList';
+import { createGanttPhaseResolver } from '../../utils/ganttPhase';
 import './DashboardPage.css';
 
 const localDateKey = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 const formatDate = (value) => value
   ? new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(`${value}T00:00:00`))
   : 'Chưa đặt';
-const formatHours = (value) => Number(value || 0).toLocaleString('vi-VN', { maximumFractionDigits: 1 });
+const formatHours = (value) => Number(value || 0).toLocaleString('vi-VN', { maximumFractionDigits: 2 });
 // Gantt phase colors are authoritative for the phase chart; these dashboard
 // tokens are fallbacks for categories without a matching Gantt group.
 const PHASE_CHART_COLORS = ['var(--dash-accent)', 'var(--dash-gold)', 'var(--dash-blue)', 'var(--dash-green)', 'color-mix(in srgb,var(--dash-accent) 55%,var(--dash-blue))', 'color-mix(in srgb,var(--dash-accent) 55%,var(--dash-gold))', 'var(--dash-muted)'];
@@ -53,70 +55,7 @@ export default function DashboardPage() {
     const delayedTasks = projectTasks.filter((task) => task.status !== 'completed' &&
       (task.speedStatus === 'delayed' || taskDelayHours(task, currentTime) > 0)).length;
     const needsReport = !complete && !overdue && delayedTasks > 0;
-    const team = new Map();
-    const resolveCurrentEmployee = (employeeId, employeeName) => {
-      if (employeeId) return employees.find((employee) => employee.id === employeeId) || null;
-      const normalizedName = String(employeeName || '').trim().toLocaleLowerCase('vi');
-      return normalizedName
-        ? employees.find((employee) => String(employee.name || '').trim().toLocaleLowerCase('vi') === normalizedName) || null
-        : null;
-    };
-
-    projectTasks.forEach((task) => {
-      const assignments = Array.isArray(task.assignees) && task.assignees.length
-        ? task.assignees
-        : [{ employeeId: task.employeeId, employeeName: task.employeeName, startDate: task.startDate }];
-      assignments.forEach((assignment) => {
-        const employee = resolveCurrentEmployee(assignment.employeeId, assignment.employeeName);
-        if (!employee) return;
-        const id = employee.id;
-        if (!team.has(id)) team.set(id, {
-          id,
-          name: employee.name || 'Chưa rõ nhân sự',
-          hours: 0,
-          overtime: 0,
-          tracked: false,
-          addedLater: Boolean(assignment.startDate && project.startDate && assignment.startDate > project.startDate),
-        });
-      });
-
-      // Old task totals are attributable only when there is one assignee.
-      if (!(task.actualWorkEntries || []).length && assignments.length === 1 && Number(task.actualWorkHours) > 0) {
-        const employee = resolveCurrentEmployee(assignments[0].employeeId, assignments[0].employeeName);
-        const person = employee ? team.get(employee.id) : null;
-        if (person) { person.hours += Number(task.actualWorkHours); person.tracked = true; }
-      }
-      (task.actualWorkEntries || []).forEach((entry) => {
-        const employee = resolveCurrentEmployee(entry.employeeId, entry.employeeName);
-        if (!employee) return;
-        const id = employee.id;
-        const person = team.get(id) || { id, name: employee.name, hours: 0, overtime: 0, tracked: false, addedLater: false };
-        if (entry.shiftType !== 'overtime') {
-          person.hours += Number(entry.hours) || 0;
-          person.tracked = true;
-        }
-        team.set(id, person);
-      });
-
-      // Display the currently running work session without waiting for checkout.
-      const activeEmployee = employees.find((employee) => employee.activeTaskId === task.id && employee.workSessionStartedAt);
-      if (activeEmployee && activeEmployee.shiftType !== 'overtime') {
-        const person = team.get(activeEmployee.id) || { id: activeEmployee.id, name: activeEmployee.name, hours: 0, overtime: 0, tracked: true, addedLater: false };
-        person.hours += Math.max(0, (currentTime.getTime() - Date.parse(activeEmployee.workSessionStartedAt)) / 3600000);
-        person.tracked = true;
-        team.set(person.id, person);
-      }
-    });
-
-    const projectTaskIds = new Set(projectTasks.map((task) => task.id));
-    overtimes.filter((entry) => projectTaskIds.has(entry.taskId) && (!entry.status || entry.status === 'approved')).forEach((entry) => {
-      const employee = resolveCurrentEmployee(entry.employeeId, entry.employeeName);
-      if (!employee) return;
-      const id = employee.id;
-      const person = team.get(id) || { id, name: employee.name, hours: 0, overtime: 0, tracked: false, addedLater: false };
-      person.overtime += Number(entry.hours) || 0;
-      team.set(id, person);
-    });
+    const { team, departments, personDays: ganttPersonDays } = summarizeProjectGantt(project, ganttItems, tasks, employees, overtimes);
 
     const projectTaskGanttIds = new Set(projectTasks.map((task) => task.ganttId).filter(Boolean));
     const projectTaskTitles = new Set(projectTasks.map((task) => task.title?.trim().toLowerCase()).filter(Boolean));
@@ -132,12 +71,7 @@ export default function DashboardPage() {
         (Number(item.estimatedHoursPerDay) || 8) * (Number(item.days) || 1)),
     ].reduce((sum, hours) => sum + hours, 0);
 
-    // Match the existing Gantt CÔNG TT total, counting only leaf task rows.
-    const taskContainerIds = new Set(ganttItems.filter(item => item.parentTaskId).map(item => item.parentTaskId));
-    const ganttPersonDays = ganttItems
-      .filter(item => (item.projectId || tasks.find(task => task.ganttId === item.id)?.projectId) === project.id &&
-        !item.isGroup && item.status !== 'holiday' && !taskContainerIds.has(item.id))
-      .reduce((sum, item) => sum + calculatePlannedPersonDays(item), 0);
+
 
     return {
       ...project,
@@ -152,7 +86,8 @@ export default function DashboardPage() {
       needsReport,
       plannedHours,
       ganttPersonDays,
-      team: [...team.values()],
+      team,
+      departments,
       // Project actual effort comes from task totals; attribution by employee is
       // shown only when individual attendance entries exist.
       actualHours: projectTasks.reduce((sum, task) => sum + (Number(task.actualWorkHours) || 0), 0) +
@@ -169,11 +104,15 @@ export default function DashboardPage() {
   const taskDistribution = useMemo(() => {
     if (!selected) return { phases: [], departments: [] };
     const phaseCounts = new Map();
+    const phaseColors = new Map();
+    const resolvePhase = createGanttPhaseResolver(ganttItems);
     const departmentCounts = new Map();
     const employeesById = new Map(employees.map((employee) => [employee.id, employee]));
     const employeesByName = new Map(employees.map((employee) => [String(employee.name || '').trim().toLocaleLowerCase('vi'), employee]));
     selected.tasks.forEach((task) => {
-      const phase = String(task.phase || '').trim() || 'Chưa phân loại';
+      const currentPhase = resolvePhase(task);
+      const phase = currentPhase.name;
+      if (currentPhase.color) phaseColors.set(phase, currentPhase.color);
       phaseCounts.set(phase, (phaseCounts.get(phase) || 0) + 1);
       const assignments = Array.isArray(task.assignees) && task.assignees.length
         ? task.assignees
@@ -199,11 +138,8 @@ export default function DashboardPage() {
       }
       return rows;
     };
-    const ganttPhaseColors = new Map(ganttItems
-      .filter((item) => item.projectId === selected.id && item.isGroup && item.color)
-      .map((item) => [String(item.title || '').trim().toLocaleLowerCase('vi'), item.color]));
     const phases = toRows(phaseCounts).map((row) => {
-      const ganttColor = ganttPhaseColors.get(row.name.trim().toLocaleLowerCase('vi'));
+      const ganttColor = phaseColors.get(row.name);
       const phaseCode = row.name.match(/^([A-Z])\./)?.[1];
       // Match the Gantt's visual phase treatment: A/C use light tints, while B
       // keeps its strong red so its slice remains clear and consistent with Gantt.
@@ -239,7 +175,7 @@ export default function DashboardPage() {
       `Trạng thái: ${status} · Tiến độ: ${project.progress}% · Hoàn thành ${project.completeCount}/${project.tasks.length} công việc`,
       `Hạn dự án: ${formatDate(project.endDate)} · Công dự kiến: ${formatHours(project.plannedHours / 8)} công (${formatHours(project.plannedHours)} giờ)`,
       `Nhân sự tham gia: ${project.team.length} · Bổ sung sau khởi công: ${project.team.filter((person) => person.addedLater).length}`,
-      `Công thực tế đã dùng: ${formatHours(project.actualHours / 8)} công · OT đã duyệt: ${formatHours(project.team.reduce((sum, person) => sum + person.overtime, 0))} giờ`,
+      `Công thực tế theo Gantt: ${formatHours(project.ganttPersonDays)} công · OT đã duyệt: ${formatHours(project.team.reduce((sum, person) => sum + person.overtime, 0))} giờ`,
       missingHours ? `Lưu ý: ${missingHours} nhân sự chưa có nhật ký giờ cá nhân.` : '',
     ].filter(Boolean).join('\n');
   };
@@ -333,13 +269,10 @@ export default function DashboardPage() {
               <div><span>Tổng thời gian dự án</span><strong>{selected.startDate && selected.endDate ? inclusiveDays(selected.startDate, selected.endDate) : '—'} <small>ngày</small></strong><em>{formatDate(selected.startDate)} – {formatDate(selected.endDate)}</em></div>
               <div><span>Nhân sự tham gia</span><strong>{selected.team.length} <small>người</small></strong></div>
               <div><span>Tiến độ</span><strong>{selected.progress}<small>%</small></strong><em>{selected.complete ? 'Hoàn thành' : selected.overdue ? 'Trễ hạn' : selected.needsReport ? 'Trễ tiến độ · Cần báo cáo' : 'Đang thực hiện'}</em></div>
-              <div><span>Công thực tế</span><strong>{formatHours(selected.actualHours / 8)} <small>công</small></strong></div>
+              <div><span>Công thực tế</span><strong>{formatHours(selected.ganttPersonDays)} <small>công</small></strong></div>
             </div>
-            <div className="team-summary-heading"><div><h3>Nhân sự & giờ công</h3><p>Giờ làm và OT đã duyệt</p></div><div className="hours-legend"><span><i className="regular-key" />Giờ làm</span><span><i className="overtime-key" />OT</span></div></div>
-            <div className="employee-report-list compact-team-list">{selected.team.length ? selected.team.map((person) => <div className="employee-report-row" key={person.id}>
-              <span className="employee-initial">{person.name.charAt(0)}</span><span className="employee-report-name">{person.name}{person.addedLater && <small>Bổ sung</small>}</span>
-              <span className="employee-hour regular-hour">{person.tracked ? `${formatHours(person.hours)}h` : '—'}</span><span className="employee-hour overtime-hour">{formatHours(person.overtime)}h</span>
-            </div>) : <div className="dashboard-empty">Chưa có nhân sự được phân công.</div>}</div>
+            <div className="team-summary-heading"><div><h3>Hiệu suất công việc</h3></div><div className="hours-legend"><span><i className="regular-key" />Công TT</span><span><i className="overtime-key" />OT</span></div></div>
+            <ProjectDepartmentList key={selected.id} departments={selected.departments} />
             <div className="project-period"><CalendarDays size={14} />{formatDate(selected.startDate)} – {formatDate(selected.endDate)}</div>
           </> : <div className="dashboard-empty">Chưa có dự án để hiển thị</div>}
         </div>

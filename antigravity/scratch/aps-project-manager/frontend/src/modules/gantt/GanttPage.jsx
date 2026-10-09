@@ -1,8 +1,14 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import GanttRowGrid from './GanttRowGrid';
+import GanttCalendarBackground from './GanttCalendarBackground';
+import { calendarColumns } from '../../utils/vietnamCalendar';
+import { assignmentCalendarConflicts, assignmentWorkingDates } from '../../utils/assignmentCalendar';
+import GanttExcludedDaysBar from './GanttExcludedDaysBar';
+import AssignmentCalendarConfirmation from './AssignmentCalendarConfirmation';
 import { useApp } from '../../context/AppContext';
 import ModalOverlay from '../../components/layout/ModalOverlay';
 import SearchableSelect from '../../components/SearchableSelect';
+import ViewportMenu from '../../components/ViewportMenu';
 import DateInput from '../../components/DateInput';
 import EmployeeCombobox from '../../components/EmployeeCombobox';
 import {
@@ -289,6 +295,8 @@ export default function GanttPage() {
   const createMenuRef = useRef(null);
   const phaseMenuRef = useRef(null);
   const groupMenuRef = useRef(null);
+  const groupMenuAnchorRef = useRef(null);
+  const groupMenuPanelRef = useRef(null);
 
   useEffect(() => {
     if (!columnFilterOpen) return undefined;
@@ -364,6 +372,8 @@ export default function GanttPage() {
   const [showEditProjectModal, setShowEditProjectModal] = useState(false);
   const [assignmentEditorItem, setAssignmentEditorItem] = useState(null);
   const [assignmentRows, setAssignmentRows] = useState([]);
+  const [assignmentCalendarPrompt, setAssignmentCalendarPrompt] = useState(null);
+  const [assignmentSaving, setAssignmentSaving] = useState(false);
   const [hoveredDependencyKey, setHoveredDependencyKey] = useState(null);
   const [locationSuggestionsOpen, setLocationSuggestionsOpen] = useState(false);
   const [locationSearch, setLocationSearch] = useState('');
@@ -503,7 +513,7 @@ export default function GanttPage() {
   useEffect(() => {
     if (!groupMenuOpenId) return undefined;
     const closeOnOutsideClick = event => {
-      if (!groupMenuRef.current?.contains(event.target)) setGroupMenuOpenId(null);
+      if (!groupMenuRef.current?.contains(event.target) && !groupMenuPanelRef.current?.contains(event.target)) setGroupMenuOpenId(null);
     };
     const closeOnEscape = event => {
       if (event.key === 'Escape') setGroupMenuOpenId(null);
@@ -608,6 +618,8 @@ export default function GanttPage() {
   }, [timelineStart, timelineEnd]);
 
   // Danh sách các cột tháng (T11/26, T12/26, T1/27, T2/27, T3/27, T4/27, T5/27, T6/27, T7/27)
+  const calendarDays = useMemo(() => calendarColumns(timelineStart, totalTimelineDays), [timelineStart, totalTimelineDays]);
+
   const monthColumns = useMemo(() => {
     const months = [];
     const curr = new Date(timelineStart);
@@ -1171,6 +1183,7 @@ export default function GanttPage() {
           }]
           : [{ employeeId: '', startDate: item.startDate, endDate: item.endDate }];
     setAssignmentRows(currentAssignments.map(assignment => ({
+      ...assignment,
       employeeId: assignment.employeeId || '',
       startDate: assignment.startDate || item.startDate,
       endDate: assignment.endDate || item.endDate,
@@ -1198,8 +1211,26 @@ export default function GanttPage() {
       window.alert(`Khoảng thời gian đảm nhận phải nằm trong thời gian công việc (${formatDateVi(assignmentEditorItem.startDate)} → ${formatDateVi(assignmentEditorItem.endDate)}).`);
       return;
     }
-    const success = await updateGanttItem(assignmentEditorItem.id, { assignees: assignmentRows });
-    if (success) setAssignmentEditorItem(null);
+    const conflicts = assignmentCalendarConflicts(assignmentRows);
+    if (conflicts.length) {
+      setAssignmentCalendarPrompt({ rows: assignmentRows.map(row => ({ ...row })), conflicts });
+      return;
+    }
+    await saveAssignmentCalendarChoice(assignmentRows);
+  };
+
+  const saveAssignmentCalendarChoice = async (rows, excludeNonWorkingDays) => {
+    const selected = rows.map(row => typeof excludeNonWorkingDays === 'boolean' ? { ...row, excludeNonWorkingDays } : row);
+    if (selected.some(row => !assignmentWorkingDates(assignmentEditorItem, row).length)) {
+      window.alert('Có người không còn ngày làm việc sau khi bỏ ngày lễ và Chủ nhật. Vui lòng chỉnh lại khoảng phân công.');
+      setAssignmentCalendarPrompt(null);
+      return;
+    }
+    setAssignmentSaving(true);
+    try {
+      const success = await updateGanttItem(assignmentEditorItem.id, { assignees: selected });
+      if (success) { setAssignmentCalendarPrompt(null); setAssignmentEditorItem(null); }
+    } finally { setAssignmentSaving(false); }
   };
 
   const handleDeleteSelectedProject = async () => {
@@ -1410,7 +1441,7 @@ export default function GanttPage() {
             
             {/* ================= KHUNG TRÁI: BẢNG DỮ LIỆU CÔNG VIỆC (ĐÓNG BĂNG FREEZE) ================= */}
             <div
-              className="relative flex-shrink-0 sticky left-0 z-40 overflow-hidden bg-white dark:bg-slate-900 border-r-2 border-slate-300 dark:border-slate-700 shadow-md"
+              className="relative flex-shrink-0 sticky left-0 z-40 overflow-clip bg-white dark:bg-slate-900 border-r-2 border-slate-300 dark:border-slate-700 shadow-md"
               style={{ width: `${LEFT_PANEL_WIDTH}px`, minWidth: `${LEFT_PANEL_WIDTH}px`, maxWidth: `${LEFT_PANEL_WIDTH}px` }}
             >
               <div
@@ -1573,13 +1604,13 @@ export default function GanttPage() {
                               aria-label={`Tùy chọn mục công việc ${item.title}`}
                               aria-haspopup="menu"
                               aria-expanded={groupMenuOpenId === item.id}
-                              onClick={() => setGroupMenuOpenId(current => current === item.id ? null : item.id)}
+                              onClick={event => { groupMenuAnchorRef.current = event.currentTarget; setGroupMenuOpenId(current => current === item.id ? null : item.id); }}
                               className="rounded-md p-1 text-slate-500 hover:bg-slate-200 hover:text-slate-800 dark:hover:bg-slate-700 dark:hover:text-white"
                             >
                               <MoreHorizontal className="h-4 w-4" />
                             </button>
                             {groupMenuOpenId === item.id && (
-                              <div role="menu" className="absolute right-0 top-full z-[100] mt-1 w-60 overflow-hidden rounded-xl border border-slate-200 bg-white p-1 shadow-xl dark:border-slate-700 dark:bg-slate-900">
+                              <ViewportMenu key={item.id} anchorRef={groupMenuAnchorRef} panelRef={groupMenuPanelRef}>
                                 <button
                                   type="button"
                                   role="menuitem"
@@ -1610,7 +1641,7 @@ export default function GanttPage() {
                                   <Trash2 className="h-3.5 w-3.5" />
                                   Xóa mục công việc
                                 </button>
-                              </div>
+                              </ViewportMenu>
                             )}
                         </div>}
                       </div>
@@ -1777,8 +1808,8 @@ export default function GanttPage() {
                           <div
                             key={dayIndex + 1}
                             className="flex h-full shrink-0 items-center justify-center border-r border-slate-200/80 text-[9px] font-medium leading-none text-slate-500 last:border-r-0 dark:border-slate-700 dark:text-slate-400"
-                            style={{ width: `${pxPerDay}px` }}
-                            title={`${dayIndex + 1}/${col.label.slice(1)}`}
+                            style={{ width: `${pxPerDay}px`, backgroundColor: calendarDays[Math.round(col.left / pxPerDay) + dayIndex]?.color }}
+                            title={`${dayIndex + 1}/${col.label.slice(1)}${calendarDays[Math.round(col.left / pxPerDay) + dayIndex]?.label ? ` — ${calendarDays[Math.round(col.left / pxPerDay) + dayIndex].label}` : ''}`}
                           >
                             {dayIndex + 1}
                           </div>
@@ -1815,6 +1846,8 @@ export default function GanttPage() {
                 height={chartBodyHeight}
                 className="relative z-0 block"
               >
+                {/* Calendar fills are painted first, below grid, links, bars and labels. */}
+                <GanttCalendarBackground days={calendarDays} pxPerDay={pxPerDay} height={chartBodyHeight} />
                 <defs>
                   {/* Mũi tên đầu đường phụ thuộc Finish-to-Start */}
                   <marker
@@ -2045,7 +2078,7 @@ export default function GanttPage() {
                           employeeName: assignment.employeeName || item.assignee,
                           startDate: assignment.startDate || item.startDate,
                           endDate: assignment.endDate || item.endDate,
-                          days: inclusiveDays(assignment.startDate || item.startDate, assignment.endDate || item.endDate),
+                          days: assignmentWorkingDates(item, assignment).length,
                           hoursPerDay: Number(assignment.estimatedHoursPerDay) || Number(item.estimatedHoursPerDay) || Number(item.estimatedHours) / (Number(item.days) || 1) || 8,
                           y: coord.rowTop + 16 + index * 22
                         };
@@ -2096,7 +2129,7 @@ export default function GanttPage() {
                         />
                       )}
 
-                      {!isGroup && !isHoliday && (
+                      {!isGroup && !isHoliday && !itemAssignees?.some(a => a.excludeNonWorkingDays === true) && (
                         <>
                           <rect
                             x={coord.x}
@@ -2130,6 +2163,8 @@ export default function GanttPage() {
                           )}
                         </>
                       )}
+
+                      {!isGroup && !isHoliday && itemAssignees?.some(a => a.excludeNonWorkingDays === true) && <GanttExcludedDaysBar item={{ ...item, assignees: itemAssignees }} timelineStart={timelineStart} pxPerDay={pxPerDay} coord={coord} progress={progress} fillColor={fillColor} statusColor={statusColor} highlighted={isDependencyHighlighted} />}
 
                       {/* Nhãn trên thanh hoặc cạnh thanh: Tên người đảm nhận, thời gian, tăng ca */}
                       {!isGroup && (
@@ -2450,12 +2485,14 @@ export default function GanttPage() {
 
               <div className="flex justify-end gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">
                 <button type="button" onClick={() => setAssignmentEditorItem(null)} className="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">Hủy</button>
-                <button type="submit" className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs">Lưu phân công</button>
+                <button type="submit" disabled={assignmentSaving} className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs disabled:opacity-50">{assignmentSaving ? 'Đang lưu...' : 'Lưu phân công'}</button>
               </div>
             </form>
           </div>
         </ModalOverlay>
       )}
+
+      {assignmentCalendarPrompt && assignmentEditorItem && <AssignmentCalendarConfirmation title={assignmentEditorItem.title} conflicts={assignmentCalendarPrompt.conflicts} saving={assignmentSaving} onClose={() => setAssignmentCalendarPrompt(null)} onChoice={exclude => saveAssignmentCalendarChoice(assignmentCalendarPrompt.rows, exclude)} />}
 
       {showPhaseDateModal && (
         <ModalOverlay>

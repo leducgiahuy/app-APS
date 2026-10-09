@@ -1,5 +1,6 @@
 import { readDb, writeDb } from '../models/db.js';
 import { compareWbs, reconnectGanttDependencies } from './projectController.js';
+import { normalizeAssignmentSchedules } from '../../../frontend/src/utils/assignmentCalendar.js';
 
 const hasStoredAssignmentState = task => Boolean(task && (
   Array.isArray(task.assignees) ||
@@ -315,6 +316,7 @@ export function updateTask(req, res) {
     }];
   }
 
+  normalizeAssignmentSchedules({ tasks: [task] });
   if (task.progress === 100) {
     task.status = 'completed';
   }

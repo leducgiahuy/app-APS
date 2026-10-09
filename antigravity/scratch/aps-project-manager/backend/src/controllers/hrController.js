@@ -1,4 +1,6 @@
 import { readDb, writeDb } from '../models/db.js';
+import { nextEmployeeCode } from '../utils/employeeCodes.js';
+import { assignmentWorksOnDate } from '../../../frontend/src/utils/assignmentCalendar.js';
 import {
   employeeOtEntries,
   isOvertimeClockInAllowed,
@@ -41,10 +43,7 @@ function activeOnDate(item, dateKey) {
 
 function assignedOnDate(item, emp, dateKey) {
   if (Array.isArray(item.assignees) && item.assignees.length) {
-    return item.assignees.some(assignment => matchesEmployee(assignment, emp) && activeOnDate({
-      startDate: assignment.startDate || item.startDate,
-      endDate: assignment.endDate || item.endDate
-    }, dateKey));
+    return item.assignees.some(assignment => matchesEmployee(assignment, emp) && assignmentWorksOnDate(assignment, item, dateKey));
   }
   return isAssignedToEmployee(item, emp) && activeOnDate(item, dateKey);
 }
@@ -320,7 +319,8 @@ export function createEmployee(req, res) {
 
   const newEmployee = {
     id: `emp-${Date.now()}`,
-    code: `NV-${String(db.employees.length + 1).padStart(3, '0')}`,
+    code: nextEmployeeCode(db),
+    createdAt: new Date().toISOString(),
     name,
     title,
     team: team || 'Ban Quản Lý',
@@ -342,7 +342,9 @@ export function createEmployee(req, res) {
   };
 
   db.employees.push(newEmployee);
-  writeDb(db);
+  if (!writeDb(db)) {
+    return res.status(500).json({ success: false, message: 'Không lưu được nhân sự mới. Vui lòng thử lại.' });
+  }
 
   return res.status(201).json({
     success: true,

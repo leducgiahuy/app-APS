@@ -80,6 +80,10 @@
 .dark .workload-table td.full { background: #49323b; }
 .workload-table td.over { background: #fef2f2; }
 .dark .workload-table td.over { background: #48272a; }
+.workload-table.month thead th.holiday, .workload-table.day thead th.holiday { background: #eab308; color: #45320a; }
+.workload-table.month tbody td.holiday, .workload-table.day tbody td.holiday { background: #fbefbd; }
+.dark .workload-table.month thead th.holiday, .dark .workload-table.day thead th.holiday { background: #a77d10; color: #fff5ce; }
+.dark .workload-table.month tbody td.holiday, .dark .workload-table.day tbody td.holiday { background: #504322; }
 .workload-cell-hours { display: flex; align-items: baseline; justify-content: center; gap: 2px; white-space: nowrap; }
 .workload-cell-hours strong { color: #342f30; font-size: 14px; }
 .workload-cell-hours span { color: #827a78; font-size: 9px; }

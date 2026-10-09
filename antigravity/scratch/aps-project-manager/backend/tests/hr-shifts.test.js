@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import * as backendShift from '../src/utils/shift.js';
 import * as frontendShift from '../../frontend/src/utils/shift.js';
+import * as assignmentCalendar from '../../frontend/src/utils/assignmentCalendar.js';
 
 test('frontend and backend enforce Vietnam overtime boundaries', () => {
   const cases = [
@@ -57,8 +58,12 @@ async function harness() {
     this.setExport('writeDb', () => true);
   }, { context });
   const rules = new vm.SourceTextModule(await readFile(new URL('../src/utils/shift.js', import.meta.url), 'utf8'), { context });
+  const codes = new vm.SourceTextModule(await readFile(new URL('../src/utils/employeeCodes.js', import.meta.url), 'utf8'), { context });
+  const calendar = new vm.SyntheticModule(Object.keys(assignmentCalendar), function () {
+    for (const [key, value] of Object.entries(assignmentCalendar)) this.setExport(key, value);
+  }, { context });
   const controller = new vm.SourceTextModule(await readFile(new URL('../src/controllers/hrController.js', import.meta.url), 'utf8'), { context });
-  await controller.link(specifier => specifier.includes('models/db') ? dbModule : rules);
+  await controller.link(specifier => specifier.includes('models/db') ? dbModule : specifier.includes('employeeCodes') ? codes : specifier.includes('assignmentCalendar') ? calendar : rules);
   await controller.evaluate();
   function call(name, body = {}) {
     let status = 200;
@@ -113,6 +118,17 @@ test('regular assignments respect each employee date range', async () => {
   db.tasks[0].assignees = [{ employeeId: 'e', startDate: '2026-10-10', endDate: '2026-10-12' }];
   assert.equal(call('setActiveTask', { taskId: 't', shiftType: 'regular' }).status, 400);
   db.tasks[0].assignees[0].startDate = '2026-10-09';
+  assert.equal(call('setActiveTask', { taskId: 't', shiftType: 'regular' }).status, 200);
+});
+
+test('regular task selection respects the saved holiday exclusion policy', async () => {
+  const { db, call, setTime } = await harness();
+  setTime('2026-11-24T09:00:00+07:00');
+  db.tasks[0].startDate = '2026-11-23';
+  db.tasks[0].endDate = '2026-11-25';
+  db.tasks[0].assignees = [{ employeeId: 'e', startDate: '2026-11-23', endDate: '2026-11-25', excludeNonWorkingDays: true }];
+  assert.equal(call('setActiveTask', { taskId: 't', shiftType: 'regular' }).status, 400);
+  db.tasks[0].assignees[0].excludeNonWorkingDays = false;
   assert.equal(call('setActiveTask', { taskId: 't', shiftType: 'regular' }).status, 200);
 });
 

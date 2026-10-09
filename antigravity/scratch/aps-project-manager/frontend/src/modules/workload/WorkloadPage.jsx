@@ -3,6 +3,8 @@ import { useApp } from '../../context/AppContext';
 import { getCurrentUser } from '../auth/authSession';
 import { isTaskAssignedTo, resolveEmployee } from '../auth/personalWork';
 import { getGanttTaskCode } from '../../utils/taskCode';
+import { vietnamCalendarDay } from '../../utils/vietnamCalendar';
+import { assignmentWorksOnDate, assignmentWorkingDates } from '../../utils/assignmentCalendar';
 import { ArrowRight, CalendarDays, ChevronLeft, ChevronRight, Clock3, Search, Users } from 'lucide-react';
 import './WorkloadPage.css';
 
@@ -36,8 +38,14 @@ function tasksAssignedTo(tasks, employeeId, start, end) {
         (assignment.startDate || task.startDate) <= end &&
         (assignment.endDate || task.endDate) >= start
       )
+      .filter(assignment => !assignment.excludeNonWorkingDays || assignmentWorkingDates(task, {
+        ...assignment,
+        startDate: (assignment.startDate || task.startDate) > start ? (assignment.startDate || task.startDate) : start,
+        endDate: (assignment.endDate || task.endDate) < end ? (assignment.endDate || task.endDate) : end
+      }).length > 0)
       .map(assignment => ({
         ...task,
+        ...(typeof assignment.excludeNonWorkingDays === 'boolean' ? { excludeNonWorkingDays: assignment.excludeNonWorkingDays } : {}),
         employeeId: assignment.employeeId,
         employeeName: assignment.employeeName || task.employeeName,
         startDate: assignment.startDate || task.startDate,
@@ -60,7 +68,7 @@ function daysInMonth(month) {
 }
 
 function taskOccursOn(task, key) {
-  return task.startDate <= key && task.endDate >= key;
+  return assignmentWorksOnDate(task, task, key);
 }
 
 function hoursForPeriod(tasks, employeeId, start, end) {
@@ -72,7 +80,8 @@ function hoursForPeriod(tasks, employeeId, start, end) {
       let activeDays = 0;
       for (let cursor = new Date(`${overlapStart}T12:00:00`), last = new Date(`${overlapEnd}T12:00:00`); cursor <= last; cursor.setDate(cursor.getDate() + 1)) {
         const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
-        activeDays += workdayWeight(key);
+        activeDays += typeof task.excludeNonWorkingDays === 'boolean'
+          ? (assignmentWorksOnDate(task, task, key) ? 1 : 0) : workdayWeight(key);
       }
       return sum + hoursPerTaskDay(task) * activeDays;
     }, 0);
@@ -174,13 +183,19 @@ export default function WorkloadPage() {
   const scopedTasks = useMemo(() => isAdmin ? tasks : tasks.filter(task => isTaskAssignedTo(task, personalEmployee)), [tasks, isAdmin, personalEmployee]);
 
   const columns = useMemo(() => {
-    if (period === 'day') return [{ key: selectedDay, label: new Date(`${selectedDay}T12:00:00`).toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit' }), start: selectedDay, end: selectedDay }];
+    if (period === 'day') {
+      const date = new Date(`${selectedDay}T12:00:00`);
+      const calendar = vietnamCalendarDay(date);
+      return [{ key: selectedDay, label: date.toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit' }), start: selectedDay, end: selectedDay, holiday: calendar.kind === 'holiday' ? calendar.label : '' }];
+    }
     if (period === 'month') {
       const count = daysInMonth(selectedMonth);
       const [year, month] = selectedMonth.split('-').map(Number);
       return Array.from({ length: count }, (_, index) => {
         const key = dayKey(year, month - 1, index + 1);
-        return { key, label: String(index + 1), start: key, end: key, weekday: new Date(`${key}T12:00:00`).getDay() };
+        const date = new Date(`${key}T12:00:00`);
+        const calendar = vietnamCalendarDay(date);
+        return { key, label: String(index + 1), start: key, end: key, weekday: date.getDay(), holiday: calendar.kind === 'holiday' ? calendar.label : '' };
       });
     }
     const year = Number(selectedYear) || today.getFullYear();
@@ -291,7 +306,7 @@ export default function WorkloadPage() {
         <div className="workload-table-heading"><div><h2>Bảng phân bổ giờ</h2><p>{period === 'day' ? 'Chi tiết công việc trong ngày đã chọn' : period === 'month' ? 'Mỗi cột là một ngày trong tháng' : 'Tổng giờ phân bổ theo từng tháng'}</p></div><span className="workload-unit-note">Thứ 2–6 đủ ngày · sáng Thứ 7</span></div>
         <div className="workload-table-scroll" ref={tableScrollRef}>
           <table className={`workload-table ${period}`}>
-            <thead><tr><th className="workload-employee-column">{isAdmin ? 'Nhân viên' : 'Thông tin của tôi'}</th>{columns.map(column => <th key={column.key} className={period === 'month' && (column.weekday === 0 || column.weekday === 6) ? 'weekend' : ''}>{period === 'day' ? 'Phân bổ trong ngày' : column.label}</th>)}{period === 'day' && <th className="workload-detail-column">Công việc trong ngày</th>}</tr></thead>
+            <thead><tr><th className="workload-employee-column">{isAdmin ? 'Nhân viên' : 'Thông tin của tôi'}</th>{columns.map(column => <th key={column.key} title={column.holiday || undefined} className={`${period === 'month' && (column.weekday === 0 || column.weekday === 6) ? 'weekend' : ''} ${column.holiday ? 'holiday' : ''}`}>{period === 'day' ? 'Phân bổ trong ngày' : column.label}</th>)}{period === 'day' && <th className="workload-detail-column">Công việc trong ngày</th>}</tr></thead>
             <tbody>
               {rows.map(({ employee, cells }) => {
                 return <tr key={employee.id}>
@@ -299,7 +314,7 @@ export default function WorkloadPage() {
                   {cells.map((cell, index) => {
                     const tone = allocationTone(cell.allocated, cell.capacity);
                     const percent = cell.capacity ? Math.min(100, cell.allocated / cell.capacity * 100) : 0;
-                    return <td key={columns[index].key} className={`${tone} ${period === 'month' && (columns[index].weekday === 0 || columns[index].weekday === 6) ? 'weekend' : ''}`} title={cell.tasks.map(task => `${task.title} · ${formatHours(hoursPerTaskDay(task))}h/ngày`).join('\n') || 'Chưa có công việc được lên lịch'}>
+                    return <td key={columns[index].key} className={`${tone} ${period === 'month' && (columns[index].weekday === 0 || columns[index].weekday === 6) ? 'weekend' : ''} ${columns[index].holiday ? 'holiday' : ''}`} title={[columns[index].holiday, cell.tasks.map(task => `${task.title} · ${formatHours(hoursPerTaskDay(task))}h/ngày`).join('\n') || 'Chưa có công việc được lên lịch'].filter(Boolean).join('\n')}>
                       <div className="workload-cell-hours"><strong>{formatHours(cell.allocated)}</strong><span>/{formatHours(cell.capacity)}h</span></div>
                       <div className="workload-meter"><span style={{ width: `${percent}%` }} /></div>
                       {period === 'day' && <small className={`workload-free-label ${cell.overflow ? 'over' : ''}`}>{cell.overflow ? `Vượt ${formatHours(cell.overflow)}h` : cell.remaining ? `Có thể phân công thêm ${formatHours(cell.remaining)}h` : 'Đủ định mức'}</small>}

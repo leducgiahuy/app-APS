@@ -3,6 +3,14 @@
   -moz-appearance: textfield;
 }
 
+.gantt-note-input {
+  resize: none;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow-y: auto;
+  min-height: 28px;
+}
+
 .gantt-work-number-input::-webkit-inner-spin-button,
 .gantt-work-number-input::-webkit-outer-spin-button {
   margin: 0;

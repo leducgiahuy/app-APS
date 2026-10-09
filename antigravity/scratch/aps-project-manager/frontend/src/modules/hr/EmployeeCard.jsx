@@ -18,6 +18,7 @@ function assignedTasksOnDate(allTasks, emp, selectedDate) {
     if (Array.isArray(task.assignees) && task.assignees.length > 0) {
       return task.assignees.some(assignment => {
         const assignmentTask = {
+          ...assignment,
           startDate: assignment.startDate || task.startDate,
           endDate: assignment.endDate || task.endDate
         };

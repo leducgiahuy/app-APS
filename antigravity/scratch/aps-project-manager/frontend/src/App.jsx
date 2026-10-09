@@ -16,12 +16,19 @@ import { getCurrentUser } from './modules/auth/authSession';
 
 function MainLayout() {
   const { activeTab, sidebarCollapsed } = useApp();
+  const fixedControls = ['hr', 'tasks', 'activity', 'workload'].includes(activeTab);
+  useEffect(() => {
+    if (!fixedControls) return undefined;
+    document.documentElement.classList.add('fixed-controls-page');
+    window.scrollTo(0, 0);
+    return () => document.documentElement.classList.remove('fixed-controls-page');
+  }, [fixedControls]);
   return (
-    <div className="app-shell min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col transition-colors duration-200">
+    <div className={`app-shell ${fixedControls ? 'app-fixed-controls' : ''} min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col transition-colors duration-200`}>
       <Sidebar />
-      <div className={`flex-1 flex flex-col transition-all duration-300 ${sidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72'}`}>
+      <div className={`app-content-column flex-1 flex flex-col transition-all duration-300 ${sidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72'}`}>
         <Header />
-        <main className={`flex-1 w-full animate-fade-in ${activeTab === 'workload' || activeTab === 'gantt' || activeTab === 'tasks' || activeTab === 'hr' || activeTab === 'dashboard' || activeTab === 'activity' ? 'max-w-none mx-0 p-0' : 'p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto'}`}>
+        <main key={activeTab} className={`app-page-scroll ${activeTab === 'activity' ? 'app-activity-scroll' : ''} flex-1 w-full animate-fade-in ${activeTab === 'workload' || activeTab === 'gantt' || activeTab === 'tasks' || activeTab === 'hr' || activeTab === 'dashboard' || activeTab === 'activity' ? 'max-w-none mx-0 p-0' : 'p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto'}`}>
           {activeTab === 'hr' && <HRPage />}
           {activeTab === 'workload' && <WorkloadPage />}
           {activeTab === 'tasks' && <TasksPage />}

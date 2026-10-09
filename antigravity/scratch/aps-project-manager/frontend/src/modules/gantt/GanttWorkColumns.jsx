@@ -1,45 +1,12 @@
 import { useEffect, useState } from 'react';
+import { Maximize2, X } from 'lucide-react';
+import ModalOverlay from '../../components/layout/ModalOverlay';
 import './GanttWorkColumns.css';
+import { calculatePlannedPersonDays } from '../../utils/ganttEffort';
+export { calculatePlannedPersonDays } from '../../utils/ganttEffort';
+export { inferGanttGroupHierarchy } from '../../utils/ganttHierarchy';
 
-const countInclusiveDays = (startDate, endDate) => {
-  if (!startDate || !endDate || endDate < startDate) return 0;
-  const start = Date.parse(`${startDate}T00:00:00Z`);
-  const end = Date.parse(`${endDate}T00:00:00Z`);
-  return Number.isFinite(start) && Number.isFinite(end)
-    ? Math.floor((end - start) / 86400000) + 1
-    : 0;
-};
 
-export const inferGanttGroupHierarchy = items => {
-  const hierarchyItems = items.map(item => ({ ...item }));
-  const groups = hierarchyItems.filter(item => item.isGroup && !item.isProjectHeader);
-  const phaseByProjectAndCode = new Map();
-  groups.forEach(group => {
-    const phaseCode = String(group.title || '').match(/^\s*([A-Z])\s*\./i)?.[1]?.toUpperCase();
-    if (phaseCode) phaseByProjectAndCode.set(`${group.projectId || ''}:${phaseCode}`, group);
-  });
-
-  groups.forEach(group => {
-    if (group.parentGroupId) return;
-    const subsectionCode = String(group.title || '').match(/^\s*([A-Z]\d+)\s*[. ]/i)?.[1]?.toUpperCase();
-    const phase = subsectionCode && phaseByProjectAndCode.get(`${group.projectId || ''}:${subsectionCode[0]}`);
-    if (phase && phase.id !== group.id) group.parentGroupId = phase.id;
-  });
-
-  const subsectionGroups = groups
-    .map(group => ({ group, code: String(group.title || '').match(/^\s*([A-Z]\d+)\s*[. ]/i)?.[1]?.toUpperCase() }))
-    .filter(entry => entry.code)
-    .sort((a, b) => b.code.length - a.code.length);
-  hierarchyItems.forEach(item => {
-    if (item.isGroup || item.isProjectHeader || item.parentGroupId) return;
-    const code = String(item.code || '').trim().toUpperCase();
-    const parent = subsectionGroups.find(entry =>
-      entry.group.projectId === item.projectId && (code === entry.code || code.startsWith(`${entry.code}.`))
-    );
-    if (parent) item.parentGroupId = parent.group.id;
-  });
-  return hierarchyItems;
-};
 
 export const getGroupDescendantTasks = (groupId, items) => {
   const groupsById = new Map(items.filter(item => item.isGroup).map(item => [item.id, item]));
@@ -63,50 +30,32 @@ export const calculateGroupPlannedPersonDays = (groupId, items) =>
   getGroupDescendantTasks(groupId, items)
     .reduce((total, item) => total + calculatePlannedPersonDays(item), 0);
 
-export const calculatePlannedPersonDays = item => {
-  const assignments = Array.isArray(item.assignees)
-    ? item.assignees.filter(assignment => assignment.employeeId || assignment.employeeName)
-    : [];
-  if (assignments.length) {
-    const total = assignments.reduce((sum, assignment) => {
-      const days = countInclusiveDays(
-        assignment.startDate || item.startDate,
-        assignment.endDate || item.endDate
-      );
-      const hoursPerDay = Number(assignment.estimatedHoursPerDay) ||
-        Number(item.estimatedHoursPerDay) ||
-        Number(item.estimatedHours) / (Number(item.days) || 1) || 8;
-      return sum + days * hoursPerDay / 8;
-    }, 0);
-    return Math.round(total * 100) / 100;
-  }
-
-  const hasLegacyAssignee = item.assignee || item.employeeId || item.employeeName;
-  if (!hasLegacyAssignee) return 0;
-  const days = countInclusiveDays(item.startDate, item.endDate);
-  const hoursPerDay = Number(item.estimatedHoursPerDay) ||
-    Number(item.estimatedHours) / (Number(item.days) || days) || 8;
-  return Math.round(days * hoursPerDay / 8 * 100) / 100;
-};
 
 export function GanttEditableWorkCell({ item, field, onSave, type = 'text', placeholder = '' }) {
   const value = item[field] ?? '';
   const [draft, setDraft] = useState(String(value));
+  const isNote = field === 'ganttNote';
+  const Editor = isNote ? 'textarea' : 'input';
+  const [expandedDraft, setExpandedDraft] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   useEffect(() => setDraft(String(value)), [item.id, value]);
 
-  const commit = async () => {
-    if (draft === String(value)) return;
+  const commit = async (text = draft) => {
+    if (text === String(value)) return true;
     const nextValue = type === 'number'
-      ? (draft.trim() === '' ? null : Number(draft))
-      : draft;
+      ? (text.trim() === '' ? null : Number(text))
+      : text;
     const saved = await onSave(item.id, { [field]: nextValue });
     if (!saved) setDraft(String(value));
+    return Boolean(saved);
   };
 
-  return (
-    <input
-      type={type}
+  const editor = (
+    <Editor
+      type={isNote ? undefined : type}
+      rows={isNote ? 2 : undefined}
       min={type === 'number' ? 0 : undefined}
       step={type === 'number' ? '0.1' : undefined}
       value={draft}
@@ -114,9 +63,12 @@ export function GanttEditableWorkCell({ item, field, onSave, type = 'text', plac
       aria-label={field === 'contractWork' ? `Công hợp đồng: ${item.title}` : `Ghi chú: ${item.title}`}
       title={draft || (field === 'contractWork' ? 'Contract work' : 'Note')}
       onChange={event => setDraft(event.target.value)}
-      onBlur={commit}
+      onBlur={() => commit()}
       onKeyDown={event => {
-        if (event.key === 'Enter') event.currentTarget.blur();
+        if (event.key === 'Enter' && (!isNote || event.ctrlKey || event.metaKey)) {
+          event.preventDefault();
+          event.currentTarget.blur();
+        }
         if (event.key === 'Escape') {
           setDraft(String(value));
           event.currentTarget.blur();
@@ -124,7 +76,42 @@ export function GanttEditableWorkCell({ item, field, onSave, type = 'text', plac
       }}
       className={type === 'number'
         ? 'gantt-work-number-input h-7 w-full min-w-0 rounded border border-transparent bg-transparent px-1 text-center text-[11px] text-slate-700 outline-none transition-colors placeholder:text-slate-400 hover:border-slate-300 focus:border-sky-400 focus:bg-white dark:text-slate-200 dark:focus:bg-slate-900'
-        : 'h-7 w-full min-w-0 rounded border border-transparent bg-transparent px-1 text-center text-[11px] text-slate-700 outline-none transition-colors placeholder:text-slate-400 hover:border-slate-300 focus:border-sky-400 focus:bg-white dark:text-slate-200 dark:focus:bg-slate-900'}
+        : 'gantt-note-input h-full w-full min-w-0 rounded border border-transparent bg-transparent px-1 py-1 text-left text-[11px] text-slate-700 outline-none transition-colors placeholder:text-slate-400 hover:border-slate-300 focus:border-sky-400 focus:bg-white dark:text-slate-200 dark:focus:bg-slate-900'}
     />
+  );
+
+  if (!isNote) return editor;
+  const openExpanded = () => { setExpandedDraft(draft); setSaveError(''); };
+  return (
+    <>
+      <div className="flex h-full w-full min-w-0 items-center gap-0.5" onDoubleClick={openExpanded}>
+        {editor}
+        <button type="button" aria-label={`Mở rộng ghi chú: ${item.title}`} title="Mở rộng ghi chú" onClick={openExpanded} className="shrink-0 rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-sky-700 dark:hover:bg-slate-700">
+          <Maximize2 size={13} />
+        </button>
+      </div>
+      {expandedDraft !== null && <ModalOverlay>
+        <section role="dialog" aria-modal="true" aria-label={`Ghi chú: ${item.title}`} className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-xl dark:border-slate-700 dark:bg-slate-900">
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div className="min-w-0"><h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">Ghi chú</h3><p className="break-words text-sm text-slate-500">{item.title}</p></div>
+            <button type="button" aria-label="Đóng ghi chú" disabled={saving} onClick={() => setExpandedDraft(null)} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100"><X size={20} /></button>
+          </div>
+          <textarea autoFocus aria-label="Nội dung ghi chú" value={expandedDraft} onChange={event => setExpandedDraft(event.target.value)} placeholder="Nhập nội dung ghi chú..." className="block min-h-[240px] w-full resize-y rounded-xl border border-slate-300 bg-slate-50 p-3 text-sm text-slate-700 outline-none focus:border-sky-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100" style={{ maxHeight: '55dvh', overflowWrap: 'anywhere' }} />
+          {saveError && <p role="alert" className="mt-2 text-sm text-rose-600">{saveError}</p>}
+          <div className="mt-4 flex justify-end gap-3">
+            <button type="button" disabled={saving} onClick={() => setExpandedDraft(null)} className="rounded-xl px-4 py-2 text-sm text-slate-500">Hủy</button>
+            <button type="button" disabled={saving} onClick={async () => {
+              setSaving(true);
+              setSaveError('');
+              try {
+                if (await commit(expandedDraft)) { setDraft(expandedDraft); setExpandedDraft(null); }
+                else setSaveError('Chưa lưu được ghi chú. Vui lòng thử lại.');
+              } catch { setSaveError('Chưa lưu được ghi chú. Vui lòng thử lại.'); }
+              finally { setSaving(false); }
+            }} className="rounded-xl bg-sky-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{saving ? 'Đang lưu...' : 'Lưu ghi chú'}</button>
+          </div>
+        </section>
+      </ModalOverlay>}
+    </>
   );
 }

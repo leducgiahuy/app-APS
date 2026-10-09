@@ -5,12 +5,26 @@
 @layer base {
   html { min-width: 320px; min-height: 100%; overflow-y: scroll; scrollbar-gutter: stable; background: #f5f3ef; }
   html.gantt-no-page-scroll { overflow-y: hidden; scrollbar-gutter: auto; }
+  html.fixed-controls-page { overflow-y: hidden; scrollbar-gutter: auto; }
   body { min-width: 320px; min-height: 100vh; margin: 0; color: #342f30; background: #f5f3ef; font-family: 'Segoe UI', Arial, sans-serif; }
   button, input { font: inherit; }
   ::selection { color: #4b1727; background: #f0d99f; }
 }
 
 /* Bảng màu APS: đỏ đô và vàng ấm trên nền trung tính dịu. */
+.app-fixed-controls { height: 100dvh; min-height: 0; overflow: hidden; }
+.app-fixed-controls > .app-content-column { min-height: 0; min-width: 0; isolation: isolate; }
+.app-fixed-controls > .app-content-column > header { flex-shrink: 0; z-index: 60; }
+.app-fixed-controls .app-page-scroll { min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; }
+.app-fixed-controls .hr-fixed-controls,
+.app-fixed-controls .tasks-fixed-controls,
+.app-fixed-controls .workload-sticky-controls { top: 0; }
+.app-fixed-controls .app-activity-scroll { overflow: hidden; }
+.app-fixed-controls .activity-page { height: 100%; min-height: 0; }
+.app-fixed-controls .activity-overview { position: relative; top: auto; }
+.app-fixed-controls .activity-table-wrap { flex: 1 1 0; min-height: 0; overflow: auto; }
+.app-fixed-controls .activity-pagination { flex-shrink: 0; }
+
 .app-shell {
   --workspace: #f1efeb;
   --surface: #fbfaf8;

@@ -1,5 +1,32 @@
 # Database storage
 
+## Assignment calendar choices
+
+Each task/Gantt assignee may store `excludeNonWorkingDays`: `true` means omit
+Vietnamese holidays and Sundays from this assignment; `false` means include them.
+An absent value preserves the old inclusive schedule. Save and restore this flag
+along with the assignee date range. Calendar choices are applied again after date
+changes; they do not store a hardcoded list of excluded dates.
+
+`calendarAdjusted` marks task/Gantt records whose derived duration and planned
+hours were recalculated. The backend normalizes these values on read/write.
+Start/end dates remain the envelope, so a 23–25 range can contain two working
+days. Existing work-session history is retained.
+
+## Employee code sequence
+
+`employeeCodeSequence` stores the highest issued employee number in the database.
+New employees receive `NV-001`, `NV-002`, etc. from the server, independent of
+the current employee count or any client-supplied code. Deletion never reduces
+this counter. Keep it when backing up/restoring or transferring the database.
+
+On read/write, duplicate, missing and malformed codes are repaired while valid
+unique codes and employee IDs remain unchanged. The older duplicate keeps its
+code based on `createdAt`, legacy timestamp IDs, or saved array order when no
+timestamp exists. Historical creation order/deleted codes cannot be recovered
+if the old data did not retain that information. Repairs use numbers above the
+existing maximum. New records save `createdAt` for future ordering.
+
 The backend stores live data outside the Git checkout by default:
 
 ```text

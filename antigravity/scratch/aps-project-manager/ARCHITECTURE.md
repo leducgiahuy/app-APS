@@ -1,5 +1,52 @@
 # TÀI LIỆU KIẾN TRÚC MÃ NGUỒN (ARCHITECTURE GUIDE)
 
+## Cố định thanh điều khiển HR, Công việc, Nhật ký — 09/10/2026
+
+- Áp dụng thêm cho `workload` (Quản lý nhân sự): header đứng yên, nhóm Ngày/Tháng/Năm, chọn kỳ, tìm kiếm/phân công và thống kê sticky ở đầu vùng cuộn main; bảng phân bổ bên dưới vẫn cuộn ngang/dọc như trước.
+- `MainLayout` bật `app-fixed-controls` và khóa cuộn document chỉ cho `hr`, `tasks`, `activity`. Khung có chiều cao `100dvh`; header không co và nằm ngoài vùng cuộn `main`. Các trang khác giữ cách cuộn cũ. Đổi trang reset vùng cuộn thông qua key của main.
+- Nhóm KPI/tìm kiếm/bộ lọc của HR và thanh chọn mục/tìm kiếm của Công việc sticky ở `top: 0` trong main, ngay dưới header; chỉ nội dung danh sách cuộn. Dùng chiều cao thực của nhóm điều khiển để hỗ trợ khi các ô xuống dòng trên màn hình hẹp.
+- Nhật ký dùng flex trong chiều cao còn lại: toolbar, phần Lịch sử cập nhật dữ liệu và phân trang đứng yên; vùng bảng cuộn riêng, tiêu đề cột sticky `top: 0`. Không đổi logic bộ lọc, thao tác hay dữ liệu.
+- Cột nội dung tạo stacking context riêng để header luôn trên danh sách nhưng không đè lên sidebar di động; modal vẫn portal vào body.
+
+## Phân công trùng ngày nghỉ — 09/10/2026
+
+- Khi lưu trong bảng Người đảm nhận công việc, kiểm tra toàn bộ khoảng ngày của từng người bằng `utils/assignmentCalendar.js`. Nếu trùng ngày lễ hoặc Chủ nhật, `AssignmentCalendarConfirmation` liệt kê ngày và hỏi CÓ/Không; không trùng thì lưu trực tiếp. X đóng cảnh báo và giữ form, chưa lưu.
+- CÓ lưu `excludeNonWorkingDays: false`, giữ lịch ngày thường. Không lưu `true` trên từng assignment, bỏ ngày lễ/Chủ nhật; thứ Bảy không tự loại. Khoảng chỉ gồm ngày nghỉ bị từ chối nếu chọn Không, để người dùng sửa ngày hoặc chọn Có. Dữ liệu cũ chưa có lựa chọn không tự bị thay đổi.
+- `assignmentCalendar.js` dùng chung lịch Việt Nam và được backend nhập từ cây frontend để tránh hai bộ lịch khác nhau; cần triển khai đầy đủ cây mã nguồn. DB chuẩn hóa `calendarAdjusted`, `days`/`estimatedDays` và `estimatedHours` khi đọc/ghi, kể cả sau khi đổi ngày, chuyển năm hay mở lại. Giữ ngày bắt đầu/kết thúc là khoảng bao ngoài; số ngày làm là hợp các ngày làm của nhân sự, giờ công cộng theo từng phân công.
+- `GanttExcludedDaysBar` tách thanh tại ngày không ai làm; tiến độ tô theo số ngày làm thay vì chiều dài khoảng bao ngoài. Nếu một người khác vẫn chọn làm ngày nghỉ đó thì thanh chung vẫn hiện ngày đó. Nhãn từng người và tổng công dùng cùng bộ lọc ngày. Ví dụ 23–25/11/2026 ở 8h/ngày: CÓ = 3 ngày/24h; Không = 2 ngày/16h và trống ngày 24.
+- Danh sách task theo ngày của HR, kiểm tra chọn task ở backend và bảng phân bổ giờ đều tôn trọng lựa chọn đã lưu. Tiến độ giữ phép tính giờ đã làm / giờ dự kiến, với mẫu số đã bỏ giờ ngày nghỉ; không thay đổi dữ liệu chấm công lịch sử.
+- Kiểm thử `backend/tests/assignment-calendar.test.js`, ca ngày nghỉ trong `hr-shifts.test.js`, và `/tests/assignment-calendar.html` kiểm tra cảnh báo, hai lựa chọn, lưu/nạp, lịch tương lai, khoảng trống Gantt và tiến độ.
+
+## Mã nhân viên tự động — 09/10/2026
+
+- `backend/src/utils/employeeCodes.js` cấp mã NV theo bộ đếm `employeeCodeSequence` lưu trong DB, không theo số lượng nhân viên hiện có. Xóa người không giảm bộ đếm; phía client không tự đặt mã. Người mới có `createdAt` để xác định thứ tự tạo.
+- `models/db.js` sửa mã trùng/thiếu khi đọc và ghi dữ liệu, gồm dữ liệu seed; giữ mã hợp lệ và ID liên kết task. Khi mã trùng, ưu tiên người tạo trước theo timestamp hoặc thứ tự lưu cũ nếu không có timestamp. Không đánh lại toàn bộ mã sau khi xóa nhân sự.
+- Kiểm thử: `backend/tests/employee-codes.test.js` kiểm tra tạo liên tiếp, xóa hết rồi nạp lại, sửa mã trùng, dữ liệu cũ, mã vượt 999 và API bỏ qua mã do client gửi.
+
+## Menu Gantt và ghi chú dài — 09/10/2026
+
+- Menu ba chấm của mục công việc dùng `components/ViewportMenu.jsx`, portal vào body, đo chiều cao thực để mở lên/xuống, giữ trong mép màn hình và cuộn nội bộ khi thiếu chỗ. Vị trí cập nhật khi cuộn/resize; click ngoài và Escape vẫn đóng menu, các thao tác giữ nguyên.
+- `GanttEditableWorkCell` dùng textarea cho `ganttNote`, không đặt maxlength, tự ngắt cả chuỗi dài và cuộn để đọc toàn bộ nội dung. Enter xuống dòng, Ctrl+Enter hoặc rời ô lưu. Nút mở rộng/nhấp đúp mở khung soạn lớn với bản nháp riêng, Hủy và Lưu ghi chú; lỗi lưu giữ khung và nội dung để thử lại. Dùng chung cho mục và task hiện tại/tạo mới; trường công hợp đồng giữ input số.
+
+## Màu lịch Gantt — 09/10/2026
+
+- Bảng phân bổ giờ ở chế độ Ngày và Tháng (`modules/workload/WorkloadPage.jsx`) dùng chung `vietnamCalendarDay` để tô vàng cả tiêu đề và các ô của cột ngày lễ; tooltip có tên lễ. Ở chế độ Ngày, cột “Phân bổ trong ngày” đổi màu theo ngày đang chọn. Đổi ngày/tháng/năm tự tính lại; chỉ đổi hiển thị, giữ nguyên định mức và số giờ phân bổ.
+- `frontend/src/utils/vietnamCalendar.js` tính thứ Bảy, Chủ nhật và ngày lễ theo từng ngày của timeline, qua cả ranh giới năm và năm nhuận. Âm lịch dùng công thức thiên văn với UTC+7, loại tháng nhuận khi xác định Giỗ Tổ/Tết; không dùng lịch Trung Quốc thay cho lịch Việt Nam.
+- Ngày lễ vàng, Chủ nhật nâu nhạt, thứ Bảy be nhạt; ngày lễ ưu tiên khi trùng cuối tuần. Header ngày và nền SVG dùng chung dữ liệu. `GanttCalendarBackground` vẽ trước lưới, đường liên kết, thanh và tên Gantt, với `pointerEvents="none"`; không đổi ngày làm, lịch task hay phép tính công.
+- Lịch năm 2026 theo [9441/TB-BNV](https://moha.gov.vn/tin-tuc/---oid57695); lịch Tết/Quốc khánh năm 2027 theo [10065/VPCP-KGVX](https://xaydungchinhsach.chinhphu.vn/de-xuat-2-phuong-an-nghi-tet-nguyen-dan-2027-tet-dinh-mui-11926080513033257.htm). Ngày Văn hóa 24/11 áp dụng từ 2026 theo [28/2026/QH16](https://vanban.chinhphu.vn/?docid=218008&pageid=27160). Đây là lịch tham chiếu đã công bố cho khối hành chính, không thiết lập lịch nghỉ riêng của doanh nghiệp.
+- Các năm chưa có cấu hình vẫn tự tính ngày lễ dương lịch, Giỗ Tổ và mùng 1–5 Tết; tooltip Tết ghi rõ chờ lịch nghỉ hằng năm. Ngày nghỉ liền kề Quốc khánh, hoán đổi và nghỉ bù không được suy đoán sang năm khác. Khi có thông báo mới, cập nhật `annualSchedules` và kiểm thử; ứng dụng không có dịch vụ tự tải thông báo lịch nghỉ tương lai.
+
+## Đồng bộ chi tiết dự án với Gantt — 09/10/2026
+
+- Bảng phòng ban có thẻ nhóm, biểu tượng, số nhân sự, nhãn task/OT/công và hàng nhân sự phân cấp; giữ nguyên phép tổng hợp và thao tác mở/đóng. Biểu đồ **Task lớn theo hạng mục** lấy tên giai đoạn hiện tại qua `utils/ganttPhase.js`, đi theo ID Gantt và chuỗi nhóm cha (kể cả task con), không dùng `task.phase` cũ nếu đã xác định được nhóm Gantt. Đổi tên giai đoạn hoặc tạo nhóm/task mới tự phản ánh khi state cập nhật. `utils/ganttHierarchy.js` là hàm phân cấp dùng chung với Gantt, giữ hỗ trợ WBS cũ và giới hạn trong đúng dự án.
+
+- Bảng **Nhân sự & giờ công** dùng `ProjectDepartmentList.jsx` để nhóm theo trường `team` hiện tại của nhân sự, có nút mở/đóng từng phòng ban. Dòng phòng ban hiển thị số task duy nhất và tổng Công TT của các thành viên; dòng nhân sự hiển thị số task duy nhất, giờ OT đã duyệt và Công TT (= giờ phân công Gantt ÷ 8). Task giao cho nhiều người cùng phòng chỉ tính một lần trong tổng task của phòng, nhưng công của từng phân công vẫn được cộng đủ. Nhân sự chưa có `team` nằm trong nhóm **Chưa có phòng ban**. Thêm task, đổi phòng ban hoặc xóa nhân sự tự tính lại từ dữ liệu hiện có.
+
+- `utils/ganttEffort.js` chứa công thức Công TT dùng chung; `GanttWorkColumns.jsx` giữ nguyên cách tính và xuất lại hàm để các nơi gọi cũ tiếp tục hoạt động.
+- `utils/projectGanttSummary.js` tổng hợp từ các hàng task lá của đúng dự án trên Gantt, gồm cả hàng chưa có task trong danh sách Phân công. Nhóm, ngày nghỉ và task cha có task con không được cộng trùng. Nhân sự hiện có được đếm theo ID duy nhất; một người có nhiều khoảng phân công vẫn được cộng đủ giờ. ID đã xóa không được ghép sang người mới trùng tên; danh sách phân công trống không khôi phục tên cũ từ task.
+- Ở khung **Chi tiết dự án**, ô **Công thực tế**, giờ công từng người và nội dung sao chép báo cáo lấy theo phân công/cột **Công TT** của Gantt (ngày × giờ/ngày, 8 giờ/công). OT đã duyệt hiển thị riêng, không cộng hai lần từ phiếu OT và dữ liệu tổng hợp trên Gantt. Các chỉ số phiên làm thực tế và công khi kết thúc vẫn dùng dữ liệu ghi giờ hiện có.
+- Số liệu được tính lại từ state khi cập nhật phân công, thêm task/task con hoặc xóa nhân sự; không gắn với một dự án hay task cố định. Kiểm thử hồi quy nằm ở `backend/tests/project-gantt-summary.test.js`, chạy cùng `npm.cmd test` trong backend.
+
 ## Cập nhật ngày 08/10/2026
 
 - `SearchableSelect.jsx` và `utils/searchOptions.js` bổ sung danh sách chọn có thể gõ tìm, hỗ trợ tên tiếng Việt có/không dấu, STT và từ khóa giai đoạn/mục cha. Áp dụng cho task trong phiếu OT, mục công việc khi tạo task, liên kết FS trước/sau và giai đoạn khi tạo mục. Danh sách lấy từ state hiện tại nên dữ liệu mới xuất hiện ngay; chỉ chọn ID sẵn có, giữ callback lưu và các điều kiện khóa/lọc cũ. Danh sách nổi dùng portal, hỗ trợ phím mũi tên/Enter/Escape và cuộn khi có nhiều task.

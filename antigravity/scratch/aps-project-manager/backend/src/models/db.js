@@ -3,6 +3,8 @@ import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { removeMissingEmployeeAssignments } from '../utils/employeeAssignments.js';
+import { ensureEmployeeCodes } from '../utils/employeeCodes.js';
+import { normalizeAssignmentSchedules } from '../../../frontend/src/utils/assignmentCalendar.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -29,7 +31,10 @@ export function readDb() {
         const parsed = JSON.parse(raw);
         if (parsed && Array.isArray(parsed.projects) && Array.isArray(parsed.ganttItems)) {
           // Repair assignments left behind by employee deletions in older versions.
-          if (removeMissingEmployeeAssignments(parsed)) writeDb(parsed);
+          const assignmentsChanged = removeMissingEmployeeAssignments(parsed);
+          const codesChanged = ensureEmployeeCodes(parsed);
+          const schedulesChanged = normalizeAssignmentSchedules(parsed);
+          if (assignmentsChanged || codesChanged || schedulesChanged) writeDb(parsed);
           cachedDb = parsed;
           return parsed;
         }
@@ -50,6 +55,8 @@ export function readDb() {
       const rawSeed = fs.readFileSync(SEED_FILE, 'utf-8');
       const seedObj = JSON.parse(rawSeed);
       removeMissingEmployeeAssignments(seedObj);
+      ensureEmployeeCodes(seedObj);
+      normalizeAssignmentSchedules(seedObj);
       cachedDb = seedObj;
       fs.mkdirSync(path.dirname(DB_FILE), { recursive: true });
       fs.writeFileSync(DB_FILE, JSON.stringify(seedObj, null, 2), 'utf-8');
@@ -68,6 +75,8 @@ export function writeDb(data) {
     if (!data) return false;
     // Applies to employee deletions and all future task/Gantt writes.
     removeMissingEmployeeAssignments(data);
+    ensureEmployeeCodes(data);
+    normalizeAssignmentSchedules(data);
     cachedDb = data;
     fs.mkdirSync(path.dirname(DB_FILE), { recursive: true });
     fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf-8');

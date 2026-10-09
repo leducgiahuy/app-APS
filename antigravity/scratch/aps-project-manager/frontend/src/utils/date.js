@@ -1,3 +1,5 @@
+import { assignmentWorksOnDate } from './assignmentCalendar.js';
+
 export function formatDateVi(isoDate) {
   if (!isoDate) return '';
   const match = String(isoDate).match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -112,5 +114,6 @@ export function formatDelayHours(hours) {
 export function isTaskActiveOnDate(task, date) {
   if (!task?.startDate || !task?.endDate || !date) return false;
   const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-  return task.startDate <= dateKey && task.endDate >= dateKey;
+  if (Array.isArray(task.assignees) && task.assignees.length) return task.assignees.some(assignment => assignmentWorksOnDate(assignment, task, dateKey));
+  return assignmentWorksOnDate(task, task, dateKey);
 }
