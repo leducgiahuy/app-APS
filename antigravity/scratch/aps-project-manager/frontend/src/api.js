@@ -3,7 +3,7 @@
  * Đã cấu hình fallback dữ liệu dự phòng tự động nếu Backend tạm thời chưa khởi động.
  */
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = '/api'; // Cấu hình base URL của API
 
 // Hàm gửi request tiện ích
 async function fetchApi(endpoint, options = {}) {
