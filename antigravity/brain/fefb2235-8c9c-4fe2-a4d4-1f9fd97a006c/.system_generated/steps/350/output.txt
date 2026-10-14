@@ -1,5 +1,0 @@
-
-The command exited with code 0.
-Output:
-Seed extracted successfully, length: 21900
-

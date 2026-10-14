@@ -1,5 +1,0 @@
-
-The command exited with code 0.
-Output:
-11.19.0
-
