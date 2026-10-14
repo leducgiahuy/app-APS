@@ -1,3 +1,5 @@
+@import './styles/typography.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -6,8 +8,8 @@
   html { min-width: 320px; min-height: 100%; overflow-y: scroll; scrollbar-gutter: stable; background: #f5f3ef; }
   html.gantt-no-page-scroll { overflow-y: hidden; scrollbar-gutter: auto; }
   html.fixed-controls-page { overflow-y: hidden; scrollbar-gutter: auto; }
-  body { min-width: 320px; min-height: 100vh; margin: 0; color: #342f30; background: #f5f3ef; font-family: 'Segoe UI', Arial, sans-serif; }
-  button, input { font: inherit; }
+  body { min-width: 320px; min-height: 100vh; margin: 0; color: #342f30; background: #f5f3ef; font-family: var(--font-ui); }
+  button, input, select, textarea { font: inherit; }
   ::selection { color: #4b1727; background: #f0d99f; }
 }
 
@@ -16,6 +18,7 @@
 .app-fixed-controls > .app-content-column { min-height: 0; min-width: 0; isolation: isolate; }
 .app-fixed-controls > .app-content-column > header { flex-shrink: 0; z-index: 60; }
 .app-fixed-controls .app-page-scroll { min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; }
+.app-fixed-controls .app-gantt-scroll { overflow: hidden; scrollbar-gutter: auto; }
 .app-fixed-controls .hr-fixed-controls,
 .app-fixed-controls .tasks-fixed-controls,
 .app-fixed-controls .workload-sticky-controls { top: 0; }
@@ -38,7 +41,7 @@
   --accent-gold: #e6a51e;
   background-color: var(--workspace);
   color: var(--text-main);
-  font-family: 'Segoe UI', Arial, sans-serif;
+  font-family: var(--font-ui);
 }
 .app-shell [class~="bg-slate-50"] { background-color: var(--workspace) !important; }
 .app-shell [class~="bg-white"] { background-color: var(--surface) !important; }
@@ -54,7 +57,6 @@ html:not(.dark) .app-shell [class~="text-[8px]"] { font-size: 9px !important; }
 html:not(.dark) .app-shell [class~="text-[9px]"] { font-size: 11px !important; }
 html:not(.dark) .app-shell [class~="text-[10px]"] { font-size: 12px !important; }
 html:not(.dark) .app-shell [class~="text-[11px]"] { font-size: 13px !important; }
-html:not(.dark) .app-shell [class~="text-xs"] { font-size: 13px !important; }
 
 /* Dark mode dùng than ấm để giữ độ tương phản mà vẫn hợp đỏ đô/vàng. */
 html.dark body { color: #eee9e6; background: #2c292a; }
@@ -71,7 +73,7 @@ html.dark .app-shell {
   --accent-gold: #efc15b;
   background-color: var(--workspace);
   color: var(--text-main);
-  font-family: 'Segoe UI', Arial, sans-serif;
+  font-family: var(--font-ui);
 }
 html.dark .app-shell [class~="dark:bg-slate-950"] { background-color: var(--workspace) !important; }
 html.dark .app-shell [class~="dark:bg-slate-900"] { background-color: var(--surface) !important; }
@@ -93,7 +95,6 @@ html.dark .app-shell [class~="text-[8px]"] { font-size: 9px !important; }
 html.dark .app-shell [class~="text-[9px]"] { font-size: 11px !important; }
 html.dark .app-shell [class~="text-[10px]"], html.dark .app-shell [class~="dark:text-[10px]"] { font-size: 12px !important; }
 html.dark .app-shell [class~="text-[11px]"], html.dark .app-shell [class~="dark:text-[11px]"] { font-size: 13px !important; }
-html.dark .app-shell [class~="text-xs"] { font-size: 13px !important; }
 
 /* Trang đăng nhập và tài khoản theo cùng bảng màu để không lóa sau khi thoát dashboard. */
 html.dark .login-page, html.dark .account-page { color: #eee9e6; background: #2c292a; }

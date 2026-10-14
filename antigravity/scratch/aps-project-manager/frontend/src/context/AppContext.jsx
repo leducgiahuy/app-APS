@@ -368,7 +368,7 @@ export function AppProvider({ children }) {
       recordActivity('gantt.create', `Thêm hạng mục ${itemData.title || itemData.code || 'mới'} vào Gantt.`);
       showToast(res.message || 'Thêm công việc vào tiến độ thành công');
       await refreshAllData();
-      return true;
+      return res.data || true;
     } catch (err) {
       showToast(err.message || 'Lỗi khi thêm vào Gantt', 'error');
       return false;
@@ -415,14 +415,16 @@ export function AppProvider({ children }) {
     const confirmMessage = item?.isGroup
       ? `Bạn có chắc chắn muốn xóa mục công việc "${item.title}"? Các công việc bên trong sẽ được giữ lại và không còn thuộc mục này.`
       : 'Bạn có chắc chắn muốn xóa hạng mục này khỏi tiến độ?';
-    if (!window.confirm(confirmMessage)) return;
+    if (!window.confirm(confirmMessage)) return false;
     try {
       await api.deleteGanttItem(id);
       recordActivity('gantt.delete', `Xóa hạng mục Gantt ${item?.title || id}.`);
       showToast('Đã xóa hạng mục khỏi biểu đồ Gantt');
       await refreshAllData();
+      return true;
     } catch {
       showToast('Lỗi khi xóa hạng mục', 'error');
+      return false;
     }
   };
 

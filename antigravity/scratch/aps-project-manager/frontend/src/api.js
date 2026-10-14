@@ -1,3 +1,5 @@
+import { deliveryToken } from './modules/gantt/deliveryApi';
+
 /**
  * API Client kết nối với Backend Express (http://localhost:5000/api)
  * Đã cấu hình fallback dữ liệu dự phòng tự động nếu Backend tạm thời chưa khởi động.
@@ -8,9 +10,11 @@ const API_BASE = '/api'; // Cấu hình base URL của API
 // Hàm gửi request tiện ích
 async function fetchApi(endpoint, options = {}) {
   try {
+    const token = await deliveryToken();
     const res = await fetch(`${API_BASE}${endpoint}`, {
       headers: {
         'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
         ...options.headers,
       },
       ...options,
@@ -27,6 +31,8 @@ async function fetchApi(endpoint, options = {}) {
 }
 
 export const api = {
+  getWorkforcePlan: () => fetchApi('/workforce-plan'),
+  updateWorkforcePlan: (data) => fetchApi('/workforce-plan', { method: 'PATCH', body: JSON.stringify(data) }),
   // === NHÂN SỰ ===
   getEmployees: () => fetchApi('/employees'),
   createEmployee: (data) => fetchApi('/employees', { method: 'POST', body: JSON.stringify(data) }),

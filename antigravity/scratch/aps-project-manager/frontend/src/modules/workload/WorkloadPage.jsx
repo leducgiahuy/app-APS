@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { getCurrentUser } from '../auth/authSession';
 import { isTaskAssignedTo, resolveEmployee } from '../auth/personalWork';
@@ -7,6 +7,8 @@ import { vietnamCalendarDay } from '../../utils/vietnamCalendar';
 import { assignmentWorksOnDate, assignmentWorkingDates } from '../../utils/assignmentCalendar';
 import { ArrowRight, CalendarDays, ChevronLeft, ChevronRight, Clock3, Search, Users } from 'lucide-react';
 import './WorkloadPage.css';
+import { capacityWeight, employeePosition } from '../../utils/workforceForecast';
+const WorkforcePlanning = lazy(() => import('./WorkforcePlanning'));
 
 const today = new Date();
 const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
@@ -56,10 +58,7 @@ function tasksAssignedTo(tasks, employeeId, start, end) {
 }
 
 function workdayWeight(key) {
-  const day = new Date(`${key}T12:00:00`).getDay();
-  if (day === 0) return 0;
-  if (day === 6) return 0.5;
-  return 1;
+  return capacityWeight(key);
 }
 
 function daysInMonth(month) {
@@ -159,6 +158,7 @@ export default function WorkloadPage() {
   const [selectedMonth, setSelectedMonth] = useState(monthKey);
   const [selectedYear, setSelectedYear] = useState(String(today.getFullYear()));
   const [search, setSearch] = useState('');
+  const [forecastView, setForecastView] = useState('position');
   const datePickerRef = useRef(null);
   const tableScrollRef = useRef(null);
 
@@ -178,7 +178,7 @@ export default function WorkloadPage() {
   }, [period]);
 
   const normalizedEmployees = useMemo(() => isAdmin
-    ? employees.filter(employee => `${employee.name} ${employee.code} ${employee.team || ''}`.toLocaleLowerCase('vi').includes(search.trim().toLocaleLowerCase('vi'))).sort((a, b) => a.name.localeCompare(b.name, 'vi'))
+    ? employees.filter(employee => `${employee.name} ${employee.code} ${employee.team || ''} ${employee.title || ''}`.toLocaleLowerCase('vi').includes(search.trim().toLocaleLowerCase('vi'))).sort((a, b) => a.name.localeCompare(b.name, 'vi'))
     : personalEmployee ? [personalEmployee] : [], [employees, search, isAdmin, personalEmployee]);
   const scopedTasks = useMemo(() => isAdmin ? tasks : tasks.filter(task => isTaskAssignedTo(task, personalEmployee)), [tasks, isAdmin, personalEmployee]);
 
@@ -247,7 +247,7 @@ export default function WorkloadPage() {
   };
 
   const periods = isAdmin
-    ? [['day', 'Ngày'], ['month', 'Tháng'], ['year', 'Năm']]
+    ? [['day', 'Ngày'], ['month', 'Tháng'], ['year', 'Năm'], ['forecast', '6 tháng tới']]
     : [['day', 'Ngày của tôi'], ['month', 'Tháng của tôi'], ['year', 'Năm của tôi']];
   const effectiveYear = String(Number(selectedYear) || today.getFullYear());
   const effectiveMonth = /^\d{4}-\d{2}$/.test(selectedMonth) ? selectedMonth : monthKey;
@@ -268,9 +268,10 @@ export default function WorkloadPage() {
       <div className="workload-sticky-controls">
       <div className="workload-toolbar">
         <div className="workload-period-switch" role="tablist" aria-label="Khoảng thời gian">
-          {periods.map(([value, label]) => <button type="button" key={value} className={period === value ? 'active' : ''} onClick={() => setPeriod(value)}>{label}</button>)}
+          {periods.map(([value, label]) => <button type="button" role="tab" aria-selected={period === value} key={value} className={period === value ? 'active' : ''} onClick={() => setPeriod(value)}>{label}</button>)}
         </div>
-        <div className="workload-period-picker">
+        {period === 'forecast' && <div className="workload-view-switch"><span>Xem theo:</span>{[['position', 'Vị trí'], ['employee', 'Nhân viên']].map(([value, label]) => <button type="button" key={value} aria-pressed={forecastView === value} className={forecastView === value ? 'active' : ''} onClick={() => setForecastView(value)}>{label}</button>)}</div>}
+        {period !== 'forecast' && <div className="workload-period-picker">
           <button type="button" className="workload-icon-button" onClick={() => shiftPeriod(-1)} aria-label="Khoảng thời gian trước"><ChevronLeft size={18} /></button>
           {period === 'day' && <>
             <button type="button" className="workload-date-button" onClick={() => datePickerRef.current?.showPicker ? datePickerRef.current.showPicker() : datePickerRef.current?.click()}>
@@ -281,14 +282,14 @@ export default function WorkloadPage() {
           {period === 'month' && <input aria-label="Chọn tháng" type="month" value={selectedMonth} onChange={event => setSelectedMonth(event.target.value)} />}
           {period === 'year' && <input aria-label="Chọn năm" type="number" min="2000" max="2100" value={selectedYear} onChange={event => setSelectedYear(event.target.value)} />}
           <button type="button" className="workload-icon-button" onClick={() => shiftPeriod(1)} aria-label="Khoảng thời gian tiếp"><ChevronRight size={18} /></button>
-        </div>
+        </div>}
         <div className="workload-toolbar-actions">
           {isAdmin && <label className="workload-search"><Search size={17} /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Tìm nhân viên, mã, đội..." /></label>}
           {isAdmin && <button type="button" className="workload-assign-button" onClick={() => setActiveTab('gantt')}>Phân công công việc <ArrowRight size={17} /></button>}
         </div>
       </div>
 
-      <div className="workload-summary-grid">
+      {period !== 'forecast' && <div className="workload-summary-grid">
         {!isAdmin && <>
           <article className="workload-summary-card"><span><Clock3 size={17} /> Giờ làm đã ghi nhận</span><strong>{formatHours(personalActualHours)}<small> giờ</small></strong><em>Tổng giờ thực tế trong kỳ đã chọn</em></article>
           <article className="workload-summary-card"><span><CalendarDays size={17} /> Giờ công việc dự kiến</span><strong>{formatHours(summary.allocated)}<small> giờ</small></strong><em>Định mức cá nhân {formatHours(summary.capacity)} giờ trong kỳ</em></article>
@@ -299,26 +300,27 @@ export default function WorkloadPage() {
           <article className="workload-summary-card"><span><Clock3 size={17} /> Giờ đã lên lịch</span><strong>{formatHours(summary.allocated)}<small> giờ</small></strong></article>
           <article className={`workload-summary-card ${summary.overloaded ? 'has-overload' : ''}`}><span><CalendarDays size={17} /> Tình trạng phân bổ</span><strong>{summary.overloaded}<small> nhân viên/kỳ quá định mức</small></strong></article>
         </>}
-      </div>
+      </div>}
       </div>
 
-      <div className="workload-table-card">
-        <div className="workload-table-heading"><div><h2>Bảng phân bổ giờ</h2><p>{period === 'day' ? 'Chi tiết công việc trong ngày đã chọn' : period === 'month' ? 'Mỗi cột là một ngày trong tháng' : 'Tổng giờ phân bổ theo từng tháng'}</p></div><span className="workload-unit-note">Thứ 2–6 đủ ngày · sáng Thứ 7</span></div>
+      {period === 'forecast' ? <Suspense fallback={<p role="status">Đang tải dự báo nhân lực...</p>}><WorkforcePlanning search={search} view={forecastView} /></Suspense> : <div className="workload-table-card">
+        <div className="workload-table-heading"><div className={period === 'month' ? 'workload-month-heading' : ''}><h2>Bảng phân bổ giờ</h2></div><span className="workload-unit-note">Thứ 2–6 đủ ngày · sáng Thứ 7</span></div>
         <div className="workload-table-scroll" ref={tableScrollRef}>
           <table className={`workload-table ${period}`}>
-            <thead><tr><th className="workload-employee-column">{isAdmin ? 'Nhân viên' : 'Thông tin của tôi'}</th>{columns.map(column => <th key={column.key} title={column.holiday || undefined} className={`${period === 'month' && (column.weekday === 0 || column.weekday === 6) ? 'weekend' : ''} ${column.holiday ? 'holiday' : ''}`}>{period === 'day' ? 'Phân bổ trong ngày' : column.label}</th>)}{period === 'day' && <th className="workload-detail-column">Công việc trong ngày</th>}</tr></thead>
+            <thead><tr><th className="workload-employee-column">{isAdmin ? 'Nhân viên' : 'Thông tin của tôi'}</th><th className="workload-position-column">Vị trí</th>{columns.map(column => <th key={column.key} title={column.holiday || undefined} className={`${period === 'month' && (column.weekday === 0 || column.weekday === 6) ? 'weekend' : ''} ${column.holiday ? 'holiday' : ''}`}>{period === 'day' ? 'Phân bổ trong ngày' : column.label}</th>)}{period === 'day' && <th className="workload-detail-column">Công việc trong ngày</th>}</tr></thead>
             <tbody>
               {rows.map(({ employee, cells }) => {
                 return <tr key={employee.id}>
                   <th className="workload-employee-column"><div className="workload-employee-cell"><span className="workload-avatar">{employee.name?.slice(0, 1) || '?'}</span><span className="workload-employee-info"><strong>{isAdmin ? employee.name : 'Của tôi · ' + employee.name}</strong><small>{isAdmin ? `${employee.code} · ${employee.team || employee.title || 'Nhân viên'}` : `${employee.code} · ${employee.title || employee.team || 'Nhân sự APS'}`}</small></span></div></th>
+                  <td className="workload-position-column">{employeePosition(employee)}</td>
                   {cells.map((cell, index) => {
                     const tone = allocationTone(cell.allocated, cell.capacity);
                     const percent = cell.capacity ? Math.min(100, cell.allocated / cell.capacity * 100) : 0;
                     return <td key={columns[index].key} className={`${tone} ${period === 'month' && (columns[index].weekday === 0 || columns[index].weekday === 6) ? 'weekend' : ''} ${columns[index].holiday ? 'holiday' : ''}`} title={[columns[index].holiday, cell.tasks.map(task => `${task.title} · ${formatHours(hoursPerTaskDay(task))}h/ngày`).join('\n') || 'Chưa có công việc được lên lịch'].filter(Boolean).join('\n')}>
                       <div className="workload-cell-hours"><strong>{formatHours(cell.allocated)}</strong><span>/{formatHours(cell.capacity)}h</span></div>
-                      <div className="workload-meter"><span style={{ width: `${percent}%` }} /></div>
+                      {period !== 'month' && <div className="workload-meter"><span style={{ width: `${percent}%` }} /></div>}
                       {period === 'day' && <small className={`workload-free-label ${cell.overflow ? 'over' : ''}`}>{cell.overflow ? `Vượt ${formatHours(cell.overflow)}h` : cell.remaining ? `Có thể phân công thêm ${formatHours(cell.remaining)}h` : 'Đủ định mức'}</small>}
-                      {period !== 'day' && <small className="workload-free-label">{cell.tasks.length} công việc · trống {formatHours(cell.remaining)}h</small>}
+                      {period === 'year' && <small className="workload-free-label">{cell.tasks.length} công việc · trống {formatHours(cell.remaining)}h</small>}
                     </td>;
                   })}
                   {period === 'day' && <td className="workload-detail-column">
@@ -344,11 +346,11 @@ export default function WorkloadPage() {
                   </td>}
                 </tr>;
               })}
-              {rows.length === 0 && <tr><td className="workload-empty" colSpan={columns.length + (period === 'day' ? 2 : 1)}>Không tìm thấy nhân viên phù hợp.</td></tr>}
+              {rows.length === 0 && <tr><td className="workload-empty" colSpan={columns.length + (period === 'day' ? 3 : 2)}>Không tìm thấy nhân viên phù hợp.</td></tr>}
             </tbody>
           </table>
         </div>
-      </div>
+      </div>}
       {!isAdmin && period !== 'day' && personalEmployee && <section className="workload-personal-projects">
         <div className="workload-personal-projects-heading"><div><h2>Công trình trong {period === 'month' ? 'tháng' : 'năm'} của tôi</h2><p>Tổng hợp giờ dự kiến, giờ đã ghi nhận và task được giao trong kỳ.</p></div><span>{personalProjects.length} công trình</span></div>
         {personalProjects.length ? <div className="workload-project-list">{personalProjects.map(project => <article key={project.key} className="workload-project-card">

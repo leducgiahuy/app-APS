@@ -53,7 +53,7 @@ export function normalizeAssignmentSchedules(db) {
     const excluded = item.assignees?.some(a => a.excludeNonWorkingDays === true) || false;
     if (!excluded && !item.calendarAdjusted) continue;
     const days = taskWorkingDates(item).length;
-    const hours = excluded ? item.assignees.reduce((sum, a) => sum + assignmentWorkingDates(item, a).length * (Number(a.estimatedHoursPerDay) || Number(item.estimatedHoursPerDay) || 8), 0)
+    const hours = excluded ? item.assignees.reduce((sum, a) => sum + assignmentWorkingDates(item, a).reduce((assigned, key) => assigned + (new Date(`${key}T12:00:00Z`).getUTCDay() === 6 ? 0.5 : 1) * (Number(a.estimatedHoursPerDay) || Number(item.estimatedHoursPerDay) || 8), 0), 0)
       : days * (Number(item.estimatedHoursPerDay) || 8);
     const fields = { calendarAdjusted: excluded, estimatedHours: Math.round(hours * 100) / 100 };
     if ((db.ganttItems || []).includes(item)) fields.days = days;

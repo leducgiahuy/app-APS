@@ -1,3 +1,5 @@
+import { readDb,writeDb } from './models/db.js';
+import { updateOperationsJobs } from './utils/operationsJobs.js';
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
@@ -12,7 +14,7 @@ const dist = path.join(__dirname, '../../frontend/dist');
 
 // Middleware cấu hình CORS và phân tích JSON
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '15mb' }));
 
 // Gắn các đường dẫn API của hệ thống
 app.use('/api', apiRoutes);
@@ -30,3 +32,7 @@ app.listen(PORT, () => {
   console.log(`👉 API Endpoint: http://localhost:${PORT}/api`);
   console.log(`=======================================================`);
 });
+
+const runJobs=()=>{try{const db=readDb();if(updateOperationsJobs(db))writeDb(db);}catch(error){console.error('Tác vụ nhắc hạn:',error.message);}};
+setInterval(runJobs,60000).unref();
+runJobs();

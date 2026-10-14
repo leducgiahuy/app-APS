@@ -37,6 +37,7 @@ export function shiftIsoDate(isoDate, days) {
 }
 
 export function scheduledProgress(task, hoursPerDay = 8, now = new Date(), activeCheckInAt = null) {
+  if (task?.deliveryRecognized != null && Number.isFinite(Number(task.deliveryRecognized))) return Math.max(0, Math.min(100, Number(task.deliveryRecognized)));
   if (task?.status === 'completed') return 100;
   const days = inclusiveDays(task?.startDate, task?.endDate);
   const dailyHours = Number(hoursPerDay) || 8;
@@ -68,6 +69,7 @@ export function scheduledProgress(task, hoursPerDay = 8, now = new Date(), activ
 }
 
 export function isTaskOverdue(task, now = new Date()) {
+  if (Number(task?.deliveryRecognized) === 100) return false;
   if (!task?.endDate || task.status === 'completed') return false;
   const [, year, month, day] = String(task.endDate).match(/^(\d{4})-(\d{2})-(\d{2})$/) || [];
   if (!year) return false;

@@ -1,4 +1,11 @@
-.workload-page { display: flex; min-height: calc(100vh - 64px); min-height: calc(100dvh - 64px); flex-direction: column; color: #342f30; font-family: "Segoe UI", Arial, sans-serif; }
+.workload-page { display: flex; min-height: calc(100vh - 64px); min-height: calc(100dvh - 64px); flex-direction: column; color: #342f30; font-family: var(--font-ui); }
+.workload-table .workload-position-column { min-width:160px; width:180px; text-align:left; vertical-align:middle; }
+.workload-table.month tbody td { vertical-align:middle; }
+.workload-table.month .workload-cell-hours { min-height:36px; }
+.workload-month-heading { display:flex; align-items:center; flex-wrap:wrap; gap:10px; }
+.workload-month-heading h2 { margin:0; }
+.workload-overload-badge { padding:4px 8px; border-radius:20px; color:#b52b33; background:#fae5e0; font-size:11px; font-weight:650; }
+.workload-month-heading p { font-size:11px; }
 .workload-page button, .workload-page input, .workload-page table { font-family: inherit; }
 .dark .workload-page { color: #f0ebea; }
 .workload-sticky-controls { position: sticky; top: 64px; z-index: 20; background: #f1efeb; }
@@ -115,7 +122,7 @@
 .workload-day-task-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .workload-day-task-top strong { color: #342f30; font-size: 14px; line-height: 1.45; }
 .dark .workload-day-task-top strong { color: #f0ebea; }
-.workload-day-task-top .workload-task-code { display: inline-flex; margin-right: 6px; border-radius: 4px; padding: 1px 5px; background: #f5e6e9; color: #70172e; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; font-weight: 800; vertical-align: 1px; }
+.workload-day-task-top .workload-task-code { display: inline-flex; margin-right: 6px; border-radius: 4px; padding: 1px 5px; background: #f5e6e9; color: #70172e; font-family: var(--font-ui); font-size: 11px; font-weight: 800; vertical-align: 1px; }
 .dark .workload-day-task-top .workload-task-code { background: #4c3038; color: #edb2bf; }
 .workload-day-task-top span { flex: 0 0 auto; border-radius: 6px; padding: 4px 7px; background: #f5e6e9; color: #70172e; font-size: 12px; font-weight: 750; }
 .workload-day-task small { display: block; margin-top: 4px; color: #756d6b; font-size: 12px; }

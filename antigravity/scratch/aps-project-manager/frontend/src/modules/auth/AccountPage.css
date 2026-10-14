@@ -1,4 +1,4 @@
-.account-page { position: relative; min-height: 100vh; overflow: hidden; padding: 0 24px 54px; color: #293943; background: linear-gradient(145deg, #edf1f2 0%, #f2f3ef 55%, #e9eeec 100%); font-family: 'Segoe UI', Arial, sans-serif; }
+.account-page { position: relative; min-height: 100vh; overflow: hidden; padding: 0 24px 54px; color: #293943; background: linear-gradient(145deg, #edf1f2 0%, #f2f3ef 55%, #e9eeec 100%); font-family: var(--font-ui); }
 .account-page::before, .account-page::after { position: absolute; z-index: 0; width: 280px; height: 280px; border-radius: 50%; content: ''; pointer-events: none; }
 .account-page::before { top: 110px; right: -130px; border: 1px solid rgb(100 135 137 / 15%); box-shadow: 0 0 0 24px rgb(100 135 137 / 4%), 0 0 0 50px rgb(100 135 137 / 3%); }
 .account-page::after { bottom: -190px; left: -125px; background: radial-gradient(circle, rgb(221 184 104 / 16%), transparent 70%); }

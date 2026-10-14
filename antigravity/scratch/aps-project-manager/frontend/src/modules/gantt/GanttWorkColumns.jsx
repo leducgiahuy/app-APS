@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Maximize2, X } from 'lucide-react';
 import ModalOverlay from '../../components/layout/ModalOverlay';
 import './GanttWorkColumns.css';
@@ -39,8 +39,14 @@ export function GanttEditableWorkCell({ item, field, onSave, type = 'text', plac
   const [expandedDraft, setExpandedDraft] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
+  const editing = useRef(false);
+  const previousItem = useRef(item.id);
 
-  useEffect(() => setDraft(String(value)), [item.id, value]);
+  useEffect(() => {
+    // Background refreshes must not replace text while the user is typing.
+    if (previousItem.current !== item.id || !editing.current) setDraft(String(value));
+    previousItem.current = item.id;
+  }, [item.id, value]);
 
   const commit = async (text = draft) => {
     if (text === String(value)) return true;
@@ -48,7 +54,7 @@ export function GanttEditableWorkCell({ item, field, onSave, type = 'text', plac
       ? (text.trim() === '' ? null : Number(text))
       : text;
     const saved = await onSave(item.id, { [field]: nextValue });
-    if (!saved) setDraft(String(value));
+    if (!saved && !isNote) setDraft(String(value));
     return Boolean(saved);
   };
 
@@ -63,8 +69,16 @@ export function GanttEditableWorkCell({ item, field, onSave, type = 'text', plac
       aria-label={field === 'contractWork' ? `Công hợp đồng: ${item.title}` : `Ghi chú: ${item.title}`}
       title={draft || (field === 'contractWork' ? 'Contract work' : 'Note')}
       onChange={event => setDraft(event.target.value)}
-      onBlur={() => commit()}
+      onFocus={() => { editing.current = true; }}
+      onBlur={() => { editing.current = false; commit(); }}
       onKeyDown={event => {
+        if (isNote) event.stopPropagation();
+        if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+        if (isNote && event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+          event.preventDefault();
+          commit();
+          return;
+        }
         if (event.key === 'Enter' && (!isNote || event.ctrlKey || event.metaKey)) {
           event.preventDefault();
           event.currentTarget.blur();

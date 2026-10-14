@@ -1,0 +1,44 @@
+import { act } from 'react';
+import { createRoot } from 'react-dom/client';
+import App from '../src/App';
+import { operationsReport,vietnamDay,monday } from '../../backend/src/utils/operationsReports';
+import { emptyOperations } from '../../backend/src/utils/operationsStore';
+import { computeDelivery } from '../src/utils/deliveryMetrics';
+import '../src/index.css';
+globalThis.IS_REACT_ACT_ENVIRONMENT=true;
+localStorage.setItem('aps-authenticated','demo@aps.vn');localStorage.setItem('aps_theme',new URLSearchParams(location.search).has('dark')?'dark':'light');
+const day=vietnamDay(),week=monday(day),month=day.slice(0,7),user={email:'demo@aps.vn',name:'Quản trị',role:'admin',employeeId:'e'},employee={email:'worker@aps.vn',name:'Nhân viên',role:'employee',employeeId:'e'};
+const data={revision:0,settings:{contractFee:100000000,hourlyRate:350000},records:{},timesheets:[{id:'ts',taskId:'t',employeeId:'e',date:day,hours:2,status:'draft',source:'weekly'}],documents:[],changes:[],closes:[],receipts:[],expenses:[],milestones:[],evidence:[],comments:[],audit:[],history:[]};
+const db={projects:[{id:'p',name:'Dự án kiểm tra',manager:user.email,startDate:week,endDate:'2027-09-30'}],employees:[{id:'e',name:'Duy',title:'Kiến trúc sư',team:'Thiết kế',grade:'G1'}],tasks:[],overtimes:[],ganttItems:[{id:'t',projectId:'p',code:'A1.1',title:'Thiết kế dự án',startDate:week,endDate:day,assignees:[{employeeId:'e',employeeName:'Duy',estimatedHoursPerDay:8}]}],delivery:{users:[user,employee],projects:{p:data},templates:[],sessions:[]},operations:emptyOperations()};
+db.operations.budgets=[{id:'b',projectId:'p',version:1,status:'approved',createdBy:'manager@aps.vn',steps:[],lines:Array.from({length:9},(_,i)=>({group:i+1,amount:1000000,hours:i===0?80:0}))}];
+const requests=[];
+window.fetch=async(url,options={})=>{const endpoint=String(url).split('/api/')[1],body=options.body?JSON.parse(options.body):{},query=new URL(String(url)).searchParams;let result={};requests.push({endpoint,body});
+ if(endpoint==='delivery/session')result={token:'mock',expiresAt:Date.now()+1e8};
+ else if(endpoint?.startsWith('delivery/operations')){if(options.method==='PATCH'){db.operations.revision++;if(body.action==='saveWeek'||body.action==='submitWeek')data.timesheets=body.value.entries.map(row=>({...row,id:row.id||'new',source:'weekly',employeeId:'e',status:body.action==='submitWeek'?'submitted':'draft'}));}const q=options.method==='PATCH'?body.query:Object.fromEntries(query);result={...operationsReport(db,q.asUser?employee:user,q),previewUsers:[user,employee],readOnly:Boolean(q.asUser)};}
+ else if(endpoint==='delivery/notifications')result={revision:db.operations.revision,notifications:[]};
+ else if(endpoint==='delivery/users')result=[user,employee];else if(endpoint==='delivery/templates')result=[];
+ else if(endpoint==='delivery/p')result={...data,...computeDelivery(db,'p',data),viewer:user,permissions:{financial:true,manage:true,users:true}};
+ else if(endpoint==='employees')result=db.employees;else if(endpoint==='tasks')result={tasks:db.tasks,overtimes:[]};else if(endpoint==='projects')result=db.projects;else if(endpoint==='gantt')result=db.ganttItems;else if(endpoint==='workforce-plan')result={};
+ return {ok:true,status:200,json:async()=>({success:true,data:structuredClone(result)})};};
+const checks=[],root=createRoot(document.getElementById('root'));const check=(ok,label)=>{if(!ok)throw new Error(label);checks.push(label);};
+const wait=async fn=>{for(let i=0;i<150;i++){if(fn())return;await act(async()=>new Promise(resolve=>setTimeout(resolve,40)));}throw new Error('Timed out');};
+const click=async e=>{check(Boolean(e),'control exists');await act(async()=>e.click());};const button=t=>[...document.querySelectorAll('button')].find(e=>e.textContent.trim()===t);
+const change=async(e,value)=>act(async()=>{check(Boolean(e),'input exists');const proto=e.tagName==='SELECT'?HTMLSelectElement.prototype:e.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(proto,'value').set.call(e,value);e.dispatchEvent(new Event(e.tagName==='SELECT'?'change':'input',{bubbles:true}));});
+const navigate=async text=>{await click([...document.querySelectorAll('aside button')].find(e=>e.textContent.includes(text)));await wait(()=>document.querySelector('.operations-page'));};
+try{
+ await act(async()=>root.render(<App/>));await wait(()=>document.querySelector('aside'));
+ await navigate('Giờ công');await wait(()=>document.querySelector('.operations-week-table'));check(document.querySelectorAll('.operations-week-table thead th').length===11,'weekly task and seven day columns');check(getComputedStyle(button('Nộp duyệt')).backgroundColor!==getComputedStyle(button('Nộp duyệt')).color,'primary submit remains readable');
+ const input=document.querySelector(`[aria-label="A1.1 ${day}"]`);await change(input,'3.5');input.focus();await act(async()=>new Promise(resolve=>setTimeout(resolve,1200)));check(document.activeElement===input,'weekly input retains focus across clock updates');
+ window.dispatchEvent(new Event('focus'));await act(async()=>new Promise(resolve=>setTimeout(resolve,150)));check(document.activeElement===input&&input.value==='3.5','background refresh preserves draft and focus');
+ await click(button('Lưu nháp'));await wait(()=>requests.some(r=>r.body.action==='saveWeek'));check(db.delivery.projects.p.timesheets[0].hours===3.5,'weekly form sends numeric task hours');
+ await click(button('Kiểm soát giờ công'));check(document.body.textContent.includes('6 nhóm dấu hiệu'),'six anomaly groups visible');
+ await navigate('Tài chính');await wait(()=>document.body.textContent.includes('Ngân sách theo nhóm chi phí'));check(document.querySelectorAll('.operations-meter').length===9,'nine budget groups');
+ await click(button('Đề nghị chi & tạm ứng'));await click(button('+ Đề nghị chi'));const textarea=document.querySelector('[role="dialog"] textarea');await change(textarea,'Nội dung nhập liên tục có dấu');textarea.focus();window.dispatchEvent(new Event('focus'));await act(async()=>new Promise(resolve=>setTimeout(resolve,1200)));check(document.activeElement===textarea,'expense editor retains focus across polling and clock');check(textarea.value==='Nội dung nhập liên tục có dấu','expense draft remains unchanged');await click(button('Hủy'));
+ await click(button('Dòng tiền công ty'));check(document.querySelector('[aria-label="Dòng tiền thu, chi và số dư cuối tháng"]'),'six month cash chart renders');
+ await navigate('Phân quyền');await wait(()=>document.querySelector('.operations-matrix'));check(document.querySelectorAll('.operations-matrix thead th').length===8,'six role matrix columns');check(document.querySelectorAll('.operations-matrix .current-role').length>1,'actual director column highlighted');await click(button('Tham số'));check(document.body.textContent.includes('Đơn giá giờ công chuẩn theo cấp bậc'),'standard grade rates');await click(button('Mẫu & danh mục'));check(button('+ Thêm mẫu'),'template configuration available');
+ await navigate('Từ điển');await wait(()=>button('Tất cả chỉ tiêu'));await click(button('Tất cả chỉ tiêu'));check(document.querySelectorAll('.operations-card tbody tr').length===63,'dictionary includes all 63 metrics');
+ const preview=[...document.querySelectorAll('.operations-view-options select')][0];await change(preview,employee.email);await wait(()=>document.body.textContent.includes('Đang xem thử · chỉ đọc'));check(document.querySelectorAll('.operations-card tbody tr').length<63,'employee dictionary hides monetary metrics');
+ await click([...document.querySelectorAll('aside button')].find(e=>e.textContent.includes('Tiến Độ Dự Án')));await wait(()=>button('+ Dự Án Mới'));await click(button('+ Dự Án Mới'));await wait(()=>document.querySelector('.operations-project-wizard'));check(document.querySelectorAll('.operations-project-wizard .operations-card').length===6,'six project wizard sections');const projectName=document.querySelector('.operations-project-wizard input[type=text]');await change(projectName,'Tên dự án đang nhập');projectName.focus();await act(async()=>new Promise(resolve=>setTimeout(resolve,1200)));check(document.activeElement===projectName,'project wizard keeps continuous typing focus');if(!new URLSearchParams(location.search).has('wizard'))await click(button('Đóng ✕'));
+ const end=new URLSearchParams(location.search).get('page');if(end){await navigate(end);await act(async()=>new Promise(resolve=>setTimeout(resolve,200)));if(new URLSearchParams(location.search).get('tab'))await click(button(new URLSearchParams(location.search).get('tab')));}
+ document.getElementById('test-results').textContent=JSON.stringify({passed:checks.length,checks});
+}catch(e){document.getElementById('test-results').textContent=JSON.stringify({passed:checks.length,error:e.message,stack:e.stack});}

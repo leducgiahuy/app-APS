@@ -15,6 +15,7 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import { getCurrentUser } from '../../modules/auth/authSession';
+import { placeholderPages } from './placeholderPages';
 
 export default function Sidebar() {
   const {
@@ -37,6 +38,7 @@ export default function Sidebar() {
     {
       id: 'hr',
       label: 'Thành Viên',
+      compactLabel: 'Thành viên',
       icon: Users,
       badge: `${onSiteCount} On-site`,
       badgeColor: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
@@ -51,6 +53,7 @@ export default function Sidebar() {
     {
       id: 'workload',
       label: 'Quản Lý Nhân Sự',
+      compactLabel: 'Nhân sự',
       icon: UsersRound,
       badge: '8h/ngày',
       badgeColor: 'bg-sky-500/10 text-sky-500 border-sky-500/20'
@@ -58,6 +61,7 @@ export default function Sidebar() {
     {
       id: 'gantt',
       label: 'Tiến Độ Dự Án',
+      compactLabel: 'Tiến độ',
       icon: CalendarRange,
       badge: 'FS Link',
       badgeColor: 'bg-amber-500/10 text-amber-500 border-amber-500/20'
@@ -65,10 +69,12 @@ export default function Sidebar() {
     {
       id: 'dashboard',
       label: 'Thống Kê & Báo Cáo',
+      compactLabel: 'Báo cáo',
       icon: BarChart3,
       badge: 'KPI',
       badgeColor: 'bg-purple-500/10 text-purple-500 border-purple-500/20'
-    }
+    },
+    ...placeholderPages
   ];
 
   // Chỉ thêm trang nhật ký vào menu của phiên quản trị viên.
@@ -76,6 +82,7 @@ export default function Sidebar() {
     menuItems.push({
       id: 'activity',
       label: 'Nhật Ký Hoạt Động',
+      compactLabel: 'Nhật ký',
       icon: Activity,
       badge: 'ADMIN',
       badgeColor: 'bg-amber-500/10 text-amber-700 border-amber-500/20',
@@ -122,7 +129,7 @@ export default function Sidebar() {
         </div>
 
         {/* Danh sách các Menu điều hướng */}
-        <div className="flex-1 py-4 px-3 space-y-1.5 overflow-y-auto">
+        <div className={`flex-1 py-4 ${sidebarCollapsed ? 'px-2' : 'px-3'} space-y-1.5 overflow-y-auto`}>
           {!sidebarCollapsed && (
             <div className="px-3 pb-2 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
               Phân Hệ Quản Lý
@@ -136,8 +143,9 @@ export default function Sidebar() {
               <button
                 key={item.id}
                 onClick={() => handleSelectTab(item.id)}
-                title={sidebarCollapsed ? item.label : ''}
-                className={`w-full flex items-center gap-3.5 px-3.5 py-3 rounded-xl text-sm font-semibold transition-all duration-200 group relative
+                aria-label={item.label}
+                aria-current={isActive ? 'page' : undefined}
+                className={`w-full flex items-center ${sidebarCollapsed ? 'flex-col justify-center gap-1 px-1 py-2.5' : 'gap-3.5 px-3.5 py-3'} rounded-xl text-sm font-semibold transition-all duration-200 group relative
                   ${isActive
                     ? 'bg-sky-600 text-white shadow-lg shadow-sky-600/25 dark:shadow-sky-900/30'
                     : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white'
@@ -165,9 +173,8 @@ export default function Sidebar() {
                   </div>
                 )}
 
-                {/* Chấm tròn báo hiệu active khi thu gọn */}
-                {sidebarCollapsed && isActive && (
-                  <span className="absolute right-2 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-white shadow-sm" />
+                {sidebarCollapsed && (
+                  <span className="w-full text-center text-[8px] leading-tight font-medium whitespace-nowrap">{item.compactLabel || item.label}</span>
                 )}
               </button>
             );
@@ -201,6 +208,7 @@ export default function Sidebar() {
           </button>
         </div>
       </aside>
+
     </>
   );
 }

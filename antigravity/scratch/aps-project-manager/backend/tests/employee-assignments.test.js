@@ -83,6 +83,6 @@ test('database reads repair old assignments and future employee deletion persist
     if (previousPath === undefined) delete process.env.APS_DB_PATH;
     else process.env.APS_DB_PATH = previousPath;
     fs.unlinkSync(file);
-    fs.rmdirSync(directory);
+    assert.equal(path.dirname(directory),os.tmpdir());fs.rmSync(directory,{recursive:true,force:true});
   }
 });

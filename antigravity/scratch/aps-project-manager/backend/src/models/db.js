@@ -79,7 +79,13 @@ export function writeDb(data) {
     normalizeAssignmentSchedules(data);
     cachedDb = data;
     fs.mkdirSync(path.dirname(DB_FILE), { recursive: true });
-    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf-8');
+    const backupDir=path.join(path.dirname(DB_FILE),'backups'),day=new Date(Date.now()+7*3600000).toISOString().slice(0,10),backupFile=path.join(backupDir,`db-${day}.json`);
+    if(fs.existsSync(DB_FILE)&&!fs.existsSync(backupFile)){
+      fs.mkdirSync(backupDir,{recursive:true});fs.copyFileSync(DB_FILE,backupFile);
+      const backups=fs.readdirSync(backupDir).filter(name=>/^db-\d{4}-\d{2}-\d{2}\.json$/.test(name)).sort();
+      for(const name of backups.slice(0,Math.max(0,backups.length-30)))fs.unlinkSync(path.join(backupDir,name));
+    }
+    const temporary=`${DB_FILE}.tmp`;fs.writeFileSync(temporary,JSON.stringify(data,null,2),'utf-8');fs.renameSync(temporary,DB_FILE);
     return true;
   } catch (error) {
     console.error('Lỗi khi ghi file db.json:', error.message);

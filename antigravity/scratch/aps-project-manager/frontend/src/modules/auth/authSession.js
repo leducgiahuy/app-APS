@@ -1,6 +1,8 @@
 const USERS_KEY = 'aps-users';
 const SESSION_KEY = 'aps-authenticated';
 const ACTIVITY_KEY = 'aps-activity-log';
+const AUTH_ATTEMPTS_KEY = 'aps-auth-attempts';
+const AUTH_SESSION_MS = 8 * 60 * 60 * 1000;
 const ACTIVITY_API = 'http://localhost:5000/api/activity';
 const DEMO_USER = {
   name: 'Nguyễn Minh Anh',
@@ -39,8 +41,21 @@ export function findUser(email) {
 
 /** Kiểm tra thông tin đăng nhập và trả về tài khoản khi email/mật khẩu khớp. */
 export function authenticateUser(email, password) {
-  const user = findUser(email);
-  return user && user.password === password ? user : null;
+  const normalizedEmail = email.trim().toLowerCase();
+  let attempts = {};
+  try { attempts = JSON.parse(localStorage.getItem(AUTH_ATTEMPTS_KEY) || '{}'); } catch { localStorage.removeItem(AUTH_ATTEMPTS_KEY); }
+  const current = attempts[normalizedEmail];
+  if (current?.lockedUntil > Date.now()) return null;
+  const user = findUser(normalizedEmail);
+  if (user && user.password === password) {
+    delete attempts[normalizedEmail];
+    localStorage.setItem(AUTH_ATTEMPTS_KEY, JSON.stringify(attempts));
+    return user;
+  }
+  const count = (current?.lockedUntil && current.lockedUntil <= Date.now() ? 0 : current?.count || 0) + 1;
+  attempts[normalizedEmail] = { count, lockedUntil: count >= 5 ? Date.now() + 15 * 60 * 1000 : 0 };
+  localStorage.setItem(AUTH_ATTEMPTS_KEY, JSON.stringify(attempts));
+  return null;
 }
 
 /** Lưu nhật ký thao tác, luôn bỏ qua mật khẩu và giới hạn dung lượng ở 1.000 sự kiện. */
@@ -208,15 +223,19 @@ export function resetUserPassword(targetEmail, newPassword, actorEmail) {
 export function startAuthSession(remember, email) {
   sessionStorage.removeItem(SESSION_KEY);
   localStorage.removeItem(SESSION_KEY);
-  (remember ? localStorage : sessionStorage).setItem(SESSION_KEY, email.trim().toLowerCase());
+  (remember ? localStorage : sessionStorage).setItem(SESSION_KEY, JSON.stringify({ email: email.trim().toLowerCase(), expiresAt: Date.now() + AUTH_SESSION_MS }));
   recordActivity('auth.login', 'Đăng nhập thành công.', email);
 }
 
 /** Trả về email đang đăng nhập, hỗ trợ phiên cũ trước khi có quản lý tài khoản. */
 export function getCurrentUser() {
-  const savedEmail = sessionStorage.getItem(SESSION_KEY) || localStorage.getItem(SESSION_KEY);
-  if (!savedEmail) return null;
-  const email = savedEmail === 'true' ? DEMO_USER.email : savedEmail;
+  const storage = sessionStorage.getItem(SESSION_KEY) ? sessionStorage : localStorage;
+  const saved = storage.getItem(SESSION_KEY);
+  if (!saved) return null;
+  let email, expiresAt;
+  try { ({ email, expiresAt } = JSON.parse(saved)); }
+  catch { email = saved === 'true' ? DEMO_USER.email : saved; expiresAt = Date.now() + AUTH_SESSION_MS; storage.setItem(SESSION_KEY, JSON.stringify({ email, expiresAt })); }
+  if (!email || !Number.isFinite(expiresAt) || expiresAt <= Date.now()) { storage.removeItem(SESSION_KEY); return null; }
   return findUser(email);
 }
 

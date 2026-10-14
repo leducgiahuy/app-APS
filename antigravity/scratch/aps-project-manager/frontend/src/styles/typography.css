@@ -1,0 +1,36 @@
+/* Self-hosted WOFF2, including Vietnamese diacritics; no runtime Google Fonts request. */
+@import '@fontsource/be-vietnam-pro/400.css';
+@import '@fontsource/be-vietnam-pro/500.css';
+@import '@fontsource/be-vietnam-pro/600.css';
+@import '@fontsource/be-vietnam-pro/700.css';
+@import '@fontsource/be-vietnam-pro/800.css';
+@import '@fontsource/be-vietnam-pro/900.css';
+
+@layer base {
+  :root {
+    --font-ui: 'Be Vietnam Pro', 'Segoe UI', Arial, sans-serif;
+    --text-micro: 10px;
+    --text-caption: 11px;
+    --text-small: 12px;
+    --text-label: 13px;
+    --text-body: 14px;
+    --text-heading: 16px;
+    --text-title: 20px;
+    --text-display: 24px;
+  }
+
+  body {
+    font-family: var(--font-ui);
+    font-size: var(--text-body);
+    line-height: 1.5;
+  }
+
+  button, input, select, textarea, optgroup {
+    font-family: inherit;
+    font-size: inherit;
+    line-height: inherit;
+  }
+
+  input::placeholder, textarea::placeholder { font-family: inherit; }
+  code, pre, kbd, samp { font-family: var(--font-ui); font-variant-numeric: tabular-nums; }
+}

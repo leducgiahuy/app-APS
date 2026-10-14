@@ -1,3 +1,5 @@
+import { positionKey,employeePosition } from '../../../frontend/src/utils/workforceForecast.js';
+import { calculateAssignmentHours } from '../../../frontend/src/utils/ganttEffort.js';
 import { readDb, writeDb } from '../models/db.js';
 import { assignmentWorkingDates, normalizeAssignmentSchedules } from '../../../frontend/src/utils/assignmentCalendar.js';
 
@@ -15,6 +17,11 @@ const hasStoredAssignmentState = task => Boolean(task && (
   Object.hasOwn(task, 'employeeId') ||
   Object.hasOwn(task, 'employeeName')
 ));
+const overlapAssignmentHours = (task, assignment, startDate, endDate) => {
+  const start = [task.startDate, assignment.startDate, startDate].filter(Boolean).sort().at(-1);
+  const end = [task.endDate, assignment.endDate, endDate].filter(Boolean).sort()[0];
+  return start && end && start <= end ? calculateAssignmentHours({ ...task, startDate: start, endDate: end }, { ...assignment, startDate: start, endDate: end }) : 0;
+};
 
 /**
  * Phân tích mã WBS (VD: 'A1.3' -> { majorIdx: 0, segments: [1, 3] })
@@ -185,6 +192,7 @@ export function deleteProject(req, res) {
   });
 
   const [removedProject] = db.projects.splice(projectIndex, 1);
+  if (db.delivery?.projects) delete db.delivery.projects[id];
   writeDb(db);
 
   return res.json({
@@ -908,7 +916,7 @@ export function createGanttItem(req, res) {
   }
   const calculatedDays = Math.floor((endTimestamp - startTimestamp) / 86400000) + 1;
   const assigneeName = String(assignee || '').trim().toLocaleLowerCase('vi');
-  const assignedEmployee = assigneeName
+  let assignedEmployee = assigneeName
     ? (db.employees || []).find(employee => employee.name.trim().toLocaleLowerCase('vi') === assigneeName)
     : null;
   if (assigneeName && !assignedEmployee) {
@@ -1052,8 +1060,13 @@ export function createGanttItem(req, res) {
       ? null
       : downstreamProjectItems[0] || null;
 
+  if(!assignedEmployee && !isGroup && req.body.requiredPosition){
+    const load=employee=>(db.ganttItems||[]).filter(t=>!t.isGroup&&t.status!=='completed'&&t.startDate<=endDate&&t.endDate>=startDate).reduce((sum,t)=>sum+(t.assignees||[]).filter(a=>a.employeeId===employee.id).reduce((hours,a)=>hours+overlapAssignmentHours(t,a,startDate,endDate),0),0);
+    assignedEmployee=(db.employees||[]).filter(e=>e.status!=='inactive'&&positionKey(employeePosition(e))===positionKey(req.body.requiredPosition)).sort((a,b)=>load(a)-load(b)||a.id.localeCompare(b.id))[0];
+  }
   const newItem = {
     id: newGanttId,
+    requiredPosition:String(req.body.requiredPosition||'').trim(),autoAssigned:Boolean(!assigneeName&&assignedEmployee),
     projectId: project.id,
     code: formattedCode,
     title,

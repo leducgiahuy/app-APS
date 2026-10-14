@@ -1,0 +1,32 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { deliveryView, canEditProgressTask, ownsDeliveryTask, maskDeliveryFinance } from '../../frontend/src/utils/deliveryView.js';
+import { publicDelivery } from '../src/utils/deliveryAuth.js';
+test('employee, manager and leader share role-based view and task-edit rules', () => {
+  const employees = [{ id: 'e', team: 'KT' }, { id: 'l', team: 'KT' }, { id: 'x', team: 'MEP' }];
+  const item = { assignees: [{ employeeId: 'e' }] };
+  assert.equal(deliveryView('employee').ownByDefault, true);
+  assert.equal(deliveryView('employee').financial, false);
+  assert.equal(deliveryView('manager').financial, true);
+  assert.equal(deliveryView('manager').manage, true);
+  assert.equal(deliveryView('leader').confirm, true);
+  assert.equal(canEditProgressTask({ role: 'employee', employeeId: 'e' }, item, employees), true);
+  assert.equal(canEditProgressTask({ role: 'employee', employeeId: 'x' }, item, employees), false);
+  assert.equal(canEditProgressTask({ role: 'leader', employeeId: 'l' }, item, employees), true);
+  assert.equal(canEditProgressTask({ role: 'leader', employeeId: 'x' }, item, employees), false);
+  assert.equal(ownsDeliveryTask({ role: 'employee' }, { assignees: [{}] }), false);
+  assert.equal(canEditProgressTask({ role: 'employee' }, { assignees: [{}] }, employees), false);
+});
+test('real employee responses and previews mask all generated monetary fields without losing hours or source data', () => {
+  const source = { settings: { contractFee: 3200000000, hourlyRate: 350000 }, summary: { output: 123, monthlyOutput: 12, laborCost: 40, expenseCost: 7, cost: 47, collected: 8, eligiblePayment: 9, completion: 14, progressThisMonth: 6.5 }, taskMetrics: { t: { output: 123, laborCost: 40, planned: 13, actualHours: 70, actual: 8.75, weight: .028 } }, documents: [{ fee: 32, title: 'ĐTM' }], changes: [{ amount: 42, appendixAmount: 20, title: 'Thêm phạm vi' }], milestones: [{ amount: 320, title: 'Đợt 2' }], history: [{ output: 123 }], receipts: [{ amount: 8 }], expenses: [{ amount: 7 }], closes: [{ output: 123 }] };
+  const preview = maskDeliveryFinance(source);
+  assert.equal(preview.settings.contractFee, undefined); assert.equal(preview.taskMetrics.t.laborCost, undefined);
+  assert.equal(preview.taskMetrics.t.actualHours, 70); assert.equal(preview.taskMetrics.t.weight, .028);
+  assert.equal(preview.documents[0].fee, undefined); assert.equal(preview.changes[0].amount, undefined); assert.equal(preview.changes[0].appendixAmount, undefined); assert.equal(preview.milestones[0].amount, undefined);
+  assert.equal(preview.history.length, 0); assert.equal(preview.summary.progressThisMonth, 6.5);
+  assert.equal(source.settings.contractFee, 3200000000);
+  const actual = publicDelivery(source, source, { role: 'employee', employeeId: 'e' });
+  assert.equal(actual.taskMetrics.t.output, undefined); assert.equal(actual.documents[0].fee, undefined); assert.equal(actual.settings.hourlyRate, undefined);
+  const manager = publicDelivery(source, source, { role: 'manager' });
+  assert.equal(manager.taskMetrics.t.laborCost, 40); assert.equal(manager.settings.contractFee, 3200000000);
+});

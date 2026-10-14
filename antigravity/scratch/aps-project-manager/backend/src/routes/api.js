@@ -1,4 +1,10 @@
+import { getOperations, mutateOperations, previewProject, getOperationsNotifications } from '../controllers/operationsController.js';
 import express from 'express';
+import { deliveryLogin, deliveryUsers, requireDeliveryUser } from '../utils/deliveryAuth.js';
+import { deliveryReporting } from '../controllers/deliveryReportingController.js';
+import { executiveReport } from '../controllers/executiveController.js';
+import { getDeliveryProject, updateDeliveryProject, uploadDeliveryEvidence, downloadDeliveryEvidence, deliveryTemplates } from '../controllers/deliveryController.js';
+import { getWorkforcePlan, updateWorkforcePlan } from '../controllers/workforceController.js';
 import {
   getEmployees,
   createEmployee,
@@ -30,6 +36,26 @@ import { getStats } from '../controllers/statsController.js';
 import { clearActivityLogEntries, createActivityLogEntry, getActivityLog } from '../controllers/activityController.js';
 
 const router = express.Router();
+router.post('/delivery/session', deliveryLogin);
+router.post('/delivery/project-preview', requireDeliveryUser, previewProject);
+router.get('/delivery/notifications',requireDeliveryUser,getOperationsNotifications);
+router.get('/delivery/operations', requireDeliveryUser, getOperations);
+router.patch('/delivery/operations', requireDeliveryUser, mutateOperations);
+router.get('/delivery/users', requireDeliveryUser, deliveryUsers);
+router.post('/delivery/users', requireDeliveryUser, deliveryUsers);
+router.get('/delivery/templates', requireDeliveryUser, deliveryTemplates);
+router.get('/delivery/reporting', requireDeliveryUser, deliveryReporting);
+router.post('/delivery/reporting', requireDeliveryUser, deliveryReporting);
+router.get('/delivery/executive', requireDeliveryUser, executiveReport);
+router.patch('/delivery/executive', requireDeliveryUser, executiveReport);
+router.post('/delivery/templates', requireDeliveryUser, deliveryTemplates);
+router.get('/delivery/:projectId', requireDeliveryUser, getDeliveryProject);
+router.patch('/delivery/:projectId', requireDeliveryUser, updateDeliveryProject);
+router.post('/delivery/:projectId/evidence', requireDeliveryUser, uploadDeliveryEvidence);
+router.get('/delivery/:projectId/evidence/:fileId', requireDeliveryUser, downloadDeliveryEvidence);
+router.use(requireDeliveryUser);
+router.get('/workforce-plan', getWorkforcePlan);
+router.patch('/workforce-plan', updateWorkforcePlan);
 
 // === NHẬT KÝ HOẠT ĐỘNG ===
 router.get('/activity', getActivityLog);

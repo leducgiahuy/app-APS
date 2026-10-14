@@ -1,5 +1,22 @@
 # Database storage
 
+## Workforce forecast and recruitment
+
+`workforcePlan` is an optional object saved in the same external database:
+`demands` (additional/pipeline hours, dates, position, probability), `settings`
+(recruiting lead days per position), `recruitments` (six-stage status, posting/
+joining dates, temporary arrangements and notes per position + need month), and
+`taskRoles` (position mapping for otherwise unclassified task/Gantt IDs).
+Existing installations default to empty lists. Include this object in backups.
+Forecast values are derived from current employees, task/Gantt assignments,
+progress and the shared Vietnamese calendar; no monthly snapshots are hardcoded.
+
+Use `GET /api/workforce-plan` and `PATCH /api/workforce-plan` to read/change
+individual records. Backend validation prevents invalid dates, probabilities,
+statuses and negative hours. An additional demand is separate from Gantt work:
+remove that demand after scheduling the same work in Gantt to avoid duplication.
+Restart the backend after installing this upgrade so the new routes are loaded.
+
 ## Assignment calendar choices
 
 Each task/Gantt assignee may store `excludeNonWorkingDays`: `true` means omit
@@ -52,3 +69,20 @@ Commit that removal so future pulls stop updating the old in-repository copy. Do
 Tasks, project dates, progress, historical work sessions and activity logs are retained. The frontend reloads shared data after deleting an employee so Task and Gantt views update together. Restart the backend and reload the page after updating the code; existing stale assignments are repaired on the next database read.
 
 Regression checks: `cd backend` then `npm.cmd test`. Assignment tests use a temporary database and do not modify the live database.
+
+
+## Tiến độ và giao hồ sơ (12/10/2026)
+
+`db.delivery.version = 1` là phần bổ sung; các mảng projects/tasks/ganttItems/employees cũ được giữ. `delivery.projects[projectId]` lưu revision, cấu hình hợp đồng/đơn giá, trạng thái task, chứng từ giờ đã duyệt, hồ sơ pháp lý, CR, nhận xét, bằng chứng, mốc thanh toán, tiền thu/chi, lịch sử sản lượng và kỳ chốt. `delivery.templates` chỉ sao chép cấu trúc, liên kết và khoảng ngày, không sao chép nhân sự, tiến độ, bằng chứng hay tiền.
+
+Tệp bằng chứng tối đa 10 MB được lưu dưới `delivery-files` cạnh db.json, tên tệp vật lý là UUID. Sao lưu **cả db.json lẫn thư mục delivery-files**. Việc tải tệp đi qua API có xác thực. JSON chỉ giữ metadata, không chứa tệp base64.
+
+Tài khoản Tiến độ mới nằm trong `delivery.users` (mật khẩu scrypt có salt). Phiên 12 giờ chỉ lưu hash token; quyền được kiểm tra lại ở mỗi request. Tài khoản demo hiện có khởi tạo quản trị lần đầu. Quản trị cấp vai trò/liên kết nhân sự trong **Tiến độ → Cấu hình**; email và mật khẩu phải khớp tài khoản đăng nhập hiện có. Các cơ chế đăng nhập và API cũ vẫn hoạt động như trước; phạm vi xác thực bổ sung này là API `/api/delivery/*`, không thay thế xác thực toàn hệ thống.
+
+Trạng thái báo cáo, % được ghi nhận và giờ thực tế là dữ liệu riêng. Nhật ký giờ cũ nhập vào danh sách chờ duyệt; không tự coi toàn bộ giờ cũ là đã được duyệt. Mức ≥60% thiếu bằng chứng/xác nhận bị giới hạn 40%; việc CĐT phê duyệt chỉ ghi nhận 0/100%; làm lại miễn phí ghi nhận 0%. Trạng thái mới chưa được báo cáo bắt đầu 0%, tự hiển thị 20% khi có giờ đã duyệt. Task cũ đã hoàn thành giữ mức báo cáo 100%, nhưng vẫn phải đáp ứng bằng chứng/xác nhận để được công nhận.
+
+Khi cập nhật workflow, trường `deliveryRecognized`/`deliveryStatusLevel` được đồng bộ sang task và Gantt liên kết. Các bộ tính tiến độ/dự báo nhận trường mới khi có; task chưa dùng workflow mới giữ cách hoạt động cũ. Ghi chú được đồng bộ với ganttNote. Phân công vẫn dùng lịch nghỉ và quy tắc Có/Không đã lưu.
+
+Tỷ trọng khóa khi ký dùng cho % hợp đồng và tiền; đổi phân công không tự thay tỷ trọng. Điều chỉnh phạm vi cần phụ lục và khóa lại có lý do. Công DT nhóm và hiệu suất giờ phản ánh phân công hiện tại. Các kỳ chốt lưu snapshot riêng, chỉ mở lại kèm lý do. Lịch sử tiền bắt đầu khi có lần ghi nhận mới, không dựng ngược số liệu những tháng chưa có dữ liệu.
+
+PATCH có revision chống ghi đè phiên khác (409 giữ bản nháp để người dùng kiểm tra/lưu lại). Có kiểm thử riêng trong backend/tests/delivery.test.js và frontend/tests/delivery.html; fixture trình duyệt giả lập API nên không ghi dữ liệu thật.

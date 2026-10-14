@@ -7,6 +7,18 @@ export default {
   darkMode: 'class',
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['var(--font-ui)'],
+        mono: ['var(--font-ui)'],
+      },
+      fontSize: {
+        xs: ['var(--text-label)', { lineHeight: '1.5' }],
+        sm: ['var(--text-body)', { lineHeight: '1.5' }],
+        base: ['var(--text-heading)', { lineHeight: '1.5' }],
+        lg: ['18px', { lineHeight: '1.5' }],
+        xl: ['var(--text-title)', { lineHeight: '1.4' }],
+        '2xl': ['var(--text-display)', { lineHeight: '1.35' }],
+      },
       colors: {
         sky: {
           50: '#fbf3f4',

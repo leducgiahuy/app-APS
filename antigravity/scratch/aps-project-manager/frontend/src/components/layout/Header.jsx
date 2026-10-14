@@ -1,3 +1,4 @@
+import OperationsNotifications from '../../modules/operations/OperationsNotifications';
 import React, { useEffect, useRef, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import {
@@ -21,6 +22,7 @@ import {
   Activity
 } from 'lucide-react';
 import { endAuthSession, getCurrentUser } from '../../modules/auth/authSession';
+import { placeholderPages } from './placeholderPages';
 
 export default function Header() {
   const {
@@ -44,6 +46,7 @@ export default function Header() {
 
   // Tiêu đề đồng bộ với tên mục trên thanh điều hướng.
   const pageTitles = {
+    ...Object.fromEntries(placeholderPages.map(page => [page.id, page.label])),
     hr: 'Thành Viên',
     tasks: 'Công việc',
     workload: 'Quản Lý Nhân Sự',
@@ -53,6 +56,7 @@ export default function Header() {
   };
 
   const pageIcons = {
+    ...Object.fromEntries(placeholderPages.map(page => [page.id, page.icon])),
     hr: Users,
     tasks: CheckSquare,
     workload: UsersRound,
@@ -63,7 +67,7 @@ export default function Header() {
 
   const currentTitle = pageTitles[activeTab] || pageTitles.hr;
   const CurrentPageIcon = pageIcons[activeTab] || pageIcons.hr;
-  const isGanttView = activeTab === 'gantt';
+  const isGanttView = activeTab === 'gantt' || activeTab === 'dashboard' || activeTab === 'finance';
   const dayPickerRef = useRef(null);
   const selectedDateValue = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
   const ganttMonthValue = `${ganttMonth.getFullYear()}-${String(ganttMonth.getMonth() + 1).padStart(2, '0')}`;
@@ -135,6 +139,7 @@ export default function Header() {
         {/* Phần bên phải: Đồng hồ số Real-time + Bộ chọn ngày + Theme Toggle + User Badge */}
         <div className="flex items-center gap-1.5 sm:gap-2.5 flex-shrink-0">
           
+          <OperationsNotifications />
           {/* Đồng hồ số chạy theo thời gian thực (Real-time Clock) */}
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 text-sky-600 dark:text-sky-400 font-mono font-bold text-[11px] sm:text-xs shadow-inner">
             <Clock className="w-4 h-4 animate-spin" style={{ animationDuration: '6s' }} />

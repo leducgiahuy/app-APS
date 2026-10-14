@@ -10,10 +10,15 @@ const countInclusiveDays = (startDate, endDate) => {
 };
 
 export const calculateAssignmentHours = (item, assignment) => {
-  const days = assignment.excludeNonWorkingDays === true ? assignmentWorkingDates(item, assignment).length : countInclusiveDays(assignment.startDate || item.startDate, assignment.endDate || item.endDate);
   const hoursPerDay = Number(assignment.estimatedHoursPerDay) ||
     Number(item.estimatedHoursPerDay) || Number(item.estimatedHours) / (Number(item.days) || 1) || 8;
-  return days * hoursPerDay;
+  if (assignment.excludeNonWorkingDays === true) {
+    return assignmentWorkingDates(item, assignment).reduce((sum, key) => {
+      const saturday = new Date(`${key}T12:00:00Z`).getUTCDay() === 6;
+      return sum + hoursPerDay * (saturday ? 0.5 : 1);
+    }, 0);
+  }
+  return countInclusiveDays(assignment.startDate || item.startDate, assignment.endDate || item.endDate) * hoursPerDay;
 };
 
 export const calculatePlannedPersonDays = item => {
@@ -24,13 +29,13 @@ export const calculatePlannedPersonDays = item => {
     const total = assignments.reduce((sum, assignment) => {
       return sum + calculateAssignmentHours(item, assignment) / 8;
     }, 0);
-    return Math.round(total * 100) / 100;
+    return total;
   }
 
   const hasLegacyAssignee = item.assignee || item.employeeId || item.employeeName;
-  if (!hasLegacyAssignee) return 0;
+  if (!hasLegacyAssignee) return Number(item.estimatedHours) > 0 ? Number(item.estimatedHours) / 8 : 0;
   const days = countInclusiveDays(item.startDate, item.endDate);
   const hoursPerDay = Number(item.estimatedHoursPerDay) ||
     Number(item.estimatedHours) / (Number(item.days) || days) || 8;
-  return Math.round(days * hoursPerDay / 8 * 100) / 100;
+  return days * hoursPerDay / 8;
 };

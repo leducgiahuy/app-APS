@@ -76,6 +76,6 @@ test('database migration persists repair; creation ignores supplied code and sur
     if (previous === undefined) delete process.env.APS_DB_PATH;
     else process.env.APS_DB_PATH = previous;
     fs.unlinkSync(file);
-    fs.rmdirSync(directory);
+    assert.equal(path.dirname(directory),os.tmpdir());fs.rmSync(directory,{recursive:true,force:true});
   }
 });
