@@ -40,6 +40,7 @@ export default function TasksPage() {
     selectedDate,
     addTask,
     updateTask,
+    showToast,
     deleteTask,
     addOvertime,
     deleteOvertime
@@ -181,8 +182,20 @@ export default function TasksPage() {
   };
 
   // Đổi trạng thái tiến độ nhanh (Sớm / Đúng hạn / Chậm)
-  const handleCompleteTask = (task) => {
-    updateTask(task.id, { status: 'completed', progress: 100 });
+  const handleCompleteTask = async (task) => {
+    const hasAssignee = (Array.isArray(task.assignees) && task.assignees.some(assignment =>
+      assignment.employeeId || assignment.employeeName
+    )) || task.employeeId || task.employeeName || task.assignee;
+    if (!hasAssignee) {
+      showToast('Chưa thể hoàn thành task khi chưa giao cho nhân viên.', 'error');
+      return;
+    }
+    const currentDate = todayIsoDate(currentTime);
+    if (task.startDate && currentDate < task.startDate) {
+      showToast(`Chưa thể hoàn thành task trước ngày bắt đầu ${formatDateVi(task.startDate)}.`, 'error');
+      return;
+    }
+    await updateTask(task.id, { status: 'completed', progress: 100 });
   };
 
   const getTaskSpeedStatus = (task) => {

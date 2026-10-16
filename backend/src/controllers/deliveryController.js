@@ -10,6 +10,7 @@ import { randomUUID } from 'node:crypto';
 import { readDb, writeDb } from '../models/db.js';
 import { deliveryStore, canEditDeliveryTask, publicDelivery } from '../utils/deliveryAuth.js';
 import { computeDelivery, projectDeliveryItems, defaultDeliveryRecord, DELIVERY_LEVELS, managingRole, moneyAccess } from '../../../frontend/src/utils/deliveryMetrics.js';
+import { isTaskOverdue } from '../../../frontend/src/utils/date.js';
 import { addDays, dateDifference } from '../../../frontend/src/utils/workforceForecast.js';
 
 export const emptyDeliveryProject = () => ({ revision: 0, settings: { contractFee: null, hourlyRate: null }, records: {}, timesheets: [], documents: [], changes: [], closes: [], receipts: [], expenses: [], milestones: [], evidence: [], comments: [], audit: [], history: [] });
@@ -63,14 +64,20 @@ export function applyDeliveryMutation(ctx, body) {
     assert(canEditDeliveryTask(user, item, db), 'Bạn chỉ được cập nhật việc của mình hoặc việc thuộc nhóm phụ trách.');
     const level = Number(value.level ?? current.level);
     assert(DELIVERY_LEVELS.includes(level), 'Chỉ được chọn mức 0, 20, 40, 60, 80 hoặc 100%.');
+    const linkedTask = (db.tasks || []).find(task => task.ganttId === item.id);
+    const completedTask = item.status === 'completed' || linkedTask?.status === 'completed';
+    const overdueTask = !completedTask && (isTaskOverdue(item) || isTaskOverdue(linkedTask));
+    if (value.level !== undefined && completedTask) {
+      assert(level >= 40, 'Task đã hoàn thành nên chỉ có thể chọn mức trạng thái từ 40% trở lên; không thể chọn 0% hoặc 20%.');
+    }
     assert(['design', 'legal'].includes(value.kind || current.kind), 'Loại việc không hợp lệ.');
     ['dueAt', 'sentAt'].forEach(key => assert(timestampValid(value[key]), 'Ngày giờ nộp hồ sơ không hợp lệ.'));
     const record = { ...current, level, kind: value.kind || current.kind, dueAt: value.dueAt ?? current.dueAt, sentAt: value.sentAt ?? current.sentAt, recipient: text(value.recipient ?? current.recipient), submissionContent: text(value.submissionContent ?? current.submissionContent), notes: text(value.notes ?? current.notes), evidenceId: value.evidenceId ?? current.evidenceId, submittedBy: user.email, updatedAt: new Date().toISOString() };
     if (manager) { record.department = text(value.department ?? current.department); record.approvalOnly = value.approvalOnly ?? current.approvalOnly; record.assignmentRoles = value.assignmentRoles ?? current.assignmentRoles ?? {}; }
-    if (record.approvalOnly) assert(level === 0 || level === 100, 'Việc CĐT phê duyệt chỉ có mức 0% hoặc 100%.');
+    if (record.approvalOnly && !completedTask && !overdueTask) assert(level === 0 || level === 100, 'Việc CĐT phê duyệt chỉ có mức 0% hoặc 100%.');
     const approvedHours = computeDelivery(db, projectId, data).taskMetrics[taskId]?.actualHours || 0;
-    if (level === 20 && current.level !== 20) assert(approvedHours > 0, 'Mức 20% cần có giờ chấm công đã được duyệt vào việc.');
-    if (level === 0 && current.level !== 0) assert(approvedHours === 0, 'Đã có giờ công; không thể chuyển về Chưa bắt đầu.');
+    if (!overdueTask && level === 20 && current.level !== 20) assert(approvedHours > 0, 'Mức 20% cần có giờ chấm công đã được duyệt vào việc.');
+    if (!overdueTask && level === 0 && current.level !== 0) assert(approvedHours === 0, 'Đã có giờ công; không thể chuyển về Chưa bắt đầu.');
     if (record.evidenceId) assert(data.evidence.some(file => file.id === record.evidenceId && file.taskId === taskId && !file.deletedAt), 'Bằng chứng không thuộc task này.');
     const changed = ['level', 'evidenceId', 'sentAt', 'kind', 'approvalOnly'].some(key => record[key] !== current[key]);
     record.submittedBy = changed ? user.email : current.submittedBy || '';
@@ -122,7 +129,7 @@ export function applyDeliveryMutation(ctx, body) {
     assert(manager, 'Chỉ quản lý được khóa tỷ trọng.');
     assert(!data.settings.contractLocked || text(value.reason), 'Điều chỉnh khóa cần ghi lý do/phụ lục hợp đồng.');
     const metrics = computeDelivery(db, projectId, { ...data, lockedWeights: {} });
-    assert(metrics.summary.totalPlanned > 0, 'Cần có Công DT từ phân công trước khi khóa tỷ trọng.');
+    assert(metrics.summary.totalPlanned > 0, 'Cần có Công DT từ lịch hoặc phân công trước khi khóa tỷ trọng.');
     data.lockedWeights = Object.fromEntries(Object.entries(metrics.taskMetrics).map(([key, item]) => [key, data.records[key]?.freeRework ? 0 : item.planned / metrics.summary.totalPlanned]));
     data.settings.contractLocked = true; data.settings.lockedAt = new Date().toISOString(); data.settings.lockReason = text(value.reason) || 'Khóa khi ký hợp đồng';
   } else if (action === 'timesheet') {

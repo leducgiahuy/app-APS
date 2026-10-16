@@ -6,7 +6,7 @@ const normalizeSearch = value => String(value || '')
   .replace(/[\u0300-\u036f]/g, '')
   .replace(/đ/g, 'd');
 
-export default function EmployeeCombobox({ employees, value, onChange, placeholder = 'Chưa giao' }) {
+export default function EmployeeCombobox({ employees, value, onChange, placeholder = 'Chưa giao', disabled = false, onDisabledClick }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const containerRef = useRef(null);
@@ -33,7 +33,12 @@ export default function EmployeeCombobox({ employees, value, onChange, placehold
     };
   }, [open]);
 
+  useEffect(() => {
+    if (disabled) setOpen(false);
+  }, [disabled]);
+
   const openSearch = () => {
+    if (disabled) return;
     setSearch('');
     setOpen(true);
   };
@@ -46,18 +51,25 @@ export default function EmployeeCombobox({ employees, value, onChange, placehold
         aria-expanded={open}
         aria-autocomplete="list"
         aria-haspopup="listbox"
+        aria-disabled={disabled}
         autoComplete="off"
+        readOnly={disabled}
         value={open ? search : selectedEmployee?.name || ''}
         placeholder={open ? 'Tìm tên nhân viên...' : placeholder}
-        onFocus={openSearch}
+        onFocus={disabled ? undefined : openSearch}
         onClick={() => {
+          if (disabled) {
+            onDisabledClick?.();
+            return;
+          }
           if (!open) openSearch();
         }}
         onChange={event => {
+          if (disabled) return;
           setSearch(event.target.value);
           setOpen(true);
         }}
-        className={`w-full ${selectedEmployee ? 'pr-9' : 'pr-3'} pl-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs focus:outline-none focus:ring-2 focus:ring-sky-500`}
+        className={`w-full ${selectedEmployee ? 'pr-9' : 'pr-3'} pl-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs focus:outline-none focus:ring-2 focus:ring-sky-500 ${disabled ? 'cursor-not-allowed opacity-70' : ''}`}
       />
       {selectedEmployee && !open && (
         <button
@@ -65,6 +77,10 @@ export default function EmployeeCombobox({ employees, value, onChange, placehold
           aria-label="Xóa người đảm nhận"
           title="Xóa người đảm nhận"
           onClick={() => {
+            if (disabled) {
+              onDisabledClick?.();
+              return;
+            }
             onChange(null);
             setSearch('');
             setOpen(false);

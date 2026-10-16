@@ -1,6 +1,7 @@
 import ProjectWizard from '../operations/ProjectWizard';
 import { deliveryView, maskDeliveryFinance, ownsDeliveryTask } from '../../utils/deliveryView';
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useProjectDelivery } from './useProjectDelivery';
 import DeliveryRow, { DELIVERY_COLUMNS, COMPACT_KEYS, DATE_KEYS } from './DeliveryRow';
 import DeliveryDrawer from './DeliveryDrawer';
@@ -14,6 +15,7 @@ import GanttRowGrid from './GanttRowGrid';
 import GanttCalendarBackground from './GanttCalendarBackground';
 import { calendarColumns } from '../../utils/vietnamCalendar';
 import { assignmentCalendarConflicts, assignmentWorkingDates } from '../../utils/assignmentCalendar';
+import { allocateTaskHierarchyWeightPercent } from '../../utils/ganttEffort';
 import GanttExcludedDaysBar from './GanttExcludedDaysBar';
 import AssignmentCalendarConfirmation from './AssignmentCalendarConfirmation';
 import { useApp } from '../../context/AppContext';
@@ -25,7 +27,7 @@ import {
   inferGanttGroupHierarchy,
   getGroupDescendantTasks
 } from './GanttWorkColumns';
-import { formatDateVi, inclusiveDays, scheduledProgress, isTaskOverdue, taskDelayHours, todayIsoDate } from '../../utils/date';
+import { formatDateVi, inclusiveDays, elapsedScheduleProgress, isTaskOverdue, taskDelayHours, formatDelayHours, todayIsoDate } from '../../utils/date';
 import {
   CalendarRange,
   Plus,
@@ -197,7 +199,21 @@ export default function GanttPage() {
   const [deliveryTab, setDeliveryTab] = useState(['gantt', 'legal', 'changes', 'close'].includes(reportLink?.tab) ? reportLink.tab : 'gantt');
   const [tableMode, setTableMode] = useState('compact');
   const [deliveryColumns, setDeliveryColumns] = useState(() => {
-    try { const saved = JSON.parse(localStorage.getItem('aps_delivery_columns_v1')); return Array.isArray(saved) ? [...new Set([...COMPACT_KEYS, ...saved.map(key => key === 'duration' ? 'contractWork' : key).filter(key => DELIVERY_COLUMNS.some(column => column.key === key))])] : COMPACT_KEYS; } catch { return COMPACT_KEYS; }
+    try {
+      const saved = JSON.parse(localStorage.getItem('aps_delivery_columns_v1'));
+      if (!Array.isArray(saved)) return COMPACT_KEYS;
+      const valid = saved.filter(key => DELIVERY_COLUMNS.some(column => column.key === key));
+      let restored = valid.includes('contractWork') && !valid.includes('duration')
+        ? valid.flatMap(key => key === 'contractWork' ? [key, 'duration'] : [key])
+        : valid;
+      if (!restored.includes('actualWork') && (restored.includes('weight') || restored.includes('output'))) {
+        const outputIndex = restored.indexOf('output');
+        restored = outputIndex >= 0
+          ? [...restored.slice(0, outputIndex), 'actualWork', ...restored.slice(outputIndex)]
+          : [...restored, 'actualWork'];
+      }
+      return [...new Set([...COMPACT_KEYS, ...restored])];
+    } catch { return COMPACT_KEYS; }
   });
   const [detailItemId, setDetailItemId] = useState(null);
   const pendingDetail = useRef(reportLink?.taskId ? { id: reportLink.taskId, section: '' } : null);
@@ -328,9 +344,12 @@ export default function GanttPage() {
   const [assignmentCalendarPrompt, setAssignmentCalendarPrompt] = useState(null);
   const [assignmentSaving, setAssignmentSaving] = useState(false);
   const [hoveredDependencyKey, setHoveredDependencyKey] = useState(null);
+  const [dependencyMenu, setDependencyMenu] = useState(null);
+  const [dependencyDrag, setDependencyDrag] = useState(null);
   const [editingItem, setEditingItem] = useState(null);
   const [editForm, setEditForm] = useState({ title: '', startDate: '', endDate: '', days: 1, estimatedHours: 8, estimatedHoursEdited: true });
   const timelineScrollRef = useRef(null);
+  const ganttSvgRef = useRef(null);
   const headingScrollRef = useRef(null);
   const horizontalScrollRef = useRef(null);
   const pageScrollRef = useRef(null);
@@ -735,8 +754,27 @@ export default function GanttPage() {
   // Tạo đường cong mũi tên phụ thuộc Finish-to-Start (FS) - TỰ ĐỘNG NỐI TỪ TASK TRƯỚC XUỐNG
   const dependencyLines = useMemo(() => {
     const edges = new Map();
-    const visibleRepresentative = itemId => {
-      if (taskCoordinates[itemId]) return itemId;
+    const dependencyOrder = new Map(dependencyRows.map((item, index) => [item.id, index]));
+    const taskChildrenByParent = new Map();
+    hierarchyGanttItems.filter(item => !item.isGroup && item.parentTaskId).forEach(item => {
+      const children = taskChildrenByParent.get(item.parentTaskId) || [];
+      children.push(item);
+      taskChildrenByParent.set(item.parentTaskId, children);
+    });
+    taskChildrenByParent.forEach(children => children.sort((a, b) => (dependencyOrder.get(a.id) ?? 0) - (dependencyOrder.get(b.id) ?? 0)));
+    const descendantRepresentative = (itemId, endpoint, visited = new Set()) => {
+      if (visited.has(itemId)) return null;
+      const nextVisited = new Set(visited).add(itemId);
+      const children = taskChildrenByParent.get(itemId) || [];
+      if (children.length && !collapsedTaskIds.has(itemId)) {
+        const representatives = children.map(child => descendantRepresentative(child.id, endpoint, nextVisited)).filter(Boolean);
+        if (representatives.length) return endpoint === 'source' ? representatives.at(-1) : representatives[0];
+      }
+      return taskCoordinates[itemId] ? itemId : null;
+    };
+    const visibleRepresentative = (itemId, endpoint) => {
+      const descendant = descendantRepresentative(itemId, endpoint);
+      if (descendant) return descendant;
       let item = hierarchyGanttItems.find(candidate => candidate.id === itemId);
       const groupsById = new Map(hierarchyGanttItems.filter(candidate => candidate.isGroup).map(group => [group.id, group]));
       const seen = new Set();
@@ -756,28 +794,30 @@ export default function GanttPage() {
     };
     dependencyRows.forEach((item, toIndex) => {
       if (item.isProjectHeader) return;
-      let deps = Array.isArray(item.dependencies) ? [...item.dependencies] : [];
+      const suppressedDependencies = new Set(Array.isArray(item.suppressedDependencies) ? item.suppressedDependencies : []);
+      let deps = (Array.isArray(item.dependencies) ? [...item.dependencies] : [])
+        .filter(dependencyId => !suppressedDependencies.has(dependencyId));
 
       // Nếu là công việc con và chưa có liên kết, tự động nối từ công việc đứng ngay trước đó
       if (deps.length === 0 && !item.isGroup && toIndex > 0) {
         for (let p = toIndex - 1; p >= 0; p--) {
           const candidate = dependencyRows[p];
           if (candidate && !candidate.isProjectHeader && !candidate.isGroup && candidate.projectId === item.projectId && candidate.parentTaskId === item.parentTaskId) {
-            deps = [candidate.id];
+            if (!suppressedDependencies.has(candidate.id)) deps = [candidate.id];
             break;
           }
         }
       }
 
       [...new Set(deps)].filter(depId => depId !== item.id).forEach((depId) => {
-        const sourceId = visibleRepresentative(depId);
-        const targetId = visibleRepresentative(item.id);
+        const sourceId = visibleRepresentative(depId, 'source');
+        const targetId = visibleRepresentative(item.id, 'target');
         if (!sourceId || !targetId || sourceId === targetId) return;
         const from = taskCoordinates[sourceId];
         const to = taskCoordinates[targetId];
         if (!from || !to) return;
-        const key = `${sourceId}->${targetId}`;
-        edges.set(key, { key, from, to, sourceId, targetId });
+        const key = `${sourceId}->${targetId}:${depId}->${item.id}`;
+        edges.set(key, { key, from, to, sourceId, targetId, dependencySourceId: depId, dependencyTargetId: item.id });
       });
     });
 
@@ -804,19 +844,20 @@ export default function GanttPage() {
             candidate.endDate >= source.startDate &&
             candidate.endDate <= source.endDate);
         if (!hasIntermediateTaskInsideRange) continue;
+        if ((Array.isArray(target.suppressedDependencies) ? target.suppressedDependencies : []).includes(source.id)) continue;
 
-        const sourceId = visibleRepresentative(source.id);
-        const targetId = visibleRepresentative(target.id);
+        const sourceId = visibleRepresentative(source.id, 'source');
+        const targetId = visibleRepresentative(target.id, 'target');
         if (!sourceId || !targetId || sourceId === targetId) continue;
         const from = taskCoordinates[sourceId];
         const to = taskCoordinates[targetId];
         if (!from || !to) continue;
-        const key = `${sourceId}->${targetId}`;
-        if (!edges.has(key)) edges.set(key, { key, from, to, sourceId, targetId });
+        const key = `${sourceId}->${targetId}:${source.id}->${target.id}`;
+        if (!edges.has(key)) edges.set(key, { key, from, to, sourceId, targetId, dependencySourceId: source.id, dependencyTargetId: target.id });
       }
     });
 
-    return [...edges.values()].map(({ key, from, to, sourceId, targetId }) => {
+    return [...edges.values()].map(({ key, from, to, sourceId, targetId, dependencySourceId, dependencyTargetId }) => {
       const startX = from.x + 6;
       const startY = from.centerY;
       const endX = Math.max(to.x - 10, 0);
@@ -832,12 +873,97 @@ export default function GanttPage() {
         path,
         type: 'dependency',
         sourceId,
-        targetId
+        targetId,
+        dependencySourceId,
+        dependencyTargetId
       };
     });
   }, [dependencyRows, hierarchyGanttItems, collapsedGroupIds, collapsedTaskIds, taskCoordinates]);
 
   const hoveredDependency = dependencyLines.find(line => line.key === hoveredDependencyKey) || null;
+  useEffect(() => {
+    if (!dependencyMenu) return undefined;
+    const closeMenu = () => setDependencyMenu(null);
+    const closeOnEscape = event => {
+      if (event.key === 'Escape') closeMenu();
+    };
+    window.addEventListener('pointerdown', closeMenu);
+    window.addEventListener('scroll', closeMenu, true);
+    window.addEventListener('keydown', closeOnEscape);
+    return () => {
+      window.removeEventListener('pointerdown', closeMenu);
+      window.removeEventListener('scroll', closeMenu, true);
+      window.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [dependencyMenu]);
+
+  const removeDependencyLine = async () => {
+    const line = dependencyMenu?.line;
+    setDependencyMenu(null);
+    if (!line || !canManageStructure || previewing) return;
+    const target = hierarchyGanttItems.find(item => item.id === line.dependencyTargetId);
+    if (!target) return;
+    const suppressedDependencies = [...new Set([
+      ...(Array.isArray(target.suppressedDependencies) ? target.suppressedDependencies : []),
+      line.dependencySourceId
+    ])];
+    await updateGanttItem(target.id, { suppressedDependencies });
+  };
+  const dependencyPoint = event => {
+    const svg = ganttSvgRef.current;
+    if (!svg) return null;
+    const rect = svg.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+    return {
+      x: (event.clientX - rect.left) * ganttWidth / rect.width,
+      y: (event.clientY - rect.top) * chartBodyHeight / rect.height
+    };
+  };
+  const dependencyTargetAt = (sourceId, point) => {
+    const source = hierarchyGanttItems.find(item => item.id === sourceId);
+    if (!source || !point) return null;
+    return filteredGanttItems.find(item => {
+      const coord = taskCoordinates[item.id];
+      return coord && item.id !== sourceId && !item.isProjectHeader && !item.isGroup && !item.deliveryBand && item.status !== 'holiday' &&
+        projectIdForItem(item) === projectIdForItem(source) && point.y >= coord.rowTop && point.y <= coord.rowTop + coord.rowHeight;
+    }) || null;
+  };
+  const startDependencyDrag = (item, coord, event) => {
+    if (!canManageStructure || previewing || item.isGroup || item.isProjectHeader || item.status === 'holiday') return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    setDependencyDrag({ sourceId: item.id, startX: coord.endX - 4, startY: coord.centerY, pointerX: coord.endX - 4, pointerY: coord.centerY, targetId: null });
+  };
+  const moveDependencyDrag = event => {
+    if (!dependencyDrag) return;
+    const point = dependencyPoint(event);
+    if (!point) return;
+    const target = dependencyTargetAt(dependencyDrag.sourceId, point);
+    setDependencyDrag(current => current ? { ...current, pointerX: point.x, pointerY: point.y, targetId: target?.id || null } : current);
+  };
+  const finishDependencyDrag = async event => {
+    if (!dependencyDrag) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const drag = dependencyDrag;
+    const point = dependencyPoint(event);
+    const target = dependencyTargetAt(drag.sourceId, point);
+    setDependencyDrag(null);
+    if (!target) return;
+    const currentDependencies = Array.isArray(target.dependencies) ? target.dependencies : [];
+    if (currentDependencies.includes(drag.sourceId)) return;
+    await updateGanttItem(target.id, { dependencies: [...currentDependencies, drag.sourceId] });
+  };
+  const dependencyPreviewPath = dependencyDrag ? (() => {
+    const targetCoord = dependencyDrag.targetId ? taskCoordinates[dependencyDrag.targetId] : null;
+    const endX = targetCoord ? Math.max(targetCoord.x - 10, 0) : dependencyDrag.pointerX;
+    const endY = targetCoord ? targetCoord.centerY : dependencyDrag.pointerY;
+    const laneX = endX >= dependencyDrag.startX
+      ? dependencyDrag.startX + Math.max(18, (endX - dependencyDrag.startX) * 0.5)
+      : Math.max(dependencyDrag.startX, endX) + 28;
+    return `M ${dependencyDrag.startX} ${dependencyDrag.startY} C ${laneX} ${dependencyDrag.startY}, ${laneX} ${endY}, ${endX} ${endY}`;
+  })() : '';
 
   // Xử lý gửi Form thêm Task
   const handleTaskSubmit = async (e) => {
@@ -1140,6 +1266,11 @@ export default function GanttPage() {
     if (success) setEditingItem(null);
   };
 
+  const isTaskCompleted = item => Boolean(item) && (
+    item.status === 'completed' || tasks.some(task => task.ganttId === item.id && task.status === 'completed')
+  );
+  const completedAssignmentWarning = 'Task đã hoàn thành nên không thể thay đổi người đảm nhận.';
+
   const handleAssignmentsOpen = (item) => {
     if (previewing || !canManageStructure) return;
     const linkedTask = tasks.find(task => task.ganttId === item.id);
@@ -1182,6 +1313,10 @@ export default function GanttPage() {
 
   const handleAssignmentsSubmit = async (e) => {
     e.preventDefault();
+    if (isTaskCompleted(assignmentEditorItem)) {
+      window.alert(completedAssignmentWarning);
+      return;
+    }
     if (!assignmentEditorItem || assignmentRows.some(assignment =>
       !assignment.employeeId || !assignment.startDate || !assignment.endDate || assignment.endDate < assignment.startDate ||
       !Number.isFinite(Number(assignment.estimatedHoursPerDay)) || Number(assignment.estimatedHoursPerDay) <= 0
@@ -1205,6 +1340,11 @@ export default function GanttPage() {
   };
 
   const saveAssignmentCalendarChoice = async (rows, excludeNonWorkingDays) => {
+    if (isTaskCompleted(assignmentEditorItem)) {
+      window.alert(completedAssignmentWarning);
+      setAssignmentCalendarPrompt(null);
+      return;
+    }
     const selected = rows.map(row => typeof excludeNonWorkingDays === 'boolean' ? { ...row, excludeNonWorkingDays } : row);
     if (selected.some(row => !assignmentWorkingDates(assignmentEditorItem, row).length)) {
       window.alert('Có người không còn ngày làm việc sau khi bỏ ngày lễ và Chủ nhật. Vui lòng chỉnh lại khoảng phân công.');
@@ -1226,18 +1366,32 @@ export default function GanttPage() {
 
   const groupMetrics = useMemo(() => {
     const result = new Map(); const byId = new Map(hierarchyGanttItems.map(item => [item.id, item]));
-    const add = (id, metric, free) => { const sum = result.get(id) || { planned: 0, earned: 0, actual: 0, actualHours: 0, laborCost: 0, output: 0 }; sum.planned += free ? 0 : metric.planned; sum.earned += metric.earned; sum.actual += metric.actual; sum.actualHours += metric.actualHours; sum.laborCost = sum.laborCost == null || metric.laborCost == null ? null : sum.laborCost + metric.laborCost; sum.output = sum.output == null || metric.output == null ? null : sum.output + metric.output; result.set(id, sum); };
+    const add = (id, metric, free) => { const sum = result.get(id) || { planned: 0, earned: 0, actual: 0, actualHours: 0, completedActual: 0, completedActualHours: 0, completedCount: 0, laborCost: 0, output: 0, weight: 0 }; sum.planned += free ? 0 : metric.planned; sum.earned += metric.earned; sum.actual += metric.actual; sum.actualHours += metric.actualHours; if (metric.completedCount > 0) { sum.completedActual += Number(metric.completedActual) || 0; sum.completedActualHours += Number(metric.completedActualHours) || 0; sum.completedCount += metric.completedCount; } sum.weight += free ? 0 : Number(metric.weight) || 0; sum.laborCost = sum.laborCost == null || metric.laborCost == null ? null : sum.laborCost + metric.laborCost; sum.output = sum.output == null || metric.output == null ? null : sum.output + metric.output; result.set(id, sum); };
     hierarchyGanttItems.forEach(item => { const metric = deliveryData?.taskMetrics[item.id]; if (!metric) return; const free = deliveryData.records[item.id]?.freeRework; add(`project-heading-${projectIdForItem(item)}`, metric, free); const seen = new Set([item.id]); let parent = byId.get(item.parentTaskId || item.parentGroupId); while (parent && !seen.has(parent.id)) { seen.add(parent.id); add(parent.id, metric, free); parent = byId.get(parent.parentTaskId || parent.parentGroupId); } });
     return result;
   }, [hierarchyGanttItems, deliveryData, tasks]);
+  const displayedWeightPercent = useMemo(() => {
+    const weightFor = item => deliveryData?.taskMetrics[item.id]?.weight ?? groupMetrics.get(item.id)?.weight ?? 0;
+    return allocateTaskHierarchyWeightPercent(hierarchyGanttItems, weightFor);
+  }, [hierarchyGanttItems, deliveryData, groupMetrics]);
+  const metricForRow = item => {
+    const metric = deliveryData?.taskMetrics[item.id] || groupMetrics.get(item.id);
+    const displayWeightPercent = displayedWeightPercent.get(item.id);
+    return metric && displayWeightPercent != null ? { ...metric, displayWeightPercent } : metric;
+  };
   const groupPercent = item => { if (item.isProjectHeader && item.projectId === selectedProjectId && deliveryData) return deliveryData.summary.completion; const metric = groupMetrics.get(item.id); return metric ? metric.planned ? metric.earned / metric.planned * 100 : 0 : null; };
   const editDeliveryItem = item => { if (item.isProjectHeader) { setSelectedProjectId(item.projectId); setEditProjectForm({ name: item.title || '', startDate: item.startDate || '', endDate: item.endDate || '' }); setShowEditProjectModal(true); } else if (item.isGroup) openGroupEdit(item); else handleEditOpen(item); };
   const removeDeliveryItem = async item => { if (item.isProjectHeader) { if (await deleteProject(item.projectId)) setDetailItemId(null); } else if (await deleteGanttItem(item.id)) setDetailItemId(null); };
   const createDeliveryTask = (item, child = false) => {
+    if (child && isTaskCompleted(item)) {
+      window.alert('Task đã hoàn thành nên không thể tạo task con.');
+      return;
+    }
     if (item.isGroup || item.isProjectHeader) { openTaskCreation(); if (item.isGroup) setTaskForm(current => ({ ...current, projectId: projectIdForItem(item), parentGroupId: item.id, parentTaskId: '', startDate: item.startDate || current.startDate, endDate: item.endDate || current.endDate, days: inclusiveDays(item.startDate, item.endDate) })); }
     else openInlineTaskCreation(item, child ? 'child' : 'sibling');
   };
   const detailItem = filteredGanttItems.find(item => item.id === detailItemId) || hierarchyGanttItems.find(item => item.id === detailItemId);
+  const assignmentLocked = isTaskCompleted(assignmentEditorItem);
   useEffect(() => {
     if (detailItemId && !detailItem) { setDetailItemId(null); setDetailSection(''); }
   }, [detailItemId, detailItem]);
@@ -1247,7 +1401,8 @@ export default function GanttPage() {
   const alertCounts = roleView.ownByDefault ? { warnings: personalAlerts.filter(alert => alert.warning).length, soon: personalAlerts.filter(alert => alert.soon).length, overdue: personalAlerts.filter(alert => alert.overdue).length, stuck: personalAlerts.filter(alert => alert.stuck).length } : summary;
   const [excludeRework, setExcludeRework] = useState(false);
   const [showIT, setShowIT] = useState(false);
-  useEffect(() => { delivery.refresh(); }, [ganttItems, tasks]);
+  const refreshDeliveryMetrics = delivery.refresh;
+  useEffect(() => { refreshDeliveryMetrics(); }, [ganttItems, tasks, refreshDeliveryMetrics]);
   return (
     <div className={`delivery-page ${detailItem ? "with-detail" : ""} ${tableMode === "full" ? "full-table" : ""}`} style={{ "--delivery-scrollbar-width": `${scrollbarWidth}px` }}>
       <div className="delivery-page-scroll" ref={pageScrollRef} data-modal-background-scroll>
@@ -1451,7 +1606,7 @@ export default function GanttPage() {
       {previewing && <p className="delivery-notice">Đang xem thử {DELIVERY_ROLES[previewUser.role]} · {previewUser.name}. Thoát xem thử để thực hiện thay đổi.</p>}
       {delivery.error && <p role="alert" className="delivery-error">{delivery.error} <button onClick={delivery.refresh}>Tải lại</button></p>}
       {selectedProjectId === 'ALL' && <p className="delivery-notice">Chọn một dự án để xem số liệu, hồ sơ và cập nhật trạng thái theo quy tắc mới.</p>}
-      {showIT && <p className="delivery-notice"><b>MỚI:</b> Hạn nộp, bằng chứng, xác nhận, hồ sơ, CR và chốt tháng. <b>ĐỔI:</b> bảng mặc định 5 cột; giờ dự kiến hiển thị Công DT (8 giờ/công), trạng thái tách khỏi % ghi nhận. Cấu trúc công việc, phân công, lịch nghỉ và liên kết Gantt dùng chung dữ liệu hiện có.</p>}
+      {showIT && <p className="delivery-notice"><b>MỚI:</b> Hạn nộp, bằng chứng, xác nhận, hồ sơ, CR và chốt tháng. <b>ĐỔI:</b> Công HĐ giữ số nhập tay; Công DT tự tính từ giờ dự kiến và nằm ngay bên cạnh, trạng thái tách khỏi % ghi nhận. Cấu trúc công việc, phân công, lịch nghỉ và liên kết Gantt dùng chung dữ liệu hiện có.</p>}
       {showGuide && <div className="delivery-guide-wrap"><DeliveryGuide financial={deliveryData?.permissions.financial} /></div>}
       {deliveryTab === 'gantt' && <><div className="delivery-kpis">
         <span>% hoàn thành HĐ <b>{summary ? summary.completion.toLocaleString('vi-VN', { maximumFractionDigits: 1 }) : '—'}%</b><small>kế hoạch {summary ? Math.round(summary.planPercent) : '—'}%</small></span>
@@ -1582,7 +1737,7 @@ export default function GanttPage() {
               
               {/* Danh Sách Các Hàng Công Việc (Khóa cứng 44px mỗi dòng) */}
               <div style={{ minHeight: `${chartBodyHeight}px` }}>
-                {filteredGanttItems.map((item, itemIndex) => <DeliveryRow key={item.id} item={item} columns={currentColumns} height={rowHeights[itemIndex]} depth={groupDepthForItem(item)} record={deliveryData?.records[item.id]} metric={deliveryData?.taskMetrics[item.id] || groupMetrics.get(item.id)} aggregate={groupPercent(item)} employees={employees} collapsed={item.isProjectHeader ? collapsedProjectIds.has(item.projectId) : item.isGroup ? collapsedGroupIds.has(item.id) : collapsedTaskIds.has(item.id)} onToggle={() => item.isProjectHeader ? toggleProjectCollapsed(item.projectId) : item.isGroup ? toggleGroupCollapsed(item.id) : toggleTaskCollapsed(item.id)} onOpen={section => openDetail(item, typeof section === 'string' ? section : '')} onEdit={() => editDeliveryItem(item)} onAssign={() => handleAssignmentsOpen(item)} onDelete={() => removeDeliveryItem(item)} onSaveWork={(id, patch) => item.isProjectHeader ? updateProject(item.projectId, patch) : updateGanttItem(id, patch)} color={item.isGroup ? phaseColorForGroup(item) : item.color} onCreateTask={child => createDeliveryTask(item, child)} readOnly={previewing || !canManageStructure} />)}
+                {filteredGanttItems.map((item, itemIndex) => <DeliveryRow key={item.id} item={item} columns={currentColumns} height={rowHeights[itemIndex]} depth={groupDepthForItem(item)} record={deliveryData?.records[item.id]} metric={metricForRow(item)} aggregate={groupPercent(item)} employees={employees} collapsed={item.isProjectHeader ? collapsedProjectIds.has(item.projectId) : item.isGroup ? collapsedGroupIds.has(item.id) : collapsedTaskIds.has(item.id)} onToggle={() => item.isProjectHeader ? toggleProjectCollapsed(item.projectId) : item.isGroup ? toggleGroupCollapsed(item.id) : toggleTaskCollapsed(item.id)} onOpen={section => openDetail(item, typeof section === 'string' ? section : '')} onEdit={() => editDeliveryItem(item)} onAssign={() => handleAssignmentsOpen(item)} onDelete={() => removeDeliveryItem(item)} onSaveWork={(id, patch) => item.isProjectHeader ? updateProject(item.projectId, patch) : updateGanttItem(id, patch)} color={item.isGroup ? phaseColorForGroup(item) : item.color} onCreateTask={child => createDeliveryTask(item, child)} readOnly={previewing || !canManageStructure} />)}
               </div>
 
             </div>
@@ -1611,9 +1766,13 @@ export default function GanttPage() {
               {/* KHUNG VẼ THANH GANTT & ĐƯỜNG MŨI TÊN FS BẰNG SVG CHÍNH XÁC */}
 
               <svg
+                ref={ganttSvgRef}
                 width={ganttWidth}
                 height={chartBodyHeight}
                 className="relative z-0 block"
+                onPointerMove={moveDependencyDrag}
+                onPointerUp={finishDependencyDrag}
+                onPointerCancel={() => setDependencyDrag(null)}
               >
                 {/* Calendar fills are painted first, below grid, links, bars and labels. */}
                 <GanttCalendarBackground days={calendarDays} pxPerDay={pxPerDay} height={chartBodyHeight} />
@@ -1677,22 +1836,26 @@ export default function GanttPage() {
 
                 {/* 2. HIỂN THỊ MŨI TÊN KẺ XUỐNG CÔNG VIỆC TIẾP THEO TRONG DỰ ÁN (FS Dependency) */}
                 {dependencyLines.map(line => {
-                  const isActive = hoveredDependencyKey === line.key;
                   return (
                     <path
                       key={line.key}
                       d={line.path}
                       fill="none"
-                      stroke={isActive ? '#ef4444' : '#64748b'}
-                      strokeWidth={isActive ? 2.4 : 1.8}
-                      className={!isActive ? 'dark:stroke-white' : undefined}
+                      stroke="transparent"
+                      strokeWidth="12"
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      markerEnd={line.type === 'dependency' ? (isActive ? 'url(#arrowhead-active)' : 'url(#arrowhead-default)') : undefined}
-                      opacity="0.95"
-                      style={{ cursor: 'pointer', transition: 'stroke 0.2s ease, stroke-width 0.2s ease' }}
+                      pointerEvents="stroke"
+                      style={{ cursor: 'pointer' }}
                       onMouseEnter={() => setHoveredDependencyKey(line.key)}
                       onMouseLeave={() => setHoveredDependencyKey(null)}
+                      onContextMenu={event => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        if (!canManageStructure || previewing) return;
+                        setHoveredDependencyKey(line.key);
+                        setDependencyMenu({ x: event.clientX, y: event.clientY, line });
+                      }}
                     >
                       <title>{line.type === 'trunk' ? 'Nhánh chung của liên kết FS' : 'Công việc trước → công việc sau (Finish-to-Start)'}</title>
                     </path>
@@ -1700,9 +1863,22 @@ export default function GanttPage() {
                 })}
 
                 {/* 3. Vẽ các thanh tiến độ Gantt Bar */}
+                {dependencyDrag && (
+                  <path
+                    d={dependencyPreviewPath}
+                    fill="none"
+                    stroke={dependencyDrag.targetId ? '#0284c7' : '#861b36'}
+                    strokeWidth="2.5"
+                    strokeDasharray="6 4"
+                    strokeLinecap="round"
+                    markerEnd="url(#arrowhead-active)"
+                    className="pointer-events-none"
+                  />
+                )}
                 {filteredGanttItems.map((item) => {
                   const coord = taskCoordinates[item.id];
                   if (!coord) return null;
+                  if (coord.isTaskAggregate && !collapsedTaskIds.has(item.id)) return null;
 
                   if (item.isProjectHeader || item.isGroup || coord.isTaskAggregate) {
                     if (!item.isProjectHeader && !coord.isAggregate) return null;
@@ -1736,11 +1912,7 @@ export default function GanttPage() {
                             if (!child.startDate || !child.endDate) return null;
                             const linkedChildTask = tasks.find(task => task.ganttId === child.id);
                             const progressTask = linkedChildTask ? { ...child, ...linkedChildTask } : child;
-                            const childAssignee = employees.find(employee =>
-                              employee.id === linkedChildTask?.employeeId ||
-                              (!hasStoredAssignmentState(linkedChildTask) && employee.name === child.assignee)
-                            );
-                            const progress = deliveryData?.taskMetrics[child.id]?.recognized ?? scheduledProgress(progressTask, childAssignee?.standardHours || 8, currentTime);
+                            const progress = elapsedScheduleProgress(progressTask, currentTime);
                             if (progress <= 0) return null;
                             const childStart = new Date(`${child.startDate}T00:00:00`);
                             const childEnd = new Date(`${child.endDate}T00:00:00`);
@@ -1751,13 +1923,10 @@ export default function GanttPage() {
                             const childWidth = Math.max(0, (childEndOffset - childStartOffset) * pxPerDay);
                             if (!childWidth) return null;
                             const overdue = isTaskOverdue(progressTask, currentTime);
-                            const delayHours = Math.max(taskDelayHours(progressTask, currentTime), Number(linkedChildTask?.delayHours) || 0, Number(child.delayHours) || 0);
                             const completedLate = progressTask.status === 'completed' && (progressTask.speedStatus === 'delayed' || child.speed === 'delayed');
-                            const completedEarly = progressTask.status === 'completed' && (progressTask.speedStatus === 'early' || child.speed === 'early');
-                            const notStarted = progressTask.startDate && progressTask.startDate > todayIsoDate(currentTime);
                             const progressColor = progressTask.status === 'completed'
-                              ? (completedLate ? '#e6b83e' : completedEarly ? '#10b981' : '#22c55e')
-                              : overdue ? '#ef4444' : delayHours > 0 ? '#e6b83e' : notStarted ? '#94a3b8' : '#38bdf8';
+                              ? (completedLate ? '#e6b83e' : '#10b981')
+                              : overdue ? '#ef4444' : '#861b36';
                             return (
                               <rect
                                 key={`progress-${child.id}`}
@@ -1796,45 +1965,58 @@ export default function GanttPage() {
                         }]
                         : [])
                     : item.assignees;
-                  const assignee = employees.find(employee =>
-                    employee.id === linkedTask?.employeeId ||
-                    (!taskHasAssignmentState && employee.name === item.assignee)
-                  );
                   // Merge the linked task with its Gantt row so completion timing survives
                   // when one side has not yet received the latest synchronized fields.
                   const progressTask = linkedTask ? { ...item, ...linkedTask } : item;
-                  const progress = deliveryData?.taskMetrics[item.id]?.recognized ?? scheduledProgress(progressTask, assignee?.standardHours || 8, currentTime);
+                  const progress = elapsedScheduleProgress(progressTask, currentTime);
                   const overdue = isTaskOverdue(progressTask, currentTime);
                   const delayHours = Math.max(
                     taskDelayHours(progressTask, currentTime),
                     Number(linkedTask?.delayHours) || 0,
                     Number(item.delayHours) || 0
                   );
-                  const completedLate = progressTask.status === 'completed' && (progressTask.speedStatus === 'delayed' || item.speed === 'delayed');
-                  const _completedEarly = progressTask.status === 'completed' && (progressTask.speedStatus === 'early' || item.speed === 'early');
-                  const _earlyHours = Math.max(
+                  const storedEarlyHours = Math.max(
                     Number(progressTask.earlyHours) || 0,
                     Number(linkedTask?.earlyHours) || 0,
                     Number(item.earlyHours) || 0
                   );
-                  const notStarted = progressTask.startDate && progressTask.startDate > todayIsoDate(currentTime);
+                  const completionTime = Date.parse(progressTask.completedAt || linkedTask?.completedAt || item.completedAt || '');
+                  const [, endYear, endMonth, endDay] = String(progressTask.endDate || '').match(/^(\d{4})-(\d{2})-(\d{2})$/) || [];
+                  const scheduledEndStart = endYear ? new Date(Number(endYear), Number(endMonth) - 1, Number(endDay)).getTime() : NaN;
+                  const scheduledDeadline = endYear ? new Date(Number(endYear), Number(endMonth) - 1, Number(endDay) + 1).getTime() : NaN;
+                  const calendarEarlyHours = Number.isFinite(completionTime) && Number.isFinite(scheduledEndStart)
+                    ? Math.max(0, scheduledEndStart - completionTime) / 3600000
+                    : 0;
+                  const calendarLateHours = Number.isFinite(completionTime) && Number.isFinite(scheduledDeadline)
+                    ? Math.max(0, completionTime - scheduledDeadline) / 3600000
+                    : 0;
+                  const completedLate = progressTask.status === 'completed' && (
+                    progressTask.speedStatus === 'delayed' || item.speed === 'delayed' || delayHours > 0 || calendarLateHours > 0
+                  );
+                  const completedEarly = progressTask.status === 'completed' && !completedLate && (
+                    progressTask.speedStatus === 'early' || item.speed === 'early' || storedEarlyHours > 0 || calendarEarlyHours > 0
+                  );
+                  const earlyHours = Math.max(storedEarlyHours, calendarEarlyHours);
+                  const completionDelayHours = Math.max(delayHours, calendarLateHours);
+                  const timingLabel = progressTask.status === 'completed'
+                    ? completedEarly
+                      ? `Hoàn thành sớm${earlyHours > 0 ? ` · Sớm ${formatDelayHours(earlyHours)}` : ''}`
+                      : completedLate
+                        ? `Chậm trễ${completionDelayHours > 0 ? ` · Muộn ${formatDelayHours(completionDelayHours)}` : ''}`
+                        : 'Hoàn thành'
+                    : overdue
+                      ? `Quá hạn ${formatDelayHours(delayHours)}`
+                      : '';
+                  const timingColor = progressTask.status === 'completed'
+                    ? completedEarly ? '#059669' : completedLate || delayHours > 0 ? '#d97706' : '#059669'
+                    : overdue ? '#dc2626' : item.parentTaskId ? '#b45309' : '#64748b';
 
                   // Keep the bar and progress fill aligned with the task status pill.
                   const statusColor = isHoliday ? '#f59e0b'
                     : progressTask.status === 'completed' ? (completedLate ? '#f59e0b' : '#10b981')
                       : overdue ? '#ef4444'
-                        : delayHours > 0 ? '#f59e0b'
-                          : notStarted ? '#94a3b8'
-                            : '#10b981';
-                  const fillColor = deliveryData?.records[item.id]?.freeRework ? 'url(#grad-amber)' : deliveryData?.taskMetrics[item.id]?.recognized === 100 ? 'url(#grad-green)' : deliveryData?.taskMetrics[item.id] ? 'url(#grad-slate)' : isHoliday || (progressTask.status === 'completed' && completedLate) || (!overdue && delayHours > 0)
-                    ? 'url(#grad-amber)'
-                    : progressTask.status === 'completed'
-                      ? 'url(#grad-green)'
-                      : overdue
-                        ? 'url(#grad-red)'
-                        : notStarted
-                          ? 'url(#grad-slate)'
-                          : 'url(#grad-sky)';
+                        : '#861b36';
+                  const fillColor = isHoliday ? 'url(#grad-amber)' : 'url(#grad-slate)';
                   const hasAssignments = Array.isArray(itemAssignees) && itemAssignees.length > 0;
                   const hasLegacyAssignee = !taskHasAssignmentState && Boolean(item.assignee);
                   const assignmentLabels = !isGroup && !isHoliday && (hasAssignments || hasLegacyAssignee)
@@ -1844,7 +2026,7 @@ export default function GanttPage() {
                       .map((assignment, index) => {
                         return {
                           key: `${item.id}-assignment-${index}`,
-                          employeeName: assignment.employeeName || item.assignee,
+                          employeeName: assignment.employeeName || employees.find(employee => employee.id === assignment.employeeId)?.name || item.assignee || 'Chưa gán',
                           startDate: assignment.startDate || item.startDate,
                           endDate: assignment.endDate || item.endDate,
                           days: assignmentWorkingDates(item, assignment).length,
@@ -1866,6 +2048,8 @@ export default function GanttPage() {
                         (assignment.employeeName || '').trim().toLocaleLowerCase('vi')
                     )
                   );
+                  const isDependencyDropTarget = dependencyDrag?.targetId === item.id;
+                  const taskTextColor = item.parentTaskId ? '#b45309' : '#64748b';
 
                   return (
                     <g key={item.id} className="cursor-pointer group" onClick={event => { if (!event.target.closest('[role="button"]')) openDetail(item); }}>
@@ -1936,6 +2120,35 @@ export default function GanttPage() {
                       {!isGroup && !isHoliday && itemAssignees?.some(a => a.excludeNonWorkingDays === true) && <GanttExcludedDaysBar item={{ ...item, assignees: itemAssignees }} timelineStart={timelineStart} pxPerDay={pxPerDay} coord={coord} progress={progress} fillColor={fillColor} statusColor={statusColor} highlighted={isDependencyHighlighted} />}
 
                       {/* Nhãn trên thanh hoặc cạnh thanh: Tên người đảm nhận, thời gian, tăng ca */}
+                      {!isGroup && !isHoliday && isDependencyDropTarget && (
+                        <rect
+                          x={Math.max(0, coord.x - 3)}
+                          y={coord.y - 4}
+                          width={coord.width + 6}
+                          height={coord.height + 8}
+                          rx="8"
+                          fill="none"
+                          stroke="#0284c7"
+                          strokeWidth="2.5"
+                          strokeDasharray="5 3"
+                          className="pointer-events-none"
+                        />
+                      )}
+
+                      {!isGroup && !isHoliday && canManageStructure && !previewing && (
+                        <g
+                          role="button"
+                          aria-label={`Kéo để nối ${item.title} với task tiếp theo`}
+                          style={{ cursor: dependencyDrag ? 'grabbing' : 'crosshair', touchAction: 'none' }}
+                          onPointerDown={event => startDependencyDrag(item, coord, event)}
+                          onClick={event => { event.preventDefault(); event.stopPropagation(); }}
+                        >
+                          <circle cx={coord.endX - 4} cy={coord.centerY} r="10" fill="transparent" />
+                          <circle cx={coord.endX - 4} cy={coord.centerY} r="4.5" fill="#ffffff" stroke="#861b36" strokeWidth="2" className="dark:fill-slate-900 dark:stroke-rose-300" />
+                          <title>Kéo chấm này và thả vào task cần nối phía sau</title>
+                        </g>
+                      )}
+
                       {!isGroup && (
                         <>
                         {canManageStructure && !previewing && assignmentLabels.length === 0 && (
@@ -1955,7 +2168,7 @@ export default function GanttPage() {
                           >
                             <circle cx={coord.endX + 15} cy={coord.centerY} r="7" fill="none" stroke="#861b36" className="dark:stroke-rose-300" />
                             <path d={`M ${coord.endX + 12} ${coord.centerY} h 6 M ${coord.endX + 15} ${coord.centerY - 3} v 6`} fill="none" stroke="#861b36" strokeWidth="1.5" strokeLinecap="round" className="dark:stroke-rose-300" />
-                            <text x={coord.endX + 27} y={coord.centerY + 4} fill="#861b36" fontSize="11" fontWeight="700" className="dark:fill-rose-300">
+                            <text x={coord.endX + 27} y={coord.centerY + 4} fill={item.parentTaskId ? '#b45309' : '#861b36'} fontSize="11" fontWeight="700" className={item.parentTaskId ? undefined : 'dark:fill-rose-300'}>
                               Giao cho
                             </text>
                             <title>Giao công việc cho nhân viên</title>
@@ -1966,14 +2179,16 @@ export default function GanttPage() {
                           key={`label-${bar.key}`}
                           x={coord.endX + 8}
                           y={bar.y}
-                          fill="#64748b"
+                          fill={taskTextColor}
                           fontSize="11"
                           fontWeight="600"
-                          className="dark:fill-white select-none pointer-events-none"
+                          className={`${item.parentTaskId ? '' : 'dark:fill-white '}select-none pointer-events-none`}
                         >
-                          <tspan fill="#64748b" className="dark:fill-white">
-                            {bar.employeeName} · {deliveryData?.records[item.id]?.freeRework ? 'CR' : `${deliveryData?.records[item.id]?.level ?? Math.round(progress)}%`}
+                          <tspan fill={taskTextColor} className={item.parentTaskId ? undefined : 'dark:fill-white'}>
+                            {bar.employeeName} · {formatDateVi(bar.startDate).slice(0, 5)}–{formatDateVi(bar.endDate).slice(0, 5)} · {Number(bar.hoursPerDay).toLocaleString('vi-VN', { maximumFractionDigits: 2 })}h/ngày{deliveryData?.records[item.id]?.freeRework ? ' · CR' : ''}
                           </tspan>
+                          {timingLabel && <tspan fill={timingColor} fontWeight="700"> · [{timingLabel}]</tspan>}
+                          <title>{`${bar.employeeName}: ${formatDateVi(bar.startDate)} đến ${formatDateVi(bar.endDate)} · ${Number(bar.hoursPerDay).toLocaleString('vi-VN', { maximumFractionDigits: 2 })} giờ/ngày${timingLabel ? ` · ${timingLabel}` : ''}`}</title>
                           {overtimeForAssignment(bar).map(contribution => (
                             <tspan key={contribution.employeeId || contribution.employeeName} fill="#d97706" fontWeight="bold">
                               {' '}[+{contribution.hours}h OT]
@@ -2006,6 +2221,43 @@ export default function GanttPage() {
                 })}
 
                 <DeliveryChartOverlay data={deliveryData} financial={false} items={filteredGanttItems} coordinates={taskCoordinates} rowOffsets={rowOffsets} timelineStart={timelineStart} pxPerDay={pxPerDay} width={ganttWidth} height={chartBodyHeight} now={currentTime} groupPercent={groupPercent} />
+                <g pointerEvents="none" aria-hidden="true">
+                  {dependencyLines.map(line => {
+                    const isActive = hoveredDependencyKey === line.key;
+                    return <path
+                      key={`visible-${line.key}`}
+                      d={line.path}
+                      fill="none"
+                      stroke={isActive ? '#ef4444' : '#64748b'}
+                      strokeWidth={isActive ? 2.4 : 1.8}
+                      className={!isActive ? 'dark:stroke-white' : undefined}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      markerEnd={line.type === 'dependency' ? (isActive ? 'url(#arrowhead-active)' : 'url(#arrowhead-default)') : undefined}
+                      opacity="0.95"
+                      style={{ transition: 'stroke 0.2s ease, stroke-width 0.2s ease' }}
+                    />;
+                  })}
+                </g>
+                <g pointerEvents="none" aria-hidden="true">
+                  {filteredGanttItems.map(item => {
+                    const coord = taskCoordinates[item.id];
+                    if (!item.parentTaskId || !coord || item.status === 'holiday' || coord.isTaskAggregate) return null;
+                    return <rect
+                      key={`child-bar-outline-${item.id}`}
+                      x={coord.x}
+                      y={coord.y}
+                      width={coord.width}
+                      height={coord.height}
+                      rx="6"
+                      ry="6"
+                      fill="none"
+                      stroke="#b45309"
+                      strokeWidth="1.4"
+                      opacity="0.95"
+                    />;
+                  })}
+                </g>
               </svg>
 
             </div>
@@ -2143,6 +2395,7 @@ export default function GanttPage() {
             </div>
 
             <form onSubmit={handleAssignmentsSubmit} className="space-y-3">
+              {assignmentLocked && <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300">Task đã hoàn thành. Danh sách người đảm nhận được giữ nguyên và chỉ có thể xem.</p>}
               {deliveryData && <div className="delivery-form-grid"><label>Hạn nộp hồ sơ (giờ Việt Nam)<input className="w-full p-2 border rounded-lg" type="datetime-local" value={assignmentSubmission.dueAt} onChange={event => setAssignmentSubmission({ ...assignmentSubmission, dueAt: event.target.value })} /></label><label>Nơi nhận<input className="w-full p-2 border rounded-lg" value={assignmentSubmission.recipient} onChange={event => setAssignmentSubmission({ ...assignmentSubmission, recipient: event.target.value })} placeholder="CĐT / cơ quan" /></label></div>}
 
               <p className="text-xs text-slate-500">
@@ -2160,6 +2413,8 @@ export default function GanttPage() {
                         <EmployeeCombobox
                           employees={availableEmployees}
                           value={assignment.employeeId}
+                          disabled={assignmentLocked}
+                          onDisabledClick={() => window.alert(completedAssignmentWarning)}
                           onChange={selectedEmployee => setAssignmentRows(current => current.map((row, rowIndex) =>
                             rowIndex === index
                               ? {
@@ -2179,6 +2434,7 @@ export default function GanttPage() {
                           required
                           min="0.25"
                           step="0.25"
+                          disabled={assignmentLocked}
                           value={assignment.estimatedHoursPerDay}
                           onChange={event => setAssignmentRows(current => current.map((row, rowIndex) =>
                             rowIndex === index ? { ...row, estimatedHoursPerDay: event.target.value } : row
@@ -2188,7 +2444,9 @@ export default function GanttPage() {
                       </label>
                       <button
                         type="button"
-                        onClick={() => setAssignmentRows(current => current.filter((_, rowIndex) => rowIndex !== index))}
+                        onClick={() => assignmentLocked
+                          ? window.alert(completedAssignmentWarning)
+                          : setAssignmentRows(current => current.filter((_, rowIndex) => rowIndex !== index))}
                         className="p-2 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40"
                         aria-label={`Xóa người đảm nhận ${index + 1}`}
                       >
@@ -2200,6 +2458,7 @@ export default function GanttPage() {
                         Ngày bắt đầu
                         <DateInput
                           required
+                          disabled={assignmentLocked}
                           min={assignmentEditorItem.startDate}
                           max={assignmentEditorItem.endDate}
                           value={assignment.startDate}
@@ -2213,6 +2472,7 @@ export default function GanttPage() {
                         Ngày kết thúc
                         <DateInput
                           required
+                          disabled={assignmentLocked}
                           min={assignmentEditorItem.startDate}
                           max={assignmentEditorItem.endDate}
                           value={assignment.endDate}
@@ -2235,6 +2495,10 @@ export default function GanttPage() {
               <button
                 type="button"
                 onClick={() => {
+                  if (assignmentLocked) {
+                    window.alert(completedAssignmentWarning);
+                    return;
+                  }
                   setAssignmentRows(current => [...current, {
                     employeeId: '',
                     startDate: assignmentEditorItem.startDate,
@@ -2250,7 +2514,7 @@ export default function GanttPage() {
 
               <div className="flex justify-end gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">
                 <button type="button" onClick={() => setAssignmentEditorItem(null)} className="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">Hủy</button>
-                <button type="submit" disabled={assignmentSaving} className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs disabled:opacity-50">{assignmentSaving ? 'Đang lưu...' : 'Lưu phân công'}</button>
+                <button type="submit" disabled={assignmentSaving || assignmentLocked} className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs disabled:opacity-50">{assignmentSaving ? 'Đang lưu...' : 'Lưu phân công'}</button>
               </div>
             </form>
           </div>
@@ -2779,6 +3043,29 @@ export default function GanttPage() {
             </form>
           </div>
         </ModalOverlay>
+      )}
+
+      {dependencyMenu && createPortal(
+        <div
+          className="fixed z-[300] min-w-40 rounded-lg border border-slate-200 bg-white p-1 shadow-xl dark:border-slate-700 dark:bg-slate-900"
+          style={{
+            left: Math.max(8, Math.min(dependencyMenu.x, window.innerWidth - 176)),
+            top: Math.max(8, Math.min(dependencyMenu.y, window.innerHeight - 56))
+          }}
+          onPointerDown={event => event.stopPropagation()}
+          role="menu"
+        >
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-semibold text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
+            onClick={removeDependencyLine}
+            role="menuitem"
+          >
+            <Trash2 size={16} />
+            Xóa liên kết
+          </button>
+        </div>,
+        document.body
       )}
 
       {showAddProjectModal && <ProjectWizard onClose={()=>setShowAddProjectModal(false)} onCreated={async id=>{await refreshAllData();setSelectedProjectId(id);setShowAddProjectModal(false);}}/>}

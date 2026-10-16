@@ -41,6 +41,48 @@ Nút **Tải mã liên kết** cung cấp danh sách ID/mã để đối chiếu
 - Phiên API mặc định 8 giờ; tạm khóa 15 phút sau 5 lần sai. Ghi dữ liệu bằng tệp tạm rồi đổi tên; giữ tối đa 30 bản sao theo ngày trong thư mục dữ liệu `backups`.
 - Từ điển 63 chỉ tiêu và 12 quy tắc trong phụ lục; ví dụ được ghi rõ là minh họa.
 
+## Cách hoạt động của từng trang
+
+### Giờ công
+
+- **Khai tuần:** chỉ hiện task có phân công cho nhân sự liên kết với tài khoản. Mỗi ô nhận tối đa 24 giờ, không nhập ngày tương lai. `Lưu nháp` giữ trạng thái sửa được; `Nộp duyệt` chuyển các dòng hợp lệ trong tuần sang hàng chờ duyệt.
+- **Duyệt giờ:** người duyệt được xác định từ vai trò dự án và ma trận. Hệ thống từ chối tự duyệt. Dòng được duyệt sẽ khóa và là nguồn của Công TT, chi phí nhân công, hiệu suất và sản lượng; trả lại/từ chối không được tính như giờ duyệt.
+- **Mở khóa:** chỉ áp dụng cho dòng đã duyệt, bắt buộc lý do và cần người khác quyết định. Khi được chấp thuận, dòng trở lại trạng thái `returned` để người khai sửa rồi nộp lại; lịch sử cũ vẫn nằm trong audit.
+- **OT:** phiếu đi theo chuỗi Nhân viên → Leader → Quản lý; nếu vượt hạn mức tháng thì thêm Giám đốc. Chỉ phiếu đã duyệt mới cho khai giờ làm thêm và đưa vào số thực tế.
+- **Chấm công/kiểm tra:** dữ liệu có mặt được nhập theo mã nhân viên + ngày. Kiểm tra tháng so sánh giờ khai với giờ có mặt và các ngưỡng bất thường; nhập lại cùng nhân viên/ngày cập nhật bản ghi thay vì cộng trùng.
+- **Phân bổ:** bảng ngày/tháng lấy nhân sự và task thật. Các KPI “nhân viên còn giờ trống”, “giờ đã lên lịch” và “tình trạng phân bổ” được tính lại theo kỳ đang chọn; các dòng diễn giải mẫu đã được bỏ khỏi giao diện.
+
+### Tài chính
+
+- **Ngân sách & chi phí:** ngân sách luôn có 9 nhóm và có phiên bản. Nhóm 1 là giờ nhân công; nhóm 2–9 là tiền. Thực tế + cam kết chạm ngưỡng cấu hình sẽ cảnh báo. Đơn giá chuẩn lấy theo cấp bậc/ngày hiệu lực, không lưu lương thực tế.
+- **Đề nghị chi & tạm ứng:** mọi đề nghị phải gắn dự án. Nhân viên chỉ lập công tác phí/tạm ứng nhóm 4; Leader lập nhóm 2–6; các vai trò cao hơn theo quyền ma trận. Vượt ngân sách hoặc hạn mức B sẽ thêm bước Giám đốc. Tạm ứng đã chi phải hoàn ứng bằng chứng từ.
+- **Hợp đồng & mốc thanh toán:** mốc có thể phụ thuộc % ghi nhận của task hoặc dự án. Chỉ mốc đạt điều kiện mới lập ĐNTT. ĐNTT đi qua Kế toán trưởng → Giám đốc → Kế toán xuất HĐĐT → Quản lý gửi CĐT; bước gửi bị chặn nếu chưa có số hóa đơn.
+- **Công nợ phải thu:** lấy ĐNTT đã gửi, số tiền về đã liên kết và hạn thanh toán để tính còn nợ/tuổi nợ. Tiền về chỉ được tính khi đã có bản ghi nguồn kế toán.
+- **Dòng tiền công ty:** Kế toán trưởng lập sáu tháng liên tiếp, Giám đốc duyệt. Thu gồm tiền thật, ĐNTT và mốc dự kiến theo quy tắc; chi gồm chi phí đã duyệt/cam kết và kế hoạch. Thiếu số dư đầu kỳ thì kết quả số dư được để chưa xác định.
+- **Sản lượng tháng:** dùng cùng số liệu tiến độ và cơ chế review/chốt của Gantt. Kỳ chốt là snapshot bất biến; mở lại chỉ do Giám đốc và phải ghi lý do.
+- **Chỉ tiêu & dữ liệu chuyển tiếp:** giữ hợp đồng/kế hoạch cũ sau nâng cấp. Bản ghi mới phải đi qua luồng đề nghị và nhập kế toán; việc ký ở đây là duyệt nội bộ, không phải chữ ký số pháp lý.
+
+### Phân quyền
+
+- **Ma trận:** mỗi ô chứa tổ hợp có thứ tự của `X`, `L`, `S`, `XN`, `D`; chọn `—` để không truy cập. Khi bấm một ô trong chế độ sửa, bảng giải nghĩa xuất hiện ngay tại ô và cho phép chọn nhiều quyền. Người dùng vẫn có thể nhập phần diễn giải cũ sau ký hiệu nếu dữ liệu hiện hữu cần giữ tương thích.
+- **Ghi chú:** mỗi dòng ma trận có textarea riêng, lưu cùng lần với toàn bộ ma trận và giới hạn 1.000 ký tự. Nút Hủy sửa phục hồi dữ liệu đã tải, không ghi bản nháp.
+- **Vai trò theo dự án:** tài khoản ứng dụng phải tồn tại, mật khẩu cấp quyền phải khớp tài khoản đăng nhập và có thể liên kết `employeeId`. Vai trò dự án quyết định dữ liệu/thao tác; chức danh dạng chữ của hồ sơ nhân sự không tự cấp quyền.
+- **Tham số:** lưu hạn mức duyệt chi, cảnh báo ngân sách, hạn hoàn ứng, OT, thời gian tuyển và các ngưỡng phát hiện bất thường. Kế toán trưởng lập đơn giá chuẩn; Giám đốc/Quản trị duyệt.
+- **Mẫu & danh mục:** preview dự án không ghi dữ liệu. Khi tạo thật, dự án, task/Gantt, phân công, ngân sách và mốc được ghi trong một giao dịch logic; dự án chờ duyệt vẫn được đưa vào dự báo nhân lực.
+- **Nhật ký:** mỗi mutation ghi người thao tác, thời gian, dự án, hành động và ảnh trước/sau của các bộ sưu tập thay đổi.
+
+### Từ điển
+
+- Dữ liệu định nghĩa nằm trong `frontend/src/modules/operations/dictionaryData.js`; trang chỉ đọc, tìm kiếm và lọc, không sửa dữ liệu dự án.
+- Khi đổi công thức nghiệp vụ trong code phải cập nhật cả chỉ tiêu/quy tắc liên quan để người vận hành không đọc công thức cũ.
+
+## Quy tắc dữ liệu dùng chung
+
+- Bộ chọn dự án/tháng và vai trò ở khung `OperationsFrame` quyết định phạm vi truy vấn cho cả bốn trang. Chế độ xem thử vai trò là chỉ đọc và không cấp quyền ghi ở server.
+- Các mutation gửi `action`, `projectId`, `id`, `value` và revision. Server kiểm tra vai trò, ma trận, dữ liệu đầu vào rồi mới ghi; ghi thành công mới tăng revision và thêm audit.
+- Tiến độ, giờ đã duyệt, ngân sách, đề nghị, hóa đơn, tiền về và dòng tiền liên kết bằng ID/mã. Không nhập lại số tổng ở Dashboard vì Dashboard chỉ tổng hợp từ các nguồn này.
+- Tác vụ nhắc việc chạy khi backend hoạt động và bổ sung kỳ bị lỡ khi khởi động lại. Hàng đợi trong ứng dụng không đồng nghĩa email/Zalo đã được gửi khi `externalDelivery` còn `not-configured`.
+
 ## Kiểm tra
 
 `npm.cmd --prefix backend test` và `npm.cmd --prefix frontend run build`.

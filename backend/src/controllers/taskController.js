@@ -1,6 +1,7 @@
 import { readDb, writeDb } from '../models/db.js';
 import { compareWbs, reconnectGanttDependencies } from './projectController.js';
 import { normalizeAssignmentSchedules } from '../../../frontend/src/utils/assignmentCalendar.js';
+import { localDateKey } from '../utils/shift.js';
 
 const hasStoredAssignmentState = task => Boolean(task && (
   Array.isArray(task.assignees) ||
@@ -241,6 +242,23 @@ export function updateTask(req, res) {
     return res.status(404).json({ success: false, message: 'Không tìm thấy nhiệm vụ' });
   }
 
+  const requestsCompletion = status === 'completed' || Number(progress) === 100;
+  const hasAssignee = (Array.isArray(task.assignees) && task.assignees.some(assignment =>
+    assignment?.employeeId || assignment?.employeeName
+  )) || task.employeeId || task.employeeName || task.assignee;
+  if (requestsCompletion && !hasAssignee) {
+    return res.status(400).json({
+      success: false,
+      message: 'Chưa thể hoàn thành task khi chưa giao cho nhân viên.'
+    });
+  }
+  if (requestsCompletion && task.startDate && localDateKey() < task.startDate) {
+    return res.status(400).json({
+      success: false,
+      message: `Chưa thể hoàn thành task trước ngày bắt đầu ${task.startDate}.`
+    });
+  }
+
   const previousStartDate = task.startDate;
   const previousEndDate = task.endDate;
   if (status !== undefined) task.status = status;
@@ -366,9 +384,16 @@ export function updateTask(req, res) {
       : 0;
     task.delayHours = Math.round(Math.max(effortDelay, calendarDelay) * 100) / 100;
     const trackedWorkHours = Number(task.actualWorkHours) || 0;
-    task.earlyHours = task.delayHours > 0 || trackedWorkHours <= 0
+    const scheduledEndStart = endDateMatch
+      ? new Date(Number(endDateMatch[1]), Number(endDateMatch[2]) - 1, Number(endDateMatch[3])).getTime()
+      : NaN;
+    const calendarEarly = Number.isFinite(scheduledEndStart)
+      ? Math.max(0, scheduledEndStart - completedAt.getTime()) / 3600000
+      : 0;
+    const effortEarly = trackedWorkHours > 0 ? Math.max(0, plannedHours - trackedWorkHours) : 0;
+    task.earlyHours = task.delayHours > 0
       ? 0
-      : Math.round(Math.max(0, plannedHours - trackedWorkHours) * 100) / 100;
+      : Math.round(Math.max(effortEarly, calendarEarly) * 100) / 100;
 
     if (completingTask || speedStatus !== undefined) {
       const completionDate = `${completedAt.getFullYear()}-${String(completedAt.getMonth() + 1).padStart(2, '0')}-${String(completedAt.getDate()).padStart(2, '0')}`;

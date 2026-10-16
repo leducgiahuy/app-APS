@@ -17,6 +17,43 @@ const hasStoredAssignmentState = task => Boolean(task && (
   Object.hasOwn(task, 'employeeId') ||
   Object.hasOwn(task, 'employeeName')
 ));
+
+export function syncProjectNameReferences(db, projectId, previousName, nextName) {
+  const linkedGanttIds = new Set((db.ganttItems || [])
+    .filter(item => item.projectId === projectId)
+    .map(item => item.id));
+  const previousNameIsUnique = (db.projects || [])
+    .filter(item => item.name === previousName).length === 1;
+  const visited = new WeakSet();
+  const updateStoredCopies = value => {
+    if (!value || typeof value !== 'object' || visited.has(value)) return;
+    visited.add(value);
+    if (value.projectId === projectId && Object.hasOwn(value, 'projectName')) {
+      value.projectName = nextName;
+    }
+    Object.values(value).forEach(updateStoredCopies);
+  };
+
+  const liveCollections = [
+    db.tasks,
+    db.ganttItems,
+    db.workforcePlan?.demands,
+    db.workforcePlan?.taskRoles,
+    db.operations?.members,
+    db.operations?.budgets,
+    db.operations?.expenseRequests,
+    db.operations?.paymentRequests,
+    db.operations?.cashForecasts,
+    db.operations?.projectApprovals,
+    db.delivery?.executive?.receivables,
+  ];
+  liveCollections.forEach(updateStoredCopies);
+  (db.tasks || []).forEach(task => {
+    const linkedByGantt = linkedGanttIds.has(task.ganttId);
+    const unambiguousLegacyTask = previousNameIsUnique && !task.projectId && task.projectName === previousName;
+    if (linkedByGantt || unambiguousLegacyTask) task.projectName = nextName;
+  });
+}
 const overlapAssignmentHours = (task, assignment, startDate, endDate) => {
   const start = [task.startDate, assignment.startDate, startDate].filter(Boolean).sort().at(-1);
   const end = [task.endDate, assignment.endDate, endDate].filter(Boolean).sort()[0];
@@ -135,10 +172,14 @@ export function updateProject(req, res) {
   const project = (db.projects || []).find(item => item.id === req.params.id);
   if (!project) return res.status(404).json({ success: false, message: 'Không tìm thấy dự án' });
 
-  const { startDate, endDate, contractWork } = req.body;
+  const { name, startDate, endDate, contractWork } = req.body;
+  const nextName = name === undefined ? project.name : String(name).trim();
   const nextStartDate = startDate || project.startDate;
   const nextEndDate = endDate || project.endDate;
   const normalizedContractWork = contractWork === null || contractWork === '' ? null : Number(contractWork);
+  if (!nextName) {
+    return res.status(400).json({ success: false, message: 'Vui lòng nhập tên dự án' });
+  }
   if (contractWork !== undefined && normalizedContractWork !== null &&
     (!Number.isFinite(normalizedContractWork) || normalizedContractWork < 0)) {
     return res.status(400).json({ success: false, message: 'contractWork must be a non-negative number' });
@@ -147,11 +188,14 @@ export function updateProject(req, res) {
     return res.status(400).json({ success: false, message: 'Khoảng ngày bắt đầu và kết thúc của dự án không hợp lệ' });
   }
 
+  const previousName = project.name;
+  if (nextName !== previousName) syncProjectNameReferences(db, project.id, previousName, nextName);
+  project.name = nextName;
   project.startDate = nextStartDate;
   project.endDate = nextEndDate;
   if (contractWork !== undefined) project.contractWork = normalizedContractWork;
   writeDb(db);
-  return res.json({ success: true, data: project, message: 'Đã cập nhật thời gian dự án' });
+  return res.json({ success: true, data: project, message: 'Đã cập nhật thông tin dự án' });
 }
 
 // Xóa dự án và toàn bộ dữ liệu liên quan.
@@ -369,11 +413,19 @@ export function normalizeGanttDependencies(ganttItems, tasks = []) {
   };
 
   ganttItems.forEach(item => {
-    if (!Array.isArray(item.dependencies) || item.dependencies.length < 2) return;
+    const suppressedDependencies = new Set(Array.isArray(item.suppressedDependencies) ? item.suppressedDependencies : []);
+    const dependencies = [...new Set(Array.isArray(item.dependencies) ? item.dependencies : [])]
+      .filter(dependencyId => !suppressedDependencies.has(dependencyId));
+    item.dependencies = dependencies;
+    if (Array.isArray(item.manualDependencies)) {
+      item.manualDependencies = [...new Set(item.manualDependencies)]
+        .filter(dependencyId => !suppressedDependencies.has(dependencyId));
+    }
+    if (dependencies.length < 2) return;
     const projectId = projectIdFor(item);
-    const dependencies = [...new Set(item.dependencies)];
+    const manualDependencies = new Set(Array.isArray(item.manualDependencies) ? item.manualDependencies : []);
     item.dependencies = dependencies.filter(dependencyId =>
-      !dependencies.some(alternativeId =>
+      manualDependencies.has(dependencyId) || !dependencies.some(alternativeId =>
         alternativeId !== dependencyId && reaches(alternativeId, dependencyId, projectId)
       )
     );
@@ -483,11 +535,22 @@ export function updateGanttItem(req, res) {
   const db = readDb();
   const { id } = req.params;
   normalizeGanttGroupHierarchy(db.ganttItems || [], db.tasks || []);
-  const { startDate, endDate, estimatedHoursPerDay, assignees, title, contractWork, ganttNote } = req.body;
+  const { startDate, endDate, estimatedHoursPerDay, assignees, title, contractWork, ganttNote, dependencies, suppressedDependencies } = req.body;
   const item = (db.ganttItems || []).find(ganttItem => ganttItem.id === id);
 
   if (!item) {
     return res.status(404).json({ success: false, message: 'Không tìm thấy hạng mục Gantt' });
+  }
+
+  const linkedTaskForCompletionLock = (db.tasks || []).find(task => task.ganttId === id) ||
+    (db.tasks || []).find(task => !task.ganttId && task.title === item.title &&
+      (!item.projectId || !task.projectId || task.projectId === item.projectId));
+  if (assignees !== undefined && (item.status === 'completed' || linkedTaskForCompletionLock?.status === 'completed')) {
+    return res.status(409).json({ success: false, message: 'Task đã hoàn thành nên không thể thay đổi người đảm nhận' });
+  }
+
+  if ((dependencies !== undefined || suppressedDependencies !== undefined) && item.isGroup) {
+    return res.status(400).json({ success: false, message: 'Chỉ có thể nối liên kết giữa các task công việc' });
   }
 
   if (title !== undefined && startDate === undefined && endDate === undefined && contractWork === undefined && ganttNote === undefined && item.isGroup) {
@@ -529,6 +592,49 @@ export function updateGanttItem(req, res) {
 
   const itemProjectId = item.projectId || (db.tasks || []).find(task => task.ganttId === item.id)?.projectId || 'proj-1';
   const project = (db.projects || []).find(candidate => candidate.id === itemProjectId);
+  let normalizedDependencies;
+  if (dependencies !== undefined) {
+    if (!Array.isArray(dependencies)) {
+      return res.status(400).json({ success: false, message: 'Danh sách liên kết Gantt không hợp lệ' });
+    }
+    normalizedDependencies = [...new Set(dependencies.filter(Boolean))];
+    const taskForGantt = ganttId => (db.tasks || []).find(task => task.ganttId === ganttId);
+    const projectIdForGantt = ganttItem => ganttItem?.projectId || taskForGantt(ganttItem?.id)?.projectId || 'proj-1';
+    const projectTasks = (db.ganttItems || []).filter(candidate => !candidate.isGroup && projectIdForGantt(candidate) === itemProjectId);
+    const projectTaskById = new Map(projectTasks.map(candidate => [candidate.id, candidate]));
+    if (normalizedDependencies.includes(item.id)) {
+      return res.status(400).json({ success: false, message: 'Một task không thể liên kết với chính nó' });
+    }
+    if (normalizedDependencies.some(dependencyId => !projectTaskById.has(dependencyId))) {
+      return res.status(400).json({ success: false, message: 'Task được nối phải thuộc cùng dự án' });
+    }
+    const reaches = (fromId, targetId, visited = new Set()) => {
+      if (fromId === targetId) return true;
+      if (visited.has(fromId)) return false;
+      visited.add(fromId);
+      const from = projectTaskById.get(fromId);
+      return (Array.isArray(from?.dependencies) ? from.dependencies : [])
+        .some(dependencyId => reaches(dependencyId, targetId, visited));
+    };
+    if (normalizedDependencies.some(dependencyId => reaches(dependencyId, item.id))) {
+      return res.status(400).json({ success: false, message: 'Liên kết này sẽ tạo vòng lặp trong tiến độ Gantt' });
+    }
+  }
+  let normalizedSuppressedDependencies;
+  if (suppressedDependencies !== undefined) {
+    if (!Array.isArray(suppressedDependencies)) {
+      return res.status(400).json({ success: false, message: 'Danh sach lien ket Gantt da xoa khong hop le' });
+    }
+    normalizedSuppressedDependencies = [...new Set(suppressedDependencies.filter(Boolean))];
+    const taskForGantt = ganttId => (db.tasks || []).find(task => task.ganttId === ganttId);
+    const projectIdForGantt = ganttItem => ganttItem?.projectId || taskForGantt(ganttItem?.id)?.projectId || 'proj-1';
+    const projectTaskIds = new Set((db.ganttItems || [])
+      .filter(candidate => !candidate.isGroup && projectIdForGantt(candidate) === itemProjectId)
+      .map(candidate => candidate.id));
+    if (normalizedSuppressedDependencies.includes(item.id) || normalizedSuppressedDependencies.some(dependencyId => !projectTaskIds.has(dependencyId))) {
+      return res.status(400).json({ success: false, message: 'Task duoc xoa lien ket phai thuoc cung du an' });
+    }
+  }
   if (item.isGroup && item.parentGroupId) {
     const parentGroup = (db.ganttItems || []).find(candidate => candidate.id === item.parentGroupId && candidate.isGroup);
     if (parentGroup && ((parentGroup.startDate && nextStartDate < parentGroup.startDate) || (parentGroup.endDate && nextEndDate > parentGroup.endDate))) {
@@ -722,6 +828,20 @@ export function updateGanttItem(req, res) {
   item.endDate = nextEndDate;
   item.days = calculatedDays;
   if (normalizedTitle !== undefined) item.title = normalizedTitle;
+  if (normalizedDependencies !== undefined) {
+    item.dependencies = normalizedDependencies;
+    item.manualDependencies = normalizedDependencies;
+    if (normalizedSuppressedDependencies === undefined && Array.isArray(item.suppressedDependencies)) {
+      const restoredDependencies = new Set(normalizedDependencies);
+      item.suppressedDependencies = item.suppressedDependencies.filter(dependencyId => !restoredDependencies.has(dependencyId));
+    }
+  }
+  if (normalizedSuppressedDependencies !== undefined) {
+    item.suppressedDependencies = normalizedSuppressedDependencies;
+    const suppressed = new Set(normalizedSuppressedDependencies);
+    item.dependencies = (Array.isArray(item.dependencies) ? item.dependencies : []).filter(dependencyId => !suppressed.has(dependencyId));
+    item.manualDependencies = (Array.isArray(item.manualDependencies) ? item.manualDependencies : []).filter(dependencyId => !suppressed.has(dependencyId));
+  }
   if (contractWork !== undefined) item.contractWork = normalizedContractWork;
   if (ganttNote !== undefined) item.ganttNote = ganttNote;
   item.assignees = nextAssignees;
@@ -809,9 +929,14 @@ export function updateGanttItem(req, res) {
           ? Math.max(0, completedAt - deadline) / 3600000
           : 0;
         task.delayHours = Math.round(Math.max(effortDelay, calendarDelay) * 100) / 100;
-        task.earlyHours = task.delayHours > 0 || trackedWorkHours <= 0
+        const scheduledEndStart = year ? new Date(Number(year), Number(month) - 1, Number(day)).getTime() : NaN;
+        const calendarEarly = Number.isFinite(completedAt) && Number.isFinite(scheduledEndStart)
+          ? Math.max(0, scheduledEndStart - completedAt) / 3600000
+          : 0;
+        const effortEarly = trackedWorkHours > 0 ? Math.max(0, plannedHours - trackedWorkHours) : 0;
+        task.earlyHours = task.delayHours > 0
           ? 0
-          : Math.round(Math.max(0, plannedHours - trackedWorkHours) * 100) / 100;
+          : Math.round(Math.max(effortEarly, calendarEarly) * 100) / 100;
         task.speedStatus = task.delayHours > 0
           ? 'delayed'
           : task.earlyHours > 0 || String(task.completedAt).slice(0, 10) < task.endDate ? 'early' : 'on_time';
@@ -833,11 +958,17 @@ export function updateGanttItem(req, res) {
     linkedTaskForAssignments.assignees = item.assignees;
     if (contractWork !== undefined) linkedTaskForAssignments.contractWork = normalizedContractWork;
     if (ganttNote !== undefined) linkedTaskForAssignments.ganttNote = ganttNote;
+    if (normalizedDependencies !== undefined || normalizedSuppressedDependencies !== undefined) {
+      linkedTaskForAssignments.dependencies = item.dependencies;
+      linkedTaskForAssignments.manualDependencies = item.manualDependencies;
+      linkedTaskForAssignments.suppressedDependencies = item.suppressedDependencies;
+    }
     if (assignees !== undefined) {
       linkedTaskForAssignments.employeeId = item.assignees[0]?.employeeId || '';
       linkedTaskForAssignments.employeeName = item.assignees[0]?.employeeName || '';
     }
   }
+  if (normalizedDependencies !== undefined || normalizedSuppressedDependencies !== undefined) normalizeGanttDependencies(db.ganttItems || [], db.tasks || []);
   if (item.parentTaskId) syncTaskContainerDates(db, item.parentTaskId);
   if (!writeDb(db)) {
     return res.status(500).json({ success: false, message: 'Không thể lưu thời gian task. Vui lòng thử lại.' });
@@ -900,6 +1031,12 @@ export function createGanttItem(req, res) {
     : null;
   if (parentTaskId && !parentTask) {
     return res.status(400).json({ success: false, message: 'The selected parent task is invalid or belongs to another project' });
+  }
+  const linkedParentTask = parentTask
+    ? (db.tasks || []).find(task => task.ganttId === parentTask.id)
+    : null;
+  if (parentTask && (parentTask.status === 'completed' || linkedParentTask?.status === 'completed')) {
+    return res.status(409).json({ success: false, message: 'Task đã hoàn thành nên không thể tạo task con' });
   }
   const effectiveParentGroup = parentTask?.parentGroupId
     ? (db.ganttItems || []).find(item => item.id === parentTask.parentGroupId && item.isGroup)

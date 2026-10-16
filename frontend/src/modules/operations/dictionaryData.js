@@ -1,11 +1,22 @@
 export const dictionaryMetrics = [
   {
+    "id": "metric-0",
+    "category": "Tiến độ",
+    "name": "Công HĐ (công hợp đồng)",
+    "meaning": "Số công hợp đồng được nhập tay và lưu độc lập với công dự toán.",
+    "formula": "Nhập trực tiếp tại cột Công HĐ. Giá trị này không tự thay đổi khi giao người, đổi lịch hoặc đổi giờ dự toán.",
+    "source": "gantt_item.contractWork",
+    "audience": "Mọi vai trò xem; vai trò quản lý được sửa",
+    "example": "Hạng mục theo hợp đồng được nhập 500 công",
+    "employeeVisible": true
+  },
+  {
     "id": "metric-1",
     "category": "Tiến độ",
     "name": "Công DT (công dự toán)",
-    "meaning": "Số công dự kiến để làm xong một việc. 1 công = 8 giờ.",
-    "formula": "= Tổng giờ kế hoạch của mọi người được gán vào việc ÷ 8. Lưu bằng giờ, chỉ hiển thị bằng công (1 chữ số thập phân).",
-    "source": "task_assignment.planned_hours",
+    "meaning": "Số công dự kiến để làm xong một việc, được tính tự động từ lịch và phân công. 1 công = 8 giờ.",
+    "formula": "= Tổng giờ kế hoạch của mọi người được gán vào việc ÷ 8. Chưa giao người thì dùng tổng giờ dự toán, hoặc số ngày × giờ/ngày nếu dữ liệu cũ chưa có tổng giờ.",
+    "source": "task_assignment.planned_hours hoặc task.estimatedHours",
     "audience": "Mọi vai trò",
     "example": "A3.1 Duy 80h  Thịnh 16h  Khoa 8h = 104h  13 công",
     "employeeVisible": true

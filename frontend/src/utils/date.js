@@ -37,7 +37,6 @@ export function shiftIsoDate(isoDate, days) {
 }
 
 export function scheduledProgress(task, hoursPerDay = 8, now = new Date(), activeCheckInAt = null) {
-  if (task?.deliveryRecognized != null && Number.isFinite(Number(task.deliveryRecognized))) return Math.max(0, Math.min(100, Number(task.deliveryRecognized)));
   if (task?.status === 'completed') return 100;
   const days = inclusiveDays(task?.startDate, task?.endDate);
   const dailyHours = Number(hoursPerDay) || 8;
@@ -68,8 +67,19 @@ export function scheduledProgress(task, hoursPerDay = 8, now = new Date(), activ
   return Math.max(0, Math.min(100, Math.floor((elapsedPlannedHours / plannedHours) * 100)));
 }
 
+// Visual Gantt progress follows calendar time only. Delivery recognition and
+// recorded work hours remain separate business/attendance measurements.
+export function elapsedScheduleProgress(task, now = new Date()) {
+  if (task?.status === 'completed') return 100;
+  const [, startYear, startMonth, startDay] = String(task?.startDate || '').match(/^(\d{4})-(\d{2})-(\d{2})$/) || [];
+  const [, endYear, endMonth, endDay] = String(task?.endDate || '').match(/^(\d{4})-(\d{2})-(\d{2})$/) || [];
+  const start = startYear ? new Date(Number(startYear), Number(startMonth) - 1, Number(startDay)).getTime() : NaN;
+  const endExclusive = endYear ? new Date(Number(endYear), Number(endMonth) - 1, Number(endDay) + 1).getTime() : NaN;
+  if (!Number.isFinite(start) || !Number.isFinite(endExclusive) || endExclusive <= start) return 0;
+  return Math.max(0, Math.min(100, (now.getTime() - start) / (endExclusive - start) * 100));
+}
+
 export function isTaskOverdue(task, now = new Date()) {
-  if (Number(task?.deliveryRecognized) === 100) return false;
   if (!task?.endDate || task.status === 'completed') return false;
   const [, year, month, day] = String(task.endDate).match(/^(\d{4})-(\d{2})-(\d{2})$/) || [];
   if (!year) return false;

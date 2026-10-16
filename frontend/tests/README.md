@@ -49,3 +49,21 @@ choices, 16h versus 24h, the gap at 24/11/2026, progress over working days and n
 warning on ordinary dates. The fixture performs no backend writes. Backend
 tests in `assignment-calendar.test.js` cover API persistence and linked task
 progress; `hr-shifts.test.js` checks task selection on excluded days.
+
+## Delivery workflow and role views
+
+Open `/tests/delivery.html?shell` to inspect the compact Gantt workflow with the application shell, or `/tests/delivery.html` for the isolated page. The fixture covers task rows, detail drawer, legal/CR/month tabs, persistent bottom horizontal scrollbar, column presets and role-sensitive controls. It uses a mocked delivery API and does not write live project data.
+
+Open `/tests/delivery-roles.html` to compare employee, leader, manager/accounting and director views. Checks verify that employee/leader responses hide financial fields, “Chỉ việc của tôi” follows the linked employee, role preview is read-only and management controls only appear for permitted roles.
+
+## Executive dashboard
+
+Open `/tests/executive.html`. The fixture checks the six director KPIs, prioritized actions, six-month cash display, project rows and role-based financial masking. Its records are isolated examples and are not imported into `db.json`.
+
+## Operations pages
+
+Open `/tests/operations.html`. The fixture renders Giờ công, Tài chính, Phân quyền and Từ điển with mock operations data. Use it to check tabs, tables, approval flows, the permission picker and editable matrix notes without changing the active database.
+
+## Workforce planning
+
+Open `/tests/workforce-planning.html`. It checks six-month capacity/demand, position and employee views, recruitment stages, temporary plans and additional demand. The fixture does not create employees, tasks or recruitment records in the backend.

@@ -81,9 +81,9 @@ npm run dev
 - Menu ba chấm trên nhóm Gantt cho phép đổi tên hoặc xóa nhóm; khi xóa nhóm, các task con được giữ lại và bỏ liên kết nhóm.
 
 ### 4. Phân hệ Thống Kê & Báo Cáo Hiệu Suất (`/dashboard`)
-- Thống kê tỷ lệ hoàn thành dự án, công việc quá hạn/chậm trễ.
-- Bảng tổng hợp chi tiết: Tên dự án, công việc trong dự án, nhân viên đảm nhận, thời gian hoàn thành.
-- Bảng xếp hạng năng suất và giờ cống hiến của từng nhân sự.
+- Giao diện thay đổi theo vai trò. Nhân viên/Leader chỉ nhận phần vận hành được phép xem; tiền được loại khỏi phản hồi API. Quản lý chỉ xem tài chính của dự án mình quản lý; Giám đốc/Quản trị có sáu KPI điều hành, danh sách việc cần xử lý và số dư 6 tháng.
+- Báo cáo dự án dùng mỗi dự án một dòng, gồm % ghi nhận, chênh kế hoạch, hiệu suất giờ, hạn nộp gấp, lãi gộp và công nợ theo quyền.
+- Sản lượng tháng dùng snapshot đã khóa; lũy kế năm tài chính tính từ tháng 10 đến tháng 9 và chỉ cộng các kỳ đã chốt.
 
 ### 5. Phân hệ Theo Dõi Giờ & Công Việc (`workload`)
 - Xem phân bổ công việc theo ngày, tháng hoặc năm; admin có thể tìm nhân viên và xem giờ đã lên lịch, giờ trống hoặc phần vượt định mức.
@@ -97,7 +97,30 @@ npm run dev
 - Admin có thể tạo tài khoản user, chỉnh hồ sơ/ảnh và cấp lại mật khẩu. User không tự cấp quyền admin.
 - Admin có trang nhật ký thay đổi dữ liệu quan trọng như thêm/xóa nhân sự, công việc, tăng ca, dự án và cập nhật hạng mục tiến độ; hỗ trợ tìm kiếm, lọc theo loại dữ liệu/người dùng, phân trang và xuất CSV. Sự kiện chuyển trang, đăng nhập, hồ sơ và thao tác không trọng yếu không hiển thị trong danh sách này. Nhật ký dùng backend để chia sẻ giữa trình duyệt, tối đa 1.000 sự kiện gần nhất; backend tắt thì dùng bản cục bộ.
 - Tài khoản demo trên màn hình đăng nhập: `demo@aps.vn` / `APS@2026`.
-- **Giới hạn cần biết:** đăng nhập, vai trò và tài khoản hiện xử lý ở frontend, dữ liệu mật khẩu lưu trong `localStorage`; backend API chưa tự xác thực/ủy quyền. Đây là bản xem trước, không nên dùng làm lớp bảo vệ dữ liệu nhạy cảm hoặc công khai API trước khi bổ sung xác thực ở server.
+- Phiên đăng nhập giao diện cũ vẫn được dùng để vào ứng dụng. Riêng các API nghiệp vụ mới dưới `/api/delivery/*` dùng phiên phía server, mật khẩu băm `scrypt`, phiên mặc định 8 giờ (có thể cấu hình) và kiểm tra lại vai trò ở mỗi request. Dữ liệu tiền được lọc ở backend trước khi trả về.
+- **Giới hạn cần biết:** các API cũ ngoài `/api/delivery/*` chưa được đưa hết vào cùng cơ chế xác thực mới. Không công khai backend ra Internet hoặc dùng dữ liệu nhạy cảm thực tế trước khi hoàn tất xác thực/ủy quyền cho toàn bộ API.
+
+### 7. Giờ công (`timesheets`)
+- Nhân sự đã liên kết tài khoản khai giờ theo tuần và chỉ chọn các task đang được giao. Mỗi dòng luôn gắn với một task; không có dòng “việc chung”.
+- Có thể lưu nháp, chép tuần trước hoặc nộp duyệt. Dòng đã nộp, duyệt hay khóa chỉ sửa lại sau khi được trả về hoặc được duyệt mở khóa.
+- Luồng duyệt không cho tự duyệt: Leader duyệt nhân viên, Quản lý cấp trung duyệt Leader, Giám đốc duyệt Quản lý. Giờ OT chỉ được khai khi có phiếu OT đã duyệt.
+- Trang có đối chiếu giờ khai với dữ liệu chấm công nhập từ nguồn, kiểm tra bất thường, lịch sử mở khóa và bảng phân bổ giờ theo kỳ.
+
+### 8. Tài chính (`finance`)
+- Gồm các tab Ngân sách & chi phí, Đề nghị chi & tạm ứng, Hợp đồng & mốc thanh toán, Công nợ phải thu, Dòng tiền công ty, Sản lượng tháng và Chỉ tiêu & dữ liệu chuyển tiếp.
+- Ngân sách có phiên bản và đủ 9 nhóm; luồng QL lập → Kế toán trưởng xác nhận → Giám đốc duyệt. Chi phí thực tế và đã cam kết được so với ngưỡng cảnh báo đã cấu hình.
+- Đề nghị chi, tạm ứng và thuê ngoài đi qua luồng duyệt theo vai trò, hạn mức và ngân sách còn lại. Phiếu chi, hóa đơn điện tử và tiền về được nhập từ dữ liệu xuất của phần mềm kế toán; cùng `externalId` sẽ cập nhật bản ghi cũ thay vì cộng đôi.
+- Mốc thanh toán chỉ cho lập ĐNTT khi đạt điều kiện từ tiến độ. Công nợ, tuổi nợ và dự báo dòng tiền 6 tháng lấy từ các bản ghi đã liên kết; không tự tạo số tiền mẫu.
+
+### 9. Phân quyền (`permissions`)
+- Vai trò được gán theo từng dự án: Nhân viên, Leader, Quản lý cấp trung, Kế toán viên/HCNS, Kế toán trưởng và Giám đốc. Một tài khoản có thể mang vai trò khác nhau ở các dự án khác nhau.
+- Ma trận dùng các ký hiệu `X` (Xem), `L` (Lập/đề xuất), `S` (Sửa), `XN` (Xác nhận), `D` (Duyệt), `—` (Không truy cập). Khi sửa, bấm vào ô để chọn một hoặc nhiều quyền; cột Ghi chú cho phép nhập tối đa 1.000 ký tự cho từng dòng.
+- Chỉ Giám đốc/Quản trị được sửa ma trận, gán vai trò dự án và cấu hình tham số chung. Chế độ “Xem thử vai trò” chỉ thay đổi cách hiển thị và luôn ở trạng thái chỉ đọc.
+- Các tab còn lại quản lý hạn mức/ngưỡng cảnh báo, đơn giá chuẩn, mẫu dự án, danh mục thủ tục và nhật ký thay đổi trước/sau.
+
+### 10. Từ điển (`dictionary`)
+- Trình bày 63 chỉ tiêu và 12 quy tắc nghiệp vụ dùng chung cho tiến độ, giờ công, tài chính và nhân lực.
+- Có tìm kiếm/lọc để tra tên, ý nghĩa, công thức, nguồn dữ liệu và vai trò được xem. Các ví dụ trong từ điển chỉ minh họa cách tính, không ghi vào dữ liệu dự án.
 
 ---
 
@@ -167,7 +190,8 @@ Chi tiết luồng dữ liệu, tên trường lưu và vị trí mã nguồn đ
 - Bang Gantt co bo loc an/hien cot, cot ngay tao chi hien ngay thang nam, cac cot duoc can thang hang va co the thu hep vung bang de mo rong bieu do.
 - Cac cot Cong HD, Cong TT va Ghi chu duoc luu theo hang; Cong TT tong hop tu cac task con va khong tinh lap task cha.
 - Tong cong du kien tren trang chi tiet du an lay theo tong cong tren hang du an Gantt; so nguoi tham gia chi tinh nhan su dang duoc gan cho du an, khong tinh nguoi da xoa.
-- Co the tao task nhanh tu o STT. Task con nam long trong task cha, co the thu gon/mo rong; ten task con hien chu nghieng mau cam. Ngay va thanh Gantt tong cua task cha duoc tinh tu cac task la.
+- Co the tao task nhanh tu o STT. Task con nam long trong task cha, co the thu gon/mo rong; toan bo chu tren hang task con va nhan ben thanh Gantt hien mau cam dam. Ty trong task con duoc phan bo theo cong du kien va lam tron 0,1% sao cho tong hien thi bang ty trong task cha; hang cha luon hien tong nay.
+- Khi task cha dang mo, chi ve cac thanh Gantt cua task con; khi thu gon, cac thanh con duoc thay bang mot thanh tong cua task cha. Lien ket FS da gan voi task cha duoc chuyen diem hien thi sang task con dau/cuoi trong luc mo va tro lai thanh cha khi thu gon, khong doi du lieu lien ket.
 - Khi thu gon giai doan, thanh Gantt tong bao phu khoang ngay cua cac task con va tien do duoc ghep theo tung ngay; lien ket FS van tro toi thanh tong dang hien.
 - Menu ba cham cua muc cong viec co chuc nang tao muc moi ngay sau muc dang chon, giu nguyen du an/giai doan va cac hang con cua muc cu.
 - O ngay bat dau va ngay ket thuc trong form tao task/muc duoc chinh doc lap; so ngay cap nhat theo hai moc va form kiem tra khoang ngay truoc khi luu.
@@ -175,6 +199,7 @@ Chi tiết luồng dữ liệu, tên trường lưu và vị trí mã nguồn đ
 - Modal Gantt duoc portal truc tiep vao `document.body` de vi tri giua man hinh khong bi anh huong boi transform/cuon ngang cua `.app-shell`; body van duoc khoa cuon khi modal mo.
 - Cot Ghi chu cho phep sua tren task, giai doan va muc cong viec. Ghi chu cua hang giai doan/muc duoc luu tren Gantt item qua `updateGanttItem` va tai lai tu API.
 - Khi co task chen giua hai task cung cap co cung ngay bat dau/ket thuc, bieu do van hien lien ket truc tiep giua hai task ngoai, dong thoi giu cac lien ket FS tuan tu qua task chen giua.
+- Duong FS co the tao bang cach keo cham tron. Nhan chuot phai vao duong va chon Xoa lien ket se luu `suppressedDependencies` tren task dich de ca lien ket thu cong va lien ket tu sinh khong xuat hien lai; keo noi lai se bo trang thai an cua cap task do.
 - O trang Gantt, an thanh cuon doc cua trang khi Gantt dang mo de chi con mot thanh cuon doc ben trong bang/timeline; tu dong khoi phuc thanh cuon trang khi roi Gantt.
 - Trang thai tich/bo tich tung cot trong bo loc Gantt duoc luu vao `localStorage` va nap lai khi quay ve trang.
 - Phan cong Gantt cho phep cung mot nhan su co nhieu khoang dam nhan; backend doc/luu rieng tung lan theo thu tu. O Chinh thoi gian cong viec co them truong sua ten task va dong bo ten sang task lien ket.

@@ -281,6 +281,21 @@
   overflow:hidden;
   text-overflow:ellipsis
 }
+.delivery-row-title .delivery-child-task-title {
+  color:#b45309;
+  font-weight:650
+}
+.dark .delivery-row-title .delivery-child-task-title {
+  color:#fb923c
+}
+.delivery-row.child-task .delivery-cell,
+.delivery-row.child-task .delivery-cell * {
+  color:#b45309
+}
+.dark .delivery-row.child-task .delivery-cell,
+.dark .delivery-row.child-task .delivery-cell * {
+  color:#fb923c
+}
 .delivery-row button {
   flex-shrink:0
 }

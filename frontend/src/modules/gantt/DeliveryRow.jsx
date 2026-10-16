@@ -5,7 +5,7 @@ import { deliveryLabel, defaultDeliveryRecord, formatCompactMoney } from '../../
 import { GanttEditableWorkCell } from './GanttWorkColumns';
 
 export const DELIVERY_COLUMNS = [
-  { key: 'code', label: 'STT', width: 46 },
+  { key: 'code', label: 'STT', width: 64 },
   { key: 'title', label: 'Công việc trong dự án', width: 200, alignLeft: true },
   { key: 'people', label: 'Người làm', width: 96, alignLeft: true },
   { key: 'submission', label: 'Hạn nộp hồ sơ', width: 126, alignLeft: true },
@@ -14,15 +14,16 @@ export const DELIVERY_COLUMNS = [
   { key: 'endDate', label: 'KẾT THÚC', width: 95 },
   { key: 'days', label: 'NGÀY', width: 55 },
   { key: 'contractWork', label: 'CÔNG HĐ', width: 90 },
-  { key: 'actualWork', label: 'CÔNG TT', width: 80 },
+  { key: 'duration', label: 'CÔNG DT', width: 80 },
   { key: 'weight', label: 'TỶ TRỌNG', width: 80 },
+  { key: 'actualWork', label: 'CÔNG TT', width: 80 },
   { key: 'output', label: 'SẢN LƯỢNG', width: 100, financial: true },
   { key: 'createdAt', label: 'NGÀY TẠO', width: 95 },
   { key: 'note', label: 'GHI CHÚ', width: 180, alignLeft: true },
   { key: 'actions', label: 'THAO TÁC', width: 100 },
 ];
 export const COMPACT_KEYS = ['code', 'title', 'people', 'submission', 'status'];
-export const DATE_KEYS = [...COMPACT_KEYS, 'startDate', 'endDate', 'days', 'contractWork', 'actualWork'];
+export const DATE_KEYS = [...COMPACT_KEYS, 'startDate', 'endDate', 'days', 'contractWork', 'duration'];
 export const shortDateTime = value => value ? new Date(value).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : '—';
 const number = value => value == null ? '—' : Number(value).toLocaleString('vi-VN', { maximumFractionDigits: 1 });
 
@@ -47,21 +48,21 @@ export default function DeliveryRow({ item, columns, height, depth = 0, record, 
   record = record || defaultDeliveryRecord(item);
   const label = deliveryLabel(record);
   const alert = metric?.alert || {};
-  const rowClass = item.isProjectHeader ? 'project' : item.isGroup ? 'group' : record?.freeRework ? 'rework' : '';
+  const rowClass = item.isProjectHeader ? 'project' : item.isGroup ? 'group' : `${record?.freeRework ? 'rework ' : ''}${item.parentTaskId ? 'child-task' : ''}`.trim();
   return <div className={`delivery-row ${rowClass}`} style={{ height, borderLeftColor: color, '--delivery-row-accent': color || 'transparent', ...(item.isGroup && color ? { backgroundColor: `${color}14`, color } : {}) }} role="button" tabIndex={0} aria-label={`Xem chi tiết ${item.title}`} onClick={onOpen} onKeyDown={event => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); onOpen(); } }}>
     {columns.map(column => {
       let content;
       if (column.key === 'code') content = item.isProjectHeader ? '' : item.isGroup ? item.title.match(/^[A-Z]\d*/)?.[0] || item.code : item.code || '';
       if (column.key === 'code' && !item.isProjectHeader && !item.isGroup && !readOnly && onCreateTask) content = <div className={`delivery-task-code ${createMenu ? 'menu-open' : ''}`}><span>{content}</span><button ref={createButton} type="button" aria-label={`Tạo task tại ${item.code}`} aria-haspopup="menu" aria-expanded={Boolean(createMenu)} onClick={event => { event.stopPropagation(); const rect = event.currentTarget.getBoundingClientRect(); setCreateMenu(current => current ? null : { left: Math.max(8, Math.min(rect.left, window.innerWidth - 176)), top: Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - 96)) }); }}><Plus size={15} /></button>{createMenu && createPortal(<div ref={menuRef} role="menu" className="delivery-create-menu" style={{ left: createMenu.left, top: createMenu.top }} onClick={event => event.stopPropagation()}>{[[false, 'Tạo task'], [true, 'Tạo task con']].map(([child, label]) => <button type="button" role="menuitem" key={label} onClick={() => { setCreateMenu(null); onCreateTask(child); }}>{label}</button>)}</div>, document.body)}</div>;
-      if (column.key === 'title') content = <div className="delivery-row-title" style={{ paddingLeft: Math.min(32, depth * 10) }}>{group && <button type="button" onClick={event => { event.stopPropagation(); onToggle(); }} aria-label={`${collapsed ? 'Mở' : 'Thu'} ${item.title}`}>{collapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}</button>}<span title={item.title}>{item.title}</span></div>;
+      if (column.key === 'title') content = <div className="delivery-row-title" style={{ paddingLeft: Math.min(32, depth * 10) }}>{group && <button type="button" onClick={event => { event.stopPropagation(); onToggle(); }} aria-label={`${collapsed ? 'Mở' : 'Thu'} ${item.title}`}>{collapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}</button>}<span className={item.parentTaskId ? 'delivery-child-task-title' : undefined} title={item.title}>{item.title}</span></div>;
       if (column.key === 'people') content = !group && <div className="delivery-people">{people.map((assignment, index) => { const employee = employees.find(person => person.id === assignment.employeeId); const name = employee?.name || assignment.employeeName || 'Chưa gán'; return <span key={index} title={name}><i>{name.slice(0, 1)}</i>{name}</span>; })}{!people.length && !readOnly && <button onClick={event => { event.stopPropagation(); onAssign(); }} disabled={readOnly}>+ Giao cho</button>}</div>;
       if (column.key === 'submission') content = !group && <div className={`delivery-due ${alert.overdue ? 'overdue' : alert.soon ? 'soon' : ''}`}><b>{shortDateTime(record?.dueAt)}</b>{record?.sentAt ? <small className="sent">Đã gửi {shortDateTime(record.sentAt)}</small> : alert.overdue ? <small>Quá hạn {Math.ceil(-alert.hours / 24)} ngày</small> : alert.soon ? <small>Còn {Math.floor(alert.hours / 24)} ngày {Math.max(0, Math.floor(alert.hours % 24))} giờ</small> : null}</div>;
       if (column.key === 'status') content = group ? <strong className="delivery-group-percent">{aggregate == null ? '—' : `${number(aggregate)}%`}</strong> : <div className="delivery-status-cell"><span className={`delivery-status level-${record?.level || 0} ${record?.freeRework ? 'rework' : ''}`} title={`% ghi nhận: ${metric?.recognized ?? '—'}%`}>{record?.freeRework ? `Làm lại · ${record.changeId ? 'CR' : 'miễn phí'}` : `${record?.level ?? '—'}% · ${label}`}</span>{record?.level >= 60 && <Paperclip size={12} className={record.evidenceId ? 'has-proof' : 'missing-proof'} aria-label={record.evidenceId ? 'Có bằng chứng' : 'Thiếu bằng chứng'} />}{record?.level >= 60 && <small className={record.confirmedBy ? 'has-proof' : 'missing-proof'}>{record.confirmedBy ? '✓ XN' : '○ XN'}</small>}<button aria-label={`Thảo luận ${item.title}`} onClick={event => { event.stopPropagation(); onOpen('comments'); }}><MessageCircle size={13} /></button></div>;
       if (['startDate', 'endDate'].includes(column.key)) content = item[column.key]?.split('-').reverse().join('/') || '—';
       if (column.key === 'days') content = item.days ?? '—';
       if (column.key === 'duration') content = number(metric?.planned);
-      if (column.key === 'actualWork') content = number(metric?.actual);
-      if (column.key === 'weight') content = metric?.weight == null ? '—' : `${number(metric.weight * 100)}%`;
+      if (column.key === 'weight') content = metric?.displayWeightPercent != null ? `${number(metric.displayWeightPercent)}%` : metric?.weight == null ? '—' : `${number(metric.weight * 100)}%`;
+      if (column.key === 'actualWork') content = metric?.completedCount > 0 ? number(metric.completedActual) : '';
       if (column.key === 'output') content = formatCompactMoney(metric?.output);
       if (column.key === 'createdAt') content = item.createdAt ? new Date(item.createdAt).toLocaleDateString('vi-VN') : '—';
       if (column.key === 'note') content = item.isProjectHeader ? item.description || '—' : <div className="delivery-inline-note" onClick={event => event.stopPropagation()}>{readOnly ? item.ganttNote || '—' : <GanttEditableWorkCell item={item} field="ganttNote" onSave={onSaveWork} placeholder="Ghi chú..." />}</div>;

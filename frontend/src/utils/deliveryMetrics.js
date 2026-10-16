@@ -1,4 +1,4 @@
-import { calculateAssignmentHours, calculatePlannedPersonDays } from './ganttEffort.js';
+import { calculateAssignmentHours, calculatePlannedPersonDays, calculateUnassignedPlannedPersonDays } from './ganttEffort.js';
 import { datesInRange } from './assignmentCalendar.js';
 import { capacityWeight } from './workforceForecast.js';
 
@@ -10,7 +10,14 @@ export const DELIVERY_LABELS = {
 export const DELIVERY_ROLES = { employee: 'Nhân viên', leader: 'Leader', manager: 'Quản lý cấp trung', accountant: 'Kế toán viên / HCNS', chiefAccountant: 'Kế toán trưởng', director: 'Giám đốc', admin: 'Quản trị' };
 export const moneyAccess = role => ['manager', 'accountant', 'chiefAccountant', 'director', 'admin'].includes(role);
 export const managingRole = role => ['manager', 'director', 'admin'].includes(role);
-export const plannedDays = item => calculatePlannedPersonDays(item);
+export const plannedDays = item => {
+  const assignments = Array.isArray(item.assignees)
+    ? item.assignees.filter(assignment => assignment.employeeId || assignment.employeeName)
+    : [];
+  return assignments.length || item.assignee || item.employeeId || item.employeeName
+    ? calculatePlannedPersonDays(item)
+    : calculateUnassignedPlannedPersonDays(item);
+};
 export const formatMoney = value => value == null ? 'Chưa nhập' : `${Number(value).toLocaleString('vi-VN', { maximumFractionDigits: 1 })} đ`;
 export const formatCompactMoney = value => value == null ? '—' : Math.abs(value) >= 1e9 ? `${(value / 1e9).toLocaleString('vi-VN', { maximumFractionDigits: 2 })} tỷ` : `${(value / 1e6).toLocaleString('vi-VN', { maximumFractionDigits: 1 })} tr`;
 export const deliveryLabel = record => DELIVERY_LABELS[record.kind || 'design'][DELIVERY_LEVELS.indexOf(record.level || 0)] || 'Chưa bắt đầu';
@@ -67,16 +74,22 @@ export function computeDelivery(db, projectId, data = {}, now = new Date()) {
     const planned = record.freeRework || record.isChangeWork ? 0 : plannedDays(item);
     const entries = timesheets.filter(entry => entry.taskId === item.id && entry.status === 'approved');
     const actualHours = entries.reduce((sum, entry) => sum + Number(entry.hours), 0);
+    const trackedCompletionHours = Math.max(0, Number(item.actualWorkHours) || 0);
+    const completedActualHours = item.status === 'completed'
+      ? (trackedCompletionHours > 0 ? trackedCompletionHours : actualHours)
+      : null;
+    const completedActual = completedActualHours == null ? null : completedActualHours / 8;
     if (!data.records?.[item.id] && record.level === 0 && actualHours > 0) record.level = 20;
     const recognized = recognizedLevel(record);
     const earned = planned * recognized / 100;
     const weight = record.freeRework ? 0 : Number.isFinite(Number(data.lockedWeights?.[item.id])) && data.lockedWeights?.[item.id] != null ? Number(data.lockedWeights[item.id]) : data.settings?.contractLocked ? 0 : totalPlanned ? planned / totalPlanned : 0;
     const output = data.settings?.contractFee == null ? null : Number(data.settings.contractFee) * weight * recognized / 100;
     const laborCost = entries.every(entry => rateForEntry(entry) != null) ? entries.reduce((sum, entry) => sum + entry.hours * rateForEntry(entry), 0) : null;
-    return [item.id, { planned, actual: actualHours / 8, actualHours, recognized, earned, weight, output, laborCost, alert: submissionAlert(record, now), assignments: (item.assignees || []).map(assignment => ({ ...assignment, plannedHours: calculateAssignmentHours(item, assignment) })) }];
+    return [item.id, { planned, actual: actualHours / 8, actualHours, completedActual, completedActualHours, completedCount: item.status === 'completed' ? 1 : 0, recognized, earned, weight, output, laborCost, alert: submissionAlert(record, now), assignments: (item.assignees || []).map(assignment => ({ ...assignment, plannedHours: calculateAssignmentHours(item, assignment) })) }];
   }));
   const totalEarned = Object.values(taskMetrics).reduce((sum, item) => sum + item.earned, 0);
   const totalActual = Object.values(taskMetrics).reduce((sum, item) => sum + item.actual, 0);
+  const totalCompletedActual = Object.values(taskMetrics).reduce((sum, item) => sum + (item.completedActual ?? 0), 0);
   const usefulActual = items.filter(item => !records[item.id].freeRework).reduce((sum, item) => sum + taskMetrics[item.id].actual, 0);
   const project = (db.projects || []).find(item => item.id === projectId);
   const projectDays = datesInRange(project?.startDate, project?.endDate);
@@ -108,5 +121,5 @@ export function computeDelivery(db, projectId, data = {}, now = new Date()) {
   });
   const eligiblePayment = milestones.filter(entry => entry.met && !entry.requestedAt).reduce((sum, entry) => sum + Number(entry.amount), 0);
   const warnings = Object.values(taskMetrics).filter(item => item.alert.warning).length;
-  return { records, taskMetrics, timesheets, milestones, summary: { progressThisMonth, totalPlanned, totalEarned, totalActual, completion, planPercent, deviation: completion - planPercent, efficiency: totalActual ? totalEarned / totalActual : null, efficiencyWithoutRework: usefulActual ? totalEarned / usefulActual : null, warnings, soon: Object.values(taskMetrics).filter(item => item.alert.soon).length, overdue: Object.values(taskMetrics).filter(item => item.alert.overdue).length, stuck: Object.values(taskMetrics).filter(item => item.alert.stuck).length, output, monthlyOutput, laborCost, expenseCost, cost: laborCost == null ? null : laborCost + expenseCost, collected, eligiblePayment } };
+  return { records, taskMetrics, timesheets, milestones, summary: { progressThisMonth, totalPlanned, totalEarned, totalActual, totalCompletedActual, completion, planPercent, deviation: completion - planPercent, efficiency: totalActual ? totalEarned / totalActual : null, efficiencyWithoutRework: usefulActual ? totalEarned / usefulActual : null, warnings, soon: Object.values(taskMetrics).filter(item => item.alert.soon).length, overdue: Object.values(taskMetrics).filter(item => item.alert.overdue).length, stuck: Object.values(taskMetrics).filter(item => item.alert.stuck).length, output, monthlyOutput, laborCost, expenseCost, cost: laborCost == null ? null : laborCost + expenseCost, collected, eligiblePayment } };
 }

@@ -50,11 +50,13 @@
 
 - Bảng phòng ban có thẻ nhóm, biểu tượng, số nhân sự, nhãn task/OT/công và hàng nhân sự phân cấp; giữ nguyên phép tổng hợp và thao tác mở/đóng. Biểu đồ **Task lớn theo hạng mục** lấy tên giai đoạn hiện tại qua `utils/ganttPhase.js`, đi theo ID Gantt và chuỗi nhóm cha (kể cả task con), không dùng `task.phase` cũ nếu đã xác định được nhóm Gantt. Đổi tên giai đoạn hoặc tạo nhóm/task mới tự phản ánh khi state cập nhật. `utils/ganttHierarchy.js` là hàm phân cấp dùng chung với Gantt, giữ hỗ trợ WBS cũ và giới hạn trong đúng dự án.
 
-- Bảng **Nhân sự & giờ công** dùng `ProjectDepartmentList.jsx` để nhóm theo trường `team` hiện tại của nhân sự, có nút mở/đóng từng phòng ban. Dòng phòng ban hiển thị số task duy nhất và tổng Công TT của các thành viên; dòng nhân sự hiển thị số task duy nhất, giờ OT đã duyệt và Công TT (= giờ phân công Gantt ÷ 8). Task giao cho nhiều người cùng phòng chỉ tính một lần trong tổng task của phòng, nhưng công của từng phân công vẫn được cộng đủ. Nhân sự chưa có `team` nằm trong nhóm **Chưa có phòng ban**. Thêm task, đổi phòng ban hoặc xóa nhân sự tự tính lại từ dữ liệu hiện có.
+- Bảng **Nhân sự & giờ công** dùng `ProjectDepartmentList.jsx` để nhóm theo trường `team` hiện tại của nhân sự, có nút mở/đóng từng phòng ban. Dòng phòng ban hiển thị số task duy nhất và tổng công phân công của các thành viên; dòng nhân sự hiển thị số task duy nhất, giờ OT đã duyệt và công phân công (= giờ phân công Gantt ÷ 8). Đây là chỉ số phân công nhân sự riêng, không phải cột **Công TT** của bảng tiến độ. Task giao cho nhiều người cùng phòng chỉ tính một lần trong tổng task của phòng, nhưng công của từng phân công vẫn được cộng đủ. Nhân sự chưa có `team` nằm trong nhóm **Chưa có phòng ban**. Thêm task, đổi phòng ban hoặc xóa nhân sự tự tính lại từ dữ liệu hiện có.
 
-- `utils/ganttEffort.js` chứa công thức Công TT dùng chung; `GanttWorkColumns.jsx` giữ nguyên cách tính và xuất lại hàm để các nơi gọi cũ tiếp tục hoạt động.
+- `utils/ganttEffort.js` chứa công thức công phân công dùng chung cho bảng nhân sự; `GanttWorkColumns.jsx` giữ nguyên cách tính và xuất lại hàm để các nơi gọi cũ tiếp tục hoạt động.
 - `utils/projectGanttSummary.js` tổng hợp từ các hàng task lá của đúng dự án trên Gantt, gồm cả hàng chưa có task trong danh sách Phân công. Nhóm, ngày nghỉ và task cha có task con không được cộng trùng. Nhân sự hiện có được đếm theo ID duy nhất; một người có nhiều khoảng phân công vẫn được cộng đủ giờ. ID đã xóa không được ghép sang người mới trùng tên; danh sách phân công trống không khôi phục tên cũ từ task.
-- Ở khung **Chi tiết dự án**, ô **Công thực tế**, giờ công từng người và nội dung sao chép báo cáo lấy theo phân công/cột **Công TT** của Gantt (ngày × giờ/ngày, 8 giờ/công). OT đã duyệt hiển thị riêng, không cộng hai lần từ phiếu OT và dữ liệu tổng hợp trên Gantt. Các chỉ số phiên làm thực tế và công khi kết thúc vẫn dùng dữ liệu ghi giờ hiện có.
+- Ở bảng tiến độ, cột **Công TT** nằm giữa **Tỷ trọng** và **Sản lượng**. Task chưa hoàn thành để trống; task đã hoàn thành hiển thị `actualWorkHours ÷ 8`. Dòng task cha, nhóm và dự án cộng Công TT của các task con đã hoàn thành. OT đã duyệt và các chỉ số giờ theo bảng công vẫn giữ nguồn dữ liệu riêng để không cộng trùng.
+- Task đã hoàn thành khóa thay đổi danh sách người đảm nhận và không cho tạo task con. `GanttPage.jsx` chặn thao tác và cảnh báo ngay trên giao diện; `projectController.js` kiểm tra lại `status` của cả Gantt item lẫn task liên kết trước khi cập nhật phân công hoặc tạo task con, nên dữ liệu cũ và mọi yêu cầu API sau này dùng cùng quy tắc.
+- `DeliveryDrawer.jsx` đối chiếu mức trạng thái nhập tay với trạng thái tiến độ: task đã hoàn thành (sớm, đúng hạn hoặc muộn) chỉ nhận mức 40–100% và cảnh báo ngay nếu chọn 0%/20%; task quá hạn nhưng chưa hoàn thành nhận đủ sáu mức. `deliveryController.js` dùng lại `isTaskOverdue` và kiểm tra cả task liên kết để cưỡng chế cùng quy tắc ở API.
 - Số liệu được tính lại từ state khi cập nhật phân công, thêm task/task con hoặc xóa nhân sự; không gắn với một dự án hay task cố định. Kiểm thử hồi quy nằm ở `backend/tests/project-gantt-summary.test.js`, chạy cùng `npm.cmd test` trong backend.
 
 ## Cập nhật ngày 08/10/2026
@@ -65,7 +67,7 @@
 
 - `LoginPage.jsx`: hai nhãn trên trang đăng nhập đổi thành **QUẢN LÝ VĂN PHÒNG** và **VĂN PHÒNG ĐANG HOẠT ĐỘNG**.
 - `DashboardPage.jsx`: ô **Tổng thời gian dự án** thay ô **Công dự kiến**, dùng `inclusiveDays(startDate, endDate)` như cột Ngày của dự án trên Gantt, tính cả hai ngày đầu/cuối. Ví dụ 26/10/2026–07/06/2027 là **225 ngày**; dưới ô hiển thị hai mốc ngày, thiếu mốc ngày thì hiển thị dấu gạch.
-- Ô **Công thực tế theo tiến độ** cộng giá trị **CÔNG TT** của các task thuộc dự án bằng `calculatePlannedPersonDays` đang dùng ở `GanttWorkColumns.jsx`. Bỏ nhóm, ngày nghỉ và task cha có task con để không cộng trùng. Cột Gantt hiện tính theo các khoảng phân công × giờ/ngày ÷ 8; lần chỉnh này giữ nguyên công thức đó. Các chỉ số giờ đã làm, công khi kết thúc, tiến độ và nghiệp vụ ca làm giữ cách tính hiện có.
+- Ô **Công TT theo tiến độ** cộng `actualWorkHours ÷ 8` của các task đã hoàn thành. Task chưa hoàn thành không sinh Công TT; dòng cha và nhóm chỉ tổng hợp các task con để không cộng trùng. Công DT vẫn tính theo khoảng phân công × giờ/ngày ÷ 8 và tiếp tục là nguồn của tỷ trọng.
 - Xóa nhân sự đồng bộ phân công Task/Gantt qua `employeeAssignments.js` và `models/db.js`; tải lại dữ liệu chung sau khi xóa trong `AppContext.jsx`. Tham chiếu nhân sự đã mất trong dữ liệu cũ được dọn ở lần đọc tiếp theo, giữ task và người cùng đảm nhận. Chi tiết dữ liệu đang chạy nằm trong `DATA_STORAGE.md`.
 - Ca chuẩn/OT có kiểm tra mốc giờ Việt Nam, dừng/tiếp tục ghi giờ khi nghỉ, đồng bộ phiên task với Gantt và tự kết thúc ca theo giờ được phép. Bộ kiểm thử backend hiện bao gồm các tình huống ca làm và dọn phân công khi xóa nhân sự.
 - Dữ liệu đang chạy mặc định ở `%LOCALAPPDATA%\APS Project Manager\db.json` hoặc đường dẫn `APS_DB_PATH`, thay cho vị trí trong checkout được mô tả ở các mục cũ bên dưới. `backend/data/db.json` chỉ là nguồn chuyển dữ liệu lần đầu; `seed.json` dùng để khởi tạo khi cần. Xem `DATA_STORAGE.md` để sao lưu và xử lý file Git đang theo dõi.
@@ -330,7 +332,8 @@ flowchart TD
 
 ### Phan cap task va muc
 - Tao task nhanh tu o STT co hai luong: tao task cung cap sau task hien tai va tao task con trong task cha.
-- `parentTaskId` la lien ket cha-con duoc luu tren Gantt item va task lien ket. Task con hien nghieng mau cam, co the thu gon/mo rong; thanh tong va ngay cua task cha theo ngay som nhat/ngay muon nhat cua cac task la.
+- `parentTaskId` la lien ket cha-con duoc luu tren Gantt item va task lien ket. Toan bo chu cua hang task con va nhan tren Gantt dung mau cam dam. Ty trong van lay tu cong du kien cua cac task la; `GanttPage.jsx` cong nguoc len task cha va phan bo so hien thi theo 0,1% de tong cac task con bang dung so hien thi cua task cha.
+- Khi task cha mo, thanh Gantt cha khong duoc ve va cac thanh con hien theo tung hang. Khi thu gon, thanh tong cha dung ngay som nhat/ngay muon nhat cua task la. `dependencyLines` chuyen dau vao cua lien ket cha sang task con dau tien va dau ra sang task con cuoi cung khi dang mo; khi thu gon, cung lien ket tro ve thanh cha ma khong sua `dependencies`.
 - Menu ba cham cua nhom cho phep tao muc cung cap sau muc dang chon. Backend chen muc sau toan bo cac hang con cua muc neo de khong tach cac task hien co.
 - Quy tac hien thi WBS va tong hop cong lien quan nam trong `GanttPage.jsx`, `GanttWorkColumns.jsx`; thao tac tao/cap nhat/dong bo du lieu nam trong `backend/src/controllers/projectController.js`.
 
@@ -340,6 +343,7 @@ flowchart TD
 - Modal duoc portal vao `document.body` de fixed overlay khong bi transform hoac vung cuon cua `.app-shell` lam lech vi tri.
 - Cot Ghi chu co the sua cho task, giai doan va muc cong viec; frontend dung `GanttEditableWorkCell`, backend luu `ganttNote` tren group item trong `updateGanttItem`.
 - Trong `dependencyLines`, neu task trung gian nam trong khoang ngay chung cua hai task cung cap va hai task ngoai co cung ngay bat dau/ket thuc, them lien ket truc tiep giua hai task ngoai ben canh cac lien ket FS tuan tu.
+- Nguoi co quyen quan ly co the keo cham tron de them lien ket FS va nhan chuot phai tren duong de xoa. Backend luu cap da xoa trong `suppressedDependencies` cua task dich, loai cap do khoi `dependencies`/`manualDependencies`, va bo an neu nguoi dung keo noi lai cung cap task.
 - `GanttPage.jsx` them class tam thoi vao `documentElement` de an cuon doc cap trang trong thoi gian trang Gantt mount; vung timeline tiep tuc quan ly cuon doc/ngang va class duoc go khi roi trang.
 - Bo loc cot Gantt nap va luu trang thai theo key `aps_gantt_visible_columns` trong `localStorage`, chi chap nhan gia tri boolean cho cac cot hien co va mac dinh hien cot moi neu chua co gia tri.
 - Danh sach assignees cho phep lap lai `employeeId`; frontend, `projectController.getGanttItems` va `taskController.getTasks` ghep tung lan theo thu tu, khong gop theo nhan su. Khi tinh Cong TT, moi assignment dong gop so ngay trong khoang nhan voi `estimatedHoursPerDay / 8`.
@@ -378,3 +382,43 @@ Monthly production uses locked snapshots when available, fiscal cumulative produ
 CR rows preserve existing IDs and links and add scope, department, estimated hours, a director decision and appendix reference. Actual hours derive from approved timesheets of the linked rework task. Rework assignments keep their planned schedule but contribute zero baseline production effort; actual hours still count toward costs and efficiency. Only the director/admin can change the fee decision. Existing proposal, review and rework linking endpoints remain compatible.
 
 `/api/delivery/reporting` aggregates the company report (manager: only projects whose manager matches their account/linked employee; accountant/director/admin: all projects). `deliveryResources.js` shares October–September periods and month snapshots between server and UI. Review stores a project snapshot; director approval checks revisions and verifies that production/fee/efficiency still match the reviewed snapshot. The batch writes once, so a failed project does not partly lock the company. Closed snapshots remain immutable when current progress or fees change. Reopening is director-only, requires a reason, and records an audit event. Historical close records remain readable. Annual plans live in `delivery.fiscalPlans`, with revision checks, accountant drafting and director approval. Only closed months count toward locked fiscal KPIs; draft figures are marked separately. Tests use isolated databases and mock browser fixtures, never the user's live data.
+
+## 9. Các trang vận hành mới và đường đi dữ liệu
+
+`App.jsx` lazy-load bốn trang từ `frontend/src/modules/operations`: `TimesheetsPage`, `FinancePage`, `PermissionsPage`, `DictionaryPage`. `placeholderPages.js` hiện chỉ còn là metadata điều hướng dùng chung; nội dung các trang không còn là placeholder.
+
+`OperationsCommon.jsx` cung cấp khung trang, chọn dự án/kỳ, chế độ xem vai trò, modal, table/KPI và hook `useOperations`. Hook gọi `GET /api/delivery/operations`; mọi thao tác ghi đi qua `PATCH /api/delivery/operations` với một `action`. `operationsController.js` xác thực phiên delivery, giải quyết vai trò công ty/dự án, kiểm tra ma trận và validate toàn bộ payload trước khi gọi `writeDb()`.
+
+Luồng chính:
+
+```text
+Trang vận hành
+  -> useOperations.mutate(action, value, id, projectId)
+  -> PATCH /api/delivery/operations
+  -> requireDeliveryUser
+  -> projectActor + matrixAllows + validate
+  -> cập nhật db.operations và/hoặc delivery.projects[projectId]
+  -> tăng revision + ghi audit
+  -> operationsReport lọc dữ liệu theo vai trò
+  -> frontend tải lại bảng/KPI
+```
+
+Các báo cáo dùng chung nguồn thay vì chép số tổng: Gantt tạo cấu trúc và phân công; giờ timesheet đã duyệt tạo chi phí giờ; task đã hoàn thành tạo Công TT theo tiến độ; tiến độ được ghi nhận tạo sản lượng; ngân sách/đề nghị tạo cam kết; dữ liệu kế toán tạo hóa đơn, tiền về và chi thật; Dashboard chỉ tổng hợp lại các nguồn này.
+
+### Ma trận phân quyền
+
+`PermissionsPage.jsx` giữ bản nháp cục bộ khi bấm **Sửa ma trận**. Mỗi ô mở permission picker và ghép quyền theo thứ tự `X/L/S/XN/D`; ghi chú là textarea độc lập. Chỉ nút **Lưu ma trận** mới gọi action `matrix`. Backend dựng lại từ danh sách `DEFAULT_MATRIX`, giới hạn độ dài ô quyền và ghi chú, nhờ đó client không thể tự thêm một chức năng ma trận ngoài danh mục.
+
+Vai trò hiển thị lấy từ `viewer.role`; chức danh nhân sự không được dùng để cấp quyền. Với các trang Operations, server chạy lại `operationsReport` theo tài khoản được chọn và trả `readOnly`; hook cũng chặn mutation khi đang xem thử. Gantt dùng bộ lọc/mask dùng chung để mô phỏng vai trò ở client, nhưng quyền ghi thật vẫn được kiểm tra bằng phiên đăng nhập ở server.
+
+### Cuộn, cột và kiểu chữ
+
+- Gantt compact dùng một thanh cuộn ngang cố định ở đáy viewport, đồng bộ một chiều từ thân bảng sang header và hai chiều với thanh đáy có cờ bỏ qua sự kiện mirror. Không thêm listener đối xứng header → body vì dễ gây giật/lệch khi kéo.
+- Vùng cột trái chỉ sticky khi viewport đủ rộng; khi không đủ rộng chuyển thành relative để người dùng kéo ngang đến các cột mở thêm. Header cột, tháng và thân biểu đồ dùng chung kích thước cột.
+- Bảng compact mặc định ưu tiên năm cột công việc: STT, Công việc trong dự án, Người làm, Hạn nộp hồ sơ, Trạng thái (mức %). Preset “+ Ngày & công” và “Toàn bảng” mở thêm dữ liệu; trạng thái cột được giữ theo cấu hình trang.
+- Ghi chú task sửa trực tiếp ở `DeliveryRow`; ghi chú nhóm/giai đoạn sửa trong `DeliveryDrawer` rồi lưu qua `updateGanttItem(ganttNote)`. Cột Ghi chú của ma trận phân quyền là dữ liệu khác và lưu trong `db.operations.matrix`.
+- Toàn bộ giao diện dùng Be Vietnam Pro và token trong `frontend/src/styles/typography.css`; không đặt font riêng cho từng trang vận hành.
+
+## 10. Ranh giới xác thực hiện tại
+
+Các route `/api/delivery/*` gồm tiến độ nâng cấp, dashboard điều hành, báo cáo, vận hành và dự báo liên quan đã dùng `requireDeliveryUser` và kiểm tra quyền server. API cũ cho HR/task/project/stats vẫn tồn tại để tương thích và chưa được chuyển toàn bộ sang cùng lớp xác thực. Khi triển khai ngoài mạng nội bộ cần hoàn thành lớp bảo vệ cho các API cũ, không dựa riêng vào việc ẩn nút ở frontend.
