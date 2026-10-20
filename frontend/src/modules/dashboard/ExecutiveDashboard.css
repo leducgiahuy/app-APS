@@ -44,6 +44,7 @@
 .executive-projects table { width:100%; border-collapse:collapse; min-width:1000px; font-size:var(--text-small); }
 .executive-projects th { color:#85817c; font-size:var(--text-micro); font-weight:600; text-align:left; padding:10px 8px; white-space:nowrap; }
 .executive-projects td { padding:9px 8px; border-top:1px solid var(--exec-border); font-variant-numeric:tabular-nums; }
+.executive-projects th:nth-child(3),.executive-projects th:nth-child(4),
 .executive-projects td:nth-child(3),.executive-projects td:nth-child(4) { text-align:center; }
 .executive-projects td:nth-child(5)>button { display:block; text-align:left; margin:2px 0; }
 .executive-project-name { font-weight:700; text-align:left; min-width:160px; max-width:250px; }

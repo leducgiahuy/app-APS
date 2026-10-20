@@ -24,7 +24,7 @@ export default function DeliveryChartOverlay({ data, financial, items, coordinat
         return <g key={item.id} pointerEvents="none"><rect x={start} y={rowOffsets[index] + 13} width={end - start} height="4" rx="2" fill="#e6e2dc" /><rect x={start} y={rowOffsets[index] + 13} width={(end - start) * (groupPercent(item) || 0) / 100} height="4" rx="2" fill="#948f87" /></g>;
       }
       if (!record?.dueAt || !coord) return null;
-      const pos = x(record.dueAt); if (!Number.isFinite(pos) || pos < 0 || pos > width) return null;
+      const pos = Math.max(5, Math.min(width - 5, coord.endX - 4));
       return <path key={item.id} d={`M${pos} ${coord.centerY - 5} l5 5 l-5 5 l-5 -5 Z`} fill="white" stroke={data.taskMetrics[item.id]?.alert.overdue ? '#c34d53' : '#829089'} strokeWidth="1.2"><title>Hạn nộp {new Date(record.dueAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}</title></path>;
     })}
     {todayX >= 0 && todayX <= width && <g pointerEvents="none"><rect x={todayX} width={pxPerDay} height={height} fill="#eab308" opacity=".12" /><line x1={todayX + pxPerDay / 2} x2={todayX + pxPerDay / 2} y1="0" y2={height} stroke="#d69a20" strokeWidth="1" /></g>}

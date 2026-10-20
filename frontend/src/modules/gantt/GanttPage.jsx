@@ -49,6 +49,10 @@ const hasStoredAssignmentState = task => Boolean(task && (
   Object.hasOwn(task, 'employeeName')
 ));
 
+const DEPENDENCY_HANDLE_OFFSET = 6;
+const DEPENDENCY_ARROW_TARGET_OFFSET = 16;
+const dependencyHandleX = coord => Math.max(DEPENDENCY_HANDLE_OFFSET, coord.x - DEPENDENCY_HANDLE_OFFSET);
+
 const orderByDependencies = items => {
   const itemIds = new Set(items.map(item => item.id));
   const itemById = new Map(items.map(item => [item.id, item]));
@@ -860,7 +864,7 @@ export default function GanttPage() {
     return [...edges.values()].map(({ key, from, to, sourceId, targetId, dependencySourceId, dependencyTargetId }) => {
       const startX = from.x + 6;
       const startY = from.centerY;
-      const endX = Math.max(to.x - 10, 0);
+      const endX = Math.max(to.x - DEPENDENCY_ARROW_TARGET_OFFSET, 0);
       const endY = to.centerY;
       const laneX = Math.min(startX, endX) - 32;
       const bendY = startY + (endY - startY) * 0.45;
@@ -933,7 +937,8 @@ export default function GanttPage() {
     event.preventDefault();
     event.stopPropagation();
     event.currentTarget.setPointerCapture?.(event.pointerId);
-    setDependencyDrag({ sourceId: item.id, startX: coord.endX - 4, startY: coord.centerY, pointerX: coord.endX - 4, pointerY: coord.centerY, targetId: null });
+    const handleX = dependencyHandleX(coord);
+    setDependencyDrag({ sourceId: item.id, startX: handleX, startY: coord.centerY, pointerX: handleX, pointerY: coord.centerY, targetId: null });
   };
   const moveDependencyDrag = event => {
     if (!dependencyDrag) return;
@@ -957,7 +962,7 @@ export default function GanttPage() {
   };
   const dependencyPreviewPath = dependencyDrag ? (() => {
     const targetCoord = dependencyDrag.targetId ? taskCoordinates[dependencyDrag.targetId] : null;
-    const endX = targetCoord ? Math.max(targetCoord.x - 10, 0) : dependencyDrag.pointerX;
+    const endX = targetCoord ? Math.max(targetCoord.x - DEPENDENCY_ARROW_TARGET_OFFSET, 0) : dependencyDrag.pointerX;
     const endY = targetCoord ? targetCoord.centerY : dependencyDrag.pointerY;
     const laneX = endX >= dependencyDrag.startX
       ? dependencyDrag.startX + Math.max(18, (endX - dependencyDrag.startX) * 0.5)
@@ -2143,8 +2148,7 @@ export default function GanttPage() {
                           onPointerDown={event => startDependencyDrag(item, coord, event)}
                           onClick={event => { event.preventDefault(); event.stopPropagation(); }}
                         >
-                          <circle cx={coord.endX - 4} cy={coord.centerY} r="10" fill="transparent" />
-                          <circle cx={coord.endX - 4} cy={coord.centerY} r="4.5" fill="#ffffff" stroke="#861b36" strokeWidth="2" className="dark:fill-slate-900 dark:stroke-rose-300" />
+                          <circle cx={dependencyHandleX(coord)} cy={coord.centerY} r="10" fill="transparent" />
                           <title>Kéo chấm này và thả vào task cần nối phía sau</title>
                         </g>
                       )}
@@ -2258,6 +2262,24 @@ export default function GanttPage() {
                     />;
                   })}
                 </g>
+                {canManageStructure && !previewing && (
+                  <g pointerEvents="none" aria-hidden="true">
+                    {filteredGanttItems.map(item => {
+                      const coord = taskCoordinates[item.id];
+                      if (!coord || item.isProjectHeader || item.isGroup || item.status === 'holiday' || coord.isTaskAggregate) return null;
+                      return <circle
+                        key={`dependency-handle-${item.id}`}
+                        cx={dependencyHandleX(coord)}
+                        cy={coord.centerY}
+                        r="4.5"
+                        fill="#ffffff"
+                        stroke="#861b36"
+                        strokeWidth="2"
+                        className="dark:fill-slate-900 dark:stroke-rose-300"
+                      />;
+                    })}
+                  </g>
+                )}
               </svg>
 
             </div>

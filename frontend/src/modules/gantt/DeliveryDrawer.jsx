@@ -6,6 +6,7 @@ import { DELIVERY_LEVELS, DELIVERY_LABELS, deliveryLabel, formatMoney, formatCom
 import { isTaskOverdue } from '../../utils/date';
 import { shortDateTime } from './DeliveryRow';
 import { deliveryApi } from './deliveryApi';
+import { useApp } from '../../context/AppContext';
 
 const number = value => Number(value || 0).toLocaleString('vi-VN', { maximumFractionDigits: 1 });
 const inputTime = value => value ? new Date(Date.parse(value) + 7 * 3600000).toISOString().slice(0, 16) : '';
@@ -13,6 +14,7 @@ const isoTime = value => value ? `${value}:00+07:00` : '';
 const evidenceNames = { handover: 'Email / biên bản giao', receipt: 'Biên nhận / mã hồ sơ', feedback: 'Văn bản góp ý / bổ sung', approval: 'Văn bản / email chấp thuận', other: 'Khác' };
 
 export default function DeliveryDrawer({ item, data, projectId, delivery, employees, onClose, onEdit, onAssign, onDelete, onAddSibling, onAddChild, onAddGroup, onSaveNote, readOnly, initialSection, scrollbarWidth = 0 }) {
+  const { showToast } = useApp();
   const record = data?.records?.[item.id];
   const metric = data?.taskMetrics?.[item.id];
   const [draft, setDraft] = useState(record || {});
@@ -36,11 +38,27 @@ export default function DeliveryDrawer({ item, data, projectId, delivery, employ
   const overdueTask = !completedTask && isTaskOverdue(item);
   const changeLevel = event => {
     const level = Number(event.target.value);
+    const label = DELIVERY_LABELS[draft.kind || 'design'][DELIVERY_LEVELS.indexOf(level)];
+    const approvedHours = Number(metric?.actualHours) || 0;
     if (completedTask && level < 40) {
       window.alert('Task đã hoàn thành nên chỉ có thể chọn mức trạng thái từ 40% trở lên. Không thể chọn 0% hoặc 20%.');
       return;
     }
+    if (!overdueTask && level === 20 && approvedHours <= 0) {
+      window.alert('Chưa thể chọn 20% · Đang làm vì task chưa có giờ công được duyệt. Nguyên nhân thường là task chưa giao người, chưa tới ngày làm hoặc phiếu giờ chưa được duyệt.');
+      return;
+    }
+    if (!overdueTask && level === 0 && approvedHours > 0) {
+      window.alert(`Chưa thể chọn 0% · ${label} vì task đã có ${approvedHours.toLocaleString('vi-VN', { maximumFractionDigits: 1 })} giờ công được duyệt.`);
+      return;
+    }
     setDraft(previous => ({ ...previous, level }));
+  };
+  const saveTaskInformation = async () => {
+    const level = Number(draft.level ?? 0);
+    const label = DELIVERY_LABELS[draft.kind || 'design'][DELIVERY_LEVELS.indexOf(level)];
+    await delivery.mutate('task', draft, item.id);
+    showToast(`Đã cập nhật thông tin task · ${level}% · ${label}`);
   };
   const run = async action => { try { setError(''); await action(); } catch (error) { setError(error.message); } };
   useEffect(() => { const previousFocus = document.activeElement; closeRef.current?.focus(); const escape = event => { if (event.key === 'Escape' && !event.isComposing && event.keyCode !== 229) onClose(); }; document.addEventListener('keydown', escape); if (initialSection === 'comments') panelRef.current?.querySelector('#delivery-comments')?.scrollIntoView({ block: 'center' }); return () => { document.removeEventListener('keydown', escape); if (previousFocus?.isConnected) previousFocus.focus({ preventScroll: true }); }; }, []);
@@ -51,7 +69,7 @@ export default function DeliveryDrawer({ item, data, projectId, delivery, employ
       </section>
       {group && !item.isProjectHeader && <section><h3>Ghi chú</h3><textarea rows="4" value={groupNote} onChange={event => setGroupNote(event.target.value)} disabled={readOnly || !canManage} />{canManage && <button disabled={disabled} onClick={() => run(() => onSaveNote(groupNote))}>Lưu ghi chú</button>}</section>}
       {item.isProjectHeader && item.description && <section><h3>Mô tả dự án</h3><p style={{ whiteSpace: 'pre-wrap' }}>{item.description}</p></section>}
-      {!group && record && <form onSubmit={event => { event.preventDefault(); run(() => delivery.mutate('task', draft, item.id)); }}><section><h3>Cập nhật trạng thái & giao hồ sơ</h3>
+      {!group && record && <form onSubmit={event => { event.preventDefault(); run(saveTaskInformation); }}><section><h3>Cập nhật trạng thái & giao hồ sơ</h3>
         <label>Loại việc<select disabled={!canEdit || !canManage} value={draft.kind || 'design'} onChange={event => setDraft({ ...draft, kind: event.target.value })}><option value="design">Thiết kế</option><option value="legal">Pháp lý</option></select></label>
         <label>Mức trạng thái<select disabled={!canEdit} value={draft.level ?? 0} onChange={changeLevel}>{DELIVERY_LEVELS.filter(level => completedTask || overdueTask || !draft.approvalOnly || level === 0 || level === 100).map(level => <option key={level} value={level}>{level}% · {DELIVERY_LABELS[draft.kind || 'design'][DELIVERY_LEVELS.indexOf(level)]}</option>)}</select>{completedTask && <small className="delivery-muted">Task đã hoàn thành: chỉ chọn từ 40% trở lên.</small>}{overdueTask && <small className="delivery-muted">Task quá hạn chưa hoàn thành: có thể chọn tất cả mức trạng thái.</small>}</label>
         {data.permissions.manage && <><label>Bộ môn<input disabled={readOnly} value={draft.department || ''} onChange={event => setDraft({ ...draft, department: event.target.value })} placeholder="Kiến trúc, kết cấu, MEP, pháp lý..." /></label><label className="delivery-checkbox"><input type="checkbox" disabled={readOnly} checked={Boolean(draft.approvalOnly)} onChange={event => setDraft({ ...draft, approvalOnly: event.target.checked, level: event.target.checked && draft.level !== 100 ? 0 : draft.level })} />Việc CĐT phê duyệt (chỉ 0% / 100%)</label></>}

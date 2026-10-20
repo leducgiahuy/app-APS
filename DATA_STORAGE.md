@@ -91,6 +91,8 @@ Task ở trạng thái `completed` khóa danh sách người đảm nhận và k
 
 Mức trạng thái tiến độ được đối chiếu với trạng thái thực thi của task khi lưu. Task `completed` (đúng hạn, sớm hoặc muộn) chỉ nhận mức 40–100%; mức 0% và 20% bị từ chối. Task chưa hoàn thành đã qua hết ngày kết thúc được xem là quá hạn và vẫn nhận đủ sáu mức 0/20/40/60/80/100, kể cả khi quy tắc giờ công thông thường của mức 0% hoặc 20% không thỏa.
 
+Ô chọn mức trạng thái kiểm tra ngay trên giao diện: chỉ lựa chọn không hợp lệ mới hiển thị cảnh báo nguyên nhân và giữ mức cũ; lựa chọn hợp lệ cập nhật bản nháp mà không bật cảnh báo. Sau khi người dùng bấm **Lưu thông tin**, giao diện chỉ gọi `showToast` khi API đã lưu và tải lại dữ liệu xong. Toast được render trực tiếp vào `document.body` với lớp hiển thị cao nhất để luôn nằm trên drawer, dropdown và modal. Với task chưa quá hạn, mức 20% cần `actualHours > 0` từ giờ công đã duyệt, còn mức 0% yêu cầu chưa có giờ được duyệt. API tiếp tục kiểm tra lại các điều kiện này khi lưu.
+
 PATCH có revision chống ghi đè phiên khác (409 giữ bản nháp để người dùng kiểm tra/lưu lại). Có kiểm thử riêng trong backend/tests/delivery.test.js và frontend/tests/delivery.html; fixture trình duyệt giả lập API nên không ghi dữ liệu thật.
 
 ## Dữ liệu vận hành: giờ công, tài chính và phân quyền (14/10/2026)
