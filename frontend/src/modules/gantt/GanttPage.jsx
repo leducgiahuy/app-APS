@@ -216,6 +216,12 @@ export default function GanttPage() {
           ? [...restored.slice(0, outputIndex), 'actualWork', ...restored.slice(outputIndex)]
           : [...restored, 'actualWork'];
       }
+      if (restored.includes('actualWork')) {
+        const comparisonKeys = ['remainingWork', 'varianceWork'];
+        const withoutComparison = restored.filter(key => !comparisonKeys.includes(key));
+        const actualIndex = withoutComparison.indexOf('actualWork');
+        restored = [...withoutComparison.slice(0, actualIndex + 1), ...comparisonKeys, ...withoutComparison.slice(actualIndex + 1)];
+      }
       return [...new Set([...COMPACT_KEYS, ...restored])];
     } catch { return COMPACT_KEYS; }
   });
@@ -1371,8 +1377,8 @@ export default function GanttPage() {
 
   const groupMetrics = useMemo(() => {
     const result = new Map(); const byId = new Map(hierarchyGanttItems.map(item => [item.id, item]));
-    const add = (id, metric, free) => { const sum = result.get(id) || { planned: 0, earned: 0, actual: 0, actualHours: 0, completedActual: 0, completedActualHours: 0, completedCount: 0, laborCost: 0, output: 0, weight: 0 }; sum.planned += free ? 0 : metric.planned; sum.earned += metric.earned; sum.actual += metric.actual; sum.actualHours += metric.actualHours; if (metric.completedCount > 0) { sum.completedActual += Number(metric.completedActual) || 0; sum.completedActualHours += Number(metric.completedActualHours) || 0; sum.completedCount += metric.completedCount; } sum.weight += free ? 0 : Number(metric.weight) || 0; sum.laborCost = sum.laborCost == null || metric.laborCost == null ? null : sum.laborCost + metric.laborCost; sum.output = sum.output == null || metric.output == null ? null : sum.output + metric.output; result.set(id, sum); };
-    hierarchyGanttItems.forEach(item => { const metric = deliveryData?.taskMetrics[item.id]; if (!metric) return; const free = deliveryData.records[item.id]?.freeRework; add(`project-heading-${projectIdForItem(item)}`, metric, free); const seen = new Set([item.id]); let parent = byId.get(item.parentTaskId || item.parentGroupId); while (parent && !seen.has(parent.id)) { seen.add(parent.id); add(parent.id, metric, free); parent = byId.get(parent.parentTaskId || parent.parentGroupId); } });
+    const add = (id, item, metric, free) => { const sum = result.get(id) || { planned: 0, earned: 0, actual: 0, actualHours: 0, completedActual: 0, completedActualHours: 0, completedCount: 0, budgetedWork: 0, forecastWork: 0, remainingWork: 0, varianceWork: 0, variancePercent: null, laborCost: 0, output: 0, weight: 0 }; const hasContractWork = item.contractWork !== '' && item.contractWork != null && Number.isFinite(Number(item.contractWork)); const budgetedWork = metric.budgetedWork ?? (free ? 0 : hasContractWork ? Number(item.contractWork) : Number(metric.planned) || 0); const forecastWork = metric.forecastWork ?? (Number(metric.planned) || 0); const actualWork = metric.completedActual ?? metric.actual ?? 0; const remainingWork = metric.remainingWork ?? Math.max(0, forecastWork - actualWork); const varianceWork = metric.varianceWork ?? forecastWork - budgetedWork; sum.planned += free ? 0 : metric.planned; sum.earned += metric.earned; sum.actual += metric.actual; sum.actualHours += metric.actualHours; sum.budgetedWork += budgetedWork; sum.forecastWork += forecastWork; sum.remainingWork += remainingWork; sum.varianceWork += varianceWork; sum.variancePercent = sum.budgetedWork > 0 ? sum.varianceWork / sum.budgetedWork * 100 : null; if (metric.completedCount > 0) { sum.completedActual += Number(metric.completedActual) || 0; sum.completedActualHours += Number(metric.completedActualHours) || 0; sum.completedCount += metric.completedCount; } sum.weight += free ? 0 : Number(metric.weight) || 0; sum.laborCost = sum.laborCost == null || metric.laborCost == null ? null : sum.laborCost + metric.laborCost; sum.output = sum.output == null || metric.output == null ? null : sum.output + metric.output; result.set(id, sum); };
+    hierarchyGanttItems.forEach(item => { const metric = deliveryData?.taskMetrics[item.id]; if (!metric) return; const free = deliveryData.records[item.id]?.freeRework; add(`project-heading-${projectIdForItem(item)}`, item, metric, free); const seen = new Set([item.id]); let parent = byId.get(item.parentTaskId || item.parentGroupId); while (parent && !seen.has(parent.id)) { seen.add(parent.id); add(parent.id, item, metric, free); parent = byId.get(parent.parentTaskId || parent.parentGroupId); } });
     return result;
   }, [hierarchyGanttItems, deliveryData, tasks]);
   const displayedWeightPercent = useMemo(() => {
@@ -1653,7 +1659,7 @@ export default function GanttPage() {
                 {currentColumns.map(column => (
                   <div
                     key={column.key}
-                    className={`delivery-column ${column.key} ${column.alignLeft ? 'delivery-column-left' : 'delivery-column-center'} flex h-full shrink-0 items-center border-r border-slate-200 leading-none dark:border-slate-700 ${column.key === 'createdAt' || ['contractWork', 'actualWork', 'note'].includes(column.key) ? 'text-[10px]' : ''}`}
+                    className={`delivery-column ${column.key} ${column.alignLeft ? 'delivery-column-left' : 'delivery-column-center'} flex h-full shrink-0 items-center border-r border-slate-200 dark:border-slate-700 ${column.key === 'createdAt' || ['contractWork', 'actualWork', 'remainingWork', 'varianceWork', 'note'].includes(column.key) ? 'text-[10px]' : ''}`}
                     style={{ width: `${column.width}px`, minWidth: `${column.width}px` }}
                   >
                     <span className={`${column.alignLeft ? 'truncate whitespace-nowrap' : ''} normal-case`}>{column.label}</span>

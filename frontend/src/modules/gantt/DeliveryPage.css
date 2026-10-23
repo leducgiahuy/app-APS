@@ -248,6 +248,13 @@
   gap:3px
 }
 .delivery-cell.delivery-column-center { font-variant-numeric:tabular-nums; }
+.delivery-work-variance { white-space:nowrap; }
+.delivery-work-variance.good { color:#178261; font-weight:650; }
+.delivery-work-variance.warning { color:#a36312; font-weight:650; }
+.delivery-work-variance.danger { color:#b33640; font-weight:650; }
+.dark .delivery-work-variance.good { color:#5fd3aa; }
+.dark .delivery-work-variance.warning { color:#e8b768; }
+.dark .delivery-work-variance.danger { color:#f08b95; }
 .delivery-cell.contractWork>div { width:100%; min-width:0; }
 .delivery-cell.code {
   font-size:var(--text-small);
@@ -796,6 +803,17 @@
 .delivery-table-heading,.delivery-table-heading>div,.delivery-table-heading span {
   font-size:var(--text-micro)!important;
   letter-spacing:.02em!important
+}
+.delivery-table-heading>div {
+  line-height:1.4!important;
+  padding-top:4px;
+  padding-bottom:4px
+}
+.delivery-table-heading span {
+  display:block;
+  line-height:1.4!important;
+  padding-top:2px;
+  padding-bottom:2px
 }
 .delivery-toolbar select {
   max-width:220px!important

@@ -1,22 +1,24 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown, ChevronRight, MessageCircle, Paperclip, MoreHorizontal, Pencil, UsersRound, Trash2, Plus } from 'lucide-react';
-import { deliveryLabel, defaultDeliveryRecord, formatCompactMoney } from '../../utils/deliveryMetrics';
+import { deliveryLabel, defaultDeliveryRecord, formatCompactMoney, workComparison } from '../../utils/deliveryMetrics';
 import { GanttEditableWorkCell } from './GanttWorkColumns';
 
 export const DELIVERY_COLUMNS = [
   { key: 'code', label: 'STT', width: 64 },
-  { key: 'title', label: 'Công việc trong dự án', width: 200, alignLeft: true },
-  { key: 'people', label: 'Người làm', width: 96, alignLeft: true },
-  { key: 'submission', label: 'Hạn nộp hồ sơ', width: 126, alignLeft: true },
-  { key: 'status', label: 'Trạng thái (mức %)', width: 180, alignLeft: true },
+  { key: 'title', label: 'CÔNG VIỆC TRONG DỰ ÁN', width: 200, alignLeft: true },
+  { key: 'people', label: 'NGƯỜI LÀM', width: 96, alignLeft: true },
+  { key: 'submission', label: 'HẠN NỘP HỒ SƠ', width: 126, alignLeft: true },
+  { key: 'status', label: 'TRẠNG THÁI (MỨC %)', width: 180, alignLeft: true },
   { key: 'startDate', label: 'BẮT ĐẦU', width: 95 },
   { key: 'endDate', label: 'KẾT THÚC', width: 95 },
   { key: 'days', label: 'NGÀY', width: 55 },
-  { key: 'contractWork', label: 'CÔNG HĐ', width: 90 },
-  { key: 'duration', label: 'CÔNG DT', width: 80 },
+  { key: 'contractWork', label: 'DỰ TOÁN', width: 90 },
+  { key: 'duration', label: 'DỰ BÁO', width: 80 },
   { key: 'weight', label: 'TỶ TRỌNG', width: 80 },
-  { key: 'actualWork', label: 'CÔNG TT', width: 80 },
+  { key: 'actualWork', label: 'THỰC TẾ', width: 80 },
+  { key: 'remainingWork', label: 'CÒN LẠI', width: 82 },
+  { key: 'varianceWork', label: 'CHÊNH LỆCH', width: 116 },
   { key: 'output', label: 'SẢN LƯỢNG', width: 100, financial: true },
   { key: 'createdAt', label: 'NGÀY TẠO', width: 95 },
   { key: 'note', label: 'GHI CHÚ', width: 180, alignLeft: true },
@@ -46,6 +48,16 @@ export default function DeliveryRow({ item, columns, height, depth = 0, record, 
   const group = item.isGroup || item.isProjectHeader || item.hasTaskChildren;
   const people = item.assignees?.length ? item.assignees : item.assignee ? [{ employeeName: item.assignee }] : [];
   record = record || defaultDeliveryRecord(item);
+  const hasContractWork = item.contractWork !== '' && item.contractWork != null && Number.isFinite(Number(item.contractWork));
+  const comparisonFallback = metric ? workComparison(
+    record.freeRework || record.isChangeWork ? 0 : hasContractWork ? Number(item.contractWork) : metric.planned,
+    metric.completedActual ?? metric.actual ?? 0,
+    record.level,
+    metric.planned
+  ) : null;
+  const remainingWork = metric?.remainingWork ?? comparisonFallback?.remainingWork;
+  const varianceWork = metric?.varianceWork ?? comparisonFallback?.varianceWork;
+  const variancePercent = metric?.variancePercent ?? comparisonFallback?.variancePercent;
   const label = deliveryLabel(record);
   const alert = metric?.alert || {};
   const rowClass = item.isProjectHeader ? 'project' : item.isGroup ? 'group' : `${record?.freeRework ? 'rework ' : ''}${item.parentTaskId ? 'child-task' : ''}`.trim();
@@ -63,6 +75,13 @@ export default function DeliveryRow({ item, columns, height, depth = 0, record, 
       if (column.key === 'duration') content = number(metric?.planned);
       if (column.key === 'weight') content = metric?.displayWeightPercent != null ? `${number(metric.displayWeightPercent)}%` : metric?.weight == null ? '—' : `${number(metric.weight * 100)}%`;
       if (column.key === 'actualWork') content = metric?.completedCount > 0 ? number(metric.completedActual) : '';
+      if (column.key === 'remainingWork') content = number(remainingWork);
+      if (column.key === 'varianceWork') {
+        const variance = varianceWork;
+        const percent = variancePercent;
+        const tone = variance == null || Math.abs(variance) < 1 ? '' : variance < 0 ? 'good' : Math.abs(percent || 0) > 10 ? 'danger' : Math.abs(percent || 0) > 5 ? 'warning' : 'good';
+        content = variance == null ? '—' : <span className={`delivery-work-variance ${tone}`} title="Chênh lệch = Dự báo - Dự toán">{variance > 0 ? '+' : ''}{number(variance)}{group && percent != null ? ` (${percent > 0 ? '+' : ''}${number(percent)}%)` : ''}</span>;
+      }
       if (column.key === 'output') content = formatCompactMoney(metric?.output);
       if (column.key === 'createdAt') content = item.createdAt ? new Date(item.createdAt).toLocaleDateString('vi-VN') : '—';
       if (column.key === 'note') content = item.isProjectHeader ? item.description || '—' : <div className="delivery-inline-note" onClick={event => event.stopPropagation()}>{readOnly ? item.ganttNote || '—' : <GanttEditableWorkCell item={item} field="ganttNote" onSave={onSaveWork} placeholder="Ghi chú..." />}</div>;

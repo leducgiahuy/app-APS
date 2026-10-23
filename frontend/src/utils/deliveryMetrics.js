@@ -10,6 +10,30 @@ export const DELIVERY_LABELS = {
 export const DELIVERY_ROLES = { employee: 'Nhân viên', leader: 'Leader', manager: 'Quản lý cấp trung', accountant: 'Kế toán viên / HCNS', chiefAccountant: 'Kế toán trưởng', director: 'Giám đốc', admin: 'Quản trị' };
 export const moneyAccess = role => ['manager', 'accountant', 'chiefAccountant', 'director', 'admin'].includes(role);
 export const managingRole = role => ['manager', 'director', 'admin'].includes(role);
+export function forecastWork(budgetedWork, actualWork, level = 0) {
+  const budgeted = Math.max(0, Number(budgetedWork) || 0);
+  const actual = Math.max(0, Number(actualWork) || 0);
+  const progress = Number(level) || 0;
+  if (progress >= 100) return actual;
+  if (progress >= 60) return actual + budgeted * 0.1;
+  if (progress >= 20) return Math.max(budgeted, actual * 2);
+  return budgeted;
+}
+export function workComparison(budgetedWork, actualWork, level = 0, forecastedWork = null) {
+  const budgeted = Math.max(0, Number(budgetedWork) || 0);
+  const actual = Math.max(0, Number(actualWork) || 0);
+  const forecast = forecastedWork == null
+    ? forecastWork(budgeted, actual, level)
+    : Math.max(0, Number(forecastedWork) || 0);
+  const variance = forecast - budgeted;
+  return {
+    budgetedWork: budgeted,
+    forecastWork: forecast,
+    remainingWork: Math.max(0, forecast - actual),
+    varianceWork: variance,
+    variancePercent: budgeted > 0 ? variance / budgeted * 100 : null,
+  };
+}
 export const plannedDays = item => {
   const assignments = Array.isArray(item.assignees)
     ? item.assignees.filter(assignment => assignment.employeeId || assignment.employeeName)
@@ -80,12 +104,15 @@ export function computeDelivery(db, projectId, data = {}, now = new Date()) {
       : null;
     const completedActual = completedActualHours == null ? null : completedActualHours / 8;
     if (!data.records?.[item.id] && record.level === 0 && actualHours > 0) record.level = 20;
+    const hasContractWork = item.contractWork !== '' && item.contractWork != null && Number.isFinite(Number(item.contractWork));
+    const budgetedWork = record.freeRework || record.isChangeWork ? 0 : hasContractWork ? Number(item.contractWork) : planned;
+    const comparison = workComparison(budgetedWork, completedActual ?? actualHours / 8, record.level, planned);
     const recognized = recognizedLevel(record);
     const earned = planned * recognized / 100;
     const weight = record.freeRework ? 0 : Number.isFinite(Number(data.lockedWeights?.[item.id])) && data.lockedWeights?.[item.id] != null ? Number(data.lockedWeights[item.id]) : data.settings?.contractLocked ? 0 : totalPlanned ? planned / totalPlanned : 0;
     const output = data.settings?.contractFee == null ? null : Number(data.settings.contractFee) * weight * recognized / 100;
     const laborCost = entries.every(entry => rateForEntry(entry) != null) ? entries.reduce((sum, entry) => sum + entry.hours * rateForEntry(entry), 0) : null;
-    return [item.id, { planned, actual: actualHours / 8, actualHours, completedActual, completedActualHours, completedCount: item.status === 'completed' ? 1 : 0, recognized, earned, weight, output, laborCost, alert: submissionAlert(record, now), assignments: (item.assignees || []).map(assignment => ({ ...assignment, plannedHours: calculateAssignmentHours(item, assignment) })) }];
+    return [item.id, { planned, actual: actualHours / 8, actualHours, completedActual, completedActualHours, completedCount: item.status === 'completed' ? 1 : 0, ...comparison, recognized, earned, weight, output, laborCost, alert: submissionAlert(record, now), assignments: (item.assignees || []).map(assignment => ({ ...assignment, plannedHours: calculateAssignmentHours(item, assignment) })) }];
   }));
   const totalEarned = Object.values(taskMetrics).reduce((sum, item) => sum + item.earned, 0);
   const totalActual = Object.values(taskMetrics).reduce((sum, item) => sum + item.actual, 0);

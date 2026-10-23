@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import express from 'express';
-import { computeDelivery, recognizedLevel, submissionAlert } from '../../frontend/src/utils/deliveryMetrics.js';
+import { computeDelivery, recognizedLevel, submissionAlert, workComparison } from '../../frontend/src/utils/deliveryMetrics.js';
 
 const seed = () => ({ projects: [{ id: 'p', name: 'Dự án kiểm thử', startDate: '2026-10-01', endDate: '2027-03-31' }], employees: [{ id: 'e', name: 'Duy', team: 'KT' }, { id: 'l', name: 'Yến', team: 'KT' }], tasks: [], overtimes: [], ganttItems: [{ id: 'g', isGroup: true, projectId: 'p', title: 'A. Thiết kế' }, ...['a', 'b'].map(id => ({ id, code: id, title: id, projectId: 'p', parentGroupId: 'g', startDate: '2026-10-12', endDate: '2026-10-13', estimatedHoursPerDay: 8, assignees: [{ employeeId: 'e', employeeName: 'Duy', startDate: '2026-10-12', endDate: '2026-10-13', estimatedHoursPerDay: 8 }] }))] });
 test('recognition distinguishes six stages, evidence/confirmation, approval tasks and free rework', () => {
@@ -16,6 +16,12 @@ test('recognition distinguishes six stages, evidence/confirmation, approval task
   assert.equal(recognizedLevel({ level: 100, freeRework: true, evidenceId: 'f', confirmedBy: 'l' }), 0);
   assert.equal(submissionAlert({ level: 20, dueAt: '2026-10-13T00:00:00Z' }, new Date('2026-10-12T00:00:00Z')).soon, true);
   assert.equal(submissionAlert({ level: 20, dueAt: '2026-10-11T00:00:00Z', sentAt: '2026-10-10' }, new Date('2026-10-12T00:00:00Z')).warning, false);
+});
+test('forecast, remaining work and variance follow all six current progress levels', () => {
+  assert.deepEqual(workComparison(10, 0, 0), { budgetedWork: 10, forecastWork: 10, remainingWork: 10, varianceWork: 0, variancePercent: 0 });
+  for (const level of [20, 40]) assert.deepEqual(workComparison(10, 6, level), { budgetedWork: 10, forecastWork: 12, remainingWork: 6, varianceWork: 2, variancePercent: 20 });
+  for (const level of [60, 80]) assert.deepEqual(workComparison(10, 6, level), { budgetedWork: 10, forecastWork: 7, remainingWork: 1, varianceWork: -3, variancePercent: -30 });
+  assert.deepEqual(workComparison(10, 8, 100), { budgetedWork: 10, forecastWork: 8, remainingWork: 0, varianceWork: -2, variancePercent: -20 });
 });
 test('planned/approved actual, individual labor rates, weighted group totals and rework remain independent', () => {
   const db = seed();
