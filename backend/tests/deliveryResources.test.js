@@ -53,6 +53,12 @@ test('resource APIs persist procedure events/components, CR decisions, scoped re
     assert.equal((await mutate('documentEvent', { documentId: 'wrong', title: 'Sai hồ sơ', at: `${month}-10` })).status, 400);
     assert.equal((await call('/p', 'GET', null, tokens.employee)).data.documents[0].fee, undefined);
     assert.equal((await mutate('change', { title: 'Điều chỉnh mặt bằng', status: 'Đề xuất', scope: 'Ngoài phạm vi', department: 'KT', estimatedHours: 36, taskId: 'a', amount: 12000000, decision: 'pending' })).status, 200);
+    assert.equal((await mutate('customerRequest', { title: 'Cung cấp số liệu địa chất', taskId: 'a', sentAt: `${month}-05`, dueAt: `${month}-12`, receivedAt: `${month}-14`, status: 'Đã nhận', notes: 'Ảnh hưởng tiến độ A.1' })).status, 200);
+    assert.equal(state.customerRequests[0].code, 'RFI-01');
+    assert.equal(state.customerRequests[0].receivedAt, `${month}-14`);
+    assert.equal((await mutate('meetingMinute', { title: 'Họp điều phối với CĐT', at: `${month}-10T09:30:00+07:00`, participants: 'Khoa, Duy', clientContact: 'Anh Tâm', requestsText: 'Đổi vị trí trạm biến áp\nThêm nhà xe', scope: 'Trong hợp đồng', resolution: 'Chuyển thành góp ý và CR', confirmedAt: `${month}-11` })).status, 200);
+    assert.equal(state.meetingMinutes[0].code, 'BB-001');
+    assert.deepEqual(state.meetingMinutes[0].requests, ['Đổi vị trí trạm biến áp', 'Thêm nhà xe']);
     const change = state.changes[0];
     assert.equal((await mutate('change', { ...change, decision: 'free', status: 'Đã duyệt', reworkTaskId: 'b' }, change.id, tokens.manager)).status, 400);
     assert.equal((await mutate('change', { ...change, decision: 'free', status: 'Đã duyệt', reworkTaskId: 'b' }, change.id)).status, 200);
@@ -93,6 +99,8 @@ test('resource APIs persist procedure events/components, CR decisions, scoped re
     assert.ok(persisted.delivery.projects.p.audit.some(row => row.action.startsWith('reopenMonth')));
     assert.equal(persisted.delivery.fiscalPlans[year].approvedBy, 'demo@aps.vn');
     assert.equal(persisted.delivery.projects.p.documents[0].components.length, 1);
+    assert.equal(persisted.delivery.projects.p.customerRequests.length, 1);
+    assert.equal(persisted.delivery.projects.p.meetingMinutes.length, 1);
   } finally {
     if (server) await new Promise(resolve => server.close(resolve));
     if (previous === undefined) delete process.env.APS_DB_PATH; else process.env.APS_DB_PATH = previous;

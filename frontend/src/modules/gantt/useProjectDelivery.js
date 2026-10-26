@@ -24,7 +24,7 @@ export function useProjectDelivery(projectId, onSharedDataChange) {
     if (busy.current) throw new Error('Đang lưu thao tác trước.');
     if (dataRef.current?.projectId !== projectId) throw new Error('Dữ liệu dự án chưa tải xong.');
     busy.current = true; setSaving(true); sequence.current++;
-    try { const response = await deliveryApi.update(projectId, { action, value, taskId, id, revision: dataRef.current.value.revision }); accept(projectId, response.data); if (['task', 'confirm', 'approveTimesheet', 'applyTemplate', 'change', 'changeAppendix', 'revokeEvidence', 'revokeConfirmation'].includes(action)) await onSharedDataChangeRef.current?.(); return response.data; }
+    try { const response = await deliveryApi.update(projectId, { action, value, taskId, id, revision: dataRef.current.value.revision }); accept(projectId, response.data); if (['task', 'confirm', 'approveTimesheet', 'applyTemplate', 'customerRequest', 'meetingMinute', 'change', 'changeAppendix', 'revokeEvidence', 'revokeConfirmation'].includes(action)) await onSharedDataChangeRef.current?.(); return response.data; }
     catch (error) { if (error.status === 409) { const latest = await deliveryApi.get(projectId); accept(projectId, latest.data); } throw error; }
     finally { busy.current = false; setSaving(false); }
   };

@@ -1,6 +1,7 @@
 import { buildWorkforceForecast,positionKey } from '../../../frontend/src/utils/workforceForecast.js';
 import { updateOperationsJobs } from '../utils/operationsJobs.js';
 import { projectBlueprint } from '../utils/projectBlueprint.js';
+import { DEFAULT_PROJECT_TEMPLATE } from '../utils/defaultProjectTemplate.js';
 import { randomUUID } from 'node:crypto';
 import { readDb,writeDb } from '../models/db.js';
 import { operations,projectActor,stamp } from '../utils/operationsStore.js';
@@ -58,7 +59,13 @@ export function mutateOperations(req,res){
   if(projectId)ensure(db.projects.some(row=>row.id===projectId),'Dự án không tồn tại.');
   const original=structuredClone(ops),originalProjects=structuredClone(db.delivery?.projects||{});
   const at=new Date().toISOString();let before=null,changed=null;
-  if(action==='procedures'){
+  if(action==='policyRead'){
+   const code=text(value.code),version=text(value.version);ensure(/^QD-\d{2}$/.test(code)&&version.length>0&&version.length<=30,'Quy định hoặc phiên bản không hợp lệ.');
+   ops.policyReads ||= [];const old=ops.policyReads.find(row=>row.email===user.email&&row.code===code&&row.version===version);changed={id:old?.id||randomUUID(),email:user.email,code,version,readAt:at};if(old)Object.assign(old,changed);else ops.policyReads.push(changed);
+  }else if(action==='companyImport'){
+   requireRole(user,[]);const type=text(value.type),name=text(value.name);ensure(['personnel','quotation','calendar','policies','procedures'].includes(type)&&name&&name.length<=255,'Thông tin file nhập không hợp lệ.');
+   ops.companyImports ||= [];const old=ops.companyImports.find(row=>row.type===type);changed={id:old?.id||randomUUID(),type,name,size:number(value.size||0,100000000),status:'received',...stamp(user)};if(old)Object.assign(old,changed);else ops.companyImports.push(changed);
+  }else if(action==='procedures'){
    requireRole(user,[]);ensure(Array.isArray(value.rows)&&value.rows.length<=100,'Danh mục thủ tục không hợp lệ.');const keys=new Set();ops.procedures=value.rows.map(row=>{ensure(text(row.procedureKey)&&!keys.has(row.procedureKey)&&text(row.title),'Mỗi thủ tục cần khóa duy nhất và tên.');keys.add(row.procedureKey);return {procedureKey:text(row.procedureKey),title:text(row.title),authority:text(row.authority),processingTime:text(row.processingTime),taskCodes:Array.isArray(row.taskCodes)?row.taskCodes.map(text):[],...(row.fee!=null?{fee:money(row.fee)}:{})};});
   }else if(action==='recruitmentCancel'){
    requireRole(user,[]);const forecast=buildWorkforceForecast({...db,plan:db.workforcePlan||{},now:new Date()});const suggestion=forecast.cancellationSuggestions.find(r=>positionKey(r.position)===positionKey(value.position)&&r.needMonth===value.needMonth);ensure(suggestion,'Chỉ hủy đợt chưa đăng tuyển khi thiếu giảm dưới 0,5 người.');ensure(text(value.reason),'Cần lý do xác nhận hủy tuyển.');const row=db.workforcePlan.recruitments.find(r=>r===suggestion||r.position===suggestion.position&&r.needMonth===suggestion.needMonth);Object.assign(row,{canceledAt:at,canceledBy:user.email,cancelReason:text(value.reason)});
@@ -74,7 +81,7 @@ export function mutateOperations(req,res){
    requireRole(user,[]);const row=ops.projectApprovals?.find(r=>r.id===id);ensure(row&&row.status==='pending','Dự án không chờ duyệt.');approveStep(user,row,value.status,value.reason);const project=db.projects.find(p=>p.id===row.projectId);project.approvalStatus=row.status;if(row.status==='approved')project.status='active';
   }else if(action==='template'){
    requireRole(user,[]);ensure(text(value.name)&&Array.isArray(value.items)&&value.items.length<=1000,'Cần tên và danh sách công việc của mẫu.');const seen=new Set();const items=value.items.map(item=>{ensure(text(item.id)&&!seen.has(item.id)&&text(item.title),'Task cần ID duy nhất và tên.');seen.add(item.id);return {...item,startOffset:number(item.startOffset||0,3650),endOffset:number(item.endOffset||0,3650),estimatedHours:number(item.estimatedHours||0)};});for(const item of items)ensure(item.endOffset>=item.startOffset&&(!item.parentTaskId||seen.has(item.parentTaskId))&&(!item.parentGroupId||seen.has(item.parentGroupId)),'Lịch / nhóm cha của mẫu không hợp lệ.');
-   const store=db.delivery,old=store.templates.find(t=>t.id===id);ensure(!id||old,'Mẫu không tồn tại.');changed={...(old||{}),id:old?.id||randomUUID(),name:text(value.name),baseArea:number(value.baseArea||0),items,budgetPercents:value.budgetPercents||[],milestones:value.milestones||[],scopeOptions:value.scopeOptions||[],...stamp(user)};if(old)Object.assign(old,changed);else store.templates.push(changed);
+   const store=db.delivery;let old=store.templates.find(t=>t.id===id);if(id===DEFAULT_PROJECT_TEMPLATE.id&&!old){old=structuredClone(DEFAULT_PROJECT_TEMPLATE);store.templates.push(old);}ensure(!id||old,'Mẫu không tồn tại.');changed={...(old||{}),id:old?.id||randomUUID(),name:text(value.name),baseArea:number(value.baseArea||0),items,budgetPercents:value.budgetPercents||[],milestones:value.milestones||[],scopeOptions:value.scopeOptions||[],...stamp(user)};if(old)Object.assign(old,changed);else store.templates.push(changed);
   }else if(action==='matrix'){
    requireRole(user,[]);ensure(Array.isArray(value.rows),'Ma trận không hợp lệ.');
    ensure(value.rows.length===DEFAULT_MATRIX.length && DEFAULT_MATRIX.every(row=>value.rows.some(next=>next.key===row.key)),'Phải giữ đủ các chức năng của ma trận.');

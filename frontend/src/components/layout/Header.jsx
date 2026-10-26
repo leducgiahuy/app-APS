@@ -9,9 +9,6 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
-  RotateCcw,
-  Sparkles,
-  Building,
   LogOut,
   UserRoundPen,
   Users,
@@ -19,7 +16,8 @@ import {
   UsersRound,
   CalendarRange,
   BarChart3,
-  Activity
+  Activity,
+  ShieldCheck
 } from 'lucide-react';
 import { endAuthSession, getCurrentUser } from '../../modules/auth/authSession';
 import { placeholderPages } from './placeholderPages';
@@ -47,27 +45,31 @@ export default function Header() {
   // Tiêu đề đồng bộ với tên mục trên thanh điều hướng.
   const pageTitles = {
     ...Object.fromEntries(placeholderPages.map(page => [page.id, page.label])),
+    company: 'Công ty',
+    'my-work': 'Việc của tôi',
+    'director-overview': 'Tổng quan',
     hr: 'Thành Viên',
     tasks: 'Công việc',
     workload: 'Quản Lý Nhân Sự',
-    gantt: 'Tiến Độ Dự Án',
-    dashboard: 'Thống Kê & Báo Cáo',
+    gantt: 'Dự án',
     activity: 'Nhật Ký Hoạt Động'
   };
 
   const pageIcons = {
     ...Object.fromEntries(placeholderPages.map(page => [page.id, page.icon])),
+    company: ShieldCheck,
+    'my-work': CheckSquare,
+    'director-overview': BarChart3,
     hr: Users,
     tasks: CheckSquare,
     workload: UsersRound,
     gantt: CalendarRange,
-    dashboard: BarChart3,
     activity: Activity
   };
 
   const currentTitle = pageTitles[activeTab] || pageTitles.hr;
   const CurrentPageIcon = pageIcons[activeTab] || pageIcons.hr;
-  const isGanttView = activeTab === 'gantt' || activeTab === 'dashboard' || activeTab === 'finance';
+  const isGanttView = activeTab === 'gantt' || activeTab === 'finance';
   const dayPickerRef = useRef(null);
   const selectedDateValue = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
   const ganttMonthValue = `${ganttMonth.getFullYear()}-${String(ganttMonth.getMonth() + 1).padStart(2, '0')}`;

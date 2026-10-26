@@ -13,7 +13,7 @@ import { computeDelivery, projectDeliveryItems, defaultDeliveryRecord, DELIVERY_
 import { isTaskOverdue } from '../../../frontend/src/utils/date.js';
 import { addDays, dateDifference } from '../../../frontend/src/utils/workforceForecast.js';
 
-export const emptyDeliveryProject = () => ({ revision: 0, settings: { contractFee: null, hourlyRate: null }, records: {}, timesheets: [], documents: [], changes: [], closes: [], receipts: [], expenses: [], milestones: [], evidence: [], comments: [], audit: [], history: [] });
+export const emptyDeliveryProject = () => ({ revision: 0, settings: { contractFee: null, hourlyRate: null }, records: {}, timesheets: [], documents: [], customerRequests: [], meetingMinutes: [], changes: [], closes: [], receipts: [], expenses: [], milestones: [], evidence: [], comments: [], audit: [], history: [] });
 const text = value => typeof value === 'string' ? value.trim() : '';
 const dateValid = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(`${value}T12:00:00Z`)) && new Date(`${value}T12:00:00Z`).toISOString().slice(0, 10) === value;
 const timestampValid = value => !value || (typeof value === 'string' && Number.isFinite(Date.parse(value)));
@@ -196,6 +196,27 @@ export function applyDeliveryMutation(ctx, body) {
     const index = document[key].findIndex(row => row.id === id);
     if (index < 0) document[key].push(entry); else document[key][index] = entry;
     document.updatedAt = new Date().toISOString();
+  } else if (action === 'customerRequest') {
+    assert(manager || user.role === 'leader', 'Chỉ quản lý/Leader được cập nhật đề nghị cung cấp thông tin.');
+    assert(text(value.title), 'Nhập nội dung đề nghị CĐT cung cấp thông tin.');
+    assert(!value.taskId || items.some(candidate => candidate.id === value.taskId), 'Task ảnh hưởng không thuộc dự án.');
+    for (const key of ['sentAt', 'dueAt', 'receivedAt']) assert(!value[key] || dateValid(value[key]), 'Ngày của phiếu RFI không hợp lệ.');
+    assert(['Đang chờ CĐT', 'Đã nhận', 'Đến hạn', 'Quá hạn', 'Đã đóng'].includes(value.status || 'Đang chờ CĐT'), 'Trạng thái RFI không hợp lệ.');
+    const old = data.customerRequests.find(entry => entry.id === id);
+    assert(!id || old, 'Phiếu RFI không tồn tại.');
+    const request = { ...old, id: id || randomUUID(), code: old?.code || `RFI-${String(data.customerRequests.length + 1).padStart(2, '0')}`, title: text(value.title), taskId: value.taskId || '', sentAt: value.sentAt || '', dueAt: value.dueAt || '', receivedAt: value.receivedAt || '', status: value.status || 'Đang chờ CĐT', notes: text(value.notes), createdBy: old?.createdBy || user.email, updatedAt: new Date().toISOString() };
+    const index = data.customerRequests.findIndex(entry => entry.id === id); if (index < 0) data.customerRequests.push(request); else data.customerRequests[index] = request;
+  } else if (action === 'meetingMinute') {
+    assert(manager || user.role === 'leader', 'Chỉ quản lý/Leader được cập nhật biên bản họp.');
+    assert(text(value.title), 'Nhập tiêu đề biên bản họp.');
+    assert(value.at && timestampValid(value.at), 'Ngày giờ họp không hợp lệ.');
+    assert(!value.confirmedAt || dateValid(value.confirmedAt), 'Ngày khách xác nhận không hợp lệ.');
+    const requests = Array.isArray(value.requests) ? value.requests.map(text).filter(Boolean) : text(value.requestsText).split(/\r?\n/).map(text).filter(Boolean);
+    assert(requests.length, 'Nhập ít nhất một yêu cầu của khách hàng.');
+    const old = data.meetingMinutes.find(entry => entry.id === id);
+    assert(!id || old, 'Biên bản họp không tồn tại.');
+    const minute = { ...old, id: id || randomUUID(), code: old?.code || `BB-${String(data.meetingMinutes.length + 1).padStart(3, '0')}`, title: text(value.title), at: value.at, participants: text(value.participants), clientContact: text(value.clientContact), requests, scope: text(value.scope) || 'Trong hợp đồng', resolution: text(value.resolution), confirmedAt: value.confirmedAt || '', createdBy: old?.createdBy || user.email, updatedAt: new Date().toISOString() };
+    const index = data.meetingMinutes.findIndex(entry => entry.id === id); if (index < 0) data.meetingMinutes.push(minute); else data.meetingMinutes[index] = minute;
   } else if (action === 'change') {
     assert(text(value.title), 'Nhập nội dung yêu cầu thay đổi.');
     const old = data.changes.find(entry => entry.id === id);

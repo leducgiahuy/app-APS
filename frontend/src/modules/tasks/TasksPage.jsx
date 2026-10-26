@@ -48,6 +48,7 @@ export default function TasksPage() {
 
   // Tab chuyển đổi: 'tasks' (Phân công) hoặc 'ot' (Tăng ca)
   const [activeSubTab, setActiveSubTab] = useState('tasks');
+  const [focusTaskId] = useState(() => sessionStorage.getItem('aps-focus-task-id') || '');
 
   // Trạng thái mở modal
   const [showTaskModal, setShowTaskModal] = useState(false);
@@ -77,6 +78,15 @@ export default function TasksPage() {
       : [task.employeeName || assignee?.name || ''];
     return assigneeNames.some(name => normalizeEmployeeSearch(name).includes(search));
   });
+
+  useEffect(() => {
+    if (!focusTaskId || !visibleTasks.some(task => task.id === focusTaskId)) return undefined;
+    const timer = window.setTimeout(() => {
+      document.querySelector(`[data-task-id="${focusTaskId}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      sessionStorage.removeItem('aps-focus-task-id');
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [focusTaskId, visibleTasks]);
 
   // Form phân công task
   const [taskForm, setTaskForm] = useState({
@@ -320,7 +330,8 @@ export default function TasksPage() {
               return (
                 <div
                   key={task.id}
-                  className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-all space-y-4"
+                  data-task-id={task.id}
+                  className={`p-5 rounded-2xl bg-white dark:bg-slate-900 border shadow-sm hover:shadow-md transition-all space-y-4 ${focusTaskId === task.id ? 'border-rose-500 ring-4 ring-rose-500/15' : 'border-slate-200 dark:border-slate-800'}`}
                 >
                   {/* Hàng 1: Dự án, Giai đoạn, Độ ưu tiên, Nút xóa */}
                   <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">

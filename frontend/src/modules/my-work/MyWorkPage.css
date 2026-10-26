@@ -1,0 +1,63 @@
+﻿.my-work-page { min-height: 100%; padding: 0 0 28px; color: #332f30; background: #f6f4f1; }
+.my-work-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; margin-bottom: 0; }
+.my-work-summary button { min-height: 98px; padding: 17px 18px; border: 1px solid #e3ddd6; border-top: 3px solid #9d948c; border-radius: 0; text-align: left; color: #5e5652; background: #fff; cursor: pointer; transition: transform .16s, box-shadow .16s; }
+.my-work-summary button + button { border-left: 0; }
+.my-work-summary button:hover, .my-work-summary button.is-selected { transform: translateY(-1px); box-shadow: 0 7px 20px rgb(62 48 40 / 8%); }
+.my-work-summary button.urgent { border-top-color: #d13b32; }
+.my-work-summary button.upcoming { border-top-color: #b56b00; }
+.my-work-summary button.following { border-top-color: #687681; }
+.my-work-summary span { display: block; font-size: 13px; }
+.my-work-summary strong { display: block; margin-top: 8px; color: #171717; font-size: 28px; line-height: 1; }
+.my-work-summary .urgent strong { color: #bd302a; }
+.my-work-card { width: 100%; overflow: hidden; border: 1px solid #e1dbd4; border-top: 0; border-radius: 0; background: #fff; }
+.my-work-card > header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 15px 17px; border-bottom: 1px solid #e8e2dc; }
+.my-work-heading { display: flex; align-items: baseline; gap: 12px; min-width: 0; }
+.my-work-card h2 { margin: 0; color: #171717; font-size: 17px; }
+.my-work-card header span { color: #948b85; font-size: 12px; }
+.my-work-header-actions { display: flex; align-items: center; justify-content: flex-end; gap: 9px; }
+.my-work-reload { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 34px; padding: 7px 11px; border: 1px solid #ddd6cf; border-radius: 8px; color: #685f5c; background: #fff; font: inherit; font-weight: 600; white-space: nowrap; cursor: pointer; }
+.my-work-reload:disabled { cursor: wait; opacity: .6; }
+.my-work-card select { min-width: 170px; padding: 7px 30px 7px 10px; border: 1px solid #ddd6cf; border-radius: 8px; color: #514a47; background: #fff; }
+.my-work-row { display: grid; grid-template-columns: minmax(150px, 18%) minmax(300px, 42%) minmax(240px, 30%) minmax(88px, 10%); align-items: center; min-height: 50px; padding: 0 10px; border-bottom: 1px solid #eee8e2; }
+.my-work-head { min-height: 42px; color: #655d59; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+.my-work-row > span { min-width: 0; padding: 9px 10px; }.my-work-row > span:last-child { display: flex; justify-content: center; }
+.my-work-due { display: inline-flex; padding: 4px 10px; border-radius: 999px; color: #655d58; background: #f2efeb; font-size: 12px; font-weight: 700; }
+.my-work-due.urgent { color: #d0382f; background: #fde5e1; }
+.my-work-due.upcoming { color: #a56300; background: #fff1d6; }
+.my-work-title { display: flex; align-items: center; gap: 8px; overflow: hidden; color: #171717; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.my-work-title svg { flex: 0 0 auto; color: #861b36; }
+.my-work-title.is-read { color: #7f7772; font-weight: 400; }
+.my-work-project { overflow: hidden; color: #8a7e77; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.my-work-action { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-width: 72px; padding: 7px 10px; border: 0; border-radius: 9px; color: #fff; background: #941d40; font-size: 12px; font-weight: 700; cursor: pointer; }
+.my-work-action:hover { background: #781631; }
+.my-work-empty { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 46px 20px; color: #99908a; text-align: center; }
+.my-work-empty strong { color: #625a56; }
+.my-work-empty span { font-size: 12px; }
+.my-work-card > footer { display: flex; flex-wrap: wrap; gap: 20px; padding: 12px 16px; color: #706762; font-size: 11px; }
+.my-work-card > footer span { display: inline-flex; align-items: center; gap: 6px; }
+.is-spinning { animation: my-work-spin 1s linear infinite; }
+@keyframes my-work-spin { to { transform: rotate(360deg); } }
+@media (max-width: 900px) {
+  .my-work-page { padding: 0 0 20px; }
+  .my-work-summary { grid-template-columns: 1fr; gap: 0; }
+  .my-work-summary button { min-height: 74px; }
+  .my-work-row { grid-template-columns: 120px minmax(220px, 1fr) 82px; }
+  .my-work-row .my-work-project, .my-work-head span:nth-child(3) { display: none; }
+}
+@media (max-width: 600px) {
+  .my-work-heading { display: block; }
+  .my-work-card header span { display: block; margin-top: 3px; }
+  .my-work-header-actions { flex-shrink: 0; gap: 6px; }
+  .my-work-reload { padding-inline: 9px; }
+  .my-work-card select { min-width: 120px; max-width: 42%; }
+  .my-work-row { grid-template-columns: 104px minmax(0, 1fr) 66px; padding: 0 6px; }
+  .my-work-action { min-width: 58px; padding-inline: 8px; }
+  .my-work-action svg { display: none; }
+}
+
+
+
+
+
+
+

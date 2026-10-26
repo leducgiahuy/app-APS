@@ -1,4 +1,5 @@
 import ProjectWizard from '../operations/ProjectWizard';
+import ProjectImportWorkspace from './ProjectImportWorkspace';
 import { deliveryView, maskDeliveryFinance, ownsDeliveryTask } from '../../utils/deliveryView';
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
@@ -18,6 +19,7 @@ import { assignmentCalendarConflicts, assignmentWorkingDates } from '../../utils
 import { allocateTaskHierarchyWeightPercent } from '../../utils/ganttEffort';
 import GanttExcludedDaysBar from './GanttExcludedDaysBar';
 import AssignmentCalendarConfirmation from './AssignmentCalendarConfirmation';
+import AssignmentMachinePage from './AssignmentMachinePage';
 import { useApp } from '../../context/AppContext';
 import ModalOverlay from '../../components/layout/ModalOverlay';
 import SearchableSelect from '../../components/SearchableSelect';
@@ -201,6 +203,7 @@ export default function GanttPage() {
   const [leftPanelWidth, setLeftPanelWidth] = useState(() => DELIVERY_COLUMNS.filter(column => COMPACT_KEYS.includes(column.key)).reduce((sum, column) => sum + column.width, 0));
   const delivery = useProjectDelivery(selectedProjectId, refreshAllData);
   const [deliveryTab, setDeliveryTab] = useState(['gantt', 'legal', 'changes', 'close'].includes(reportLink?.tab) ? reportLink.tab : 'gantt');
+  const [progressSection, setProgressSection] = useState('table');
   const [tableMode, setTableMode] = useState('compact');
   const [deliveryColumns, setDeliveryColumns] = useState(() => {
     try {
@@ -246,6 +249,7 @@ export default function GanttPage() {
   }, [delivery.data, previewUser, previewing]);
   const roleView = deliveryView(deliveryData?.viewer.role);
   const canManageStructure = Boolean(deliveryData?.permissions.manage);
+  const canManageAssignments = ['leader', 'manager', 'director', 'admin'].includes(deliveryData?.viewer.role);
   useEffect(() => { if (deliveryData?.viewer) setOnlyMine(roleView.ownByDefault); }, [deliveryData?.viewer.email, deliveryData?.viewer.role, selectedProjectId]);
   const currentColumns = DELIVERY_COLUMNS.filter(column => deliveryColumns.includes(column.key) && (!column.financial || deliveryData?.permissions.financial));
   const maxLeftPanelWidth = Math.max(GANTT_TABLE_MIN_WIDTH, currentColumns.reduce((sum, column) => sum + column.width, 0));
@@ -1611,15 +1615,20 @@ export default function GanttPage() {
       </div>
 
       <div className="delivery-navigation">
-        <nav>{[['gantt','Tiến độ & Gantt'],['legal','Hồ sơ pháp lý'],['changes','Yêu cầu thay đổi'],...(deliveryData?.permissions.financial ? [['close','Chốt sản lượng tháng']] : [])].map(([key,label]) => <button key={key} className={deliveryTab === key ? 'active' : ''} onClick={() => setDeliveryTab(key)}>{label}{showIT && key !== 'gantt' && <small className="delivery-new">MỚI</small>}</button>)}</nav>
+        <nav>{[['gantt','Tiến độ & Công'],['legal','Hồ sơ'],['changes','Khách hàng'],...(deliveryData?.permissions.financial ? [['close','Chốt sản lượng tháng']] : []),['new-project','+ Dự án mới / nhập HĐ']].map(([key,label]) => <button key={key} className={deliveryTab === key ? 'active' : ''} onClick={() => setDeliveryTab(key)}>{label}{showIT && !['gantt','new-project'].includes(key) && <small className="delivery-new">MỚI</small>}</button>)}</nav>
         <div className="delivery-view-options">{deliveryData?.viewer && <span className="delivery-role-badge">{deliveryData.viewer.name || employees.find(person => person.id === deliveryData.viewer.employeeId)?.name || deliveryData.viewer.email} · {DELIVERY_ROLES[deliveryData.viewer.role]}</span>}{delivery.data?.permissions.users && <label>Xem thử vai trò <select value={previewEmail} onChange={event => setPreviewEmail(event.target.value)}><option value="">Vai trò đang đăng nhập</option>{deliveryUsers.filter(user => !user.disabled).map(user => <option key={user.email} value={user.email}>{user.name} · {DELIVERY_ROLES[user.role]}</option>)}</select></label>}<label><input type="checkbox" checked={showGuide} onChange={event => setShowGuide(event.target.checked)} /> Hiện cách tính</label><label><input type="checkbox" checked={showIT} onChange={event => setShowIT(event.target.checked)} /> Nhãn Mới/Đổi & ghi chú IT</label></div>
       </div>
+      {deliveryTab === 'gantt' && <div className="project-progress-switch" role="tablist" aria-label="Tiến độ và phân công">
+        <button type="button" role="tab" aria-selected={progressSection === 'table'} className={progressSection === 'table' ? 'active' : ''} onClick={() => setProgressSection('table')}>Bảng tiến độ & công</button>
+        <button type="button" role="tab" aria-selected={progressSection === 'assignment'} className={progressSection === 'assignment' ? 'active' : ''} onClick={() => setProgressSection('assignment')}>Phân công (máy gán)</button>
+      </div>}
       {previewing && <p className="delivery-notice">Đang xem thử {DELIVERY_ROLES[previewUser.role]} · {previewUser.name}. Thoát xem thử để thực hiện thay đổi.</p>}
       {delivery.error && <p role="alert" className="delivery-error">{delivery.error} <button onClick={delivery.refresh}>Tải lại</button></p>}
       {selectedProjectId === 'ALL' && <p className="delivery-notice">Chọn một dự án để xem số liệu, hồ sơ và cập nhật trạng thái theo quy tắc mới.</p>}
       {showIT && <p className="delivery-notice"><b>MỚI:</b> Hạn nộp, bằng chứng, xác nhận, hồ sơ, CR và chốt tháng. <b>ĐỔI:</b> Công HĐ giữ số nhập tay; Công DT tự tính từ giờ dự kiến và nằm ngay bên cạnh, trạng thái tách khỏi % ghi nhận. Cấu trúc công việc, phân công, lịch nghỉ và liên kết Gantt dùng chung dữ liệu hiện có.</p>}
       {showGuide && <div className="delivery-guide-wrap"><DeliveryGuide financial={deliveryData?.permissions.financial} /></div>}
-      {deliveryTab === 'gantt' && <><div className="delivery-kpis">
+      {deliveryTab === 'gantt' && progressSection === 'assignment' && <AssignmentMachinePage projectId={selectedProjectId} items={ganttItems} tasks={tasks} employees={employees} updateGanttItem={updateGanttItem} readOnly={previewing || !canManageAssignments} />}
+      {deliveryTab === 'gantt' && progressSection === 'table' && <><div className="delivery-kpis">
         <span>% hoàn thành HĐ <b>{summary ? summary.completion.toLocaleString('vi-VN', { maximumFractionDigits: 1 }) : '—'}%</b><small>kế hoạch {summary ? Math.round(summary.planPercent) : '—'}%</small></span>
         {deliveryData?.permissions.financial && <span title="Theo lịch sử ghi nhận từ khi sử dụng chức năng mới">Sản lượng T{currentTime.getMonth() + 1} <b>{formatCompactMoney(summary?.monthlyOutput)}</b><small>lũy kế {formatCompactMoney(summary?.output)}</small></span>}
         {roleView.ownByDefault && <span>Tăng trong tháng <b>{summary?.progressThisMonth == null ? '—' : `${summary.progressThisMonth > 0 ? '+' : ''}${summary.progressThisMonth.toLocaleString('vi-VN', { maximumFractionDigits: 1 })} điểm`}</b></span>}
@@ -1629,7 +1638,7 @@ export default function GanttPage() {
       </div>{!roleView.financial && deliveryData && <p className="delivery-role-notice">Phí hợp đồng, sản lượng và mọi giá trị tiền được ẩn với vai trò {DELIVERY_ROLES[deliveryData.viewer.role]}.{roleView.ownByDefault && !deliveryData.viewer.employeeId && ' Tài khoản chưa liên kết nhân sự; cần liên kết để hiển thị việc của bạn.'}</p>}<div className="delivery-table-controls"><span>Cột hiển thị</span>{[['compact','Gọn'],['dates','+ Ngày & công'],['full','Toàn bảng (ẩn Gantt)']].map(([key,label]) => <button key={key} className={tableMode === key ? 'active' : ''} onClick={() => setPreset(key)}>{label}</button>)}<select aria-label="Bộ môn" value={department} onChange={event => setDepartment(event.target.value)}><option value="">Bộ môn: Tất cả</option>{departments.map(value => <option key={value}>{value}</option>)}</select><label><input type="checkbox" checked={onlyMine} disabled={!deliveryData?.viewer.employeeId} onChange={event => setOnlyMine(event.target.checked)} />Chỉ việc của tôi</label><small>Bấm vào dòng để xem chi tiết</small></div>
       </>}
 
-      {deliveryTab === 'gantt' && <div className="delivery-chart-heading-scroll" ref={headingScrollRef}>
+      {deliveryTab === 'gantt' && progressSection === 'table' && <div className="delivery-chart-heading-scroll" ref={headingScrollRef}>
         <div className="flex" style={{ width: LEFT_PANEL_WIDTH + (tableMode === 'full' ? 0 : ganttWidth), minWidth: '100%' }}>
           <div className="delivery-heading-left sticky left-0 z-40 flex-none relative" style={{ width: LEFT_PANEL_WIDTH, position: leftPanelPosition }}>
               <div
@@ -1711,7 +1720,7 @@ export default function GanttPage() {
       </div>}
       </div>
       <div className="delivery-page-body">
-      {deliveryTab === 'gantt' && <>
+      {deliveryTab === 'gantt' && progressSection === 'table' && <>
       {/* BẢNG TIẾN ĐỘ & BIỂU ĐỒ GANTT TƯƠNG TÁC (CỘT TRỜI ĐÓNG BĂNG) */}
       <div className="delivery-chart-shell w-full bg-white dark:bg-slate-900 border-y border-slate-200 dark:border-slate-800 overflow-hidden">
         
@@ -2296,9 +2305,10 @@ export default function GanttPage() {
       </div>
 
       </>}
-      {deliveryTab !== 'gantt' && <DeliveryResources onOpenTask={openDetail} showIT={showIT} tab={deliveryTab} data={deliveryData} delivery={delivery} projectId={selectedProjectId} employees={employees} items={hierarchyGanttItems} refreshApp={refreshAllData} readOnly={previewing} users={deliveryUsers} setUsers={setDeliveryUsers} templates={projectTemplates} setTemplates={setProjectTemplates} />}
+      {deliveryTab === 'new-project' && <ProjectImportWorkspace onCreated={async id => { await refreshAllData(); setSelectedProjectId(id); setDeliveryTab('gantt'); }} />}
+      {deliveryTab !== 'gantt' && deliveryTab !== 'new-project' && <DeliveryResources onOpenTask={openDetail} showIT={showIT} tab={deliveryTab} data={deliveryData} delivery={delivery} projectId={selectedProjectId} employees={employees} items={hierarchyGanttItems} refreshApp={refreshAllData} readOnly={previewing} users={deliveryUsers} setUsers={setDeliveryUsers} templates={projectTemplates} setTemplates={setProjectTemplates} currentTime={currentTime} />}
       </div></div>
-      {deliveryTab === 'gantt' && <div ref={horizontalScrollRef} className="delivery-horizontal-scroll" role="region" aria-label="Cuộn ngang bảng và biểu đồ Gantt" tabIndex={0}><div /></div>}
+      {deliveryTab === 'gantt' && progressSection === 'table' && <div ref={horizontalScrollRef} className="delivery-horizontal-scroll" role="region" aria-label="Cuộn ngang bảng và biểu đồ Gantt" tabIndex={0}><div /></div>}
       {detailItem && !detailItem.deliveryBand && <DeliveryDrawer scrollbarWidth={scrollbarWidth} key={`${detailItem.id}:${detailSection}:${deliveryData?.viewer.email || 'loading'}`} item={detailItem} data={deliveryData ? { ...deliveryData, taskMetrics: { ...deliveryData.taskMetrics, ...(groupMetrics.has(detailItem.id) ? { [detailItem.id]: groupMetrics.get(detailItem.id) } : {}) } } : null} projectId={projectIdForItem(detailItem) || selectedProjectId} delivery={delivery} employees={employees} onClose={() => setDetailItemId(null)} onEdit={() => editDeliveryItem(detailItem)} onAssign={() => handleAssignmentsOpen(detailItem)} onDelete={() => removeDeliveryItem(detailItem)} onAddSibling={() => createDeliveryTask(detailItem)} onAddChild={() => createDeliveryTask(detailItem, true)} onAddGroup={() => openInlineGroupCreation(detailItem)} onSaveNote={async note => { if (!await updateGanttItem(detailItem.id, { ganttNote: note })) throw new Error('Không lưu được ghi chú.'); }} readOnly={previewing} initialSection={detailSection} />}
       {showEditProjectModal && (
         <ModalOverlay>

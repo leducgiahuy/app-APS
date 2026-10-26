@@ -10,8 +10,6 @@ import {
   ChevronLeft,
   ChevronRight,
   X,
-  Building2,
-  Clock,
   ShieldCheck
 } from 'lucide-react';
 import { getCurrentUser } from '../../modules/auth/authSession';
@@ -24,57 +22,56 @@ export default function Sidebar() {
     sidebarCollapsed,
     setSidebarCollapsed,
     mobileMenuOpen,
-    setMobileMenuOpen,
-    employees,
-    tasks
+    setMobileMenuOpen
   } = useApp();
 
-  // Đếm số lượng nhanh cho badge menu
-  const onSiteCount = employees.filter(e => e.isOnSite).length;
-  const inProgressTaskCount = tasks.filter(t => t.status === 'in_progress').length;
-  const isAdmin = getCurrentUser()?.role === 'admin';
+  const currentUser = getCurrentUser();
+  const isAdmin = currentUser?.role === 'admin';
 
   const menuItems = [
+    {
+      id: 'my-work',
+      label: 'Việc của tôi',
+      compactLabel: 'Việc của tôi',
+      icon: CheckSquare
+    },
+    {
+      id: 'director-overview',
+      label: 'Tổng quan',
+      compactLabel: 'Tổng quan',
+      icon: BarChart3
+    },
     {
       id: 'hr',
       label: 'Thành Viên',
       compactLabel: 'Thành viên',
-      icon: Users,
-      badge: `${onSiteCount} On-site`,
-      badgeColor: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+      icon: Users
     },
     {
       id: 'tasks',
       label: 'Công việc',
-      icon: CheckSquare,
-      badge: `${inProgressTaskCount} Đang làm`,
-      badgeColor: 'bg-sky-500/10 text-sky-600 border-sky-500/20'
+      icon: CheckSquare
     },
     {
       id: 'workload',
       label: 'Quản Lý Nhân Sự',
       compactLabel: 'Nhân sự',
-      icon: UsersRound,
-      badge: '8h/ngày',
-      badgeColor: 'bg-sky-500/10 text-sky-500 border-sky-500/20'
+      icon: UsersRound
     },
     {
       id: 'gantt',
-      label: 'Tiến Độ Dự Án',
-      compactLabel: 'Tiến độ',
-      icon: CalendarRange,
-      badge: 'FS Link',
-      badgeColor: 'bg-amber-500/10 text-amber-500 border-amber-500/20'
+      label: 'Dự án',
+      compactLabel: 'Dự án',
+      icon: CalendarRange
     },
+    ...placeholderPages.filter(page => ['timesheets', 'finance'].includes(page.id)),
     {
-      id: 'dashboard',
-      label: 'Thống Kê & Báo Cáo',
-      compactLabel: 'Báo cáo',
-      icon: BarChart3,
-      badge: 'KPI',
-      badgeColor: 'bg-purple-500/10 text-purple-500 border-purple-500/20'
+      id: 'company',
+      label: 'Công ty',
+      compactLabel: 'Công ty',
+      icon: ShieldCheck
     },
-    ...placeholderPages
+    ...placeholderPages.filter(page => !['timesheets', 'finance', 'permissions'].includes(page.id))
   ];
 
   // Chỉ thêm trang nhật ký vào menu của phiên quản trị viên.
@@ -83,9 +80,7 @@ export default function Sidebar() {
       id: 'activity',
       label: 'Nhật Ký Hoạt Động',
       compactLabel: 'Nhật ký',
-      icon: Activity,
-      badge: 'ADMIN',
-      badgeColor: 'bg-amber-500/10 text-amber-700 border-amber-500/20',
+      icon: Activity
     });
   }
 
@@ -159,17 +154,8 @@ export default function Sidebar() {
                 />
 
                 {!sidebarCollapsed && (
-                  <div className="flex-1 flex items-center justify-between truncate">
+                  <div className="flex-1 flex items-center truncate">
                     <span className="truncate">{item.label}</span>
-                    {item.badge && (
-                      <span
-                        className={`text-[10px] px-2 py-0.5 rounded-full border font-medium truncate ${
-                          isActive ? 'bg-white/20 text-white border-white/30' : item.badgeColor
-                        }`}
-                      >
-                        {item.badge}
-                      </span>
-                    )}
                   </div>
                 )}
 
