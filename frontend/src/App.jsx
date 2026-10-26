@@ -7,7 +7,7 @@ import HRPage from './modules/hr/HRPage';
 import TasksPage from './modules/tasks/TasksPage';
 import MyWorkPage from './modules/my-work/MyWorkPage';
 import DirectorOverviewPage from './modules/director-overview/DirectorOverviewPage';
-const TimesheetsPage = lazy(() => import('./modules/operations/TimesheetsPage'));
+const TimesheetsPage = lazy(() => import('./modules/operations/PeopleTimesheetsPage'));
 const FinancePage = lazy(() => import('./modules/operations/FinancePage'));
 const PermissionsPage = lazy(() => import('./modules/operations/PermissionsPage'));
 const CompanyPage = lazy(() => import('./modules/company/CompanyPage'));

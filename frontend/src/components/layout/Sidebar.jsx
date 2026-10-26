@@ -14,8 +14,24 @@ import {
 } from 'lucide-react';
 import { getCurrentUser } from '../../modules/auth/authSession';
 import { placeholderPages } from './placeholderPages';
+import './SidebarAlignment.css';
 
 export default function Sidebar() {
+  React.useLayoutEffect(() => {
+    const sidebar = document.querySelector('.app-shell > aside');
+    if (!sidebar) return;
+    const label = [...sidebar.querySelectorAll('*')].find(
+      element => element.children.length === 0 && element.textContent.trim().toLocaleUpperCase('vi') === 'PHÂN HỆ QUẢN LÝ'
+    );
+    if (!label) return;
+    let container = label;
+    while (
+      container.parentElement !== sidebar &&
+      container.parentElement?.textContent.trim().toLocaleUpperCase('vi') === 'PHÂN HỆ QUẢN LÝ' &&
+      container.parentElement.children.length === 1
+    ) container = container.parentElement;
+    container.style.display = 'none';
+  });
   const {
     activeTab,
     setActiveTab,

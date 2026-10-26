@@ -6,10 +6,13 @@ import { ownsDeliveryTask } from '../../../frontend/src/utils/deliveryView.js';
 import { BUDGET_GROUPS, companyAdmin, moneyRole, matrixAllows } from '../../../frontend/src/utils/operationsDefaults.js';
 import { operations, projectActor } from './operationsStore.js';
 import { projectTemplates } from './defaultProjectTemplate.js';
+import { assignmentWorkingDates } from '../../../frontend/src/utils/assignmentCalendar.js';
 export const vietnamDay = (date=new Date()) => new Date(date.getTime()+7*3600000).toISOString().slice(0,10);
 export const addDate = (key,days) => new Date(Date.parse(`${key}T12:00:00Z`)+days*86400000).toISOString().slice(0,10);
 export function monday(key=vietnamDay()) { const d=new Date(`${key}T12:00:00Z`);return addDate(key,-((d.getUTCDay()+6)%7)); }
 export const sumBy = (rows,key) => rows.reduce((sum,row)=>sum+(Number(row[key]) || 0),0);
+const monthShift=(month,offset)=>{const [year,value]=month.split('-').map(Number),date=new Date(Date.UTC(year,value-1+offset,1));return `${date.getUTCFullYear()}-${String(date.getUTCMonth()+1).padStart(2,'0')}`;};
+const assignedInMonth=(tasks,month)=>tasks.reduce((grand,task)=>grand+(task.assignees||[]).reduce((taskSum,assignment)=>{const dates=assignmentWorkingDates(task,assignment),allWeight=dates.reduce((value,key)=>value+(new Date(`${key}T12:00:00Z`).getUTCDay()===6?.5:1),0),monthWeight=dates.filter(key=>key.startsWith(month)).reduce((value,key)=>value+(new Date(`${key}T12:00:00Z`).getUTCDay()===6?.5:1),0);return taskSum+(allWeight?Number(assignment.plannedHours||0)*monthWeight/allWeight:0);},0),0)/8;
 export function allSheets(db) {
  return (db.projects || []).flatMap(project=>computeDelivery(db,project.id,db.delivery?.projects?.[project.id] || {}).timesheets.map(row=>({...row,projectId:project.id,projectName:project.name})));
 }
@@ -87,6 +90,7 @@ export function operationsReport(db,user,query={}) {
  const tasks=projects.flatMap(project=>{const metrics=computeDelivery(db,project.id,db.delivery?.projects?.[project.id]||{});return projectDeliveryItems(db,project.id).map(item=>({id:item.id,projectId:project.id,projectName:project.name,code:item.code,title:item.title,startDate:item.startDate,endDate:item.endDate,assignees:metrics.taskMetrics[item.id]?.assignments || [],requiredPosition:item.requiredPosition,role:project.role}));}).filter(item=>item.role!=='employee' || ownsDeliveryTask(projectActor(db,user,item.projectId),item));
  const visibleRecord=row=>{const a=projectActor(db,user,row.projectId);return a&&(row.employeeId===a.employeeId || companyAdmin(a.role)||['manager','accountant','chiefAccountant'].includes(a.role)||a.role==='leader'&&canReviewSheet(db,a,row));};
  const reviewMonth=week.slice(0,7);
+ const balanceMonths=[monthShift(reviewMonth,-2),monthShift(reviewMonth,-1),reviewMonth].map(month=>({month,presence:sumBy(ops.attendance.filter(row=>!row.deletedAt&&row.date?.startsWith(month)&&(visibleEntries.some(entry=>entry.employeeId===row.employeeId)||row.employeeId===user.employeeId||companyFinance)),'hours')/8,assigned:assignedInMonth(tasks,month),declared:sumBy(visibleEntries.filter(row=>row.status==='approved'&&row.date?.startsWith(month)),'hours')/8}));
  return {revision:ops.revision,viewer:{email:actor.email,name:actor.name,role:actor.role,employeeId:actor.employeeId},companyRole:user.role,projectId,projects,week,end,tasks,
   employees:(db.employees || []).map(({id,name,code,title,team,grade})=>({id,name,code,title,team,grade})),
   users:companyAdmin(user.role)?(db.delivery?.users || []).map(({email,name,role,employeeId,disabled})=>({email,name,role,employeeId,disabled})):[],
@@ -94,7 +98,7 @@ export function operationsReport(db,user,query={}) {
   attendance:ops.attendance.filter(row=>!row.deletedAt && row.date>=week && row.date<=end && (visibleEntries.some(entry=>entry.employeeId===row.employeeId) || row.employeeId===user.employeeId || companyFinance)),
   otRequests:ops.otRequests.filter(row=>!row.deletedAt && visibleRecord(row)),
   unlocks:ops.unlocks.filter(row=>!row.deletedAt && visibleRecord(row)),checks:ops.checks.filter(row=>actor.role!=='employee'&&projects.some(p=>p.id===row.projectId)),
-  randomSample:actor.role==='employee'?[]:monthlyReviewSample(visibleEntries,reviewMonth,ops.params.randomChecks),
+  randomSample:actor.role==='employee'?[]:monthlyReviewSample(visibleEntries,reviewMonth,ops.params.randomChecks),balanceMonths:actor.role==='employee'?[]:balanceMonths,
   anomalies:matrixAllows(ops.matrix,'anomalies',actor.role)?hoursAnomalies(db,visibleEntries,reviewMonth):{},
   matrix:ops.matrix,params,procedures:(ops.procedures||DEFAULT_PROCEDURES).map(row=>financial?row:Object.fromEntries(Object.entries(row).filter(([key])=>key!=='fee'))),accounts:['manager','director','admin'].includes(user.role)?(db.delivery?.users||[]).filter(u=>!u.disabled).map(({email,name,role,employeeId})=>({email,name,role,employeeId})):[],templates:projectTemplates(db).map(t=>({...(companyAdmin(user.role)?t:{}),id:t.id,name:t.name,count:t.items.length,scopeOptions:t.scopeOptions||[]})),projectApprovals:(ops.projectApprovals||[]).filter(row=>projects.some(p=>p.id===row.projectId)),members:ops.members.filter(row=>!row.deletedAt && projects.some(p=>p.id===row.projectId) && (!projectId || row.projectId===projectId)),finance,
   ...(companyFinance&&matrixAllows(ops.matrix,'cashCompany',user.role)?{legacyExecutive:db.delivery?.executive||null,cashForecasts:ops.cashForecasts,cashflow:cashflowReport(db,query.month||vietnamDay().slice(0,7))}:{}),

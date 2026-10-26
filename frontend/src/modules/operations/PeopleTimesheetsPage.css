@@ -1,0 +1,25 @@
+.timesheets-page { padding-inline:0; }
+.timesheets-page .operations-topbar,.timesheets-page .operations-week-picker { margin:0; padding:8px 18px; border-bottom:1px solid var(--op-line); }
+.timesheets-page .operations-topbar { background:transparent; }
+.timesheets-page .operations-week-picker { background:var(--op-surface); }
+.timesheets-section-title { align-self:stretch; display:flex; align-items:center; padding:5px 10px; color:var(--op-accent); border-bottom:2px solid var(--op-accent); font-weight:700; }
+.timesheets-subtabs { padding:10px 18px; background:var(--op-surface); border-bottom:1px solid var(--op-line); }
+.timesheets-subtabs .operations-tabs { gap:8px; margin:0; border:0; }
+.timesheets-subtabs .operations-tabs button { padding:7px 14px; color:var(--op-text); background:var(--op-surface); border:1px solid var(--op-line); border-radius:999px; white-space:nowrap; }
+.timesheets-subtabs .operations-tabs button.active { color:#fff; background:var(--op-accent); border-color:var(--op-accent); }
+.timesheets-page .operations-card { margin:0; border-radius:0; border-top:0; }
+.timesheets-page .operations-card + .operations-card { border-top:0; }
+.timesheets-page .operations-kpis { gap:0; margin:0; }
+.timesheets-page .operations-kpis article { margin:0; border-radius:0; }
+.timesheets-page .operations-guide,.timesheets-page .operations-error,.timesheets-page .operations-notice { margin:0; border-radius:0; }
+.timesheets-meter-cell { min-width:170px; }
+.timesheets-type { display:inline-block; padding:3px 8px; border-radius:999px; white-space:nowrap; font-size:var(--text-micro); background:#f6eedb; color:#9c6f20; }
+.timesheets-type.success { color:#267c50; background:#e1f0e6; }
+.timesheets-type.danger { color:#b34538; background:#f9e4df; }
+.timesheets-type.info { color:#3769aa; background:#e5eefb; }
+.timesheets-summary { display:flex; gap:24px; align-items:center; flex-wrap:wrap; padding:12px 14px; background:#faf8f4; border-top:1px solid var(--op-line); }
+.timesheets-summary span { color:var(--op-muted); }.timesheets-summary strong { color:var(--op-text); margin-left:5px; }
+.timesheets-balance-chart { display:block; width:100%; min-width:720px; height:auto; max-height:560px; background:var(--op-surface); }
+.timesheets-chart-legend { display:flex; gap:22px; flex-wrap:wrap; padding:9px 14px 12px; color:var(--op-muted); font-size:var(--text-caption); }
+.timesheets-chart-legend span { display:inline-flex; align-items:center; gap:6px; }.timesheets-chart-legend i { width:12px; height:12px; display:inline-block; border-radius:2px; }
+@media(max-width:850px) { .timesheets-page { padding:0 0 24px; }.timesheets-page .operations-topbar { align-items:flex-start; }.timesheets-subtabs { overflow-x:auto; }.timesheets-subtabs .operations-tabs { flex-wrap:nowrap; min-width:max-content; } }
