@@ -2,6 +2,71 @@
 @media(max-width:900px){.director-overview{padding-inline:0}.director-overview-toolbar{align-items:flex-start;padding-block:8px}.director-overview-toolbar>div{justify-content:flex-end}.director-overview-kpis{grid-template-columns:1fr}.director-overview-card>header{align-items:flex-start;flex-direction:column;gap:3px}}
 @media(max-width:600px){.director-overview-toolbar{flex-direction:column}.director-overview-toolbar nav{height:42px}.director-overview-toolbar>div{justify-content:flex-start}.director-actions article{grid-template-columns:1fr 58px}.director-actions article strong{grid-column:1/-1}}
 
+/* Keep the primary section tabs visually consistent with the shared work hub. */
+.director-overview-toolbar{min-height:48px;align-items:stretch;padding:0 4px}
+.director-overview-toolbar nav{display:flex;align-items:stretch;gap:4px;height:auto}
+.director-overview-toolbar nav button{display:inline-flex;align-items:center;justify-content:center;height:auto;min-height:48px;padding:0 10px;font-size:13px;color:#5f5753;font-weight:500}
+.director-overview-toolbar nav button.active{border-bottom-color:#861b36;color:#861b36;font-weight:700}
+
+.dark .director-overview{--director-accent:#edb2bf;--director-border:#39424e;color:#eef0f3;background:#151c25}
+.dark .director-overview-toolbar nav button{color:#c7cbd1}
+.dark .director-overview-toolbar nav button.active{color:#edb2bf;border-bottom-color:#b84b65}
+.dark .director-overview-toolbar select,.dark .director-overview-toolbar .icon-button,.dark .director-actions article button{color:#eef0f3;border-color:#4a5665;background:#242d39}
+.dark .director-overview-toolbar select{color-scheme:dark}
+.dark .director-overview-formula{color:#c9d7ea;background:#202f43;border-left-color:#6e9bd1}
+.dark .director-overview-kpis article,.dark .director-overview-card,.dark .director-overview-error,.dark .director-overview-loading,.dark .director-overview-denied{border-color:var(--director-border);background:#1c2531}
+.dark .director-overview-kpis span,.dark .director-overview-kpis small,.dark .director-overview-card header span,.dark .director-overview-card>footer,.dark .director-overview .empty,.dark .director-overview-denied p{color:#b9bec5}
+.dark .director-overview-kpis .success strong,.dark .director-overview .project-link,.dark .director-overview tfoot th{color:#f1f3f5}
+.dark .director-overview th,.dark .director-overview td,.dark .director-actions article{border-bottom-color:#39424e}
+.dark .director-overview th{color:#c4c8ce}
+.dark .director-overview tfoot{background:#242d39}
+.dark .director-overview .variance{color:#bfc3c9}
+.dark .director-overview .variance.good{color:#69d7ae;background:#203d34}
+.dark .director-overview .variance.bad,.dark .director-overview .red-count{color:#ff9b94;background:#4b2b2d}
+
+/* Distinct executive total: professional steel-blue band. */
+.director-overview tfoot{border-top:2px solid #8fa3b8;background:#e7edf4}
+.director-overview tfoot th{color:#26384d}
+.dark .director-overview tfoot{border-top-color:#6f89a5;background:#26364a}
+.dark .director-overview tfoot th{color:#f2f6fa}
+
+/* Professional APS color hierarchy — color only. */
+.director-overview{--director-accent:#941b3d;--director-border:#d7dee6;color:#182433;background:#f3f6f8}
+.director-overview-toolbar{background:#f8fafc;border-bottom-color:#d7dee6}
+.director-overview-toolbar nav button{color:#536273}
+.director-overview-toolbar nav button.active{color:#941b3d;border-bottom-color:#941b3d}
+.director-overview-kpis article{border-color:#d7dee6;background:#fff}
+.director-overview-kpis article.danger{background:#fff9fa;border-top-color:#c83b3f}
+.director-overview-kpis article.success{background:#f8fcfa;border-top-color:#16785c}
+.director-overview-kpis span,.director-overview-kpis small{color:#697786}
+.director-overview-kpis strong{color:#b52835}
+.director-overview-kpis .success strong{color:#116c51}
+.director-overview-card{border-color:#d7dee6;background:#fff}
+.director-overview-card>header{color:#1d344a;background:#edf2f6;border-bottom-color:#d7dee6}
+.director-overview-card header span{color:#71808e}
+.director-overview th{color:#42576b;background:#f5f7f9}
+.director-overview td{color:#26384a}
+.director-overview th,.director-overview td,.director-actions article{border-bottom-color:#e1e7ec}
+.director-overview tbody tr:nth-child(even){background:#fbfcfd}
+.director-overview tbody tr:hover{background:#f2f7fa}
+.director-overview .project-link{color:#162a3e}
+.director-actions article strong{color:#a86a00}
+.director-actions article button{color:#8c183a;border-color:#d5bdc5;background:#fff8fa}
+.director-overview tfoot{border-top-color:#57718b;background:#e8eef4}
+.director-overview tfoot th{color:#1f374d}
+.dark .director-overview{--director-accent:#f0b3c2;--director-border:#344456;color:#e8edf2;background:#111923}
+.dark .director-overview-toolbar{background:#17222e;border-bottom-color:#344456}
+.dark .director-overview-kpis article,.dark .director-overview-card{border-color:#344456;background:#182330}
+.dark .director-overview-kpis article.danger{background:#2a2029}
+.dark .director-overview-kpis article.success{background:#182c29}
+.dark .director-overview-card>header{color:#edf3f8;background:#243344;border-bottom-color:#344456}
+.dark .director-overview th{color:#c8d4df;background:#202e3d}
+.dark .director-overview td{color:#e0e7ed}
+.dark .director-overview th,.dark .director-overview td,.dark .director-actions article{border-bottom-color:#344456}
+.dark .director-overview tbody tr:nth-child(even){background:#1b2734}
+.dark .director-overview tbody tr:hover{background:#223244}
+.dark .director-overview tfoot{border-top-color:#6d89a5;background:#26384b}
+
 
 
 

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useCallback, useContext, useState, useEffect } from 'react';
 import { api } from '../api';
 import { recordActivity } from '../modules/auth/authSession';
 
@@ -11,7 +11,20 @@ export function AppProvider({ children }) {
   });
 
   // Tab điều hướng chính
-  const [activeTab, setActiveTab] = useState('hr'); // 'hr', 'tasks', 'gantt', 'dashboard'
+  const [activeTab, setActiveTabState] = useState('work-hub');
+  const [workHubSection, setWorkHubSection] = useState('my-work');
+  const setActiveTab = useCallback((nextTab) => {
+    if (typeof nextTab === 'function') {
+      setActiveTabState(previous => nextTab(previous));
+      return;
+    }
+    if (['my-work', 'hr', 'tasks', 'workload'].includes(nextTab)) {
+      setWorkHubSection(nextTab);
+      setActiveTabState('work-hub');
+      return;
+    }
+    setActiveTabState(nextTab);
+  }, []);
   // Thời gian thực (Real-time Clock chạy từng giây)
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -435,6 +448,8 @@ export function AppProvider({ children }) {
         toggleTheme,
         activeTab,
         setActiveTab,
+        workHubSection,
+        setWorkHubSection,
         currentTime,
         selectedDate,
         setSelectedDate,

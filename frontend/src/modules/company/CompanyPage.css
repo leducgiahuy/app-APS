@@ -23,6 +23,8 @@
 .company-status { display:inline-block; padding:3px 8px; border-radius:999px; font-size:var(--text-caption); }
 .company-status.ok { background:#e1f0e6; color:#267c50; }
 .company-status.warn { background:#f6eedb; color:#976615; }
+.dark .company-status.ok { background:#203d34; color:#69d7ae; }
+.dark .company-status.warn { background:#493b22; color:#f3c36d; }
 .company-imports article { display:grid; grid-template-columns:auto minmax(240px,1fr) auto; gap:12px; align-items:center; padding:14px; border-bottom:1px solid var(--op-line); }
 .company-imports article:last-child { border-bottom:0; }
 .company-imports article>div:nth-child(2) { display:flex; flex-direction:column; gap:3px; }
@@ -32,3 +34,24 @@
 .company-import-actions input { display:none; }
 @media(max-width:1100px) { .company-main-tabs { width:100%; }.company-main-tabs .operations-tabs { overflow-x:auto; }.operations-topbar .operations-view-options { margin-left:0; } }
 @media(max-width:850px) { .company-policy-list { grid-template-columns:1fr; }.company-policy { border-right:0; }.company-imports article { grid-template-columns:auto 1fr; }.company-import-actions { grid-column:1/-1; }.company-search input { min-width:150px; } }
+
+/* Professional APS color hierarchy — color only. */
+.company-main-tabs { background:#f8fafc; }
+.company-subtabs { border-bottom-color:#d7dee6; background:#edf2f6; }
+.company-operations-page .company-page .company-subtabs button { color:#344b60; border-color:#cbd5de; background:#fff; }
+.company-operations-page .company-page .company-subtabs button:hover { color:#8b1839; border-color:#b97789; background:#fff7f9; }
+.operations-page .company-subtabs button.active { color:#fff; border-color:#941b3d; background:#941b3d; }
+.company-policy { border-color:#d7dee6; background:#fff; }
+.company-policy:nth-child(4n+2),.company-policy:nth-child(4n+3) { background:#f9fbfd; }
+.company-policy>header { color:#172b40; }
+.company-policy header span,.company-policy>small { color:#6d7b89; }
+.company-read { color:#137255!important; }
+.company-status.ok { color:#116c51; background:#e4f4ed; }
+.company-status.warn { color:#976000; background:#fff0d2; }
+.dark .company-main-tabs { background:#17222e; }
+.dark .company-subtabs { border-bottom-color:#344456; background:#243344; }
+.dark .company-operations-page .company-page .company-subtabs button { color:#dce5ec; border-color:#46596d; background:#223040; }
+.dark .company-operations-page .company-page .company-subtabs button.active { color:#fff; border-color:#ad3154; background:#941b3d; }
+.dark .company-policy { border-color:#344456; background:#182330; }
+.dark .company-policy:nth-child(4n+2),.dark .company-policy:nth-child(4n+3) { background:#1b2734; }
+.dark .company-policy>header { color:#edf3f8; }

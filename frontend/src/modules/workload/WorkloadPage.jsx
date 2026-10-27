@@ -119,14 +119,6 @@ function sessionTimeLabel(session) {
   return `${start}–${end}`;
 }
 
-function formatDayHeading(dateKey) {
-  const date = new Date(`${dateKey}T12:00:00`);
-  const weekday = date.toLocaleDateString('vi-VN', { weekday: 'long' });
-  const day = String(date.getDate()).padStart(2, '0');
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  return `${weekday}, ${day}/${month}/${date.getFullYear()}`;
-}
-
 function allocationTone(allocated, capacity) {
   if (!capacity || allocated === 0) return 'empty';
   if (allocated > capacity) return 'over';
@@ -149,17 +141,17 @@ function actualHoursForPeriod(tasks, employee, start, end, now) {
 }
 
 export default function WorkloadPage() {
-  const { employees, tasks, ganttItems, projects, currentTime, setActiveTab, selectDate } = useApp();
+  const { employees, tasks, ganttItems, projects, currentTime, setActiveTab, selectedDate, selectDate } = useApp();
   const currentUser = getCurrentUser();
   const isAdmin = currentUser?.role === 'admin';
   const personalEmployee = isAdmin ? null : resolveEmployee(currentUser, employees);
   const [period, setPeriod] = useState('day');
-  const [selectedDay, setSelectedDay] = useState(todayKey);
+  // Ngày đang xem lấy từ bộ chọn ngày trên header.
+  const selectedDay = dayKey(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
   const [selectedMonth, setSelectedMonth] = useState(monthKey);
   const [selectedYear, setSelectedYear] = useState(String(today.getFullYear()));
   const [search, setSearch] = useState('');
   const [forecastView, setForecastView] = useState('position');
-  const datePickerRef = useRef(null);
   const tableScrollRef = useRef(null);
 
   useEffect(() => {
@@ -233,11 +225,7 @@ export default function WorkloadPage() {
   }, { capacity: 0, allocated: 0, remaining: 0, overloaded: 0, peopleWithAvailability: new Set() }), [rows]);
 
   const shiftPeriod = (direction) => {
-    if (period === 'day') {
-      const date = new Date(`${selectedDay}T12:00:00`);
-      date.setDate(date.getDate() + direction);
-      setSelectedDay(dayKey(date.getFullYear(), date.getMonth(), date.getDate()));
-    } else if (period === 'month') {
+    if (period === 'month') {
       const date = new Date(`${selectedMonth}-15T12:00:00`);
       date.setMonth(date.getMonth() + direction);
       setSelectedMonth(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`);
@@ -271,14 +259,8 @@ export default function WorkloadPage() {
           {periods.map(([value, label]) => <button type="button" role="tab" aria-selected={period === value} key={value} className={period === value ? 'active' : ''} onClick={() => setPeriod(value)}>{label}</button>)}
         </div>
         {period === 'forecast' && <div className="workload-view-switch"><span>Xem theo:</span>{[['position', 'Vị trí'], ['employee', 'Nhân viên']].map(([value, label]) => <button type="button" key={value} aria-pressed={forecastView === value} className={forecastView === value ? 'active' : ''} onClick={() => setForecastView(value)}>{label}</button>)}</div>}
-        {period !== 'forecast' && <div className="workload-period-picker">
+        {(period === 'month' || period === 'year') && <div className="workload-period-picker">
           <button type="button" className="workload-icon-button" onClick={() => shiftPeriod(-1)} aria-label="Khoảng thời gian trước"><ChevronLeft size={18} /></button>
-          {period === 'day' && <>
-            <button type="button" className="workload-date-button" onClick={() => datePickerRef.current?.showPicker ? datePickerRef.current.showPicker() : datePickerRef.current?.click()}>
-              <CalendarDays size={16} /><span>{formatDayHeading(selectedDay)}</span>
-            </button>
-            <input ref={datePickerRef} className="workload-date-picker-input" aria-label="Chọn ngày" type="date" value={selectedDay} onChange={event => setSelectedDay(event.target.value)} />
-          </>}
           {period === 'month' && <input aria-label="Chọn tháng" type="month" value={selectedMonth} onChange={event => setSelectedMonth(event.target.value)} />}
           {period === 'year' && <input aria-label="Chọn năm" type="number" min="2000" max="2100" value={selectedYear} onChange={event => setSelectedYear(event.target.value)} />}
           <button type="button" className="workload-icon-button" onClick={() => shiftPeriod(1)} aria-label="Khoảng thời gian tiếp"><ChevronRight size={18} /></button>

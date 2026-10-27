@@ -1,6 +1,5 @@
 import { useCallback,useEffect,useLayoutEffect,useRef,useState } from 'react';
 import { deliveryApi } from '../gantt/deliveryApi';
-import { OP_ROLE_NAMES } from '../../utils/operationsDefaults';
 import DeliveryResourceEditor from '../gantt/DeliveryResourceEditor';
 import './OperationsPage.css';
 import '../gantt/DeliveryPage.css';
@@ -26,9 +25,8 @@ export function useOperations(query) {
  const modal=editor&&<DeliveryResourceEditor key={`${editor.title}:${editor.value?.id||''}`} title={editor.title} fields={editor.fields} value={editor.value||{}} onSave={editor.save} onClose={()=>setEditor(null)} saving={saving}/>;
  return {data,mutationVersion,error,loading,saving,mutate,load,run,open,modal,previewUsers,disabled:saving||loading||Boolean(data?.readOnly)};
 }
-export function OperationsFrame({api,query,setQuery,children,project=true,guide,toolbar,className=''}) {
- const [showGuide,setShowGuide]=useState(false);
- return <div className={`operations-page ${className}`.trim()}><div className="operations-topbar">{toolbar}{project&&<select aria-label="Dự án" value={query.projectId||''} onChange={e=>setQuery({...query,projectId:e.target.value})}><option value="">Chọn dự án</option>{api.data?.projects.map(row=><option key={row.id} value={row.id}>{row.name}</option>)}</select>}<div className="operations-view-options">{api.data?.viewer&&<span className="operations-role">{api.data.viewer.name||api.data.viewer.email} · {OP_ROLE_NAMES[api.data.viewer.role]}</span>}{api.previewUsers.length>0&&<label>Xem thử vai trò <select value={query.asUser||''} onChange={e=>setQuery({...query,asUser:e.target.value})}><option value="">Vai trò đăng nhập</option>{api.previewUsers.map(row=><option value={row.email} key={row.email}>{row.name||row.email} · {OP_ROLE_NAMES[row.role]}</option>)}</select></label>}<label><input type="checkbox" checked={showGuide} onChange={e=>setShowGuide(e.target.checked)}/> Hiện cách tính</label><button onClick={()=>api.load()} disabled={api.loading}>Tải lại</button></div></div>{api.data?.readOnly&&<p className="operations-notice">Đang xem thử · chỉ đọc</p>}{api.error&&<p className="operations-error" role="alert">{api.error}</p>}{api.loading&&!api.data&&<p role="status" className="operations-empty">Đang tải dữ liệu…</p>}{showGuide&&<div className="operations-guide">{guide}</div>}{api.data&&children}{api.modal}</div>;
+export function OperationsFrame({api,query,setQuery,children,project=true,toolbar,className=''}) {
+ return <div className={`operations-page ${className}`.trim()}><div className="operations-topbar">{toolbar}{project&&<select aria-label="Dự án" value={query.projectId||''} onChange={e=>setQuery({...query,projectId:e.target.value})}><option value="">Chọn dự án</option>{api.data?.projects.map(row=><option key={row.id} value={row.id}>{row.name}</option>)}</select>}</div>{api.error&&<p className="operations-error" role="alert">{api.error}</p>}{api.loading&&!api.data&&<p role="status" className="operations-empty">Đang tải dữ liệu…</p>}{api.data&&children}{api.modal}</div>;
 }
 export function Tabs({items,value,onChange}){return <nav className="operations-tabs">{items.map(([key,label])=><button key={key} className={value===key?'active':''} onClick={()=>onChange(key)}>{label}</button>)}</nav>;}
 export function Card({title,subtitle,actions,children,footer}){return <section className="operations-card"><header><h2>{title}</h2>{subtitle&&<span>{subtitle}</span>}<div>{actions}</div></header>{children}{footer&&<footer>{footer}</footer>}</section>;}

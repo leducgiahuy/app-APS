@@ -47,6 +47,7 @@ export default function Header() {
     ...Object.fromEntries(placeholderPages.map(page => [page.id, page.label])),
     company: 'Công ty',
     'my-work': 'Việc của tôi',
+    'work-hub': 'Công việc',
     'director-overview': 'Tổng quan',
     hr: 'Thành Viên',
     tasks: 'Công việc',
@@ -59,6 +60,7 @@ export default function Header() {
     ...Object.fromEntries(placeholderPages.map(page => [page.id, page.icon])),
     company: ShieldCheck,
     'my-work': CheckSquare,
+    'work-hub': CheckSquare,
     'director-overview': BarChart3,
     hr: Users,
     tasks: CheckSquare,
@@ -120,36 +122,36 @@ export default function Header() {
   };
 
   return (
-    <header className="sticky top-0 z-30 h-16 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-colors">
+    <header className="aps-brand-header sticky top-0 z-30 h-16 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-colors">
       <div className="h-full px-3 sm:px-5 flex items-center justify-between gap-3">
         
         {/* Phần bên trái: Nút Menu Mobile + Tiêu đề trang */}
-        <div className="flex items-center gap-3 min-w-0">
+        <div className="aps-header-title flex items-center gap-3 min-w-0">
           <button
             onClick={() => setMobileMenuOpen(true)}
-            className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 lg:hidden flex-shrink-0"
+            className="aps-header-menu p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 lg:hidden flex-shrink-0"
           >
             <Menu className="w-6 h-6" />
           </button>
 
-          <CurrentPageIcon className="h-5 w-5 flex-shrink-0 text-slate-500 dark:text-slate-400" aria-hidden="true" />
-          <h1 className="min-w-0 text-sm sm:text-base font-bold text-slate-900 dark:text-white truncate">
+          <CurrentPageIcon className="h-6 w-6 flex-shrink-0 text-slate-500 dark:text-slate-400" aria-hidden="true" />
+          <h1 className="min-w-0 text-base sm:text-xl font-bold text-slate-900 dark:text-white truncate">
             {currentTitle}
           </h1>
         </div>
 
         {/* Phần bên phải: Đồng hồ số Real-time + Bộ chọn ngày + Theme Toggle + User Badge */}
-        <div className="flex items-center gap-1.5 sm:gap-2.5 flex-shrink-0">
+        <div className="aps-header-actions flex items-center gap-1.5 sm:gap-2.5 flex-shrink-0">
           
           <OperationsNotifications />
           {/* Đồng hồ số chạy theo thời gian thực (Real-time Clock) */}
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 text-sky-600 dark:text-sky-400 font-mono font-bold text-[11px] sm:text-xs shadow-inner">
+          <div className="aps-header-clock flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 text-sky-600 dark:text-sky-400 font-mono font-bold text-[11px] sm:text-xs shadow-inner">
             <Clock className="w-4 h-4 animate-spin" style={{ animationDuration: '6s' }} />
             <span>{formatTime(currentTime)}</span>
           </div>
 
           {/* Bộ điều khiển ngày tháng (Lùi ngày, Hôm nay, Tiến ngày) */}
-          <div className="hidden md:flex w-[350px] shrink-0 items-center justify-between gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+          <div className="aps-header-date hidden md:flex w-[350px] shrink-0 items-center justify-between gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
             <button
               onClick={() => {
                 if (isGanttView) setGanttMonth(new Date(ganttMonth.getFullYear(), ganttMonth.getMonth() - 1, 1));
@@ -214,7 +216,7 @@ export default function Header() {
           {/* Nút chuyển đổi giao diện Light/Dark Mode */}
           <button
             onClick={toggleTheme}
-            className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 transition-all duration-200"
+              className="aps-header-theme p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 transition-all duration-200"
             title={theme === 'dark' ? 'Chuyển sang chế độ Sáng' : 'Chuyển sang chế độ Tối'}
           >
             {theme === 'dark' ? (
@@ -224,11 +226,11 @@ export default function Header() {
             )}
           </button>
 
-          <div ref={accountMenuRef} className="relative border-l border-slate-200 pl-2 dark:border-slate-700">
+          <div ref={accountMenuRef} className="aps-header-account relative border-l border-slate-200 pl-2 dark:border-slate-700">
             <button
               type="button"
               onClick={() => setAccountMenuOpen(open => !open)}
-              className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl bg-slate-200 text-xs font-bold text-slate-700 hover:ring-2 hover:ring-sky-500/40 dark:bg-slate-600 dark:text-slate-100"
+              className="aps-header-account-button flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl bg-slate-200 text-xs font-bold text-slate-700 hover:ring-2 hover:ring-sky-500/40 dark:bg-slate-600 dark:text-slate-100"
               aria-label="Mở menu tài khoản"
               aria-haspopup="menu"
               aria-expanded={accountMenuOpen}

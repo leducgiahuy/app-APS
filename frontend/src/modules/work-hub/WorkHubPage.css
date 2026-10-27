@@ -1,0 +1,9 @@
+.work-hub-page { min-height:100%; background:#f6f4f1; }
+.work-hub-tabs { position:sticky; top:0; z-index:55; display:flex; align-items:stretch; gap:4px; width:100%; min-height:48px; padding:0 4px; overflow-x:auto; border-bottom:1px solid #dfdad3; background:#f6f4f1; }
+.work-hub-tabs button { display:inline-flex; min-height:48px; align-items:center; justify-content:center; padding:0 10px; border:0; border-bottom:2px solid transparent; color:#5f5753; background:transparent; font:inherit; font-size:13px; font-weight:500; white-space:nowrap; cursor:pointer; }
+.work-hub-tabs button:hover { color:#861b36; background:transparent; }
+.work-hub-tabs button.active { color:#861b36; background:transparent; border-bottom-color:#861b36; font-weight:700; }
+.work-hub-content { width:100%; min-width:0; }
+.work-hub-content .hr-fixed-controls,.work-hub-content .tasks-fixed-controls { top:48px; }
+.dark .work-hub-page { background:#0f172a; }.dark .work-hub-tabs { border-color:#334155; background:#111827; }.dark .work-hub-tabs button { color:#d1d5db; }.dark .work-hub-tabs button.active { color:#edb2bf; border-bottom-color:#edb2bf; }
+@media(max-width:720px) { .work-hub-tabs { gap:4px; }.work-hub-tabs button { min-width:max-content; } }

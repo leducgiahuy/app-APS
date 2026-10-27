@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BarChart3, RefreshCw } from 'lucide-react';
+import { BarChart3 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { deliveryApi } from '../gantt/deliveryApi';
-import { DELIVERY_ROLES } from '../../utils/deliveryMetrics';
 import { capacityWeight } from '../../utils/workforceForecast';
 import './DirectorOverviewPage.css';
 
@@ -68,8 +67,6 @@ export default function DirectorOverviewPage() {
   const month = `${ganttMonth.getFullYear()}-${String(ganttMonth.getMonth() + 1).padStart(2, '0')}`;
   const [report, setReport] = useState(null);
   const [details, setDetails] = useState({});
-  const [preview, setPreview] = useState('');
-  const [showFormula, setShowFormula] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const generation = useRef(0);
@@ -105,7 +102,7 @@ export default function DirectorOverviewPage() {
     return () => { generation.current += 1; window.clearInterval(timer); window.removeEventListener('focus', refresh); };
   }, [load, projects, tasks, ganttItems, employees]);
 
-  const role = preview || report?.viewer?.role;
+  const role = report?.viewer?.role;
   const mayView = ['director', 'admin'].includes(role) && report?.permissions?.executive;
   const rows = useMemo(() => (report?.projects || []).map(row => {
     const project = projects.find(item => item.id === row.id) || row;
@@ -148,23 +145,11 @@ export default function DirectorOverviewPage() {
   return <div className="director-overview">
     <div className="director-overview-toolbar">
       <nav><button className="active">10 số chính</button></nav>
-      <div>
-        <label>Xem thử vai trò
-          <select value={preview} onChange={event => setPreview(event.target.value)}>
-            <option value="">{DELIVERY_ROLES[report?.viewer?.role] || 'Vai trò đăng nhập'}</option>
-            {Object.entries(DELIVERY_ROLES).filter(([key]) => key !== report?.viewer?.role).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-          </select>
-        </label>
-        <label><input type="checkbox" checked={showFormula} onChange={event => setShowFormula(event.target.checked)} /> Hiện cách tính</label>
-        <button className="icon-button" onClick={() => load()} disabled={loading} title="Tải lại"><RefreshCw size={15} className={loading ? 'is-spinning' : ''} /></button>
-      </div>
     </div>
     {error && <div className="director-overview-error" role="alert">{error}<button onClick={() => load()}>Thử lại</button></div>}
     {loading && !report && <p className="director-overview-loading">Đang tải số liệu điều hành…</p>}
     {report && !mayView && <section className="director-overview-denied"><BarChart3 size={32} /><h2>Tổng quan</h2><p>Trang này chỉ hiển thị cho vai trò Giám đốc hoặc Quản trị viên.</p></section>}
     {report && mayView && <>
-      {showFormula && <aside className="director-overview-formula"><b>Cách tính:</b> Dự toán lấy công hợp đồng hoặc công phân công. Thực tế lấy giờ công đã duyệt ÷ 8. Dự báo khi xong dùng mức hoàn thành đã ghi nhận. Chênh = Dự báo − Dự toán. Việc đỏ lấy cảnh báo hạn nộp, thiếu bằng chứng và hồ sơ bị kẹt.</aside>}
-
       <section className="director-overview-kpis">
         <article className="danger"><span>Dự án vượt công</span><strong>{overBudget.length} dự án</strong><small>{overBudget.length ? `Vượt ${number(overBudget.reduce((sum, row) => sum + row.variance, 0))} công · ${totals.red} việc đỏ` : 'Không có dự án vượt dự báo'}</small></article>
         <article className="success"><span>Lấp đầy công</span><strong>{capacity == null ? '—' : `${number(capacity)}%`}</strong><small>Tỷ lệ giờ đã phân công trên năng lực tháng</small></article>

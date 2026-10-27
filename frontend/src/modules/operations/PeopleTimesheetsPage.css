@@ -1,8 +1,9 @@
-.timesheets-page { padding-inline:0; }
-.timesheets-page .operations-topbar,.timesheets-page .operations-week-picker { margin:0; padding:8px 18px; border-bottom:1px solid var(--op-line); }
+.timesheets-page { padding:0 0 30px; }
+.timesheets-page .operations-topbar { box-sizing:border-box; height:48px; min-height:48px; margin:0; padding:4px 18px; border-bottom:1px solid var(--op-line); }
+.timesheets-page .operations-week-picker { margin:0; padding:8px 18px; border-bottom:1px solid var(--op-line); }
 .timesheets-page .operations-topbar { background:transparent; }
 .timesheets-page .operations-week-picker { background:var(--op-surface); }
-.timesheets-section-title { align-self:stretch; display:flex; align-items:center; padding:5px 10px; color:var(--op-accent); border-bottom:2px solid var(--op-accent); font-weight:700; }
+.timesheets-section-title { align-self:stretch; display:flex; align-items:center; padding:0 10px; color:var(--op-accent); border-bottom:2px solid var(--op-accent); font-weight:700; }
 .timesheets-subtabs { padding:10px 18px; background:var(--op-surface); border-bottom:1px solid var(--op-line); }
 .timesheets-subtabs .operations-tabs { gap:8px; margin:0; border:0; }
 .timesheets-subtabs .operations-tabs button { padding:7px 14px; color:var(--op-text); background:var(--op-surface); border:1px solid var(--op-line); border-radius:999px; white-space:nowrap; }
@@ -22,4 +23,28 @@
 .timesheets-balance-chart { display:block; width:100%; min-width:720px; height:auto; max-height:560px; background:var(--op-surface); }
 .timesheets-chart-legend { display:flex; gap:22px; flex-wrap:wrap; padding:9px 14px 12px; color:var(--op-muted); font-size:var(--text-caption); }
 .timesheets-chart-legend span { display:inline-flex; align-items:center; gap:6px; }.timesheets-chart-legend i { width:12px; height:12px; display:inline-block; border-radius:2px; }
-@media(max-width:850px) { .timesheets-page { padding:0 0 24px; }.timesheets-page .operations-topbar { align-items:flex-start; }.timesheets-subtabs { overflow-x:auto; }.timesheets-subtabs .operations-tabs { flex-wrap:nowrap; min-width:max-content; } }
+.dark .timesheets-summary { color:var(--op-text); border-color:var(--op-line); background:#242b35; }
+.dark .timesheets-type { color:#e9c878; background:#493b22; }
+.dark .timesheets-type.success { color:#69d7ae; background:#203d34; }
+.dark .timesheets-type.danger { color:#ffaaa3; background:#4b2b2d; }
+.dark .timesheets-type.info { color:#a9c9f4; background:#21364f; }
+.dark .timesheets-balance-chart { background:var(--op-surface); }
+.dark .timesheets-chart-legend { color:var(--op-muted); }
+
+/* Semantic colors for time and workload states. */
+.timesheets-section-title { color:#941b3d; border-bottom-color:#941b3d; background:#f9edf1; }
+.timesheets-subtabs { border-bottom-color:#d7dee6; background:#f7f9fb; }
+.timesheets-subtabs .operations-tabs button { color:#344b60; border-color:#ccd5de; background:#fff; }
+.timesheets-subtabs .operations-tabs button:hover { color:#8b1839; border-color:#b97789; background:#fff7f9; }
+.timesheets-subtabs .operations-tabs button.active { color:#fff; border-color:#941b3d; background:#941b3d; }
+.timesheets-type { color:#976000; background:#fff0d2; }
+.timesheets-type.success { color:#116c51; background:#e4f4ed; }
+.timesheets-type.danger { color:#b52c35; background:#fdebed; }
+.timesheets-type.info { color:#285e9c; background:#e8f1fb; }
+.timesheets-summary { color:#263d52; border-top-color:#d7dee6; background:#eaf0f5; }
+.dark .timesheets-section-title { color:#ffd8e1; border-bottom-color:#d46883; background:#3b2730; }
+.dark .timesheets-subtabs { border-bottom-color:#344456; background:#17222e; }
+.dark .timesheets-subtabs .operations-tabs button { color:#dce5ec; border-color:#46596d; background:#223040; }
+.dark .timesheets-subtabs .operations-tabs button.active { color:#fff; border-color:#ad3154; background:#941b3d; }
+.dark .timesheets-summary { color:#dce6ee; border-color:#344456; background:#26384b; }
+@media(max-width:850px) { .timesheets-page { padding:0 0 24px; }.timesheets-page .operations-topbar { height:auto; align-items:flex-start; }.timesheets-subtabs { overflow-x:auto; }.timesheets-subtabs .operations-tabs { flex-wrap:nowrap; min-width:max-content; } }

@@ -1,12 +1,10 @@
 import React from 'react';
 import { useApp } from '../../context/AppContext';
 import {
-  Users,
   CheckSquare,
   CalendarRange,
   BarChart3,
   Activity,
-  UsersRound,
   ChevronLeft,
   ChevronRight,
   X,
@@ -46,9 +44,9 @@ export default function Sidebar() {
 
   const menuItems = [
     {
-      id: 'my-work',
-      label: 'Việc của tôi',
-      compactLabel: 'Việc của tôi',
+      id: 'work-hub',
+      label: 'Công việc',
+      compactLabel: 'Công việc',
       icon: CheckSquare
     },
     {
@@ -56,23 +54,6 @@ export default function Sidebar() {
       label: 'Tổng quan',
       compactLabel: 'Tổng quan',
       icon: BarChart3
-    },
-    {
-      id: 'hr',
-      label: 'Thành Viên',
-      compactLabel: 'Thành viên',
-      icon: Users
-    },
-    {
-      id: 'tasks',
-      label: 'Công việc',
-      icon: CheckSquare
-    },
-    {
-      id: 'workload',
-      label: 'Quản Lý Nhân Sự',
-      compactLabel: 'Nhân sự',
-      icon: UsersRound
     },
     {
       id: 'gantt',
@@ -101,7 +82,7 @@ export default function Sidebar() {
   }
 
   const handleSelectTab = (tabId) => {
-    setActiveTab(tabId);
+    setActiveTab(tabId === 'work-hub' ? 'my-work' : tabId);
     setMobileMenuOpen(false);
   };
 
@@ -156,7 +137,7 @@ export default function Sidebar() {
                 onClick={() => handleSelectTab(item.id)}
                 aria-label={item.label}
                 aria-current={isActive ? 'page' : undefined}
-                className={`w-full flex items-center ${sidebarCollapsed ? 'flex-col justify-center gap-1 px-1 py-2.5' : 'gap-3.5 px-3.5 py-3'} rounded-xl text-sm font-semibold transition-all duration-200 group relative
+                className={`sidebar-nav-item w-full flex items-center ${sidebarCollapsed ? 'flex-col justify-center gap-1 px-1 py-2.5' : 'gap-3.5 px-3.5 py-3'} rounded-xl font-semibold transition-all duration-200 group relative
                   ${isActive
                     ? 'bg-sky-600 text-white shadow-lg shadow-sky-600/25 dark:shadow-sky-900/30'
                     : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white'
@@ -164,7 +145,7 @@ export default function Sidebar() {
                 `}
               >
                 <Icon
-                  className={`w-5 h-5 flex-shrink-0 transition-transform group-hover:scale-110 ${
+                  className={`sidebar-nav-icon flex-shrink-0 transition-transform group-hover:scale-110 ${
                     isActive ? 'text-white' : 'text-slate-500 dark:text-slate-400'
                   }`}
                 />
@@ -176,7 +157,7 @@ export default function Sidebar() {
                 )}
 
                 {sidebarCollapsed && (
-                  <span className="w-full text-center text-[8px] leading-tight font-medium whitespace-nowrap">{item.compactLabel || item.label}</span>
+                  <span className="sidebar-nav-compact w-full text-center leading-tight font-semibold whitespace-nowrap">{item.compactLabel || item.label}</span>
                 )}
               </button>
             );

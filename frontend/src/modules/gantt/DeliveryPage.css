@@ -63,14 +63,18 @@
 }
 .delivery-navigation nav {
   display:flex;
-  gap:12px;
+  gap:4px;
   overflow:auto
 }
 .delivery-navigation nav button {
-  padding:12px 5px;
+  min-height:48px;
+  padding:0 10px;
+  border:0;
   border-bottom:2px solid transparent;
+  background:transparent;
   white-space:nowrap;
-  color:#78736c
+  color:#5f5753;
+  font-weight:500
 }
 .delivery-navigation nav button.active {
   color:#861b36;
@@ -752,11 +756,12 @@
   height:calc(100dvh - 64px)
 }
 .delivery-navigation nav {
-  gap:5px
+  gap:4px
 }
 .delivery-navigation nav button {
   font-size:var(--text-small);
-  padding:8px 2px
+  min-height:48px;
+  padding:0 10px
 }
 .delivery-kpis {
   padding-top:5px
@@ -855,4 +860,62 @@
 .dark .delivery-muted {
   color:#b0a89b
 }
+
+/* Assignment workspace follows the same dark palette as the delivery table. */
+.dark .project-progress-switch,.dark .machine-assignment{color:#eef0f3;background:#151c25;border-color:#39424e}
+.dark .project-progress-switch button,.dark .machine-bulk select,.dark .machine-bulk button,.dark .machine-assignment td select{color:#eef0f3;border-color:#4a5665;background:#242d39}
+.dark .project-progress-switch button.active{color:#fff;border-color:#b84b65;background:#941b3d}
+
+/* Professional APS color hierarchy — color only. */
+.delivery-page{--delivery-surface:#fff;color:#182433;background:#f3f6f8}
+.delivery-fixed-top,.delivery-navigation{background:#fff}
+.delivery-navigation{border-bottom-color:#d7dee6}
+.delivery-navigation nav button{color:#536273}
+.delivery-navigation nav button:hover{color:#7d1a38;background:#fff8fa}
+.delivery-navigation nav button.active{color:#941b3d;border-color:#941b3d;background:#f9edf1}
+.project-progress-switch{color:#344b60;border-color:#d7dee6;background:#edf2f6}
+.project-progress-switch button{color:#344b60;border-color:#cbd5de;background:#fff}
+.project-progress-switch button:hover{color:#8b1839;border-color:#b97789;background:#fff7f9}
+.project-progress-switch button.active{color:#fff;border-color:#941b3d;background:#941b3d}
+.delivery-kpis{background:#f7f9fb}
+.delivery-kpis>span,.delivery-kpis>button{color:#617181;border-color:#d3dbe3;background:#fff}
+.delivery-kpis>span:nth-child(3n+1){background:#fff9fa}
+.delivery-kpis>span:nth-child(3n+2){background:#f8fcfa}
+.delivery-kpis>span:nth-child(3n){background:#f8fafc}
+.delivery-kpis b{color:#941b3d}
+.delivery-table-controls{background:#f7f9fb}
+.delivery-table-controls button{color:#40566b;border-color:#ccd5de;background:#fff}
+.delivery-table-controls button:hover{color:#8b1839;border-color:#b97789;background:#fff7f9}
+.delivery-table-controls button.active,.delivery-kpis button.active{color:#fff;border-color:#294b6e;background:#294b6e}
+.delivery-table-controls select{color:#263b50;border-color:#ccd5de;background:#fff}
+.delivery-notice{color:#6b5220;border-bottom-color:#ead8ae;background:#fff7e7}
+.delivery-error{color:#a72e36;border-bottom-color:#e5b5bc;background:#fff0f2}
+.dark .delivery-page{--delivery-surface:#182330;color:#e8edf2;background:#111923}
+.dark .delivery-fixed-top,.dark .delivery-navigation{background:#182330}
+.dark .delivery-navigation{border-bottom-color:#344456}
+.dark .delivery-navigation nav button{color:#bac6d1}
+.dark .delivery-navigation nav button:hover{color:#ffd5df;background:#34242c}
+.dark .delivery-navigation nav button.active{color:#ffd8e1;border-color:#d46883;background:#3b2730}
+.dark .project-progress-switch{color:#dce5ec;border-color:#344456;background:#17222e}
+.dark .project-progress-switch button{color:#dce5ec;border-color:#46596d;background:#223040}
+.dark .project-progress-switch button.active{color:#fff;border-color:#ad3154;background:#941b3d}
+.dark .delivery-kpis,.dark .delivery-table-controls{background:#17222e}
+.dark .delivery-kpis>span,.dark .delivery-kpis>button{color:#bac6d1;border-color:#3d4d5f;background:#202e3d}
+.dark .delivery-kpis>span:nth-child(3n+1){background:#2a2029}
+.dark .delivery-kpis>span:nth-child(3n+2){background:#182c29}
+.dark .delivery-kpis>span:nth-child(3n){background:#1c2937}
+.dark .delivery-table-controls button,.dark .delivery-table-controls select{color:#dce5ec;border-color:#46596d;background:#223040}
+.dark .delivery-table-controls button.active,.dark .delivery-kpis button.active{color:#fff;border-color:#4f78a2;background:#315f8f}
+.dark .delivery-notice{color:#e5d3a8;border-bottom-color:#65532d;background:#302a1e}
+.dark .delivery-error{color:#ffbbc1;border-bottom-color:#78434c;background:#382329}
+.dark .machine-kpis>div,.dark .machine-panel{color:#eef0f3;border-color:#39424e;background:#1c2531}
+.dark .machine-kpis span,.dark .machine-kpis small,.dark .machine-panel header small,.dark .machine-assignment th{color:#b9bec5}
+.dark .machine-panel header,.dark .machine-assignment th,.dark .machine-assignment td{border-color:#39424e}
+.dark .machine-assignment tbody tr.overloaded{background:#45282b}
+.dark .source.kept{color:#d0d3d7;background:#343e4a}
+.dark .source.auto,.dark .dept{color:#9bc1ef;background:#21364f}
+.dark .dept-pl,.dark .overload-label{color:#ffaaa3;background:#4b2b2d}
+.dark .dept-mep{color:#f3c36d;background:#493b22}
+.dark .dept-kc{color:#72d7aa;background:#203d34}
+.dark .load-track{background:#3b4653}
 
