@@ -3,9 +3,7 @@ import { AppProvider, useApp } from './context/AppContext';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
 import Toast from './components/layout/Toast';
-import HRPage from './modules/hr/HRPage';
-import TasksPage from './modules/tasks/TasksPage';
-import MyWorkPage from './modules/my-work/MyWorkPage';
+import WorkHubPage from './modules/work-hub/WorkHubPage';
 import DirectorOverviewPage from './modules/director-overview/DirectorOverviewPage';
 const TimesheetsPage = lazy(() => import('./modules/operations/PeopleTimesheetsPage'));
 const FinancePage = lazy(() => import('./modules/operations/FinancePage'));
@@ -15,7 +13,6 @@ const GanttPage = lazy(() => import('./modules/gantt/GanttPage'));
 import LoginPage from './modules/auth/LoginPage';
 import AccountPage from './modules/auth/AccountPage';
 import AdminActivityPage from './modules/auth/AdminActivityPage';
-import WorkloadPage from './modules/workload/WorkloadPage';
 import { hasAuthSession } from './modules/auth/authSession';
 import { getCurrentUser } from './modules/auth/authSession';
 import { placeholderPages } from './components/layout/placeholderPages';
@@ -23,7 +20,7 @@ import { placeholderPages } from './components/layout/placeholderPages';
 function MainLayout() {
   const { activeTab, sidebarCollapsed } = useApp();
   const placeholderPage = placeholderPages.find(page => page.id === activeTab);
-  const fixedControls = Boolean(placeholderPage) || ['my-work', 'director-overview', 'hr', 'tasks', 'activity', 'workload', 'gantt', 'company'].includes(activeTab);
+  const fixedControls = Boolean(placeholderPage) || ['work-hub', 'director-overview', 'activity', 'gantt', 'company'].includes(activeTab);
   useEffect(() => {
     if (!fixedControls) return undefined;
     document.documentElement.classList.add('fixed-controls-page');
@@ -35,12 +32,9 @@ function MainLayout() {
       <Sidebar />
       <div className={`app-content-column flex-1 flex flex-col transition-all duration-300 ${sidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72'}`}>
         <Header />
-        <main key={activeTab} className={`app-page-scroll ${activeTab === 'gantt' ? 'app-gantt-scroll' : activeTab === 'activity' ? 'app-activity-scroll' : activeTab === 'director-overview' ? 'app-dashboard-scroll' : ''} flex-1 w-full animate-fade-in ${placeholderPage || activeTab === 'my-work' || activeTab === 'director-overview' || activeTab === 'workload' || activeTab === 'gantt' || activeTab === 'tasks' || activeTab === 'hr' || activeTab === 'activity' || activeTab === 'company' ? 'max-w-none mx-0 p-0' : 'p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto'}`}>
-          {activeTab === 'my-work' && <MyWorkPage />}
+        <main key={activeTab} className={`app-page-scroll ${activeTab === 'gantt' ? 'app-gantt-scroll' : activeTab === 'activity' ? 'app-activity-scroll' : activeTab === 'director-overview' ? 'app-dashboard-scroll' : ''} flex-1 w-full animate-fade-in ${placeholderPage || activeTab === 'work-hub' || activeTab === 'director-overview' || activeTab === 'gantt' || activeTab === 'activity' || activeTab === 'company' ? 'max-w-none mx-0 p-0' : 'p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto'}`}>
+          {activeTab === 'work-hub' && <WorkHubPage />}
           {activeTab === 'director-overview' && <DirectorOverviewPage />}
-          {activeTab === 'hr' && <HRPage />}
-          {activeTab === 'workload' && <WorkloadPage />}
-          {activeTab === 'tasks' && <TasksPage />}
           {activeTab === 'gantt' && <Suspense fallback={<p className="p-4 text-sm text-slate-500">Đang tải tiến độ…</p>}><GanttPage /></Suspense>}
           {activeTab === 'company' && <Suspense fallback={<p className="p-4">Đang tải trang Công ty…</p>}><CompanyPage /></Suspense>}
           {activeTab === 'activity' && getCurrentUser()?.role === 'admin' && <AdminActivityPage />}

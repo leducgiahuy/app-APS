@@ -66,3 +66,33 @@ html.dark .activity-pagination { color: #c9c0be; }
 html.dark .activity-pagination button { border-color: #655b5a; color: #edb2bf; background: #454041; }
 @media (max-width: 1100px) { .activity-toolbar { flex-wrap: wrap; } .activity-search { flex-basis: 100%; } }
 @media (max-width: 640px) { .activity-toolbar { flex-wrap: wrap; } .activity-search { flex-basis: 100%; } .activity-toolbar select { flex: 1; min-width: 135px; } .activity-export, .activity-clear { flex: 1; } .activity-table { min-width: 720px; } }
+
+/* Professional APS color hierarchy — color only. */
+.activity-page { color:#203347; background:#f3f6f8; }
+.activity-overview { background:#f3f6f8; }
+.activity-toolbar { border-color:#d7dee6; background:#fff; }
+.activity-search { color:#71808e; border-color:#ccd5de; background:#f5f7f9; }
+.activity-search:focus-within { border-color:#8d5a6b; box-shadow:0 0 0 3px rgb(148 27 61 / 10%); }
+.activity-search input { color:#203347; }
+.activity-toolbar select { color:#344b60; border-color:#ccd5de; background:#fff; }
+.activity-export { color:#8b1839; border-color:#d5bdc5; background:#fff8fa; }
+.activity-clear { color:#a72e36; border-color:#e0c6c9; background:#fffafa; }
+.activity-list-header h3 { color:#172b40; }
+.activity-list-header p { color:#6d7b89; }
+.activity-list-header>span { color:#137255; }
+.activity-list-header i { background:#1b8a68; box-shadow:0 0 0 4px #e4f4ed; }
+.activity-table-wrap { border-color:#d7dee6; background:#fff; }
+.activity-table th { color:#40566b; border-color:#d7dee6; background:#edf2f6; }
+.activity-table td { color:#34495b; border-color:#e1e7ec; }
+.activity-table tbody tr:nth-child(even) { background:#fbfcfd; }
+.activity-table tbody tr:hover { background:#f2f7fa; }
+.activity-empty { color:#718492; border-color:#cbd6de; background:#f8fafc; }
+.activity-empty b { color:#294158; }
+html.dark .activity-page,html.dark .activity-overview { color:#e8edf2; background:#111923; }
+html.dark .activity-toolbar,html.dark .activity-table-wrap { border-color:#344456; background:#182330; }
+html.dark .activity-search,html.dark .activity-toolbar select { color:#c2cdd7; border-color:#46596d; background:#202e3d; }
+html.dark .activity-table th { color:#c8d4df; border-color:#344456; background:#243344; }
+html.dark .activity-table td { color:#dce4eb; border-color:#344456; }
+html.dark .activity-table tbody tr:nth-child(even) { background:#1b2734; }
+html.dark .activity-table tbody tr:hover { background:#223244; }
+html.dark .activity-empty { color:#b5c2cc; border-color:#46596d; background:#182330; }

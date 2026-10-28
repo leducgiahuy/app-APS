@@ -230,7 +230,7 @@ export default function TasksPage() {
             }`}
           >
             <CheckSquare className="w-4 h-4" />
-            <span>Mục 1: Phân Công Công Việc</span>
+            <span>Tiến Độ Công Việc</span>
             <span className="px-2 py-0.5 rounded-full text-[10px] bg-white/20 font-mono">
               {tasksForSelectedDate.length}
             </span>
@@ -245,7 +245,7 @@ export default function TasksPage() {
             }`}
           >
             <Flame className="w-4 h-4" />
-            <span>Mục 2: Đăng Ký Tăng Ca (OT)</span>
+            <span>Đăng Ký Tăng Ca (OT)</span>
             <span className="px-2 py-0.5 rounded-full text-[10px] bg-white/20 font-mono">
               {overtimes.length}
             </span>

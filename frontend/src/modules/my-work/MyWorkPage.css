@@ -1,25 +1,22 @@
 ﻿.my-work-page { min-height: 100%; padding: 0 0 28px; color: #332f30; background: #f6f4f1; }
 .my-work-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; margin-bottom: 0; }
-.my-work-summary button { min-height: 98px; padding: 17px 18px; border: 1px solid #e3ddd6; border-top: 3px solid #9d948c; border-radius: 0; text-align: left; color: #5e5652; background: #fff; cursor: pointer; transition: transform .16s, box-shadow .16s; }
+.my-work-summary button { min-height: 80px; padding: 11px 16px; border: 1px solid #e3ddd6; border-top: 3px solid #9d948c; border-radius: 0; text-align: left; color: #5e5652; background: #fff; cursor: pointer; transition: transform .16s, box-shadow .16s; }
 .my-work-summary button + button { border-left: 0; }
 .my-work-summary button:hover, .my-work-summary button.is-selected { transform: translateY(-1px); box-shadow: 0 7px 20px rgb(62 48 40 / 8%); }
 .my-work-summary button.urgent { border-top-color: #d13b32; }
 .my-work-summary button.upcoming { border-top-color: #b56b00; }
 .my-work-summary button.following { border-top-color: #687681; }
 .my-work-summary span { display: block; font-size: 13px; }
-.my-work-summary strong { display: block; margin-top: 8px; color: #171717; font-size: 28px; line-height: 1; }
+.my-work-summary strong { display: block; margin-top: 5px; color: #171717; font-size: 27px; line-height: 1; }
 .my-work-summary .urgent strong { color: #bd302a; }
 .my-work-card { width: 100%; overflow: hidden; border: 1px solid #e1dbd4; border-top: 0; border-radius: 0; background: #fff; }
-.my-work-card > header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 15px 17px; border-bottom: 1px solid #e8e2dc; }
-.my-work-heading { display: flex; align-items: baseline; gap: 12px; min-width: 0; }
-.my-work-card h2 { margin: 0; color: #171717; font-size: 17px; }
-.my-work-card header span { color: #948b85; font-size: 12px; }
-.my-work-header-actions { display: flex; align-items: center; justify-content: flex-end; gap: 9px; }
-.my-work-reload { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 34px; padding: 7px 11px; border: 1px solid #ddd6cf; border-radius: 8px; color: #685f5c; background: #fff; font: inherit; font-weight: 600; white-space: nowrap; cursor: pointer; }
+.my-work-header-actions { display: flex; align-items: center; justify-content: flex-end; gap: 9px; text-transform: none; }
+.my-work-reload { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 38px; padding: 8px 12px; border: 1px solid #ddd6cf; border-radius: 8px; color: #685f5c; background: #fff; font: inherit; font-size: 13px; font-weight: 600; white-space: nowrap; cursor: pointer; }
 .my-work-reload:disabled { cursor: wait; opacity: .6; }
-.my-work-card select { min-width: 170px; padding: 7px 30px 7px 10px; border: 1px solid #ddd6cf; border-radius: 8px; color: #514a47; background: #fff; }
-.my-work-row { display: grid; grid-template-columns: minmax(150px, 18%) minmax(300px, 42%) minmax(240px, 30%) minmax(88px, 10%); align-items: center; min-height: 50px; padding: 0 10px; border-bottom: 1px solid #eee8e2; }
-.my-work-head { min-height: 42px; color: #655d59; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+.my-work-card select { min-width: 170px; min-height: 38px; padding: 8px 30px 8px 11px; border: 1px solid #ddd6cf; border-radius: 8px; color: #514a47; background: #fff; font-size: 13px; }
+.my-work-row { display: grid; grid-template-columns: minmax(150px, 18%) minmax(300px, 40%) minmax(240px, 26%) minmax(250px, 16%); align-items: center; min-height: 50px; padding: 0 10px; border-bottom: 1px solid #eee8e2; }
+.my-work-head { min-height: 58px; color: #514a47; font-size: 13px; font-weight: 700; text-transform: uppercase; }
+.my-work-head > span:last-child { justify-content: flex-end; }
 .my-work-row > span { min-width: 0; padding: 9px 10px; }.my-work-row > span:last-child { display: flex; justify-content: center; }
 .my-work-due { display: inline-flex; padding: 4px 10px; border-radius: 999px; color: #655d58; background: #f2efeb; font-size: 12px; font-weight: 700; }
 .my-work-due.urgent { color: #d0382f; background: #fde5e1; }
@@ -42,18 +39,77 @@
   .my-work-summary { grid-template-columns: 1fr; gap: 0; }
   .my-work-summary button { min-height: 74px; }
   .my-work-row { grid-template-columns: 120px minmax(220px, 1fr) 82px; }
+  .my-work-head { grid-template-columns: 120px minmax(220px, 1fr) minmax(250px, auto); }
   .my-work-row .my-work-project, .my-work-head span:nth-child(3) { display: none; }
 }
 @media (max-width: 600px) {
-  .my-work-heading { display: block; }
-  .my-work-card header span { display: block; margin-top: 3px; }
   .my-work-header-actions { flex-shrink: 0; gap: 6px; }
   .my-work-reload { padding-inline: 9px; }
   .my-work-card select { min-width: 120px; max-width: 42%; }
   .my-work-row { grid-template-columns: 104px minmax(0, 1fr) 66px; padding: 0 6px; }
+  .my-work-head { grid-template-columns: 104px minmax(0, 1fr); min-height: 106px; }
+  .my-work-head .my-work-header-actions { grid-column: 1 / -1; justify-content: flex-start; }
   .my-work-action { min-width: 58px; padding-inline: 8px; }
   .my-work-action svg { display: none; }
 }
+
+/* Dark theme: preserve the table hierarchy without light surfaces. */
+.dark .my-work-page { color:#eef0f3; background:#151c25; }
+.dark .my-work-summary button { color:#c2c5ca; border-color:#39424e; background:#1c2531; }
+.dark .my-work-summary strong { color:#f7f8fa; }
+.dark .my-work-summary .urgent strong { color:#f08b86; }
+.dark .my-work-card { border-color:#39424e; background:#1c2531; }
+.dark .my-work-row { border-bottom-color:#39424e; }
+.dark .my-work-head { color:#d5d8dc; background:#242d39; }
+.dark .my-work-reload,.dark .my-work-card select { color:#eef0f3; border-color:#4a5665; background:#242d39; }
+.dark .my-work-card select { color-scheme:dark; }
+.dark .my-work-reload:hover { background:#303b49; }
+.dark .my-work-due { color:#d6d8dc; background:#343e4a; }
+.dark .my-work-due.urgent { color:#ffaaa3; background:#4b2b2d; }
+.dark .my-work-due.upcoming { color:#f3c36d; background:#493b22; }
+.dark .my-work-title { color:#f3f4f6; }
+.dark .my-work-title.is-read,.dark .my-work-project { color:#b7bbc1; }
+.dark .my-work-empty { color:#aeb3ba; }
+.dark .my-work-empty strong { color:#e3e5e8; }
+.dark .my-work-card > footer { color:#c2c5ca; background:#202935; }
+
+/* Professional APS color hierarchy — color only. */
+.my-work-page { color:#182433; background:#f3f6f8; }
+.my-work-summary button { color:#526171; border-color:#d7dee6; background:#fff; }
+.my-work-summary button.urgent { border-top-color:#c83b3f; background:#fffafb; }
+.my-work-summary button.upcoming { border-top-color:#c47a0a; background:#fffdf8; }
+.my-work-summary button.following { border-top-color:#49657f; background:#f9fbfd; }
+.my-work-summary strong { color:#17283a; }
+.my-work-summary .urgent strong { color:#b52835; }
+.my-work-card { border-color:#d7dee6; background:#fff; }
+.my-work-head { color:#263b50; background:#edf2f6; }
+.my-work-row { border-bottom-color:#e2e7ec; }
+.my-work-row:not(.my-work-head):nth-child(odd) { background:#fbfcfd; }
+.my-work-row:not(.my-work-head):hover { background:#f3f7fa; }
+.my-work-reload,.my-work-card select { color:#344b60; border-color:#ccd5de; background:#fff; }
+.my-work-reload:hover { color:#8b1839; border-color:#b97789; background:#fff7f9; }
+.my-work-due { color:#42576b; background:#edf1f4; }
+.my-work-due.urgent { color:#b52c35; background:#fdebed; }
+.my-work-due.upcoming { color:#986000; background:#fff0d2; }
+.my-work-title { color:#17283a; }
+.my-work-title svg { color:#951d43; }
+.my-work-title.is-read,.my-work-project { color:#6f7d89; }
+.my-work-action { color:#fff; background:#941b3d; }
+.my-work-action:hover { background:#74132f; }
+.my-work-card > footer { color:#647383; background:#f3f6f8; }
+.dark .my-work-page { color:#e8edf2; background:#111923; }
+.dark .my-work-summary button { color:#b8c4cf; border-color:#344456; background:#1a2532; }
+.dark .my-work-summary button.urgent { background:#2a2029; }
+.dark .my-work-summary button.upcoming { background:#2b281f; }
+.dark .my-work-summary button.following { background:#1d2936; }
+.dark .my-work-card { border-color:#344456; background:#182330; }
+.dark .my-work-head { color:#dbe5ee; background:#243344; }
+.dark .my-work-row { border-bottom-color:#344456; }
+.dark .my-work-row:not(.my-work-head):nth-child(odd) { background:#1b2734; }
+.dark .my-work-row:not(.my-work-head):hover { background:#223244; }
+.dark .my-work-reload,.dark .my-work-card select { color:#e5ebf0; border-color:#46596d; background:#223040; }
+.dark .my-work-reload:hover { color:#ffd7e1; border-color:#a84a63; background:#3b2730; }
+.dark .my-work-card > footer { color:#b6c2cd; background:#202e3d; }
 
 
 

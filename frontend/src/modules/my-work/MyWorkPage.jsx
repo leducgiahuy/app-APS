@@ -99,28 +99,20 @@ export default function MyWorkPage() {
       </section>
 
       <section className="my-work-card">
-        <header>
-          <div className="my-work-heading">
-            <h2>Việc của tôi</h2>
-            <span>{user?.name || 'Người dùng'} · {user?.role === 'admin' ? 'Quản trị viên' : 'Nhân viên'}</span>
-          </div>
-          <div className="my-work-header-actions">
-            <button type="button" className="my-work-reload" onClick={refreshAllData} disabled={loading} title="Đồng bộ dữ liệu mới nhất">
-              <RefreshCw className={loading ? 'is-spinning' : ''} size={16} />
-              Tải lại
-            </button>
-            <select value={filter} onChange={event => setFilter(event.target.value)} aria-label="Lọc việc theo hạn">
-              {FILTERS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
-          </div>
-        </header>
-
         <div className="my-work-table" role="table" aria-label="Danh sách việc cần xử lý">
           <div className="my-work-row my-work-head" role="row">
             <span role="columnheader">Hạn</span>
             <span role="columnheader">Việc</span>
             <span role="columnheader">Dự án</span>
-            <span aria-hidden="true" />
+            <span role="columnheader" className="my-work-header-actions">
+              <button type="button" className="my-work-reload" onClick={refreshAllData} disabled={loading} title="Đồng bộ dữ liệu mới nhất">
+                <RefreshCw className={loading ? 'is-spinning' : ''} size={16} />
+                Tải lại
+              </button>
+              <select value={filter} onChange={event => setFilter(event.target.value)} aria-label="Lọc việc theo hạn">
+                {FILTERS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            </span>
           </div>
           {visibleItems.map(item => (
             <div className="my-work-row" role="row" key={item.id}>

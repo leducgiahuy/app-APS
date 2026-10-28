@@ -29,6 +29,10 @@
 .app-fixed-controls .activity-pagination { flex-shrink: 0; }
 
 .app-shell {
+  --brand-burgundy: #861b36;
+  --brand-burgundy-dark: #681229;
+  --brand-orange: #e6a51e;
+  --brand-cream: #fff7e5;
   --workspace: #f1efeb;
   --surface: #fbfaf8;
   --surface-soft: #f5f2ed;
@@ -61,6 +65,10 @@ html:not(.dark) .app-shell [class~="text-[11px]"] { font-size: 13px !important; 
 /* Dark mode dùng than ấm để giữ độ tương phản mà vẫn hợp đỏ đô/vàng. */
 html.dark body { color: #eee9e6; background: #2c292a; }
 html.dark .app-shell {
+  --brand-burgundy: #861b36;
+  --brand-burgundy-dark: #681229;
+  --brand-orange: #e6a51e;
+  --brand-cream: #fff7e5;
   --workspace: #2c292a;
   --surface: #393536;
   --surface-soft: #454041;
@@ -88,6 +96,43 @@ html.dark .app-shell [class~="text-slate-900"], html.dark .app-shell [class~="te
 html.dark .app-shell [class~="text-slate-600"], html.dark .app-shell [class~="text-slate-500"] { color: #d0d8dc !important; }
 html.dark .app-shell [class~="text-slate-400"] { color: #b5c0c5 !important; }
 html.dark .app-shell [class~="bg-sky-600"], html.dark .app-shell [class~="dark:bg-sky-600"] { background-color: var(--accent) !important; }
+
+/* Hai thanh nhận diện APS dùng chung cho hiện tại và các điều khiển bổ sung sau này. */
+.app-shell .aps-brand-header {
+  color: #fff;
+  border-color: var(--brand-burgundy-dark) !important;
+  background: var(--brand-burgundy) !important;
+  backdrop-filter: none;
+}
+.app-shell .aps-brand-header .aps-header-title h1,
+.app-shell .aps-brand-header .aps-header-title > svg,
+.app-shell .aps-brand-header .aps-header-menu { color:#fff !important; }
+.app-shell .aps-brand-header .aps-header-menu:hover { background:rgb(255 255 255 / 14%) !important; }
+.app-shell .aps-brand-header .aps-header-clock,
+.app-shell .aps-brand-header .aps-header-date,
+.app-shell .aps-brand-header .aps-header-theme,
+.app-shell .aps-brand-header .aps-notification-toggle {
+  color:var(--brand-burgundy) !important;
+  border-color:rgb(230 165 30 / 70%) !important;
+  background:var(--brand-cream) !important;
+  box-shadow:none !important;
+}
+.app-shell .aps-brand-header .aps-header-date > button { color:var(--brand-burgundy) !important; }
+.app-shell .aps-brand-header .aps-header-date > button:hover { color:var(--brand-burgundy-dark) !important; background:#fff !important; }
+.app-shell .aps-brand-header .aps-header-date > button:last-child {
+  color:var(--brand-burgundy-dark) !important;
+  background:var(--brand-orange) !important;
+}
+.app-shell .aps-brand-header .aps-header-theme:hover,
+.app-shell .aps-brand-header .aps-notification-toggle:hover { background:#fff !important; }
+.app-shell .aps-brand-header .aps-header-theme svg { color:var(--brand-burgundy) !important; }
+.app-shell .aps-brand-header .aps-header-account { border-color:rgb(255 255 255 / 35%) !important; }
+.app-shell .aps-brand-header .aps-header-account-button {
+  color:var(--brand-burgundy-dark) !important;
+  background:var(--brand-orange) !important;
+}
+.app-shell .aps-brand-header .aps-header-account-button:hover { box-shadow:0 0 0 2px rgb(255 247 229 / 65%) !important; }
+.app-shell .aps-brand-header .aps-notification-menu { color:var(--text-main); }
 html.dark .app-shell [class~="text-sky-600"], html.dark .app-shell [class~="dark:text-sky-400"] { color: #edb2bf !important; }
 html.dark .app-shell [class~="dark:bg-slate-950/50"] { background-color: rgb(44 41 42 / 72%) !important; }
 html.dark .app-shell [class~="shadow-sm"], html.dark .app-shell [class~="shadow-xl"] { box-shadow: 0 2px 8px rgb(17 12 13 / 22%) !important; }
@@ -119,6 +164,9 @@ html.dark .visual-caption > span, html.dark .visual-top, html.dark .visual-botto
 /* Thương hiệu APS dùng cùng wordmark ở sidebar, trang đăng nhập và trang tài khoản. */
 .aps-sidebar-logo { display: block; width: 232px; height: 58px; object-fit: contain; object-position: left center; flex: 0 0 auto; }
 .aps-sidebar-symbol { display: grid; place-items: center; width: 46px; height: 46px; border: 1px solid #d2d9dc; border-radius: 11px; color: #861b36; background: #faf7f3; font-size: 13px; font-weight: 900; letter-spacing: .04em; }
+.sidebar-nav-item { font-size:15px; font-weight:650; letter-spacing:.002em; }
+.sidebar-nav-icon { width:22px; height:22px; stroke-width:2.15; }
+.sidebar-nav-compact { font-size:10px; letter-spacing:-.01em; }
 .aps-full-logo { display: block; width: 215px; height: 58px; object-fit: contain; object-position: left center; }
 .account-brand img { display: block; width: 230px; height: 58px; object-fit: contain; object-position: left center; }
 .account-avatar-preview { display: grid; place-items: center; width: 76px; height: 76px; flex: 0 0 auto; overflow: hidden; border: 1px solid #e7dadd; border-radius: 18px; color: #861b36; background: #f5e6e9; font-size: 20px; font-weight: 800; }
@@ -143,3 +191,460 @@ html.dark .account-photo-button, html.dark .account-photo-remove { border-color:
 html.dark .account-avatar-preview { border-color: #59656b; background: #4b565d; color: #d4e1e5; }
 
 @media (max-width: 700px) { .aps-full-logo { width: 180px; height: 50px; } }
+
+/* ================================================================
+   Unified APS page and control colors
+   One visual language for every module, tab and action state.
+   ================================================================ */
+:root {
+  --aps-ui-page:#f3f6f8;
+  --aps-ui-surface:#ffffff;
+  --aps-ui-surface-soft:#edf2f6;
+  --aps-ui-border:#d4dce4;
+  --aps-ui-text:#182433;
+  --aps-ui-muted:#667586;
+  --aps-ui-brand:#941b3d;
+  --aps-ui-brand-hover:#7a1533;
+  --aps-ui-brand-soft:#f9edf1;
+  --aps-ui-focus:rgb(148 27 61 / 24%);
+}
+
+.app-shell .app-page-scroll :is(.work-hub-page,.my-work-page,.director-overview,.delivery-page,.operations-page,.activity-page) {
+  color:var(--aps-ui-text);
+  background-color:var(--aps-ui-page);
+}
+
+/* Every clickable control uses the same feedback rhythm. */
+.app-shell .app-page-scroll :is(
+  .work-hub-tabs button,
+  .work-hub-content button,
+  .my-work-summary button,
+  .my-work-reload,
+  .my-work-action,
+  .director-overview button,
+  .delivery-navigation button,
+  .project-progress-switch button,
+  .delivery-kpis button,
+  .delivery-table-controls button,
+  .operations-page button,
+  .activity-toolbar button,
+  .activity-pagination button
+) {
+  transition:color .15s ease,background-color .15s ease,border-color .15s ease,box-shadow .15s ease,filter .08s ease,transform .08s ease;
+}
+.app-shell .app-page-scroll :is(
+  .work-hub-tabs button,
+  .work-hub-content button,
+  .my-work-summary button,
+  .my-work-reload,
+  .my-work-action,
+  .director-overview button,
+  .delivery-navigation button,
+  .project-progress-switch button,
+  .delivery-kpis button,
+  .delivery-table-controls button,
+  .operations-page button,
+  .activity-toolbar button,
+  .activity-pagination button
+):focus-visible {
+  outline:2px solid var(--aps-ui-brand)!important;
+  outline-offset:2px;
+  box-shadow:0 0 0 3px var(--aps-ui-focus)!important;
+}
+.app-shell .app-page-scroll :is(
+  .work-hub-tabs button,
+  .work-hub-content button,
+  .my-work-summary button,
+  .my-work-reload,
+  .my-work-action,
+  .director-overview button,
+  .delivery-navigation button,
+  .project-progress-switch button,
+  .delivery-kpis button,
+  .delivery-table-controls button,
+  .operations-page button,
+  .activity-toolbar button,
+  .activity-pagination button
+):active:not(:disabled) {
+  filter:brightness(.94);
+  transform:translateY(1px);
+}
+.app-shell .app-page-scroll :is(
+  .work-hub-tabs,
+  .director-overview-toolbar nav,
+  .delivery-navigation nav,
+  .operations-tabs
+) button:not(.active) {
+  color:#344b60!important;
+  border-color:transparent!important;
+  background-color:transparent!important;
+}
+.app-shell .app-page-scroll :is(
+  .work-hub-tabs,
+  .director-overview-toolbar nav,
+  .delivery-navigation nav,
+  .operations-tabs
+) button:not(.active):hover {
+  color:var(--aps-ui-brand)!important;
+  background-color:var(--aps-ui-brand-soft)!important;
+}
+.app-shell .app-page-scroll :is(
+  .my-work-reload,
+  .director-actions button,
+  .project-progress-switch button:not(.active),
+  .delivery-table-controls button:not(.active),
+  .operations-page button:not(.active):not(.primary),
+  .activity-export,
+  .activity-pagination button
+) {
+  color:#344b60!important;
+  border-color:var(--aps-ui-border)!important;
+  background-color:var(--aps-ui-surface)!important;
+}
+.app-shell .app-page-scroll :is(
+  .my-work-reload,
+  .director-actions button,
+  .project-progress-switch button:not(.active),
+  .delivery-table-controls button:not(.active),
+  .operations-page button:not(.active):not(.primary),
+  .activity-export,
+  .activity-pagination button
+):hover:not(:disabled) {
+  color:var(--aps-ui-brand)!important;
+  border-color:#bd8797!important;
+  background-color:var(--aps-ui-brand-soft)!important;
+}
+
+/* Main actions and selected tabs always use APS burgundy. */
+.app-shell .app-page-scroll :is(
+  .my-work-action,
+  .operations-page button.primary,
+  .work-hub-tabs button.active,
+  .director-overview-toolbar nav button.active,
+  .delivery-navigation nav button.active,
+  .project-progress-switch button.active,
+  .delivery-table-controls button.active,
+  .delivery-kpis button.active,
+  .operations-tabs button.active,
+  .company-subtabs button.active,
+  .timesheets-subtabs .operations-tabs button.active
+) {
+  color:#fff!important;
+  border-color:var(--aps-ui-brand)!important;
+  background-color:var(--aps-ui-brand)!important;
+}
+.app-shell .app-page-scroll :is(
+  .my-work-action,
+  .operations-page button.primary,
+  .work-hub-tabs button.active,
+  .director-overview-toolbar nav button.active,
+  .delivery-navigation nav button.active,
+  .project-progress-switch button.active,
+  .delivery-table-controls button.active,
+  .delivery-kpis button.active,
+  .operations-tabs button.active,
+  .company-subtabs button.active,
+  .timesheets-subtabs .operations-tabs button.active
+):hover:not(:disabled) {
+  color:#fff!important;
+  border-color:var(--aps-ui-brand-hover)!important;
+  background-color:var(--aps-ui-brand-hover)!important;
+}
+
+/* KPI tiles are filters, so selection is distinct without looking destructive. */
+.app-shell .app-page-scroll .my-work-summary button.is-selected {
+  color:var(--aps-ui-brand)!important;
+  border-color:#bd8797!important;
+  background-color:var(--aps-ui-brand-soft)!important;
+  box-shadow:inset 0 0 0 1px #bd8797!important;
+}
+.app-shell .app-page-scroll .my-work-summary button.is-selected strong { color:var(--aps-ui-brand)!important; }
+
+/* Destructive actions remain recognizable, but share the same interaction. */
+.app-shell .app-page-scroll .activity-clear {
+  color:#b52c35!important;
+  border-color:#e2b9be!important;
+  background-color:#fff7f8!important;
+}
+.app-shell .app-page-scroll .activity-clear:hover:not(:disabled) {
+  color:#fff!important;
+  border-color:#b52c35!important;
+  background-color:#b52c35!important;
+}
+
+/* One disabled state across every page. */
+.app-shell .app-page-scroll :is(.my-work-page,.director-overview,.delivery-page,.operations-page,.activity-page) button:disabled {
+  color:#929ca6!important;
+  border-color:#dce1e6!important;
+  background-color:#eef1f3!important;
+  box-shadow:none!important;
+  filter:none!important;
+  opacity:.7!important;
+}
+
+/* Shared tab surfaces and table hierarchy. */
+.app-shell .app-page-scroll :is(.work-hub-tabs,.delivery-navigation,.operations-tabs,.company-subtabs,.timesheets-subtabs) {
+  border-color:var(--aps-ui-border);
+  background-color:var(--aps-ui-surface-soft);
+}
+.app-shell .app-page-scroll :is(.my-work-head,.director-overview-card>header,.operations-card>header,.activity-table th) {
+  color:#263d52;
+  border-color:var(--aps-ui-border);
+  background-color:var(--aps-ui-surface-soft);
+}
+
+html.dark {
+  --aps-ui-page:#111923;
+  --aps-ui-surface:#1b2734;
+  --aps-ui-surface-soft:#243344;
+  --aps-ui-border:#3a4a5c;
+  --aps-ui-text:#e8edf2;
+  --aps-ui-muted:#b6c2cd;
+  --aps-ui-brand:#a9274d;
+  --aps-ui-brand-hover:#c13b62;
+  --aps-ui-brand-soft:#3b2730;
+  --aps-ui-focus:rgb(222 112 142 / 24%);
+}
+html.dark .app-shell .app-page-scroll :is(
+  .my-work-reload,
+  .director-actions button,
+  .project-progress-switch button:not(.active),
+  .delivery-table-controls button:not(.active),
+  .operations-page button:not(.active):not(.primary),
+  .activity-export,
+  .activity-pagination button
+) {
+  color:#dce5ec!important;
+  border-color:var(--aps-ui-border)!important;
+  background-color:#223040!important;
+}
+html.dark .app-shell .app-page-scroll :is(
+  .work-hub-tabs,
+  .director-overview-toolbar nav,
+  .delivery-navigation nav,
+  .operations-tabs
+) button:not(.active) {
+  color:#c5d0da!important;
+  border-color:transparent!important;
+  background-color:transparent!important;
+}
+html.dark .app-shell .app-page-scroll :is(
+  .work-hub-tabs,
+  .director-overview-toolbar nav,
+  .delivery-navigation nav,
+  .operations-tabs
+) button:not(.active):hover {
+  color:#ffd9e2!important;
+  background-color:var(--aps-ui-brand-soft)!important;
+}
+html.dark .app-shell .app-page-scroll :is(
+  .my-work-reload,
+  .director-actions button,
+  .project-progress-switch button:not(.active),
+  .delivery-table-controls button:not(.active),
+  .operations-page button:not(.active):not(.primary),
+  .activity-export,
+  .activity-pagination button
+):hover:not(:disabled) {
+  color:#ffd9e2!important;
+  border-color:#a84a63!important;
+  background-color:var(--aps-ui-brand-soft)!important;
+}
+html.dark .app-shell .app-page-scroll .my-work-summary button.is-selected {
+  color:#ffd9e2!important;
+  border-color:#a84a63!important;
+  background-color:var(--aps-ui-brand-soft)!important;
+  box-shadow:inset 0 0 0 1px #a84a63!important;
+}
+html.dark .app-shell .app-page-scroll .my-work-summary button.is-selected strong { color:#ffd9e2!important; }
+html.dark .app-shell .app-page-scroll .activity-clear {
+  color:#ffb8bf!important;
+  border-color:#78434c!important;
+  background-color:#382329!important;
+}
+html.dark .app-shell .app-page-scroll :is(.my-work-page,.director-overview,.delivery-page,.operations-page,.activity-page) button:disabled {
+  color:#788795!important;
+  border-color:#344456!important;
+  background-color:#1d2936!important;
+}
+html.dark .app-shell .app-page-scroll :is(.my-work-head,.director-overview-card>header,.operations-card>header,.activity-table th) {
+  color:#dce6ee;
+  border-color:var(--aps-ui-border);
+  background-color:var(--aps-ui-surface-soft);
+}
+
+/* Page-level navigation: white bar, burgundy text and underline — never a solid fill. */
+.app-shell .app-page-scroll :is(
+  .work-hub-tabs,
+  .director-overview-toolbar,
+  .delivery-navigation,
+  .company-main-tabs,
+  .operations-page > .operations-tabs,
+  .timesheets-page .operations-topbar
+) {
+  background-color:#fff!important;
+}
+.app-shell .app-page-scroll .timesheets-section-title {
+  color:var(--aps-ui-brand)!important;
+  border-bottom-color:var(--aps-ui-brand)!important;
+  background-color:#fff!important;
+}
+.app-shell .app-page-scroll :is(
+  .work-hub-tabs,
+  .director-overview-toolbar nav,
+  .delivery-navigation nav,
+  .company-main-tabs .operations-tabs,
+  .operations-page > .operations-tabs
+) button.active {
+  color:var(--aps-ui-brand)!important;
+  border-color:transparent!important;
+  border-bottom-color:var(--aps-ui-brand)!important;
+  background-color:#fff!important;
+  box-shadow:none!important;
+}
+.app-shell .app-page-scroll :is(
+  .work-hub-tabs,
+  .director-overview-toolbar nav,
+  .delivery-navigation nav,
+  .company-main-tabs .operations-tabs,
+  .operations-page > .operations-tabs
+) button.active:hover {
+  color:var(--aps-ui-brand-hover)!important;
+  border-bottom-color:var(--aps-ui-brand-hover)!important;
+  background-color:#fff!important;
+}
+html.dark .app-shell .app-page-scroll :is(
+  .work-hub-tabs,
+  .director-overview-toolbar,
+  .delivery-navigation,
+  .company-main-tabs,
+  .operations-page > .operations-tabs,
+  .timesheets-page .operations-topbar
+) {
+  background-color:#182330!important;
+}
+html.dark .app-shell .app-page-scroll .timesheets-section-title {
+  color:#ffd8e1!important;
+  border-bottom-color:#d46883!important;
+  background-color:#182330!important;
+}
+html.dark .app-shell .app-page-scroll :is(
+  .work-hub-tabs,
+  .director-overview-toolbar nav,
+  .delivery-navigation nav,
+  .company-main-tabs .operations-tabs,
+  .operations-page > .operations-tabs
+) button.active {
+  color:#ffd8e1!important;
+  border-color:transparent!important;
+  border-bottom-color:#d46883!important;
+  background-color:#182330!important;
+}
+
+/* Tab hover: a rounded highlight that hugs the label instead of filling the whole bar height. */
+.app-shell .app-page-scroll :is(
+  .work-hub-tabs,
+  .director-overview-toolbar nav,
+  .delivery-navigation nav,
+  .company-main-tabs .operations-tabs,
+  .operations-page > .operations-tabs
+) button {
+  position:relative;
+  isolation:isolate;
+}
+.app-shell .app-page-scroll :is(
+  .work-hub-tabs,
+  .director-overview-toolbar nav,
+  .delivery-navigation nav,
+  .company-main-tabs .operations-tabs,
+  .operations-page > .operations-tabs
+) button::before {
+  content:'';
+  position:absolute;
+  z-index:-1;
+  inset:50% 2px auto;
+  height:30px;
+  transform:translateY(-50%);
+  border-radius:8px;
+  background-color:transparent;
+  transition:background-color .15s ease;
+  pointer-events:none;
+}
+.app-shell .app-page-scroll :is(
+  .work-hub-tabs,
+  .director-overview-toolbar nav,
+  .delivery-navigation nav,
+  .company-main-tabs .operations-tabs,
+  .operations-page > .operations-tabs
+) button:hover:not(:disabled):not([aria-disabled="true"]) {
+  color:var(--aps-ui-brand)!important;
+  background-color:transparent!important;
+}
+.app-shell .app-page-scroll :is(
+  .work-hub-tabs,
+  .director-overview-toolbar nav,
+  .delivery-navigation nav,
+  .company-main-tabs .operations-tabs,
+  .operations-page > .operations-tabs
+) button:hover:not(:disabled):not([aria-disabled="true"])::before {
+  background-color:var(--aps-ui-brand-soft);
+}
+html.dark .app-shell .app-page-scroll :is(
+  .work-hub-tabs,
+  .director-overview-toolbar nav,
+  .delivery-navigation nav,
+  .company-main-tabs .operations-tabs,
+  .operations-page > .operations-tabs
+) button:hover:not(:disabled):not([aria-disabled="true"]) {
+  color:#ffd9e2!important;
+}
+
+/* Page-level tab bars share one size: slightly larger labels with even spacing. */
+.app-shell .app-page-scroll :is(
+  .work-hub-tabs,
+  .director-overview-toolbar nav,
+  .delivery-navigation nav,
+  .company-main-tabs .operations-tabs,
+  .operations-page > .operations-tabs
+) {
+  gap:8px!important;
+}
+.app-shell .app-page-scroll :is(
+  .work-hub-tabs,
+  .director-overview-toolbar nav,
+  .delivery-navigation nav,
+  .company-main-tabs .operations-tabs,
+  .operations-page > .operations-tabs
+) button {
+  padding-inline:14px!important;
+  font-size:14.5px!important;
+  letter-spacing:.01em;
+}
+@media (max-width:720px) {
+  .app-shell .app-page-scroll :is(
+    .work-hub-tabs,
+    .director-overview-toolbar nav,
+    .delivery-navigation nav,
+    .company-main-tabs .operations-tabs,
+    .operations-page > .operations-tabs
+  ) { gap:4px!important; }
+  .app-shell .app-page-scroll :is(
+    .work-hub-tabs,
+    .director-overview-toolbar nav,
+    .delivery-navigation nav,
+    .company-main-tabs .operations-tabs,
+    .operations-page > .operations-tabs
+  ) button { padding-inline:10px!important; font-size:14px!important; }
+}
+
+/* First tab lines up like "Việc của tôi": 4px bar inset + 14px button padding = label 18px from the content edge. */
+.app-shell .app-page-scroll :is(.work-hub-tabs,.director-overview-toolbar,.delivery-navigation,.company-main-tabs) {
+  padding-left:4px!important;
+}
+.app-shell .app-page-scroll .operations-page > .operations-tabs {
+  margin-inline:-18px;
+  padding-inline:4px;
+}
+@media (max-width:850px) {
+  .app-shell .app-page-scroll .operations-page > .operations-tabs { margin-inline:-10px; }
+}
