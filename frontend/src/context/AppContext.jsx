@@ -1,10 +1,55 @@
-import React, { createContext, useCallback, useContext, useState, useEffect } from 'react';
+import React, { createContext, useCallback, useContext, useMemo, useState, useEffect } from 'react';
 import { api } from '../api';
 import { recordActivity } from '../modules/auth/authSession';
+import { deliveryViewer } from '../modules/gantt/deliveryApi';
+import { reviewingRole } from '../utils/deliveryMetrics';
 
 const AppContext = createContext();
+// Tách khỏi AppContext để mỗi tích tắc đồng hồ hay mỗi lần thu/mở menu không bắt mọi trang vẽ lại
+// (trang Dự án mất ~60ms mỗi lần vẽ lại nên bị giật). Chỉ phần nào cần mới đăng ký các context này.
+const ClockContext = createContext(new Date());
+const MinuteContext = createContext(new Date());
+const LayoutContext = createContext(null);
+
+const sameMinute = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() &&
+  a.getDate() === b.getDate() && a.getHours() === b.getHours() && a.getMinutes() === b.getMinutes();
+
+function ClockProvider({ children }) {
+  const [now, setNow] = useState(() => new Date());
+  const [minute, setMinute] = useState(() => new Date());
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const next = new Date();
+      setNow(next);
+      setMinute(previous => sameMinute(previous, next) ? previous : next);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+  return <MinuteContext.Provider value={minute}><ClockContext.Provider value={now}>{children}</ClockContext.Provider></MinuteContext.Provider>;
+}
+
+function LayoutProvider({ children }) {
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const value = useMemo(() => ({ sidebarCollapsed, setSidebarCollapsed, mobileMenuOpen, setMobileMenuOpen }), [sidebarCollapsed, mobileMenuOpen]);
+  return <LayoutContext.Provider value={value}>{children}</LayoutContext.Provider>;
+}
 
 export function AppProvider({ children }) {
+  return <ClockProvider><LayoutProvider><AppStateProvider>{children}</AppStateProvider></LayoutProvider></ClockProvider>;
+}
+
+/** Giờ hiện tại cập nhật từng giây — chỉ dùng cho đồng hồ hiển thị. */
+export function useClock() {
+  return useContext(ClockContext);
+}
+
+/** Trạng thái thu gọn menu trái (desktop) và menu trượt (mobile). */
+export function useLayout() {
+  return useContext(LayoutContext);
+}
+
+function AppStateProvider({ children }) {
   // Theme Light/Dark Mode
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem('aps_theme') || 'light';
@@ -25,8 +70,8 @@ export function AppProvider({ children }) {
     }
     setActiveTabState(nextTab);
   }, []);
-  // Thời gian thực (Real-time Clock chạy từng giây)
-  const [currentTime, setCurrentTime] = useState(new Date());
+  // Giờ hiện tại theo phút: đủ cho ngày, hạn, quá hạn; đồng hồ từng giây dùng useClock().
+  const currentTime = useContext(MinuteContext);
 
   // Ngày được chọn trên thanh điều hướng ngày
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -36,10 +81,6 @@ export function AppProvider({ children }) {
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
 
-  // Trạng thái thu gọn Sidebar
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
   // Dữ liệu ứng dụng
   const [employees, setEmployees] = useState([]);
   const [tasks, setTasks] = useState([]);
@@ -48,6 +89,8 @@ export function AppProvider({ children }) {
   const [projects, setProjects] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  // Vai trò trong hệ thống Tiến độ, dùng để ẩn/hiện nút nghiệm thu (Hoàn thành, Mở lại, Duyệt OT).
+  const [viewerRole, setViewerRole] = useState('');
 
   // Thông báo Toast
   const [toast, setToast] = useState(null);
@@ -82,14 +125,6 @@ export function AppProvider({ children }) {
   const toggleTheme = () => {
     setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
   };
-
-  // Đồng hồ chạy thời gian thực mỗi 1 giây
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
 
   useEffect(() => {
     if (!dateFollowsToday) return;
@@ -172,6 +207,9 @@ export function AppProvider({ children }) {
   useEffect(() => {
     // eslint-disable-next-line react/set-state-in-effect
     refreshAllData();
+    deliveryViewer()
+      .then(viewer => setViewerRole(viewer?.role || ''))
+      .catch(() => setViewerRole(''));
   }, []);
 
   // Poll the employee endpoint while shifts are active. The backend persists
@@ -181,7 +219,8 @@ export function AppProvider({ children }) {
     const timer = setInterval(async () => {
       try {
         const response = await api.getEmployees();
-        if (response?.data) setEmployees(response.data);
+        // Lần hỏi định kỳ thường không có gì đổi: giữ nguyên mảng cũ để các trang không vẽ lại vô ích.
+        if (response?.data) setEmployees(previous => JSON.stringify(previous) === JSON.stringify(response.data) ? previous : response.data);
         announceAutoCheckout(response);
         if (response?.meta?.autoCheckedOutIds?.length || response?.meta?.taskSessionsSyncedIds?.length) {
           await refreshAllData();
@@ -255,8 +294,8 @@ export function AppProvider({ children }) {
       showToast('Đã xóa nhân sự thành công');
       setEmployees(prev => prev.filter(e => e.id !== id));
       await refreshAllData();
-    } catch {
-      showToast('Lỗi khi xóa nhân sự', 'error');
+    } catch (err) {
+      showToast(err.message || 'Lỗi khi xóa nhân sự', 'error');
     }
   };
 
@@ -310,11 +349,25 @@ export function AppProvider({ children }) {
     try {
       await api.createOvertime(otData);
       recordActivity('overtime.create', `Tạo đăng ký tăng ca cho ${otData.employeeName || 'nhân sự'}.`);
-      showToast('Đăng ký ca tăng ca (OT) thành công');
+      showToast('Đã gửi đăng ký tăng ca (OT), đang chờ duyệt');
       await refreshAllData();
       return true;
     } catch (err) {
       showToast(err.message || 'Lỗi khi đăng ký tăng ca', 'error');
+      return false;
+    }
+  };
+
+  // Hành động: Duyệt / từ chối phiếu tăng ca. Chỉ phiếu đã duyệt mới mở quyền vào ca OT.
+  const reviewOvertime = async (id, status, details = {}) => {
+    try {
+      const res = await api.reviewOvertime(id, { status, ...details });
+      recordActivity('overtime.review', `${status === 'approved' ? 'Duyệt' : 'Từ chối'} phiếu tăng ca ${id}.`);
+      showToast(res.message || 'Đã cập nhật phiếu tăng ca');
+      await refreshAllData();
+      return true;
+    } catch (err) {
+      showToast(err.message || 'Không thể cập nhật phiếu tăng ca', 'error');
       return false;
     }
   };
@@ -463,10 +516,6 @@ export function AppProvider({ children }) {
             setGanttMonth(new Date(date.getFullYear(), date.getMonth(), 1));
           }
         },
-        sidebarCollapsed,
-        setSidebarCollapsed,
-        mobileMenuOpen,
-        setMobileMenuOpen,
         employees,
         tasks,
         overtimes,
@@ -474,6 +523,7 @@ export function AppProvider({ children }) {
         projects,
         stats,
         loading,
+        canReviewWork: reviewingRole(viewerRole),
         toast,
         showToast,
         refreshAllData,
@@ -486,6 +536,7 @@ export function AppProvider({ children }) {
         updateTask,
         deleteTask,
         addOvertime,
+        reviewOvertime,
         deleteOvertime,
         addProject,
         updateProject,

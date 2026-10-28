@@ -1,6 +1,6 @@
 import OperationsNotifications from '../../modules/operations/OperationsNotifications';
 import React, { useEffect, useRef, useState } from 'react';
-import { useApp } from '../../context/AppContext';
+import { useApp, useClock, useLayout } from '../../context/AppContext';
 import {
   Menu,
   Sun,
@@ -27,16 +27,16 @@ export default function Header() {
     activeTab,
     theme,
     toggleTheme,
-    currentTime,
     selectedDate,
     selectDate,
     ganttMonth,
     setGanttMonth,
     goToPrevDay,
     goToNextDay,
-    goToToday,
-    setMobileMenuOpen
+    goToToday
   } = useApp();
+  const currentTime = useClock();
+  const { setMobileMenuOpen } = useLayout();
   const accountUser = getCurrentUser();
   const accountInitials = accountUser?.name.split(/\s+/).slice(-2).map((part) => part[0]).join('').toUpperCase() || 'APS';
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
@@ -71,7 +71,7 @@ export default function Header() {
 
   const currentTitle = pageTitles[activeTab] || pageTitles.hr;
   const CurrentPageIcon = pageIcons[activeTab] || pageIcons.hr;
-  const isGanttView = activeTab === 'gantt' || activeTab === 'finance';
+  const isGanttView = activeTab === 'gantt';
   const dayPickerRef = useRef(null);
   const selectedDateValue = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
   const ganttMonthValue = `${ganttMonth.getFullYear()}-${String(ganttMonth.getMonth() + 1).padStart(2, '0')}`;

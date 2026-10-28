@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import ModalOverlay from '../../components/layout/ModalOverlay';
 import EmployeeCard from './EmployeeCard';
@@ -31,6 +31,17 @@ export default function HRPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTeam, setSelectedTeam] = useState('ALL');
   const [showAddModal, setShowAddModal] = useState(false);
+  // Được đặt bởi nút "Làm" ở Việc của tôi khi người dùng cần vào ca trước khi bắt đầu task.
+  const [focusEmployeeId] = useState(() => sessionStorage.getItem('aps-focus-employee-id') || '');
+
+  useEffect(() => {
+    if (!focusEmployeeId || !employees.some(employee => employee.id === focusEmployeeId)) return undefined;
+    const timer = window.setTimeout(() => {
+      document.querySelector(`[data-employee-id="${focusEmployeeId}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      sessionStorage.removeItem('aps-focus-employee-id');
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [focusEmployeeId, employees]);
 
   // Form tạo nhân sự mới
   const [formData, setFormData] = useState({
@@ -209,6 +220,7 @@ export default function HRPage() {
             toggleBreak={toggleBreak}
             setActiveTask={setActiveTask}
             deleteEmployee={deleteEmployee}
+            highlighted={emp.id === focusEmployeeId}
           />
         ))}
       </div>

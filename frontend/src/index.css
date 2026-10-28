@@ -16,7 +16,8 @@
 /* Bảng màu APS: đỏ đô và vàng ấm trên nền trung tính dịu. */
 .app-fixed-controls { height: 100dvh; min-height: 0; overflow: hidden; }
 .app-fixed-controls > .app-content-column { min-height: 0; min-width: 0; isolation: isolate; }
-.app-fixed-controls > .app-content-column > header { flex-shrink: 0; z-index: 60; }
+/* Header phải nằm trên mọi thanh dính/menu nổi của trang (Tiến độ dùng tới 80–150) để menu tài khoản, thông báo không bị che; modal (1000) vẫn ở trên. */
+.app-fixed-controls > .app-content-column > header { flex-shrink: 0; z-index: 200; }
 .app-fixed-controls .app-page-scroll { min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; }
 .app-fixed-controls .app-gantt-scroll { overflow: hidden; scrollbar-gutter: auto; }
 .app-fixed-controls .hr-fixed-controls,
@@ -617,7 +618,7 @@ html.dark .app-shell .app-page-scroll :is(
   .operations-page > .operations-tabs
 ) button {
   padding-inline:14px!important;
-  font-size:14.5px!important;
+  font-size:15px!important;
   letter-spacing:.01em;
 }
 @media (max-width:720px) {
@@ -634,7 +635,7 @@ html.dark .app-shell .app-page-scroll :is(
     .delivery-navigation nav,
     .company-main-tabs .operations-tabs,
     .operations-page > .operations-tabs
-  ) button { padding-inline:10px!important; font-size:14px!important; }
+  ) button { padding-inline:10px!important; font-size:14.5px!important; }
 }
 
 /* First tab lines up like "Việc của tôi": 4px bar inset + 14px button padding = label 18px from the content edge. */
@@ -648,3 +649,115 @@ html.dark .app-shell .app-page-scroll :is(
 @media (max-width:850px) {
   .app-shell .app-page-scroll .operations-page > .operations-tabs { margin-inline:-10px; }
 }
+
+/* Company + operations page tabs use the same look as the Công việc tab bar (overrides the boxed operations buttons). */
+.app-shell.app-shell .app-page-scroll.app-page-scroll .company-operations-page { padding-top:0; }
+.app-shell.app-shell .app-page-scroll.app-page-scroll .company-operations-page > .operations-topbar { margin-bottom:0; }
+.app-shell.app-shell .app-page-scroll.app-page-scroll .company-main-tabs { flex:1 1 100%; }
+.app-shell.app-shell .app-page-scroll.app-page-scroll :is(.company-main-tabs .operations-tabs,.operations-page > .operations-tabs) {
+  display:flex;
+  align-items:stretch;
+  min-height:48px;
+  margin-bottom:0;
+  border:0;
+  border-bottom:1px solid var(--aps-ui-border);
+  background-color:#fff!important;
+}
+.app-shell.app-shell .app-page-scroll.app-page-scroll .operations-page > .operations-tabs { margin-bottom:14px; }
+.app-shell.app-shell .app-page-scroll.app-page-scroll :is(.company-main-tabs .operations-tabs,.operations-page > .operations-tabs) button {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-height:48px;
+  padding-block:0!important;
+  border:0!important;
+  border-bottom:2px solid transparent!important;
+  border-radius:0!important;
+  color:#344b60!important;
+  background-color:transparent!important;
+  box-shadow:none!important;
+  font-weight:500;
+  white-space:nowrap;
+}
+.app-shell.app-shell .app-page-scroll.app-page-scroll :is(.company-main-tabs .operations-tabs,.operations-page > .operations-tabs) button.active {
+  color:var(--aps-ui-brand)!important;
+  border-bottom-color:var(--aps-ui-brand)!important;
+  font-weight:700;
+}
+.app-shell.app-shell .app-page-scroll.app-page-scroll :is(.company-main-tabs .operations-tabs,.operations-page > .operations-tabs) button:hover:not(:disabled) {
+  color:var(--aps-ui-brand)!important;
+  background-color:transparent!important;
+}
+.app-shell.app-shell .app-page-scroll.app-page-scroll :is(.company-main-tabs .operations-tabs,.operations-page > .operations-tabs) button.active:hover:not(:disabled) {
+  color:var(--aps-ui-brand-hover)!important;
+  border-bottom-color:var(--aps-ui-brand-hover)!important;
+}
+html.dark .app-shell.app-shell .app-page-scroll.app-page-scroll :is(.company-main-tabs .operations-tabs,.operations-page > .operations-tabs) { background-color:#182330!important; }
+html.dark .app-shell.app-shell .app-page-scroll.app-page-scroll :is(.company-main-tabs .operations-tabs,.operations-page > .operations-tabs) button { color:#c5d0da!important; }
+html.dark .app-shell.app-shell .app-page-scroll.app-page-scroll :is(.company-main-tabs .operations-tabs,.operations-page > .operations-tabs) :is(button.active,button:hover:not(:disabled)) { color:#ffd8e1!important; }
+html.dark .app-shell.app-shell .app-page-scroll.app-page-scroll :is(.company-main-tabs .operations-tabs,.operations-page > .operations-tabs) button.active { border-bottom-color:#d46883!important; }
+.app-shell.app-shell .app-page-scroll.app-page-scroll .company-main-tabs { padding-left:0!important; background-color:transparent!important; }
+.app-shell.app-shell .app-page-scroll.app-page-scroll .company-main-tabs .operations-tabs { padding-left:4px; }
+.app-shell .app-page-scroll .timesheets-section-title { font-size:15px!important; }
+
+/* Project sub-tab bars share the "Giờ & công" sub-tab background. */
+.app-shell.app-shell .app-page-scroll.app-page-scroll :is(.project-progress-switch,.legal-view-switch,.customer-view-switch) {
+  border-bottom-color:var(--aps-ui-border)!important;
+  background-color:var(--aps-ui-surface-soft)!important;
+}
+
+/* Permission matrix values use the APS palette instead of the warning yellow. */
+.app-shell .app-page-scroll .operations-matrix .operations-pill {
+  color:var(--aps-ui-brand)!important;
+  border:1px solid #ecd3db;
+  background-color:var(--aps-ui-brand-soft)!important;
+  font-weight:600;
+}
+.app-shell .app-page-scroll .operations-matrix .operations-pill.no-access {
+  color:var(--aps-ui-muted)!important;
+  border-color:var(--aps-ui-border);
+  background-color:var(--aps-ui-surface-soft)!important;
+  font-weight:500;
+}
+html.dark .app-shell .app-page-scroll .operations-matrix .operations-pill { color:#ffd9e2!important; border-color:#5a3542; }
+html.dark .app-shell .app-page-scroll .operations-matrix .operations-pill.no-access { color:var(--aps-ui-muted)!important; border-color:var(--aps-ui-border); }
+
+/* Taller, clearer column headers for every operations table (matches the director overview table). */
+.app-shell .app-page-scroll .operations-page thead th {
+  padding-top:15px;
+  padding-bottom:15px;
+  font-size:12.5px;
+  font-weight:700;
+  letter-spacing:.02em;
+}
+
+/* Hide the browser up/down spinners on number fields; values are still typed or changed with the keyboard. */
+input[type="number"] { appearance:textfield; -moz-appearance:textfield; }
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
+
+/* Tab bars never scroll vertically and never show a scrollbar; wide bars still slide sideways by touch/trackpad. */
+.app-shell .app-page-scroll :is(.work-hub-tabs,.director-overview-toolbar nav,.delivery-navigation nav,.company-main-tabs .operations-tabs,.operations-page > .operations-tabs) {
+  overflow-x:auto!important;
+  overflow-y:hidden!important;
+  scrollbar-width:none;
+}
+.app-shell .app-page-scroll :is(.work-hub-tabs,.director-overview-toolbar nav,.delivery-navigation nav,.company-main-tabs .operations-tabs,.operations-page > .operations-tabs)::-webkit-scrollbar { display:none; }
+.app-shell .app-page-scroll .delivery-navigation nav { align-items:stretch; flex-wrap:nowrap; }
+
+/* Project Gantt: cool neutral surfaces so bars, labels and links stand out (light mode). */
+html:not(.dark) .app-shell .delivery-page {
+  --surface:#ffffff;
+  --surface-soft:#f4f7fa;
+  --line:#dfe5ec;
+  --delivery-surface:#ffffff;
+  background-color:#f4f7fa;
+}
+html:not(.dark) .app-shell .delivery-page :is(.delivery-chart-scroll,.delivery-timeline) { background-color:#f7f9fb!important; }
+html:not(.dark) .app-shell .delivery-page .delivery-table-heading,
+html:not(.dark) .app-shell .delivery-page .delivery-chart-heading-scroll [class~="bg-slate-100"] {
+  color:#334155!important;
+  background-color:#eef2f6!important;
+  border-color:#d6dee7!important;
+}
+html:not(.dark) .app-shell .delivery-page .delivery-chart-heading-scroll { border-top-color:#d6dee7; }

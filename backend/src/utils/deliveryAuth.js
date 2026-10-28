@@ -33,7 +33,7 @@ export function deliveryLogin(req, res) {
   store.sessions = store.sessions.filter(session => session.expiresAt > Date.now());
   store.sessions.push({ hash: tokenHash(token), email: user.email, expiresAt });
   if (!writeDb(db)) return res.status(500).json({ message: 'Không lưu được phiên đăng nhập.' });
-  return res.json({ success: true, data: { token, expiresAt } });
+  return res.json({ success: true, data: { token, expiresAt, user: safeUser(user) } });
 }
 export function requireDeliveryUser(req, res, next) {
   const token = req.headers.authorization?.replace(/^Bearer /, '') || '';

@@ -62,8 +62,12 @@ Open `/tests/executive.html`. The fixture checks the six director KPIs, prioriti
 
 ## Operations pages
 
-Open `/tests/operations.html`. The fixture renders Giờ công, Tài chính, Phân quyền and Từ điển with mock operations data. Use it to check tabs, tables, approval flows, the permission picker and editable matrix notes without changing the active database.
+Open `/tests/operations.html`. The fixture renders Giờ công, Phân quyền and Từ điển with mock operations data. Use it to check tabs, tables, approval flows, the permission picker and editable matrix notes without changing the active database.
 
 ## Workforce planning
 
 Open `/tests/workforce-planning.html`. It checks six-month capacity/demand, position and employee views, recruitment stages, temporary plans and additional demand. The fixture does not create employees, tasks or recruitment records in the backend.
+
+## Sidebar animation smoothness
+
+Open `/tests/sidebar-perf.html` with the frontend dev server running. It renders the whole app with a 160-task fake project (no backend requests), opens the project page, toggles the left menu three times each way and records frame times, plus 3 seconds idle. The result lists `maxFrameMs` and `slowFrames` (> 34 ms) per toggle; a smooth result keeps frames near 16 ms with no slow frames after the first toggle. Frame timing needs real time, so run it in a visible or CDP-driven browser rather than with `--virtual-time-budget`.

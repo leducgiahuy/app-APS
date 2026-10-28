@@ -2,6 +2,9 @@ import { readDb, writeDb } from '../models/db.js';
 import { compareWbs, reconnectGanttDependencies } from './projectController.js';
 import { normalizeAssignmentSchedules } from '../../../frontend/src/utils/assignmentCalendar.js';
 import { localDateKey } from '../utils/shift.js';
+import { reviewingRole } from '../../../frontend/src/utils/deliveryMetrics.js';
+
+const REVIEW_DENIED = 'Chỉ Leader, Quản lý, Giám đốc hoặc Quản trị được thực hiện thao tác này.';
 
 const hasStoredAssignmentState = task => Boolean(task && (
   Array.isArray(task.assignees) ||
@@ -148,7 +151,9 @@ export function createTask(req, res) {
       startDate: taskStartDate,
       endDate: taskEndDate
     }] : [],
-    status: 'in_progress',
+    // Giao việc không đồng nghĩa với bắt đầu làm. Đồng hồ công chỉ chạy khi
+    // người đảm nhận chọn task trong ca làm việc của mình.
+    status: 'not_started',
     speedStatus: 'on_time', // 'early', 'on_time', 'delayed'
     priority: priority || 'normal', // 'normal', 'high', 'urgent'
     progress: 0,
@@ -201,7 +206,7 @@ export function createTask(req, res) {
     assignee: employeeName,
     assignees: newTask.assignees,
     notes: notes || '',
-    status: 'in_progress',
+    status: 'not_started',
     speed: 'on_time',
     progress: 0,
     dependencies: lastItemInPhase ? [lastItemInPhase.id] : []
@@ -259,10 +264,33 @@ export function updateTask(req, res) {
     });
   }
 
+  const wasCompleted = task.status === 'completed';
+  const reopening = wasCompleted && status !== undefined && status !== 'completed';
+  if (((requestsCompletion && !wasCompleted) || reopening) && task.ganttId) {
+    return res.status(409).json({
+      success: false,
+      message: reopening
+        ? 'Task thuộc dự án được mở lại bằng cách thu hồi xác nhận hoặc bằng chứng 100% ở trang Dự án.'
+        : 'Task thuộc dự án tự hoàn thành khi trạng thái đạt 100% (Phê duyệt / Có kết quả) có bằng chứng và được xác nhận ở trang Dự án.'
+    });
+  }
+  if (((requestsCompletion && !wasCompleted) || reopening) && !reviewingRole(req.deliveryUser?.role)) {
+    return res.status(403).json({ success: false, message: REVIEW_DENIED });
+  }
+  const reopenReason = String(req.body?.reopenReason || '').trim().slice(0, 1000);
+  if (reopening && !reopenReason) {
+    return res.status(400).json({ success: false, message: 'Cần nhập lý do mở lại task.' });
+  }
+  if (reopening && progress !== undefined && Number(progress) >= 100) {
+    return res.status(400).json({ success: false, message: 'Task mở lại phải có tiến độ dưới 100%.' });
+  }
+
   const previousStartDate = task.startDate;
   const previousEndDate = task.endDate;
-  if (status !== undefined) task.status = status;
-  if (progress !== undefined) task.progress = Number(progress);
+  if (reopening) {
+    reopenTaskRecord(task, req.deliveryUser?.name || req.deliveryUser?.email || '', reopenReason, progress !== undefined ? Number(progress) : 0);
+  } else if (status !== undefined) task.status = status;
+  if (progress !== undefined && !reopening) task.progress = Number(progress);
   if (actualWorkloadNotes !== undefined) task.actualWorkloadNotes = String(actualWorkloadNotes).slice(0, 5000);
   if (speedStatus !== undefined) task.speedStatus = speedStatus;
   if (notes !== undefined) task.notes = notes;
@@ -339,6 +367,46 @@ export function updateTask(req, res) {
     task.status = 'completed';
   }
 
+  const completedSessionStartAt = settleCompletion(db, task, speedStatus);
+
+  // Đồng bộ sang ganttItems tương ứng
+  const gantt = (db.ganttItems || []).find(g => g.id === task.ganttId || g.title === task.title);
+  if (gantt) {
+    if (reopening) for (const field of ['completedAt', 'delayHours', 'earlyHours']) delete gantt[field];
+    if (task.status !== undefined) gantt.status = task.status;
+    if (task.progress !== undefined) gantt.progress = task.progress;
+    if (task.speedStatus !== undefined) gantt.speed = task.speedStatus;
+    if (task.completedAt) gantt.completedAt = task.completedAt;
+    if (task.delayHours !== undefined) gantt.delayHours = task.delayHours;
+    if (task.earlyHours !== undefined) gantt.earlyHours = task.earlyHours;
+    if (task.actualWorkHours !== undefined) gantt.actualWorkHours = task.actualWorkHours;
+    if (startDate !== undefined) gantt.startDate = task.startDate;
+    if (endDate !== undefined) gantt.endDate = task.endDate;
+    if (estimatedDays !== undefined) gantt.days = task.estimatedDays;
+    if (estimatedHours !== undefined) gantt.estimatedHours = task.estimatedHours;
+    if (estimatedHours !== undefined || estimatedHoursPerDay !== undefined || startDate !== undefined || endDate !== undefined) {
+      gantt.estimatedHoursPerDay = Math.round((Number(task.estimatedHoursPerDay) || Number(task.estimatedHours) / (Number(task.estimatedDays) || 1)) * 100) / 100;
+    }
+    if (startDate !== undefined || endDate !== undefined) gantt.days = task.estimatedDays;
+    gantt.assignees = task.assignees;
+    if (completedSessionStartAt) {
+      const elapsed = Math.max(0, (Date.now() - Date.parse(completedSessionStartAt)) / 3600000);
+      gantt.actualWorkHours = Math.round(((Number(gantt.actualWorkHours) || 0) + elapsed) * 100) / 100;
+      gantt.workSessionStartedAt = null;
+    }
+  }
+
+  writeDb(db);
+
+  return res.json({
+    success: true,
+    message: 'Cập nhật nhiệm vụ thành công và đã đồng bộ',
+    data: task
+  });
+}
+
+// Chốt hoàn thành: đóng phiên đang tính giờ và tính sớm/trễ. Trả về thời điểm bắt đầu phiên vừa đóng (nếu có).
+function settleCompletion(db, task, speedStatus) {
   const completingTask = task.status === 'completed' && !task.completedAt;
   const completedAt = completingTask ? new Date() : (task.completedAt ? new Date(task.completedAt) : null);
   let completedSessionStartAt = null;
@@ -402,40 +470,59 @@ export function updateTask(req, res) {
         : task.earlyHours > 0 || completionDate < task.endDate ? 'early' : completionDate > task.endDate ? 'delayed' : (speedStatus || 'on_time');
     }
   }
+  return completedSessionStartAt;
+}
 
-  // Đồng bộ sang ganttItems tương ứng
-  const gantt = (db.ganttItems || []).find(g => g.id === task.ganttId || g.title === task.title);
-  if (gantt) {
-    if (task.status !== undefined) gantt.status = task.status;
-    if (task.progress !== undefined) gantt.progress = task.progress;
-    if (task.speedStatus !== undefined) gantt.speed = task.speedStatus;
-    if (task.completedAt) gantt.completedAt = task.completedAt;
-    if (task.delayHours !== undefined) gantt.delayHours = task.delayHours;
-    if (task.earlyHours !== undefined) gantt.earlyHours = task.earlyHours;
-    if (task.actualWorkHours !== undefined) gantt.actualWorkHours = task.actualWorkHours;
-    if (startDate !== undefined) gantt.startDate = task.startDate;
-    if (endDate !== undefined) gantt.endDate = task.endDate;
-    if (estimatedDays !== undefined) gantt.days = task.estimatedDays;
-    if (estimatedHours !== undefined) gantt.estimatedHours = task.estimatedHours;
-    if (estimatedHours !== undefined || estimatedHoursPerDay !== undefined || startDate !== undefined || endDate !== undefined) {
-      gantt.estimatedHoursPerDay = Math.round((Number(task.estimatedHoursPerDay) || Number(task.estimatedHours) / (Number(task.estimatedDays) || 1)) * 100) / 100;
-    }
-    if (startDate !== undefined || endDate !== undefined) gantt.days = task.estimatedDays;
-    gantt.assignees = task.assignees;
-    if (completedSessionStartAt) {
-      const elapsed = Math.max(0, (Date.now() - Date.parse(completedSessionStartAt)) / 3600000);
-      gantt.actualWorkHours = Math.round(((Number(gantt.actualWorkHours) || 0) + elapsed) * 100) / 100;
-      gantt.workSessionStartedAt = null;
-    }
-  }
-
-  writeDb(db);
-
-  return res.json({
-    success: true,
-    message: 'Cập nhật nhiệm vụ thành công và đã đồng bộ',
-    data: task
+// Giờ công đã ghi là giờ thật nên được giữ; chỉ bỏ kết quả nghiệm thu để lần hoàn thành sau tính lại.
+function reopenTaskRecord(task, by, reason, progress = 0) {
+  task.reopenHistory ||= [];
+  task.reopenHistory.push({
+    at: new Date().toISOString(),
+    by,
+    reason,
+    previousCompletedAt: task.completedAt || null,
+    previousSpeedStatus: task.speedStatus || null
   });
+  task.status = 'in_progress';
+  task.progress = progress;
+  for (const field of ['completedAt', 'delayHours', 'earlyHours', 'completedBy']) delete task[field];
+  task.speedStatus = 'on_time';
+}
+
+/**
+ * Trang Dự án là nơi quyết định hoàn thành: task tự hoàn thành khi % ghi nhận đạt 100
+ * (mức Phê duyệt / Có kết quả, có bằng chứng và đã được xác nhận), và tự mở lại khi
+ * xác nhận/bằng chứng đó bị thu hồi. Trả về 'completed', 'reopened' hoặc ''.
+ */
+export function syncTaskCompletionFromDelivery(db, ganttId, recognized, actor = '') {
+  const gantt = (db.ganttItems || []).find(item => item.id === ganttId);
+  const task = (db.tasks || []).find(item => item.ganttId === ganttId);
+  const target = task || gantt;
+  if (!target) return '';
+  if (Number(recognized) >= 100 && target.status !== 'completed') {
+    target.status = 'completed';
+    target.progress = 100;
+    target.completedBy = 'delivery';
+    const sessionStart = settleCompletion(db, target);
+    if (task && gantt) {
+      Object.assign(gantt, {
+        status: 'completed', progress: 100, speed: task.speedStatus, completedAt: task.completedAt,
+        delayHours: task.delayHours, earlyHours: task.earlyHours, actualWorkHours: task.actualWorkHours, completedBy: 'delivery'
+      });
+      if (sessionStart) gantt.workSessionStartedAt = null;
+    }
+    return 'completed';
+  }
+  if (Number(recognized) < 100 && target.status === 'completed' && target.completedBy === 'delivery') {
+    // Chỉ mở lại task do trang Dự án tự hoàn thành; task hoàn thành theo cách cũ giữ nguyên.
+    reopenTaskRecord(target, actor, 'Mức Phê duyệt / bằng chứng 100% đã bị thay đổi hoặc thu hồi ở trang Dự án');
+    if (task && gantt) {
+      for (const field of ['completedAt', 'delayHours', 'earlyHours', 'completedBy']) delete gantt[field];
+      Object.assign(gantt, { status: 'in_progress', progress: 0, speed: 'on_time' });
+    }
+    return 'reopened';
+  }
+  return '';
 }
 
 // Xóa nhiệm vụ (đồng bộ xóa trong Gantt)
@@ -504,26 +591,57 @@ export function createOvertime(req, res) {
     hours: Number(hours),
     date: date || new Date().toISOString().split('T')[0],
     reason: reason || 'Hoàn thành công việc khẩn cấp',
-    approvedBy: 'Trần Quốc Hưng (Chỉ huy trưởng)',
-    status: 'approved'
+    requestedAt: new Date().toISOString(),
+    approvedBy: '',
+    status: 'pending'
   };
 
   db.overtimes.push(newOt);
-
-  // Đồng bộ sang Gantt item tương ứng để hiện tag [+x h OT]
-  if (taskId || task) {
-    const gantt = (db.ganttItems || []).find(g => g.id === task?.ganttId || g.title === (task ? task.title : ''));
-    if (gantt) {
-      gantt.overtimeHours = (gantt.overtimeHours || 0) + Number(hours);
-    }
-  }
 
   writeDb(db);
 
   return res.status(201).json({
     success: true,
-    message: `Đã đăng ký ${hours}h tăng ca cho ${newOt.employeeName}`,
+    message: `Đã gửi đăng ký ${hours}h tăng ca cho ${newOt.employeeName} và đang chờ duyệt`,
     data: newOt
+  });
+}
+
+// Chỉ giờ tăng ca đã duyệt mới được cộng vào task/Gantt và mới mở quyền vào ca OT.
+export function updateOvertime(req, res) {
+  if (!reviewingRole(req.deliveryUser?.role)) return res.status(403).json({ success: false, message: REVIEW_DENIED });
+  const db = readDb();
+  const overtime = (db.overtimes || []).find(item => item.id === req.params.id);
+  if (!overtime) return res.status(404).json({ success: false, message: 'Không tìm thấy phiếu tăng ca' });
+
+  const status = String(req.body?.status || '');
+  if (!['approved', 'rejected'].includes(status)) {
+    return res.status(400).json({ success: false, message: 'Trạng thái duyệt tăng ca không hợp lệ' });
+  }
+  if (overtime.status !== 'pending') {
+    return res.status(400).json({ success: false, message: 'Phiếu tăng ca này đã được xử lý' });
+  }
+
+  overtime.status = status;
+  overtime.approvedBy = status === 'approved'
+    ? String(req.deliveryUser?.name || req.body?.approvedBy || 'Người có thẩm quyền')
+    : '';
+  overtime.reviewedAt = new Date().toISOString();
+  overtime.reviewNote = String(req.body?.reason || '').slice(0, 1000);
+
+  if (status === 'approved') {
+    const linkedTask = (db.tasks || []).find(item => item.id === overtime.taskId);
+    const gantt = linkedTask
+      ? (db.ganttItems || []).find(item => item.id === linkedTask.ganttId || item.title === linkedTask.title)
+      : null;
+    if (gantt) gantt.overtimeHours = (Number(gantt.overtimeHours) || 0) + Number(overtime.hours || 0);
+  }
+
+  writeDb(db);
+  return res.json({
+    success: true,
+    message: status === 'approved' ? 'Đã duyệt phiếu tăng ca' : 'Đã từ chối phiếu tăng ca',
+    data: overtime
   });
 }
 
@@ -543,7 +661,7 @@ export function deleteOvertime(req, res) {
     ? (db.ganttItems || []).find(item => item.id === task.ganttId || item.title === task.title)
     : null;
 
-  if (gantt) {
+  if (gantt && removedOvertime.status === 'approved') {
     gantt.overtimeHours = Math.max(0, (Number(gantt.overtimeHours) || 0) - (Number(removedOvertime.hours) || 0));
     if (gantt.overtimeHours === 0) delete gantt.overtimeHours;
   }

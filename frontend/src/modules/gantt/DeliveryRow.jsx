@@ -29,7 +29,7 @@ export const DATE_KEYS = [...COMPACT_KEYS, 'startDate', 'endDate', 'days', 'cont
 export const shortDateTime = value => value ? new Date(value).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : '—';
 const number = value => value == null ? '—' : Number(value).toLocaleString('vi-VN', { maximumFractionDigits: 1 });
 
-export default function DeliveryRow({ item, columns, height, depth = 0, record, metric, aggregate, employees, collapsed, onToggle, onOpen, onEdit, onAssign, onDelete, onSaveWork, onCreateTask, color, readOnly }) {
+export default function DeliveryRow({ item, columns, height, depth = 0, record, metric, aggregate, employees, collapsed, onToggle, onOpen, onEdit, onAssign, onDelete, onSaveWork, onCreateTask, color, readOnly, highlighted = false }) {
   const [createMenu, setCreateMenu] = useState(null);
   const createButton = useRef(null);
   const menuRef = useRef(null);
@@ -51,7 +51,7 @@ export default function DeliveryRow({ item, columns, height, depth = 0, record, 
   const hasContractWork = item.contractWork !== '' && item.contractWork != null && Number.isFinite(Number(item.contractWork));
   const comparisonFallback = metric ? workComparison(
     record.freeRework || record.isChangeWork ? 0 : hasContractWork ? Number(item.contractWork) : metric.planned,
-    metric.completedActual ?? metric.actual ?? 0,
+    metric.completedActual ?? 0,
     record.level,
     metric.planned
   ) : null;
@@ -61,7 +61,7 @@ export default function DeliveryRow({ item, columns, height, depth = 0, record, 
   const label = deliveryLabel(record);
   const alert = metric?.alert || {};
   const rowClass = item.isProjectHeader ? 'project' : item.isGroup ? 'group' : `${record?.freeRework ? 'rework ' : ''}${item.parentTaskId ? 'child-task' : ''}`.trim();
-  return <div className={`delivery-row ${rowClass}`} style={{ height, borderLeftColor: color, '--delivery-row-accent': color || 'transparent', ...(item.isGroup && color ? { backgroundColor: `${color}14`, color } : {}) }} role="button" tabIndex={0} aria-label={`Xem chi tiết ${item.title}`} onClick={onOpen} onKeyDown={event => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); onOpen(); } }}>
+  return <div data-gantt-row={item.id} className={`delivery-row ${rowClass}${highlighted ? ' is-link-target' : ''}`} style={{ height, borderLeftColor: color, '--delivery-row-accent': color || 'transparent', ...(item.isGroup && color ? { backgroundColor: `${color}14`, color } : {}) }} role="button" tabIndex={0} aria-label={`Xem chi tiết ${item.title}`} onClick={onOpen} onKeyDown={event => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); onOpen(); } }}>
     {columns.map(column => {
       let content;
       if (column.key === 'code') content = item.isProjectHeader ? '' : item.isGroup ? item.title.match(/^[A-Z]\d*/)?.[0] || item.code : item.code || '';

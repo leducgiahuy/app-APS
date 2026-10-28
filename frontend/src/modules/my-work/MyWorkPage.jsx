@@ -3,8 +3,17 @@ import { ArrowRight, BriefcaseBusiness, CalendarClock, Eye, Inbox, RefreshCw } f
 import { useApp } from '../../context/AppContext';
 import { getCurrentUser } from '../auth/authSession';
 import { deliveryApi } from '../gantt/deliveryApi';
+import { isTaskAssignedTo, resolveEmployee } from '../auth/personalWork';
+import { formatDateVi } from '../../utils/date';
+import { localDateKey, matchesEmployee } from '../../utils/shift';
 import { buildMyWorkItems, myWorkSummary } from './myWork';
 import './MyWorkPage.css';
+
+// Ngày bắt đầu của chính người dùng: ưu tiên khoảng phân công riêng, sau đó mới tới ngày của task.
+function assignmentStartFor(task, employee) {
+  const assignment = (task.assignees || []).find(entry => matchesEmployee(entry, employee));
+  return String(assignment?.startDate || task.startDate || '').slice(0, 10);
+}
 
 const FILTERS = [
   { value: 'all', label: 'Tất cả' },
@@ -14,9 +23,11 @@ const FILTERS = [
 ];
 
 export default function MyWorkPage() {
-  const { tasks, employees, projects, currentTime, setActiveTab, selectDate, refreshAllData, loading } = useApp();
+  const { tasks, employees, projects, currentTime, setActiveTab, selectDate, goToToday, refreshAllData, loading, setActiveTask, showToast } = useApp();
   const [filter, setFilter] = useState('all');
   const [user] = useState(() => getCurrentUser());
+  const myEmployee = useMemo(() => resolveEmployee(user, employees), [user, employees]);
+  const todayKey = localDateKey(currentTime);
   const [workflow, setWorkflow] = useState({ revision: 0, notifications: [] });
   const taskItems = useMemo(
     () => buildMyWorkItems({ tasks, employees, projects, now: currentTime, user }),
@@ -48,7 +59,7 @@ export default function MyWorkPage() {
         dueAt: String(notification.at || '').slice(0, 10),
         bucket,
         dueLabel: bucket === 'urgent' ? 'Cần xử lý ngay' : bucket === 'upcoming' ? 'Sắp đến hạn' : 'Theo dõi',
-        page: notification.page || 'finance',
+        page: notification.page === 'finance' ? 'director-overview' : notification.page || 'director-overview',
         readAt: notification.readAt,
       };
     });
@@ -71,17 +82,56 @@ export default function MyWorkPage() {
         // Điều hướng vẫn tiếp tục; lần đồng bộ kế tiếp sẽ cập nhật trạng thái đã đọc.
       }
       if (item.page === 'gantt') sessionStorage.setItem('aps_report_link', JSON.stringify({ projectId: item.projectId, tab: 'gantt' }));
-      if (item.page === 'finance') sessionStorage.setItem('aps_finance_link', JSON.stringify({ projectId: item.projectId, tab: 'expenses' }));
       setActiveTab(item.page);
       return;
     }
-    sessionStorage.setItem('aps-focus-task-id', item.recordId);
-    const selectedKey = item.startDate || item.dueAt;
-    if (selectedKey) {
-      const [year, month, day] = selectedKey.split('-').map(Number);
-      selectDate(new Date(year, month - 1, day));
+    const openTaskDetail = () => {
+      sessionStorage.setItem('aps-focus-task-id', item.recordId);
+      const selectedKey = todayKey >= item.startDate && (!item.dueAt || todayKey <= item.dueAt)
+        ? todayKey
+        : item.startDate || item.dueAt;
+      if (selectedKey) {
+        const [year, month, day] = selectedKey.split('-').map(Number);
+        selectDate(new Date(year, month - 1, day));
+      }
+      setActiveTab('tasks');
+    };
+
+    const task = tasks.find(record => record.id === item.recordId);
+    // Quản trị viên theo dõi việc của người khác: chỉ mở chi tiết, không bắt đầu thay họ.
+    if (!task || !myEmployee || !isTaskAssignedTo(task, myEmployee)) {
+      openTaskDetail();
+      return;
     }
-    setActiveTab('tasks');
+
+    const startKey = assignmentStartFor(task, myEmployee);
+    if (startKey && todayKey < startKey) {
+      showToast(`Task “${task.title}” bắt đầu từ ${formatDateVi(startKey)}. Chưa đến ngày thực hiện.`, 'info');
+      return;
+    }
+
+    if (myEmployee.activeTaskId === task.id && myEmployee.isOnSite && !myEmployee.isOnBreak) {
+      openTaskDetail();
+      return;
+    }
+
+    if (!myEmployee.isOnSite || myEmployee.isOnBreak) {
+      // Chọn sẵn task rồi chuyển sang Thành viên để người dùng vào ca/tiếp tục; đồng hồ chỉ chạy sau bước đó.
+      if (myEmployee.activeTaskId !== task.id && !(await setActiveTask(myEmployee.id, task.id, myEmployee.shiftType || 'regular'))) return;
+      sessionStorage.setItem('aps-focus-employee-id', myEmployee.id);
+      goToToday();
+      setActiveTab('hr');
+      showToast(myEmployee.isOnBreak
+        ? 'Đã chọn task. Bạn đang tạm nghỉ — nhấn “Tiếp tục” để bắt đầu tính giờ.'
+        : 'Đã chọn task. Nhấn “Vào văn phòng” để bắt đầu tính giờ.', 'info');
+      return;
+    }
+
+    if (myEmployee.activeTaskId && myEmployee.activeTaskId !== task.id) {
+      const currentTitle = myEmployee.activeTaskTitle || tasks.find(record => record.id === myEmployee.activeTaskId)?.title || 'task hiện tại';
+      if (!window.confirm(`Bạn đang làm “${currentTitle}”. Tạm dừng task này và chuyển sang “${task.title}”?`)) return;
+    }
+    if (await setActiveTask(myEmployee.id, task.id, myEmployee.shiftType || 'regular')) openTaskDetail();
   };
 
   return (
@@ -114,14 +164,25 @@ export default function MyWorkPage() {
               </select>
             </span>
           </div>
-          {visibleItems.map(item => (
-            <div className="my-work-row" role="row" key={item.id}>
-              <span role="cell"><span className={`my-work-due ${item.bucket}`}>{item.dueLabel}</span></span>
-              <span role="cell" className={`my-work-title ${item.readAt ? 'is-read' : ''}`}><BriefcaseBusiness size={15} />{item.title}</span>
-              <span role="cell" className="my-work-project">{item.projectName}</span>
-              <span role="cell"><button type="button" className="my-work-action" onClick={() => openItem(item)}>Làm <ArrowRight size={14} /></button></span>
-            </div>
-          ))}
+          {visibleItems.map(item => {
+            const isCurrent = item.type === 'task' && myEmployee?.activeTaskId === item.recordId && myEmployee.isOnSite && !myEmployee.isOnBreak;
+            return (
+              <div className="my-work-row" role="row" key={item.id}>
+                <span role="cell"><span className={`my-work-due ${item.bucket}`}>{item.dueLabel}</span></span>
+                <span role="cell" className={`my-work-title ${item.readAt ? 'is-read' : ''}`}>
+                  <BriefcaseBusiness size={15} />{item.title}
+                  {item.delivery && (
+                    <span className={`my-work-status level-${item.delivery.level}`} title="Trạng thái theo trang Dự án">
+                      {item.delivery.level}% · {item.delivery.label}{item.delivery.awaitingConfirmation ? ' · chờ xác nhận' : ''}
+                    </span>
+                  )}
+                  {isCurrent && <span className="my-work-status is-current">Đang tính giờ</span>}
+                </span>
+                <span role="cell" className="my-work-project">{item.projectName}</span>
+                <span role="cell"><button type="button" className="my-work-action" onClick={() => openItem(item)}>{isCurrent ? 'Mở' : 'Làm'} <ArrowRight size={14} /></button></span>
+              </div>
+            );
+          })}
           {!visibleItems.length && (
             <div className="my-work-empty">
               <Inbox size={30} />

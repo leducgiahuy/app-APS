@@ -17,6 +17,8 @@ async function authenticate() {
   try { return await loginPromise; } finally { loginPromise = null; }
 }
 export const deliveryToken = () => authenticate();
+/** Tài khoản Tiến độ của phiên hiện tại (gồm vai trò); máy chủ vẫn kiểm tra quyền ở mỗi thao tác. */
+export const deliveryViewer = async () => { await authenticate(); return session?.user || null; };
 async function request(endpoint, method = 'GET', body, retried = false) {
   const token = await authenticate();
   const response = await fetch(`${BASE}${endpoint}`, { method, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, ...(body ? { body: JSON.stringify(body) } : {}) });

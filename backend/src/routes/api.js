@@ -19,6 +19,7 @@ import {
   updateTask,
   deleteTask,
   createOvertime,
+  updateOvertime,
   deleteOvertime
 } from '../controllers/taskController.js';
 import {
@@ -76,6 +77,7 @@ router.post('/tasks', createTask);
 router.patch('/tasks/:id', updateTask);
 router.delete('/tasks/:id', deleteTask);
 router.post('/overtimes', createOvertime);
+router.patch('/overtimes/:id', updateOvertime);
 router.delete('/overtimes/:id', deleteOvertime);
 
 // === PHÂN HỆ 3: DỰ ÁN & TIẾN ĐỘ GANTT ===

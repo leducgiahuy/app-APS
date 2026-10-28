@@ -51,7 +51,7 @@ try {
   await click(button('Tháng'));
   check(document.querySelector('.workload-table.month td.workload-position-column')?.textContent === 'Kỹ sư MEP', 'month shows live employee position');
   check(!document.querySelector('.workload-table.month .workload-meter'), 'month is compact like reference');
-  check(document.querySelector('.workload-overload-badge')?.textContent.includes('0 nhân viên'), 'overload badge counts distinct people');
+  check(!document.querySelector('.workload-summary-card.has-overload') && [...document.querySelectorAll('.workload-summary-card')].some(card => card.textContent.includes('Tình trạng phân bổ') && card.querySelector('strong')?.textContent.startsWith('0')), 'allocation summary shows no overload');
   await click(button('6 tháng tới'));
   await wait(() => document.querySelector('.forecast-heatmap'));
   check(document.querySelectorAll('.forecast-heatmap thead th').length === 8, 'six consecutive month columns plus role and gap');

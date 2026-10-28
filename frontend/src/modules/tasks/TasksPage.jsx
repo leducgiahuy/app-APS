@@ -6,20 +6,14 @@ import EmployeeCombobox from '../../components/EmployeeCombobox';
 import SearchableSelect from '../../components/SearchableSelect';
 import { formatDateVi, inclusiveDays, scheduledProgress, isTaskOverdue, isTaskActiveOnDate, taskDelayHours, formatDelayHours, todayIsoDate } from '../../utils/date';
 import { getGanttTaskCode } from '../../utils/taskCode';
+import { getCurrentUser } from '../auth/authSession';
+import { taskDeliveryStatus } from '../../utils/deliveryMetrics';
 import {
   CheckSquare,
-  Clock,
   Flame,
-  Calendar,
-  AlertCircle,
-  CheckCircle2,
-  Hourglass,
   Building,
-  User,
   Search,
-  Trash2,
-  TrendingUp,
-  Tag
+  Trash2
 } from 'lucide-react';
 
 const normalizeEmployeeSearch = value => String(value || '')
@@ -27,6 +21,23 @@ const normalizeEmployeeSearch = value => String(value || '')
   .normalize('NFD')
   .replace(/[\u0300-\u036f]/g, '')
   .replace(/đ/g, 'd');
+
+// Phiếu cũ không có status được coi là đã duyệt để giữ nguyên dữ liệu lịch sử.
+const OVERTIME_STATUS = {
+  pending: { label: 'Chờ duyệt', className: 'text-amber-600 bg-amber-500/10' },
+  approved: { label: 'Đã duyệt', className: 'text-emerald-500 bg-emerald-500/10' },
+  rejected: { label: 'Từ chối', className: 'text-rose-500 bg-rose-500/10' }
+};
+const isApprovedOvertime = overtime => !overtime.status || overtime.status === 'approved';
+
+const LEVEL_STYLES = {
+  0: 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700',
+  20: 'bg-sky-500/10 text-sky-600 border-sky-500/20 dark:text-sky-400',
+  40: 'bg-yellow-500/15 text-yellow-700 border-yellow-500/30 dark:text-yellow-300',
+  60: 'bg-violet-500/10 text-violet-700 border-violet-500/20 dark:text-violet-300',
+  80: 'bg-orange-500/10 text-orange-700 border-orange-500/20 dark:text-orange-300',
+  100: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400'
+};
 
 export default function TasksPage() {
   const today = todayIsoDate();
@@ -43,8 +54,13 @@ export default function TasksPage() {
     showToast,
     deleteTask,
     addOvertime,
-    deleteOvertime
+    reviewOvertime,
+    deleteOvertime,
+    canReviewWork,
+    setActiveTab
   } = useApp();
+  const pendingOvertimeCount = overtimes.filter(overtime => overtime.status === 'pending').length;
+  const reviewerName = getCurrentUser()?.name || 'Người có thẩm quyền';
 
   // Tab chuyển đổi: 'tasks' (Phân công) hoặc 'ot' (Tăng ca)
   const [activeSubTab, setActiveSubTab] = useState('tasks');
@@ -208,6 +224,23 @@ export default function TasksPage() {
     await updateTask(task.id, { status: 'completed', progress: 100 });
   };
 
+  // Trạng thái 0–100%, bằng chứng và xác nhận được quản lý ở trang Dự án; task tự hoàn thành/mở lại theo đó.
+  const openInProject = (task) => {
+    sessionStorage.setItem('aps_report_link', JSON.stringify({ projectId: task.projectId, taskId: task.ganttId, tab: 'gantt' }));
+    setActiveTab('gantt');
+  };
+
+  // Task cũ không thuộc dự án: Mở lại đưa task về "Đang thực hiện".
+  const handleReopenTask = async (task) => {
+    const reason = window.prompt(`Lý do mở lại task “${task.title}”:`);
+    if (reason === null) return;
+    if (!reason.trim()) {
+      showToast('Cần nhập lý do mở lại task.', 'error');
+      return;
+    }
+    await updateTask(task.id, { status: 'in_progress', reopenReason: reason.trim() });
+  };
+
   const getTaskSpeedStatus = (task) => {
     if (task.status === 'completed') return task.speedStatus || 'on_time';
     if (taskDelayHours(task, currentTime) > 0) return 'delayed';
@@ -326,6 +359,7 @@ export default function TasksPage() {
                     ? { label: 'Chậm trễ', bg: 'bg-amber-500/10 text-amber-700 border-amber-500/20' }
                     : speedStyles.on_time;
               const taskCode = getGanttTaskCode(task, ganttItems);
+              const deliveryStatus = taskDeliveryStatus(task);
 
               return (
                 <div
@@ -343,6 +377,12 @@ export default function TasksPage() {
                     </div>
 
                     <div className="flex items-center gap-2">
+                      <span
+                        title="Trạng thái theo trang Dự án"
+                        className={`text-[11px] font-bold px-2.5 py-1 rounded-full border ${LEVEL_STYLES[deliveryStatus.level] || LEVEL_STYLES[0]}`}
+                      >
+                        {deliveryStatus.level}% · {deliveryStatus.label}{deliveryStatus.awaitingConfirmation ? ' · chờ xác nhận' : ''}
+                      </span>
                       <span
                         className={`text-[11px] font-bold px-2.5 py-1 rounded-full border ${speedInfo.bg}`}
                       >
@@ -528,12 +568,32 @@ export default function TasksPage() {
                           {option.label}
                         </button>
                       ))}
-                      {task.status !== 'completed' && (
+                      {task.ganttId ? (
+                        <button
+                          onClick={() => openInProject(task)}
+                          title="Hoàn thành khi trạng thái đạt 100% có bằng chứng được xác nhận ở trang Dự án"
+                          className="ml-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-sky-600 text-white hover:bg-sky-500 transition-colors"
+                        >
+                          Cập nhật trạng thái
+                        </button>
+                      ) : task.status !== 'completed' && (canReviewWork ? (
                         <button
                           onClick={() => handleCompleteTask(task)}
                           className="ml-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-500 transition-colors"
                         >
                           Hoàn thành
+                        </button>
+                      ) : (
+                        <span className="ml-1 px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-500 bg-slate-100 dark:bg-slate-800 dark:text-slate-400" title="Leader hoặc Quản lý sẽ kiểm tra và xác nhận hoàn thành">
+                          Chờ Leader xác nhận
+                        </span>
+                      ))}
+                      {!task.ganttId && task.status === 'completed' && canReviewWork && (
+                        <button
+                          onClick={() => handleReopenTask(task)}
+                          className="ml-1 px-2.5 py-1 rounded-lg text-xs font-semibold border border-amber-500/40 text-amber-700 hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-950/40 transition-colors"
+                        >
+                          Mở lại
                         </button>
                       )}
                     </div>
@@ -570,10 +630,11 @@ export default function TasksPage() {
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
                 <Flame className="w-5 h-5 text-amber-500" />
-                Danh Sách Ca Làm Thêm Giờ (Overtime - OT) Được Phê Duyệt
+                Danh Sách Phiếu Làm Thêm Giờ (Overtime - OT)
               </h3>
               <span className="text-xs font-bold text-amber-500 bg-amber-500/10 px-3 py-1 rounded-full">
-                Tổng cộng: {overtimes.reduce((sum, o) => sum + (Number(o.hours) || 0), 0)} giờ OT
+                Đã duyệt: {overtimes.filter(isApprovedOvertime).reduce((sum, o) => sum + (Number(o.hours) || 0), 0)} giờ OT
+                {pendingOvertimeCount > 0 && ` · ${pendingOvertimeCount} phiếu chờ duyệt`}
               </span>
             </div>
 
@@ -609,13 +670,38 @@ export default function TasksPage() {
                     </td>
                     <td className="py-3 px-3 text-slate-500">{formatDateVi(ot.date)}</td>
                     <td className="py-3 px-3 italic">{ot.reason}</td>
-                    <td className="py-3 px-3 text-slate-500">{ot.approvedBy}</td>
+                    <td className="py-3 px-3 text-slate-500">{ot.approvedBy || '—'}</td>
                     <td className="py-3 px-3">
-                      <span className="font-bold text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-full">
-                        Đã duyệt
+                      <span
+                        title={ot.reviewNote || undefined}
+                        className={`font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${(OVERTIME_STATUS[ot.status] || OVERTIME_STATUS.approved).className}`}
+                      >
+                        {(OVERTIME_STATUS[ot.status] || OVERTIME_STATUS.approved).label}
                       </span>
                     </td>
                     <td className="py-3 px-3">
+                      <div className="flex items-center gap-1">
+                      {ot.status === 'pending' && canReviewWork && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => reviewOvertime(ot.id, 'approved', { approvedBy: reviewerName })}
+                            className="px-2 py-1 rounded-lg text-[11px] font-semibold bg-emerald-600 text-white hover:bg-emerald-500"
+                          >
+                            Duyệt
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const reason = window.prompt('Lý do từ chối phiếu tăng ca:');
+                              if (reason !== null) reviewOvertime(ot.id, 'rejected', { reason });
+                            }}
+                            className="px-2 py-1 rounded-lg text-[11px] font-semibold bg-slate-100 text-slate-600 hover:bg-rose-50 hover:text-rose-600 dark:bg-slate-800 dark:text-slate-300"
+                          >
+                            Từ chối
+                          </button>
+                        </>
+                      )}
                       <button
                         type="button"
                         onClick={() => deleteOvertime(ot.id)}
@@ -624,6 +710,7 @@ export default function TasksPage() {
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

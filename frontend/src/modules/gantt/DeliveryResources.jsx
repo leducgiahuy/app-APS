@@ -57,6 +57,7 @@ export default function DeliveryResources({ tab, data, delivery, projectId, empl
     if (editor.action === 'change' && value.decision !== 'pending') value = { ...value, free: value.decision === 'free' };
     if (editor.action === 'meetingMinute') value = { ...value, at: `${value.at}:00+07:00` };
     await delivery.mutate(editor.action, value, undefined, editor.id);
+    if (editor.action === 'changeAppendix') await refreshApp();
   };
   const run = async action => { try { setError(''); await action(); } catch (error) { setError(error.message); } };
   const decide = (row, decision) => run(() => delivery.mutate('change', { ...row, decision, free: decision === 'free', status: row.status === 'Đề xuất' ? 'Đã duyệt' : row.status }, undefined, row.id));

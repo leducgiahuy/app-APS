@@ -53,7 +53,7 @@ export default function LoginPage() {
           </form>
           <p className="support-line">Cần hỗ trợ? <a href="mailto:hotro@apsvietnam.vn">Liên hệ bộ phận IT</a></p>
         </div>
-        <footer className="panel-footer"><span>© 2026 APS Việt Nam</span><span><i /> Hệ thống quản lý dự án</span></footer>
+        <footer className="panel-footer"><span>© {new Date().getFullYear()} APS Việt Nam</span><span><i /> Hệ thống quản lý dự án</span></footer>
       </section>
       <aside className="visual-panel" aria-label="Quản lý công trường APS"><div className="visual-top"><span>APS PROJECT MANAGEMENT</span><span>01 — 04</span></div><SiteIllustration /><div className="visual-caption"><p>Mọi công trình<br /><strong>bắt đầu từ một kế hoạch tốt.</strong></p><span>Quản lý tiến độ, nhân sự và nguồn lực<br />trên cùng một nền tảng.</span></div><div className="visual-bottom"><span>THI CÔNG · KẾT NỐI · PHÁT TRIỂN</span><span>10°46' N &nbsp; 106°40' E</span></div></aside>
     </main>

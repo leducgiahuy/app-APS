@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { calendarColumns, vietnamLunarDate, vietnamCalendarDay } from '../../frontend/src/utils/vietnamCalendar.js';
+import { calendarColumns, currentVietnamCalendarYear, vietnamHolidaysForYear, vietnamLunarDate, vietnamCalendarDay } from '../../frontend/src/utils/vietnamCalendar.js';
 
 const day = key => new Date(`${key}T12:00:00`);
 
@@ -41,4 +41,20 @@ test('weekends differ, holiday takes priority, and culture holiday starts in 202
 test('columns remain consecutive over year boundaries and leap day', () => {
   assert.deepEqual(calendarColumns(day('2026-12-31'), 3).map(d => [d.key, d.index]), [['2026-12-31', 0], ['2027-01-01', 1], ['2027-01-02', 2]]);
   assert.deepEqual(calendarColumns(day('2028-02-28'), 3).map(d => d.key), ['2028-02-28', '2028-02-29', '2028-03-01']);
+});
+
+test('company holiday list is generated only for the selected year', () => {
+  const holidays2026 = vietnamHolidaysForYear(2026);
+  const holidays2027 = vietnamHolidaysForYear(2027);
+  assert.ok(holidays2026.length > 4);
+  assert.ok(holidays2027.length > 4);
+  assert.ok(holidays2026.every(day => day.key.startsWith('2026-') && day.kind === 'holiday'));
+  assert.ok(holidays2027.every(day => day.key.startsWith('2027-') && day.kind === 'holiday'));
+  assert.ok(holidays2026.some(day => day.key === '2026-02-17'));
+  assert.ok(holidays2027.some(day => day.key === '2027-02-06'));
+});
+
+test('calendar year changes at Vietnam new year, not the browser UTC year', () => {
+  assert.equal(currentVietnamCalendarYear(new Date('2026-12-31T16:59:59Z')), 2026);
+  assert.equal(currentVietnamCalendarYear(new Date('2026-12-31T17:00:00Z')), 2027);
 });

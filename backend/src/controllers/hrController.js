@@ -87,6 +87,10 @@ function updateEmployeeTaskSessions(db, emp, startAt, endAt = null) {
       item.workSessionStartedAt = null;
     } else {
       item.workSessionStartedAt = startAt;
+      // Giao việc chỉ tạo task "chưa bắt đầu"; task chuyển sang "đang thực hiện"
+      // ở phiên tính giờ đầu tiên khi người đảm nhận có mặt và chọn task.
+      if (!item.status || item.status === 'not_started') item.status = 'in_progress';
+      item.startedAt ||= startAt;
     }
   });
   return true;
@@ -268,7 +272,7 @@ export function getEmployees(req, res) {
             title: g.title,
           startDate: g.startDate,
           endDate: g.endDate,
-            status: g.status || 'in_progress',
+            status: g.status || 'not_started',
             speedStatus: g.speed || 'on_time'
           });
         }
@@ -518,6 +522,23 @@ export function deleteEmployee(req, res) {
   const index = db.employees.findIndex(e => e.id === id);
   if (index === -1) {
     return res.status(404).json({ success: false, message: 'Không tìm thấy nhân sự' });
+  }
+
+  // Xóa nhân sự không được làm mồ côi task: phải kết thúc ca và chuyển/thu hồi phân công trước.
+  const employee = db.employees[index];
+  const assignedTasks = (db.tasks || []).filter(task =>
+    !['completed', 'cancelled'].includes(task.status) && (
+      task.employeeId === id ||
+      (Array.isArray(task.assignees) && task.assignees.some(assignment => assignment.employeeId === id))
+    )
+  );
+  if (employee.isOnSite || employee.activeTaskId || assignedTasks.length) {
+    return res.status(409).json({
+      success: false,
+      message: employee.isOnSite || employee.activeTaskId
+        ? 'Nhân sự đang trong ca hoặc đang chọn task. Hãy kết thúc ca và bỏ chọn task trước khi xóa.'
+        : `Nhân sự còn ${assignedTasks.length} task đang phụ trách. Hãy chuyển hoặc thu hồi phân công trước khi xóa.`
+    });
   }
 
   const removed = db.employees.splice(index, 1);

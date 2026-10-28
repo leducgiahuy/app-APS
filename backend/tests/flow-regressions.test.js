@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { allocateTaskHierarchyWeightPercent, calculateAssignmentHours, calculatePlannedPersonDays, calculateUnassignedPlannedPersonDays } from '../../frontend/src/utils/ganttEffort.js';
-import { computeDelivery } from '../../frontend/src/utils/deliveryMetrics.js';
+import { computeDelivery, summarizePortfolioWork, summarizeProjectWork } from '../../frontend/src/utils/deliveryMetrics.js';
 import { monthSnapshot } from '../../frontend/src/utils/deliveryResources.js';
 import { cashflowReport } from '../src/utils/operationsCashflow.js';
 import { syncProjectNameReferences } from '../src/controllers/projectController.js';
@@ -38,6 +38,44 @@ test('delivery weights recalculate from planned effort and ignore manual contrac
   second.contractWork=99;
   assert.equal(weights().a.weight,.8);
   assert.equal(weights().b.weight,.2);
+});
+
+test('project and director work comparison share the approved project budget', () => {
+  const project = { id: 'p', contractWork: 500 };
+  const summary = summarizeProjectWork(project, {
+    a: { budgetedWork: 200, forecastWork: 180, completedActual: 20 },
+    b: { budgetedWork: 241, forecastWork: 261, completedActual: 10 },
+  });
+  assert.equal(summary.budgetedWork, 500);
+  assert.equal(summary.actualWork, 30);
+  assert.equal(summary.forecastWork, 441);
+  assert.equal(summary.remainingWork, 411);
+  assert.equal(summary.varianceWork, -59);
+  assert.equal(Math.round(summary.variancePercent * 10) / 10, -11.8);
+});
+
+test('portfolio comparison keeps projects isolated and derives company totals', () => {
+  const totals = summarizePortfolioWork([
+    { budgetedWork: 500, actualWork: 40, forecastWork: 441, remainingWork: 401 },
+    { budgetedWork: 300, actualWork: 25, forecastWork: 330, remainingWork: 305 },
+  ]);
+  assert.equal(totals.budgetedWork, 800);
+  assert.equal(totals.actualWork, 65);
+  assert.equal(totals.forecastWork, 771);
+  assert.equal(totals.remainingWork, 706);
+  assert.equal(totals.varianceWork, -29);
+  assert.equal(Math.round(totals.variancePercent * 1000) / 1000, -3.625);
+});
+
+test('uncompleted approved hours do not silently reduce project remaining work', () => {
+  const item = { id: 'active', projectId: 'p', startDate: '2026-10-01', endDate: '2026-10-02', estimatedHours: 16, status: 'in_progress' };
+  const db = { projects: [{ id: 'p', startDate: '2026-10-01', endDate: '2026-10-31' }], employees: [{ id: 'e' }], tasks: [], ganttItems: [item] };
+  const data = { settings: {}, timesheets: [{ id: 'approved', taskId: 'active', employeeId: 'e', date: '2026-10-01', hours: 8, shiftType: 'regular', source: 'weekly', status: 'approved' }] };
+  const metric = computeDelivery(db, 'p', data, new Date('2026-10-03T00:00:00Z')).taskMetrics.active;
+  assert.equal(metric.actual, 1);
+  assert.equal(metric.completedActual, null);
+  assert.equal(metric.forecastWork, 2);
+  assert.equal(metric.remainingWork, 2);
 });
 
 test('displayed child weights add up exactly to the displayed parent weight', () => {

@@ -81,6 +81,51 @@
   border-color:#861b36;
   font-weight:700
 }
+.delivery-project-context {
+  display:flex;
+  align-items:center;
+  gap:5px;
+  min-width:0;
+  margin:5px 0;
+  padding:0;
+  border:0
+}
+.delivery-project-context>svg {
+  width:17px;
+  height:17px;
+  flex:0 0 auto;
+  color:#941b3d
+}
+.delivery-project-context select {
+  width:min(310px,36vw);
+  min-width:180px;
+  height:34px;
+  padding:0 30px 0 10px;
+  border:1px solid #d9d3ca;
+  border-radius:5px;
+  background:#fff;
+  color:#252b33;
+  font-weight:700;
+  text-overflow:ellipsis
+}
+.delivery-project-context button {
+  display:grid;
+  place-items:center;
+  width:32px;
+  height:32px;
+  border:0;
+  border-radius:5px;
+  background:transparent;
+  color:#667381
+}
+.delivery-project-context button:hover:not(:disabled) { background:#f4e9ed; color:#941b3d; }
+.delivery-project-context button:disabled { opacity:.3; cursor:not-allowed; }
+.delivery-project-context button[hidden] { display:none; }
+.delivery-project-context button svg { width:16px; height:16px; }
+.dark .delivery-project-context>svg { color:#e28ba2; }
+.dark .delivery-project-context select { border-color:#465566; background:#202b38; color:#f1f4f7; }
+.dark .delivery-project-context button { color:#c1cad4; }
+.dark .delivery-project-context button:hover:not(:disabled) { background:#392832; color:#ffd6e0; }
 .delivery-view-options {
   display:flex;
   gap:10px;
@@ -763,6 +808,8 @@
   min-height:48px;
   padding:0 10px
 }
+.delivery-project-context { width:100%; margin:0 0 7px; }
+.delivery-project-context select { width:100%; max-width:none; }
 .delivery-kpis {
   padding-top:5px
 }
@@ -919,3 +966,12 @@
 .dark .dept-kc{color:#72d7aa;background:#203d34}
 .dark .load-track{background:#3b4653}
 
+
+/* Mức trạng thái: chữ số rộng đều để cột % và tên trạng thái thẳng hàng. */
+.delivery-level-select, .delivery-level-select option { font-variant-numeric: tabular-nums; }
+
+/* Task được dẫn tới từ trang khác: nhấp nháy nhẹ ở dòng bảng và dải ngang biểu đồ, tự tắt sau vài giây. */
+@keyframes delivery-link-pulse { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
+.delivery-row.is-link-target { box-shadow: inset 0 0 0 2px #e0a526; background-color: #fff7e0 !important; }
+.dark .delivery-row.is-link-target { background-color: #3a3120 !important; }
+.gantt-link-target { fill: #e0a52633; stroke: #e0a526; stroke-width: 1.5; animation: delivery-link-pulse 1.2s ease-in-out 3; }

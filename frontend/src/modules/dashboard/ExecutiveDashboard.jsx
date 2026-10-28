@@ -48,7 +48,7 @@ export default function ExecutiveDashboard() {
     if (action.kind === 'task') return openSource(action.projectId, action.taskId);
     if (action.kind === 'document') return openSource(action.projectId, null, 'legal');
     if (action.kind === 'capacity') return setActiveTab('workload');
-    if (['debt','contract','payment','operation'].includes(action.kind)) { sessionStorage.setItem('aps_finance_link',JSON.stringify({projectId:action.projectId,tab:action.kind==='debt'?'receivables':action.kind==='payment'?'milestones':'expenses'}));return setActiveTab('finance'); }
+    if (['debt','contract','payment','operation'].includes(action.kind)) return setActiveTab('director-overview');
     return openSource(action.projectId, null, action.kind === 'change' ? 'changes' : 'gantt');
   };
   const copyReport = async () => {

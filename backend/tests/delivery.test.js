@@ -101,6 +101,24 @@ test('protected delivery API persists, enforces roles/confirmation/OT/revisions 
     assert.equal((await mutate('confirm', {}, 'a', null, worker)).status, 400);
     assert.equal((await mutate('confirm', {}, 'a', null, leader)).status, 200);
     assert.equal(state.taskMetrics.a.recognized, 60);
+    {
+      // Mức Phê duyệt 100% có bằng chứng chấp thuận và được Leader xác nhận thì task tự hoàn thành; thu hồi thì tự mở lại.
+      const linkedTask = () => JSON.parse(fs.readFileSync(process.env.APS_DB_PATH, 'utf8')).ganttItems.find(item => item.id === 'a');
+      const approval = await call('/p/evidence', 'POST', { taskId: 'a', name: 'chap-thuan.txt', kind: 'approval', base64: Buffer.from('Đồng ý').toString('base64') }, worker);
+      assert.equal(approval.status, 201); state = approval.data;
+      assert.equal((await mutate('task', { level: 100, evidenceId: approval.evidenceId }, 'a', null, worker)).status, 200);
+      assert.notEqual(linkedTask().status, 'completed', 'not complete before the reviewer confirms');
+      assert.equal((await mutate('confirm', {}, 'a', null, leader)).status, 200);
+      assert.equal(state.taskMetrics.a.recognized, 100);
+      assert.equal(linkedTask().status, 'completed');
+      assert.equal(linkedTask().deliveryStatusLevel, 100);
+      assert.equal((await mutate('revokeConfirmation', { reason: 'CĐT rút lại chấp thuận' }, 'a', null, leader)).status, 200);
+      assert.equal(linkedTask().status, 'in_progress');
+      assert.ok(linkedTask().reopenHistory?.length);
+      assert.equal((await mutate('task', { level: 60, evidenceId: upload.evidenceId }, 'a', null, worker)).status, 200);
+      assert.equal((await mutate('confirm', {}, 'a', null, leader)).status, 200);
+      assert.equal(state.taskMetrics.a.recognized, 60);
+    }
     assert.equal((await mutate('task', { dueAt: '2026-11-01T17:00:00+07:00' }, 'a')).status, 200);
     assert.equal(state.records.a.submittedBy, 'worker@aps.vn');
     assert.equal((await mutate('milestone', { title: 'Đợt 1', amount: 100000000, completionRequired: 25 })).status, 200);
