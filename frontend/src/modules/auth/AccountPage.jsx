@@ -1,6 +1,8 @@
 import { useState } from 'react';
-import { ArrowLeft, Camera, KeyRound, LockKeyhole, LogOut, UserRound, UserRoundPlus, UsersRound } from 'lucide-react';
-import { adminUpdateUserProfile, createUser, endAuthSession, getCurrentUser, getUsers, processAvatarFile, resetUserPassword, updateUserPassword, updateUserProfile } from './authSession';
+import { ArrowLeft, BriefcaseBusiness, Camera, KeyRound, LockKeyhole, LogOut, Trash2, UserRound, UserRoundPlus, UsersRound } from 'lucide-react';
+import { adminUpdateUserProfile, endAuthSession, getCurrentUser, getUsers, processAvatarFile, resetUserPassword, updateUserPassword, updateUserProfile } from './authSession';
+import { ACCOUNT_LEVELS, DEFAULT_LEVEL, DEPARTMENTS, SPECIALTIES, getLevelLabel } from './accountOptions';
+import { createUserWithEmployee, deleteUserWithEmployee, syncEmployeeForUser } from './accountEmployeeSync';
 import './AccountPage.css';
 
 /** Trang tài khoản tách riêng: user quản lý hồ sơ/mật khẩu; admin có thêm tác vụ quản trị user. */
@@ -12,6 +14,8 @@ export default function AccountPage() {
   const [profileAvatar, setProfileAvatar] = useState(currentUser?.avatarData || '');
   const [managedEmail, setManagedEmail] = useState('');
   const [managedAvatar, setManagedAvatar] = useState(null);
+  const [creating, setCreating] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const userAccounts = isAdmin ? getUsers().filter((user) => user.role === 'user') : [];
   const managedUser = userAccounts.find((user) => user.email === managedEmail) || userAccounts[0] || null;
 
@@ -28,24 +32,38 @@ export default function AccountPage() {
     }
   }
 
-  /** Admin tạo tài khoản user; kiểm tra độ dài và xác nhận mật khẩu trước khi lưu. */
-  function handleCreateUser(event) {
+  /** Đẩy hồ sơ tài khoản vừa lưu sang nhân sự liên kết; báo lỗi nếu backend chưa nhận được. */
+  async function syncLinkedEmployee(email, successText) {
+    try {
+      await syncEmployeeForUser(email);
+      setNotice({ type: 'success', text: successText });
+    } catch (error) {
+      setNotice({ type: 'error', text: `${successText} Nhưng chưa đồng bộ được sang trang Thành viên (${error.message}). Hãy lưu lại khi máy chủ hoạt động.` });
+    }
+  }
+
+  /** Admin tạo tài khoản user kèm cấp bậc/phòng ban/chuyên môn; đồng thời tạo hồ sơ nhân sự liên kết. */
+  async function handleCreateUser(event) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const password = String(form.get('newPassword'));
     if (password.length < 8) return setNotice({ type: 'error', text: 'Mật khẩu tạm cần có ít nhất 8 ký tự.' });
     if (password !== String(form.get('confirmPassword'))) return setNotice({ type: 'error', text: 'Mật khẩu xác nhận chưa khớp.' });
 
-    const result = createUser({
+    setCreating(true);
+    const result = await createUserWithEmployee({
       name: String(form.get('name')),
       email: String(form.get('email')),
       company: String(form.get('company')),
       phone: String(form.get('phone')),
       password,
+      ...readOrgFields(form),
     }, currentUser.email);
+    setCreating(false);
     if (result.error) return setNotice({ type: 'error', text: result.error });
-    event.currentTarget.reset();
-    setNotice({ type: 'success', text: `Đã tạo user ${result.user.email}. Gửi thông tin đăng nhập ban đầu cho người dùng.` });
+    formElement.reset();
+    setNotice({ type: 'success', text: `Đã tạo user ${result.user.email} (${getLevelLabel(result.user.level)} · ${result.user.department}) và hồ sơ nhân sự ${result.employee.code || ''} trên trang Thành viên. Gửi thông tin đăng nhập ban đầu cho người dùng.` });
   }
 
   /** Admin cấp mật khẩu mới cho một user được chọn trong danh sách. */
@@ -71,12 +89,11 @@ export default function AccountPage() {
       phone: String(form.get('phone')),
       avatarData: profileAvatar,
     }, currentUser.email);
-    setNotice(saved
-      ? { type: 'success', text: 'Thông tin cá nhân đã được cập nhật.' }
-      : { type: 'error', text: 'Không tìm thấy tài khoản. Vui lòng đăng nhập lại.' });
+    if (!saved) return setNotice({ type: 'error', text: 'Không tìm thấy tài khoản. Vui lòng đăng nhập lại.' });
+    syncLinkedEmployee(currentUser.email, 'Thông tin cá nhân đã được cập nhật.');
   }
 
-  /** Admin cập nhật hồ sơ user được chọn, gồm cả ảnh đại diện. */
+  /** Admin cập nhật hồ sơ user được chọn, gồm ảnh đại diện và cấp bậc/phòng ban/chuyên môn. */
   function handleAdminUpdateUser(event) {
     event.preventDefault();
     if (!managedUser) return;
@@ -86,10 +103,23 @@ export default function AccountPage() {
       company: String(form.get('company')),
       phone: String(form.get('phone')),
       avatarData: managedAvatar ?? managedUser.avatarData ?? '',
+      ...readOrgFields(form),
     });
-    setNotice(saved
-      ? { type: 'success', text: `Đã lưu hồ sơ của ${managedUser.email}.` }
-      : { type: 'error', text: 'Không thể cập nhật hồ sơ user này.' });
+    if (!saved) return setNotice({ type: 'error', text: 'Không thể cập nhật hồ sơ user này.' });
+    syncLinkedEmployee(managedUser.email, `Đã lưu hồ sơ của ${managedUser.email}.`);
+  }
+
+  /** Admin xóa user đang chọn cùng hồ sơ nhân sự liên kết, sau khi xác nhận. */
+  async function handleDeleteUser() {
+    if (!managedUser) return;
+    if (!window.confirm(`Xóa tài khoản ${managedUser.email}?\nHồ sơ nhân sự "${managedUser.name}" trên trang Thành viên cũng bị xóa. Không thể hoàn tác.`)) return;
+    setDeleting(true);
+    const result = await deleteUserWithEmployee(managedUser.email, currentUser.email);
+    setDeleting(false);
+    if (result.error) return setNotice({ type: 'error', text: result.error });
+    setManagedEmail('');
+    setManagedAvatar(null);
+    setNotice({ type: 'success', text: `Đã xóa tài khoản ${result.user.email} và hồ sơ nhân sự liên kết.` });
   }
 
   /** User đổi mật khẩu của chính mình sau khi nhập mật khẩu hiện tại đúng. */
@@ -125,7 +155,7 @@ export default function AccountPage() {
       </header>
 
       <section className="account-card">
-        <div className="account-heading"><span className="account-heading-icon"><UserRound size={21} /></span><div><p>QUẢN LÝ TÀI KHOẢN</p><h1>Tài khoản của tôi</h1><span>{currentUser.name} · {isAdmin ? 'Quản trị viên' : 'Người dùng'}</span></div></div>
+        <div className="account-heading"><span className="account-heading-icon"><UserRound size={21} /></span><div><p>QUẢN LÝ TÀI KHOẢN</p><h1>Tài khoản của tôi</h1><span>{currentUser.name} · {isAdmin ? 'Quản trị viên' : getLevelLabel(currentUser.level)}{currentUser.department && ` · ${currentUser.department}`}</span></div></div>
 
         <nav className="account-tabs" aria-label="Tác vụ tài khoản">
           <button type="button" className={activeSection === 'profile' ? 'active' : ''} onClick={() => selectSection('profile')}><UserRound size={16} /> Hồ sơ cá nhân</button>
@@ -154,11 +184,15 @@ export default function AccountPage() {
           </div>
           {managedUser ? <form key={managedUser.email} className="account-admin-profile" onSubmit={handleAdminUpdateUser}>
             <label>User cần chỉnh sửa<select value={managedUser.email} onChange={(event) => { setManagedEmail(event.target.value); setManagedAvatar(null); }}>
-              {userAccounts.map((user) => <option key={user.email} value={user.email}>{user.name} · {user.email}</option>)}
+              {userAccounts.map((user) => <option key={user.email} value={user.email}>{user.name} · {getLevelLabel(user.level)} · {user.email}</option>)}
             </select></label>
             <div className="account-photo-row"><AvatarPreview avatar={managedAvatar ?? managedUser.avatarData ?? ''} name={managedUser.name} /><div className="account-photo-controls"><b>Ảnh đại diện user</b><span>Admin có thể cập nhật ảnh thay user.</span><label className="account-photo-button"><Camera size={15} /> Chọn ảnh<input type="file" accept="image/*" onChange={(event) => handleAvatarFile(event, setManagedAvatar)} /></label>{(managedAvatar ?? managedUser.avatarData) && <button className="account-photo-remove" type="button" onClick={() => setManagedAvatar('')}>Xóa ảnh</button>}</div></div>
             <div className="account-form-grid"><label>Họ và tên<input name="name" defaultValue={managedUser.name} required /></label><label>Email đăng nhập<input value={managedUser.email} readOnly /></label><label>Công ty<input name="company" defaultValue={managedUser.company} required /></label><label>Số điện thoại<input name="phone" defaultValue={managedUser.phone || ''} /></label></div>
-            <button className="account-primary" type="submit">Lưu hồ sơ user</button>
+            <OrgFields idPrefix="edit" user={managedUser} />
+            <div className="account-admin-buttons">
+              <button className="account-primary" type="submit">Lưu hồ sơ user</button>
+              <button className="account-danger" type="button" disabled={deleting} onClick={handleDeleteUser}><Trash2 size={16} /> {deleting ? 'Đang xóa…' : 'Xóa tài khoản'}</button>
+            </div>
           </form> : <p className="account-empty">Chưa có tài khoản user. Tạo user để bắt đầu quản lý.</p>}
         </div>}
 
@@ -170,17 +204,20 @@ export default function AccountPage() {
         </form>}
 
         {isAdmin && activeSection === 'create' && <form className="account-form" onSubmit={handleCreateUser}>
-          <div className="account-section-title"><UsersRound size={18} /><div><b>Tạo tài khoản user</b><span>Tài khoản mới mặc định có quyền user.</span></div></div>
+          <div className="account-section-title"><UsersRound size={18} /><div><b>Tạo tài khoản user</b><span>Tài khoản mới mặc định có quyền user. Chọn cấp bậc, phòng ban và chuyên môn bên dưới.</span></div></div>
           <div className="account-form-grid">
             <label>Họ và tên<input name="name" autoComplete="name" placeholder="Nguyễn Văn An" required /></label>
             <label>Email đăng nhập<input name="email" type="email" autoComplete="email" placeholder="ten@congty.com" required /></label>
             <label>Công ty<input name="company" autoComplete="organization" placeholder="Tên công ty" required /></label>
             <label>Số điện thoại<input name="phone" type="tel" autoComplete="tel" placeholder="090 123 4567" /></label>
+          </div>
+          <OrgFields idPrefix="create" />
+          <div className="account-form-grid account-form-grid-spaced">
             <label>Mật khẩu ban đầu<input name="newPassword" type="password" autoComplete="new-password" minLength={8} required /></label>
             <label>Xác nhận mật khẩu<input name="confirmPassword" type="password" autoComplete="new-password" minLength={8} required /></label>
           </div>
-          <p className="account-help">Gửi email và mật khẩu ban đầu cho user qua kênh riêng. User có thể tự đổi mật khẩu sau khi đăng nhập.</p>
-          <button className="account-primary" type="submit"><UserRoundPlus size={17} /> Tạo tài khoản</button>
+          <p className="account-help">Hồ sơ nhân sự trên trang Thành viên được tạo cùng lúc (phòng ban → ban/đội, chuyên môn → chức danh). Gửi email và mật khẩu ban đầu cho user qua kênh riêng.</p>
+          <button className="account-primary" type="submit" disabled={creating}><UserRoundPlus size={17} /> {creating ? 'Đang tạo…' : 'Tạo tài khoản'}</button>
         </form>}
 
         {isAdmin && activeSection === 'reset' && <form className="account-form password-form" onSubmit={handleResetPassword}>
@@ -197,6 +234,37 @@ export default function AccountPage() {
       </section>
     </main>
   );
+}
+
+/** Lấy 3 trường cấp bậc/phòng ban/chuyên môn từ FormData để gửi cho createUser/adminUpdateUserProfile. */
+function readOrgFields(form) {
+  return {
+    level: String(form.get('level') || DEFAULT_LEVEL),
+    department: String(form.get('department') || ''),
+    specialty: String(form.get('specialty') || ''),
+  };
+}
+
+/**
+ * Khối "Cấp bậc & phòng ban" dùng chung cho form tạo user và form admin sửa user.
+ * - Cấp bậc: chọn 1 trong 4 (Nhân viên, Leader, Quản lý, Giám đốc), bắt buộc.
+ * - Phòng ban: bắt buộc; gõ tự do hoặc chọn từ danh sách gợi ý (datalist).
+ * - Chuyên môn: không bắt buộc; gõ tự do hoặc chọn từ danh sách gợi ý.
+ * `idPrefix` giúp id của datalist không trùng khi có nhiều form trên trang.
+ */
+function OrgFields({ idPrefix, user }) {
+  return <fieldset className="account-org-fields">
+    <legend><BriefcaseBusiness size={15} /> Cấp bậc &amp; phòng ban</legend>
+    <div className="account-form-grid account-form-grid-3">
+      <label>Cấp bậc<select name="level" defaultValue={user?.level || DEFAULT_LEVEL} required>
+        {ACCOUNT_LEVELS.map((level) => <option key={level.value} value={level.value}>{level.label}</option>)}
+      </select></label>
+      <label>Phòng ban<input name="department" list={`${idPrefix}-departments`} defaultValue={user?.department || ''} placeholder="Chọn hoặc nhập phòng ban" required /></label>
+      <label>Chuyên môn<input name="specialty" list={`${idPrefix}-specialties`} defaultValue={user?.specialty || ''} placeholder="VD: Kết cấu" /></label>
+    </div>
+    <datalist id={`${idPrefix}-departments`}>{DEPARTMENTS.map((name) => <option key={name} value={name} />)}</datalist>
+    <datalist id={`${idPrefix}-specialties`}>{SPECIALTIES.map((name) => <option key={name} value={name} />)}</datalist>
+  </fieldset>;
 }
 
 /** Hiển thị ảnh đã tải lên hoặc chữ cái đầu của tên nếu user chưa có ảnh. */

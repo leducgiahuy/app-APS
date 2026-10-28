@@ -311,7 +311,7 @@ export function getEmployees(req, res) {
 // Thêm nhân sự mới
 export function createEmployee(req, res) {
   const db = readDb();
-  const { name, title, team, phone, email, standardHours } = req.body;
+  const { name, title, team, phone, email, standardHours, level, avatar } = req.body;
 
   if (!name || !title) {
     return res.status(400).json({ success: false, message: 'Vui lòng nhập họ tên và chức danh' });
@@ -325,7 +325,8 @@ export function createEmployee(req, res) {
     title,
     team: team || 'Ban Quản Lý',
     phone: phone || 'Đang cập nhật',
-    email: email || '',
+    email: String(email || '').trim().toLowerCase(),
+    level: level || '',
     standardHours: Number(standardHours) || 8,
     isOnSite: false,
     isOnBreak: false,
@@ -338,7 +339,7 @@ export function createEmployee(req, res) {
     activeTaskTitle: null,
     activeTaskShiftType: null,
     shiftType: null,
-    avatar: `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80`
+    avatar: avatar || `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80`
   };
 
   db.employees.push(newEmployee);
@@ -351,6 +352,28 @@ export function createEmployee(req, res) {
     message: 'Tạo nhân sự mới thành công',
     data: newEmployee
   });
+}
+
+// Cập nhật hồ sơ nhân sự (đồng bộ từ tài khoản đăng nhập); chỉ nhận các trường hồ sơ, không động tới ca làm
+const EDITABLE_EMPLOYEE_FIELDS = ['name', 'title', 'team', 'phone', 'email', 'level', 'avatar'];
+
+export function updateEmployee(req, res) {
+  const db = readDb();
+  const emp = db.employees.find(employee => employee.id === req.params.id);
+  if (!emp) return res.status(404).json({ success: false, message: 'Không tìm thấy nhân sự' });
+
+  const body = req.body || {};
+  EDITABLE_EMPLOYEE_FIELDS.forEach(key => {
+    if (typeof body[key] === 'string') emp[key] = body[key].trim();
+  });
+  if (emp.email) emp.email = emp.email.toLowerCase();
+  if (!emp.name || !emp.title) {
+    return res.status(400).json({ success: false, message: 'Nhân sự cần có họ tên và chức danh' });
+  }
+  if (!writeDb(db)) {
+    return res.status(500).json({ success: false, message: 'Không lưu được hồ sơ nhân sự. Vui lòng thử lại.' });
+  }
+  return res.json({ success: true, message: `Đã cập nhật nhân sự ${emp.name}`, data: emp });
 }
 
 // Chuyển đổi trạng thái có mặt tại công trường (Vào / Ra ca)

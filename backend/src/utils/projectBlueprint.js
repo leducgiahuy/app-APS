@@ -11,9 +11,32 @@ const overlapHours=(task,assignment,startDate,endDate)=>{
  const start=[task.startDate,assignment.startDate,startDate].filter(Boolean).sort().at(-1),end=[task.endDate,assignment.endDate,endDate].filter(Boolean).sort()[0];
  return start&&end&&start<=end?calculateAssignmentHours({...task,startDate:start,endDate:end},{...assignment,startDate:start,endDate:end}):0;
 };
+/**
+ * Dựng "template tạm" từ bảng hạng mục trong file báo giá, dùng khi dạng dự án chưa có template.
+ * - Mỗi dòng (code, title, department, workDays) thành 1 việc; số giờ = công báo giá × 8, không co giãn theo diện tích.
+ * - Việc xếp nối tiếp theo thứ tự trong file, mỗi việc chiếm số ngày tỷ lệ với số công của nó trong khoảng dự án.
+ * - Vị trí để tự gán người: lấy theo cách các template đã có ánh xạ bộ môn → vị trí (VD KT → Thiết Kế);
+ *   bộ môn chưa từng xuất hiện trong template nào thì dùng chính tên bộ môn.
+ */
+function quoteItemsTemplate(db,input){
+ const rows=input.quoteItems;check(Array.isArray(rows)&&rows.length>0&&rows.length<=1000,'Bảng hạng mục trong file báo giá đang trống.');
+ const positionOf=new Map(projectTemplates(db).flatMap(t=>t.items||[]).filter(t=>t.requiredPosition&&t.assignmentPosition).map(t=>[positionKey(t.requiredPosition),t.assignmentPosition]));
+ const span=Math.round((Date.parse(input.endDate)-Date.parse(input.startDate))/86400000)+1;
+ const hours=rows.map(row=>nonnegative(row.workDays)*8),total=hours.reduce((sum,value)=>sum+value,0);
+ let before=0;
+ const items=rows.map((row,index)=>{
+  const title=String(row.title||'').trim(),department=String(row.department||'').trim();check(title,'Mỗi hạng mục trong file cần có tên.');
+  const startOffset=total>0?Math.min(span-1,Math.floor(before/total*span)):0;before+=hours[index];
+  const endOffset=total>0?Math.max(startOffset,Math.min(span-1,Math.ceil(before/total*span)-1)):span-1;
+  return {id:`file-${index+1}`,code:String(row.code||'').trim(),title,requiredPosition:department,assignmentPosition:positionOf.get(positionKey(department))||department,startOffset,endOffset,estimatedHours:hours[index],scaleWithArea:false,dependencies:index?[`file-${index}`]:[]};
+ });
+ return {id:'',name:'Theo bảng hạng mục trong file',baseArea:0,items,budgetPercents:[],milestones:[],scopeOptions:[]};
+}
+
 export function projectBlueprint(db,input,user){
  check(String(input.name||'').trim(),'Cần tên dự án.');check(date(input.startDate)&&date(input.endDate)&&input.endDate>=input.startDate,'Khoảng ngày dự án không hợp lệ.');
- const template=projectTemplates(db).find(t=>t.id===input.templateId);check(!input.templateId||template,'Mẫu dự án không tồn tại.');
+ // Có template → dùng template; không chọn template nhưng có bảng hạng mục từ file → dựng template tạm từ file.
+ const template=input.templateId?projectTemplates(db).find(t=>t.id===input.templateId):input.quoteItems?quoteItemsTemplate(db,input):null;check(!input.templateId||template,'Mẫu dự án không tồn tại.');
  const area=nonnegative(input.area||0),fee=input.contractFee==null||input.contractFee===''?null:nonnegative(input.contractFee),scale=template?.baseArea>0&&area>0?area/template.baseArea:1,projectId=`proj-${randomUUID()}`;
  const project={id:projectId,name:input.name.trim(),code:String(input.code||'').trim(),description:String(input.description||'').trim(),location:String(input.location||'').trim(),client:String(input.client||'').trim(),area,manager:input.managerEmail||user.email,managerEmail:input.managerEmail||user.email,startDate:input.startDate,endDate:input.endDate,status:'planning',approvalStatus:'pending',createdBy:user.email,createdAt:new Date().toISOString(),progress:0,contractWork:null,templateId:template?.id||'',scope:input.scope||[],importFiles:{quoteFileName:String(input.quoteFileName||'').trim(),contractFileName:String(input.contractFileName||'').trim()}};
  const source=(template?.items||[]).filter(t=>!t.scopeKey||project.scope.includes(t.scopeKey));

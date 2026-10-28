@@ -1,0 +1,21 @@
+{
+  "name": "new",
+  "version": "1.0.0",
+  "description": "> **Dự án phát triển cho:** Công ty Giải Pháp Châu Á Thái Bình Dương Việt Nam (APS Việt Nam)  \r > **Người phụ trách:** Chuyên viên IT Nội Bộ (Phần Cứng & Hạ Tầng)  \r > **Phiên bản:** 1.0.0 (bản xem trước nội bộ)\r > **Kiến trúc:** Clean Modular FullStack (Frontend React + Backend Node Express riêng biệt)",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/leducgiahuy/app-APS.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/leducgiahuy/app-APS/issues"
+  },
+  "homepage": "https://github.com/leducgiahuy/app-APS#readme"
+}

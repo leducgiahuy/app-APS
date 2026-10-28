@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { api } from '../api';
 import { recordActivity } from '../modules/auth/authSession';
+import { accountForEmployee } from '../modules/auth/accountEmployeeSync';
 
 const AppContext = createContext();
 
@@ -234,6 +235,11 @@ export function AppProvider({ children }) {
 
   // Hành động: Xóa nhân sự
   const deleteEmployee = async (id) => {
+    const account = accountForEmployee(id);
+    if (account) {
+      showToast(`Nhân sự này gắn với tài khoản ${account.email}. Hồ sơ được quản lý từ trang Tài khoản nên không xóa riêng ở đây.`, 'error');
+      return;
+    }
     if (!window.confirm('Bạn có chắc chắn muốn xóa nhân sự này?')) return;
     try {
       const employee = employees.find(item => item.id === id);

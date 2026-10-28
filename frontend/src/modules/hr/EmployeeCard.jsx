@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { Briefcase, Phone, Trash2 } from 'lucide-react';
 import { isTaskActiveOnDate } from '../../utils/date';
+import { getUsers } from '../auth/authSession';
+import { getLevelLabel } from '../auth/accountOptions';
+import { resolveAccount } from '../auth/personalWork';
 import {
   employeeOtEntries,
   isOvertimeClockInAllowed,
@@ -150,6 +153,9 @@ export default function EmployeeCard({
       : 'Vắng mặt';
   const clockInButtonLabel = overtimeView ? 'Tăng ca' : 'Vào văn phòng';
   const clockOutButtonLabel = 'Rời văn phòng';
+  // Cấp bậc/chuyên môn lấy từ tài khoản đăng nhập gắn với nhân sự này (do admin chỉnh ở trang Tài khoản).
+  // Nhân sự chưa có tài khoản thì không hiện nhãn cấp bậc.
+  const account = resolveAccount(emp, getUsers());
 
   return (
     <div
@@ -171,19 +177,22 @@ export default function EmployeeCard({
               className="w-13 h-13 rounded-2xl object-cover border-2 border-slate-200 dark:border-slate-700 shadow-sm"
             />
             <div>
-              <div className="flex items-center gap-2">
+              {/* Đã bỏ nhãn mã nhân viên (NV-...) cạnh tên vì không cần thiết; mã vẫn dùng cho tìm kiếm ở trang HR. */}
+              <div className="flex flex-wrap items-center gap-2">
                 <h3 className="font-bold text-base text-slate-900 dark:text-white">
                   {emp.name}
                 </h3>
-                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
-                  {emp.code}
-                </span>
+                {account && account.role !== 'admin' && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200">
+                    {getLevelLabel(account.level)}
+                  </span>
+                )}
               </div>
               <p className="text-xs font-semibold text-sky-600 dark:text-sky-400 mt-0.5">
-                {emp.title}
+                {emp.title}{account?.specialty && account.specialty !== emp.title && ` · ${account.specialty}`}
               </p>
               <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                {emp.team}
+                {emp.team || account?.department}
               </p>
             </div>
           </div>

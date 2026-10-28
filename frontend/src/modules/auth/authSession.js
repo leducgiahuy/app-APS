@@ -1,3 +1,5 @@
+import { getLevelLabel, normalizeLevel } from './accountOptions';
+
 const USERS_KEY = 'aps-users';
 const SESSION_KEY = 'aps-authenticated';
 const ACTIVITY_KEY = 'aps-activity-log';
@@ -11,7 +13,19 @@ const DEMO_USER = {
   phone: '',
   password: 'APS@2026',
   role: 'admin',
+  level: 'director',
+  department: 'Ban Giám Đốc',
+  specialty: 'Quản lý dự án',
 };
+
+/** Đọc cấp bậc/phòng ban/chuyên môn từ form; cắt khoảng trắng và chuẩn hóa mã cấp bậc. */
+function pickOrgProfile(profile) {
+  return {
+    level: normalizeLevel(profile.level),
+    department: String(profile.department || '').trim(),
+    specialty: String(profile.specialty || '').trim(),
+  };
+}
 
 /** Đọc danh sách tài khoản từ localStorage và tự thêm tài khoản demo nếu chưa có. */
 export function getUsers() {
@@ -26,7 +40,14 @@ export function getUsers() {
       users[demoIndex] = { ...users[demoIndex], role: 'admin' };
       localStorage.setItem(USERS_KEY, JSON.stringify(users));
     }
-    return users.map((user) => ({ ...user, role: user.role === 'admin' ? 'admin' : 'user' }));
+    // Tài khoản tạo trước khi có cấp bậc vẫn đọc được: thiếu cấp bậc → Nhân viên, thiếu phòng ban/chuyên môn → rỗng.
+    return users.map((user) => ({
+      ...user,
+      role: user.role === 'admin' ? 'admin' : 'user',
+      level: normalizeLevel(user.level),
+      department: user.department || '',
+      specialty: user.specialty || '',
+    }));
   } catch {
     localStorage.setItem(USERS_KEY, JSON.stringify([DEMO_USER]));
     return [DEMO_USER];
@@ -124,19 +145,52 @@ export function clearActivityLog(actorEmail) {
   return true;
 }
 
-/** Tạo tài khoản mới; email trùng sẽ trả về lỗi để giao diện thông báo. */
-export function createUser({ name, email, company, phone = '', password }, actorEmail) {
+/**
+ * Tạo tài khoản mới kèm cấp bậc, phòng ban, chuyên môn.
+ * - Chỉ admin được tạo; tài khoản mới luôn có quyền hệ thống `user`.
+ * - Bắt buộc có phòng ban; chuyên môn có thể để trống (VD: Giám đốc).
+ * - Email trùng sẽ trả về lỗi để giao diện thông báo.
+ */
+export function createUser(fields, actorEmail) {
+  const prepared = validateNewUser(fields, actorEmail);
+  if (prepared.error) return prepared;
+  const { user } = prepared;
+  localStorage.setItem(USERS_KEY, JSON.stringify([...getUsers(), user]));
+  recordActivity('user.create', `Tạo tài khoản user ${user.email} (${getLevelLabel(user.level)} · ${user.department}${user.specialty ? ` · ${user.specialty}` : ''}).`, actorEmail);
+  return { user };
+}
+
+/** Kiểm tra quyền, email trùng, phòng ban và dựng bản ghi tài khoản mới (chưa lưu). */
+export function validateNewUser({ name, email, company, phone = '', password, employeeId = '', ...orgFields }, actorEmail) {
   if (findUser(actorEmail)?.role !== 'admin') return { error: 'Chỉ quản trị viên mới được tạo tài khoản.' };
   const normalizedEmail = email.trim().toLowerCase();
-  const users = getUsers();
-  if (users.some((user) => user.email === normalizedEmail)) {
+  if (getUsers().some((user) => user.email === normalizedEmail)) {
     return { error: 'Email này đã được đăng ký.' };
   }
+  const org = pickOrgProfile(orgFields);
+  if (!org.department) return { error: 'Vui lòng chọn hoặc nhập phòng ban.' };
+  return { user: { name: name.trim(), email: normalizedEmail, company: company.trim(), phone: phone.trim(), password, role: 'user', employeeId, ...org } };
+}
 
-  const user = { name: name.trim(), email: normalizedEmail, company: company.trim(), phone: phone.trim(), password, role: 'user' };
-  localStorage.setItem(USERS_KEY, JSON.stringify([...users, user]));
-  recordActivity('user.create', `Tạo tài khoản user ${normalizedEmail}.`, actorEmail);
-  return { user };
+/** Admin xóa tài khoản user (không xóa được tài khoản admin); phiên đang mở của user đó sẽ tự hết hiệu lực. */
+export function deleteUser(targetEmail, actorEmail) {
+  if (findUser(actorEmail)?.role !== 'admin') return { error: 'Chỉ quản trị viên mới được xóa tài khoản.' };
+  const users = getUsers();
+  const target = users.find((user) => user.email === targetEmail && user.role === 'user');
+  if (!target) return { error: 'Không tìm thấy tài khoản user cần xóa.' };
+  localStorage.setItem(USERS_KEY, JSON.stringify(users.filter((user) => user !== target)));
+  recordActivity('user.delete', `Admin xóa tài khoản ${targetEmail}.`, actorEmail);
+  return { user: target };
+}
+
+/** Gắn tài khoản với hồ sơ nhân sự HR (trường employeeId). */
+export function linkUserEmployee(email, employeeId) {
+  const users = getUsers();
+  const user = users.find((entry) => entry.email === email);
+  if (!user) return false;
+  user.employeeId = employeeId;
+  localStorage.setItem(USERS_KEY, JSON.stringify(users));
+  return true;
 }
 
 /** Lưu thay đổi tên, công ty và số điện thoại của tài khoản hiện tại. */
@@ -157,19 +211,25 @@ export function updateUserProfile(email, profile, actorEmail = email) {
   return true;
 }
 
-/** Cho phép admin chỉnh hồ sơ và ảnh đại diện của user, không cho sửa vai trò. */
+/**
+ * Cho phép admin chỉnh hồ sơ, ảnh đại diện và cấp bậc/phòng ban/chuyên môn của user.
+ * Không cho sửa quyền hệ thống (admin/user) và không cho để trống phòng ban.
+ */
 export function adminUpdateUserProfile(actorEmail, targetEmail, profile) {
   const actor = findUser(actorEmail);
   if (actor?.role !== 'admin') return false;
   const users = getUsers();
   const index = users.findIndex((user) => user.email === targetEmail && user.role === 'user');
   if (index < 0) return false;
+  const org = pickOrgProfile(profile);
+  if (!org.department) return false;
   users[index] = {
     ...users[index],
     name: profile.name.trim(),
     company: profile.company.trim(),
     phone: profile.phone.trim(),
     avatarData: profile.avatarData || '',
+    ...org,
   };
   localStorage.setItem(USERS_KEY, JSON.stringify(users));
   recordActivity('user.profile.update', `Admin cập nhật hồ sơ/ảnh của ${targetEmail}.`, actorEmail);

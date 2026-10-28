@@ -8,6 +8,7 @@ import { getWorkforcePlan, updateWorkforcePlan } from '../controllers/workforceC
 import {
   getEmployees,
   createEmployee,
+  updateEmployee,
   toggleOnSite,
   toggleBreak,
   setActiveTask,
@@ -65,6 +66,7 @@ router.delete('/activity', clearActivityLogEntries);
 // === PHÂN HỆ 1: NHÂN SỰ & CÔNG TRƯỜNG ===
 router.get('/employees', getEmployees);
 router.post('/employees', createEmployee);
+router.patch('/employees/:id', updateEmployee);
 router.patch('/employees/:id/toggle-onsite', toggleOnSite);
 router.patch('/employees/:id/toggle-break', toggleBreak);
 router.patch('/employees/:id/active-task', setActiveTask);

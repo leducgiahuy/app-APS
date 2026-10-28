@@ -1,0 +1,21 @@
+/* Form thêm/sửa template dự án (Phân quyền → Mẫu dự án). Dùng biến màu --op-* của trang vận hành nên tự theo dark mode. */
+.template-editor-message { margin: 10px 14px 0; padding: 8px 10px; border-radius: 6px; background: color-mix(in srgb, var(--op-accent) 8%, transparent); color: var(--op-text); font-size: var(--text-caption); }
+.template-editor-meta { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 12px; padding: 12px 14px; }
+.template-editor-meta label { display: flex; flex-direction: column; gap: 5px; font-size: var(--text-caption); font-weight: 650; }
+.template-editor-meta small { color: var(--op-muted); font-weight: 400; }
+.template-editor-table { overflow-x: auto; border-top: 1px solid var(--op-line); }
+.template-editor-table table { width: 100%; border-collapse: collapse; font-size: var(--text-caption); }
+.template-editor-table th { padding: 7px 6px; text-align: left; color: var(--op-muted); font-weight: 650; white-space: nowrap; border-bottom: 1px solid var(--op-line); }
+.template-editor-table td { padding: 4px 6px; border-bottom: 1px solid var(--op-line); vertical-align: middle; }
+.template-editor-table input { width: 100%; min-width: 110px; box-sizing: border-box; }
+.template-editor-table input.short { min-width: 70px; }
+.template-editor-table input.wide { min-width: 220px; }
+.template-editor-table input.number { min-width: 64px; text-align: right; }
+.template-editor-row-actions { white-space: nowrap; }
+.template-editor-row-actions button { padding: 3px 7px !important; margin-left: 3px; }
+.template-editor-empty { padding: 18px !important; text-align: center; color: var(--op-muted); }
+.template-editor-footer { display: flex; align-items: center; gap: 12px; padding: 10px 14px; }
+.template-editor-footer small { color: var(--op-muted); }
+.template-editor-file { position: relative; display: inline-flex; align-items: center; padding: 6px 10px; border: 1px solid var(--op-line); border-radius: 6px; cursor: pointer; font-size: var(--text-caption); }
+.template-editor-file input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+@media (max-width: 700px) { .template-editor-meta { grid-template-columns: minmax(0, 1fr); } .template-editor-footer { flex-direction: column; align-items: flex-start; } }
