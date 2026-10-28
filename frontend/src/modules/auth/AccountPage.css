@@ -49,6 +49,29 @@
 .account-photo-button, .account-photo-remove { display: inline-flex !important; flex-direction: row !important; align-items: center; gap: 6px !important; padding: 7px 10px; border: 1px solid #e7dadd; border-radius: 7px; color: #861b36 !important; background: #fff; font: inherit; font-size: 9px !important; font-weight: 700 !important; cursor: pointer; }
 .account-form .account-photo-button input[type="file"] { display: none; }
 .account-photo-remove { color: #8a6258 !important; }
+.account-other-admins { display: grid; gap: 8px; margin-top: 26px; padding-top: 18px; border-top: 1px solid #e3e6e6; font-size: 10px; }
+.account-other-admins > span { color: #8a8f92; font-size: 9px; }
+.account-other-admin-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid #e7dadd; border-radius: 8px; background: #fff; }
+.account-other-admin-row div { display: grid; gap: 2px; }
+.account-other-admin-row small { color: #5d6b72; font-size: 9px; }
+.account-other-admin-row .account-danger { margin-top: 0; min-height: 34px; }
+html.dark .account-other-admin-row { border-color: #5c5251; background: #3a3536; }
+.account-deleted-list { display: grid; gap: 10px; }
+.account-deleted-item { border: 1px solid #e7dadd; border-radius: 8px; background: #fff; }
+.account-deleted-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 10px; color: #5d6b72; }
+.account-deleted-toolbar .account-danger, .account-deleted-item summary .account-danger { margin-top: 0; min-height: 34px; flex-shrink: 0; }
+.account-deleted-item summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; font-size: 11px; cursor: pointer; list-style: none; }
+.account-deleted-item summary::-webkit-details-marker { display: none; }
+.account-deleted-summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; min-width: 0; }
+.account-deleted-item summary b { color: #293943; }
+.account-deleted-item summary span { color: #5d6b72; }
+.account-deleted-item summary small { flex-basis: 100%; color: #8a8f92; font-size: 9px; }
+.account-deleted-item dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; padding: 4px 14px 0; font-size: 10px; }
+.account-deleted-item dt { color: #8a8f92; }
+.account-deleted-item dd { margin: 0; color: #293943; }
+.account-deleted-restore { padding: 12px 14px 14px; }
+html.dark .account-deleted-item { border-color: #5c5251; background: #3a3536; }
+html.dark .account-deleted-item summary b, html.dark .account-deleted-item dd { color: #e0e7e9; }
 .account-admin-buttons { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .account-danger { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 43px; margin-top: 22px; padding: 0 16px; border: 1px solid #e3c4c0; border-radius: 8px; color: #a33a2c; background: #fff; font: inherit; font-size: 10px; font-weight: 750; cursor: pointer; transition: background .16s; }
 .account-danger:hover { background: #fbefed; }

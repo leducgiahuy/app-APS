@@ -77,7 +77,7 @@ export function vietnamLunarDate(date) {
   return { day: jd - start + 1, month, year: lunarYear, leap };
 }
 
-export const CALENDAR_COLORS = { holiday: '#eab308', sunday: '#ddc5af', saturday: '#e9dfd3' };
+export const CALENDAR_COLORS = { holiday: '#f2c94c', sunday: '#cfd9e4', saturday: '#e2e8ef' };
 
 // Only published annual choices belong here. Do not project them onto later years.
 // 9441/TB-BNV: https://moha.gov.vn/tin-tuc/---oid57695
@@ -107,6 +107,24 @@ export function vietnamCalendarDay(date) {
   const kind = holiday ? 'holiday' : date.getDay() === 0 ? 'sunday' : date.getDay() === 6 ? 'saturday' : null;
   const label = holiday || (kind === 'sunday' ? 'Chủ nhật' : kind === 'saturday' ? 'Thứ Bảy' : '');
   return { key, kind, label, color: CALENDAR_COLORS[kind] };
+}
+
+export function currentVietnamCalendarYear(date = new Date()) {
+  return Number(new Intl.DateTimeFormat('en', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric'
+  }).format(date));
+}
+
+export function vietnamHolidaysForYear(year) {
+  const selectedYear = Number(year);
+  if (!Number.isInteger(selectedYear) || selectedYear < 1900 || selectedYear > 2200) return [];
+  const holidays = [];
+  for (let date = new Date(selectedYear, 0, 1, 12); date.getFullYear() === selectedYear; date.setDate(date.getDate() + 1)) {
+    const day = vietnamCalendarDay(date);
+    if (day.kind === 'holiday') holidays.push(day);
+  }
+  return holidays;
 }
 
 export function calendarColumns(start, count) {

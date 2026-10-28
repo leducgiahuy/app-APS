@@ -164,23 +164,50 @@ export function createUser(fields, actorEmail) {
 export function validateNewUser({ name, email, company, phone = '', password, employeeId = '', ...orgFields }, actorEmail) {
   if (findUser(actorEmail)?.role !== 'admin') return { error: 'Chỉ quản trị viên mới được tạo tài khoản.' };
   const normalizedEmail = email.trim().toLowerCase();
-  if (getUsers().some((user) => user.email === normalizedEmail)) {
-    return { error: 'Email này đã được đăng ký.' };
+  const existing = getUsers().find((user) => user.email === normalizedEmail);
+  if (existing) {
+    return { error: existing.role === 'admin'
+      ? `Email này đang thuộc tài khoản Quản trị viên "${existing.name}". Xóa tài khoản đó ở mục "Quản lý user → Tài khoản Quản trị khác" rồi tạo lại.`
+      : `Email này đang dùng cho user "${existing.name}". Xóa user đó trước nếu muốn tạo lại.` };
   }
   const org = pickOrgProfile(orgFields);
   if (!org.department) return { error: 'Vui lòng chọn hoặc nhập phòng ban.' };
   return { user: { name: name.trim(), email: normalizedEmail, company: company.trim(), phone: phone.trim(), password, role: 'user', employeeId, ...org } };
 }
 
-/** Admin xóa tài khoản user (không xóa được tài khoản admin); phiên đang mở của user đó sẽ tự hết hiệu lực. */
+/**
+ * Lý do không được xóa tài khoản (rỗng = được xóa): không tự xóa mình, không xóa tài khoản mặc định
+ * (tự sinh lại) và luôn còn ít nhất một Quản trị viên.
+ */
+export function deletableBlockReason(target, actorEmail) {
+  if (!target) return 'Không tìm thấy tài khoản cần xóa.';
+  if (target.email === actorEmail) return 'Không thể tự xóa tài khoản đang đăng nhập.';
+  if (target.email === DEMO_USER.email) return 'Không xóa tài khoản quản trị mặc định của hệ thống.';
+  if (target.role === 'admin' && !getUsers().some((user) => user.role === 'admin' && user.email !== target.email)) return 'Phải còn ít nhất một tài khoản Quản trị viên.';
+  return '';
+}
+
+/** Admin xóa tài khoản (user hoặc Quản trị khác); phiên đang mở của tài khoản đó sẽ tự hết hiệu lực. */
 export function deleteUser(targetEmail, actorEmail) {
   if (findUser(actorEmail)?.role !== 'admin') return { error: 'Chỉ quản trị viên mới được xóa tài khoản.' };
   const users = getUsers();
-  const target = users.find((user) => user.email === targetEmail && user.role === 'user');
-  if (!target) return { error: 'Không tìm thấy tài khoản user cần xóa.' };
+  const target = users.find((user) => user.email === targetEmail);
+  const blocked = deletableBlockReason(target, actorEmail);
+  if (blocked) return { error: blocked };
   localStorage.setItem(USERS_KEY, JSON.stringify(users.filter((user) => user !== target)));
   recordActivity('user.delete', `Admin xóa tài khoản ${targetEmail}.`, actorEmail);
   return { user: target };
+}
+
+/** Admin khôi phục tài khoản từ kho lưu trữ: dựng lại tài khoản user với mật khẩu mới do admin đặt. */
+export function restoreUser(account, email, employeeId, password, actorEmail) {
+  if (findUser(actorEmail)?.role !== 'admin') return { error: 'Chỉ quản trị viên mới được khôi phục tài khoản.' };
+  if (findUser(email)) return { error: 'Email này đang được dùng cho một tài khoản khác.' };
+  const user = { ...account, email, employeeId, password, role: 'user', ...pickOrgProfile(account || {}) };
+  if (!user.department) user.department = 'Ban Quản Lý';
+  localStorage.setItem(USERS_KEY, JSON.stringify([...getUsers(), user]));
+  recordActivity('user.restore', `Admin khôi phục tài khoản ${email}.`, actorEmail);
+  return { user };
 }
 
 /** Gắn tài khoản với hồ sơ nhân sự HR (trường employeeId). */

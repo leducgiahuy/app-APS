@@ -1,7 +1,7 @@
 import ProjectWizard from '../operations/ProjectWizard';
 import ProjectImportWorkspace from './ProjectImportWorkspace';
 import { deliveryView, ownsDeliveryTask } from '../../utils/deliveryView';
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useProjectDelivery } from './useProjectDelivery';
 import DeliveryRow, { DELIVERY_COLUMNS, COMPACT_KEYS, DATE_KEYS } from './DeliveryRow';
@@ -9,7 +9,7 @@ import DeliveryDrawer from './DeliveryDrawer';
 import DeliveryResources from './DeliveryResources';
 import DeliveryChartOverlay from './DeliveryChartOverlay';
 import { deliveryApi } from './deliveryApi';
-import { DELIVERY_ROLES, formatCompactMoney } from '../../utils/deliveryMetrics';
+import { DELIVERY_ROLES, formatCompactMoney, summarizeProjectWork } from '../../utils/deliveryMetrics';
 import './DeliveryPage.css';
 import GanttRowGrid from './GanttRowGrid';
 import GanttCalendarBackground from './GanttCalendarBackground';
@@ -186,13 +186,13 @@ export default function GanttPage() {
     employees,
     currentTime,
     ganttMonth,
-    sidebarCollapsed,
     addGanttItem,
     deleteGanttItem,
     updateProject,
     deleteProject,
     updateGanttItem,
-    refreshAllData
+    refreshAllData,
+    permissions: companyPermissions
   } = useApp();
 
   // Chọn dự án đang xem
@@ -229,6 +229,9 @@ export default function GanttPage() {
   });
   const [detailItemId, setDetailItemId] = useState(null);
   const pendingDetail = useRef(reportLink?.taskId ? { id: reportLink.taskId, section: '' } : null);
+  // Task được dẫn tới từ trang khác (vd. nút "Cập nhật trạng thái"): cuộn tới dòng + thanh Gantt và làm nổi bật.
+  const [linkTargetId, setLinkTargetId] = useState(reportLink?.taskId || null);
+  const linkScrolledRef = useRef(false);
   const [detailSection, setDetailSection] = useState('');
   const [department, setDepartment] = useState('');
   const [onlyMine, setOnlyMine] = useState(false);
@@ -239,21 +242,30 @@ export default function GanttPage() {
   const previewing = false;
   const deliveryData = delivery.data;
   const roleView = deliveryView(deliveryData?.viewer.role);
-  const canManageStructure = Boolean(deliveryData?.permissions.manage);
-  const canManageAssignments = ['leader', 'manager', 'director', 'admin'].includes(deliveryData?.viewer.role);
-  useEffect(() => { if (deliveryData?.viewer) setOnlyMine(roleView.ownByDefault); }, [deliveryData?.viewer.email, deliveryData?.viewer.role, selectedProjectId]);
-  const currentColumns = DELIVERY_COLUMNS.filter(column => deliveryColumns.includes(column.key) && (!column.financial || deliveryData?.permissions.financial));
+  const viewerEmail = deliveryData?.viewer?.email || '';
+  const viewerRole = deliveryData?.viewer?.role || '';
+  const ownByDefault = roleView.ownByDefault;
+  const hasDeliveryData = Boolean(deliveryData);
+  const canViewDeliveryUsers = Boolean(deliveryData?.permissions.users);
+  // Theo ma trận phân quyền, tính trên vai trò của người xem ở dự án đang chọn:
+  // "Tiến độ tổng thể" → sửa cấu trúc/lịch; "Phân công task" → giao việc.
+  const canManageStructure = Boolean(deliveryData?.permissions.schedule);
+  const canManageAssignments = Boolean(deliveryData?.permissions.assign);
+  useEffect(() => { if (viewerEmail || viewerRole) setOnlyMine(ownByDefault); }, [viewerEmail, viewerRole, ownByDefault, selectedProjectId]);
+  const currentColumns = useMemo(
+    () => DELIVERY_COLUMNS.filter(column => deliveryColumns.includes(column.key) && (!column.financial || deliveryData?.permissions.financial)),
+    [deliveryColumns, deliveryData?.permissions]
+  );
   const maxLeftPanelWidth = Math.max(GANTT_TABLE_MIN_WIDTH, currentColumns.reduce((sum, column) => sum + column.width, 0));
-  const columnsSignature = currentColumns.map(column => column.key).join(',');
-  useEffect(() => { setLeftPanelWidth(currentColumns.reduce((sum, column) => sum + column.width, 0)); }, [columnsSignature]);
+  useEffect(() => { setLeftPanelWidth(currentColumns.reduce((sum, column) => sum + column.width, 0)); }, [currentColumns]);
   const departments = [...new Set([...employees.map(employee => employee.team), ...Object.values(deliveryData?.records || {}).map(record => record.department)].filter(Boolean))];
   useEffect(() => { localStorage.setItem('aps_delivery_columns_v1', JSON.stringify(deliveryColumns)); }, [deliveryColumns]);
   useEffect(() => { setDetailItemId(pendingDetail.current?.id || null); setDetailSection(pendingDetail.current?.section || ''); pendingDetail.current = null; setDepartment(''); setWarningOnly(false); }, [selectedProjectId]);
   useEffect(() => {
-    if (!delivery.data) return;
+    if (!hasDeliveryData) return;
     deliveryApi.templates().then(result => setProjectTemplates(result.data)).catch(() => {});
-    if (delivery.data.permissions.users) deliveryApi.users().then(result => setDeliveryUsers(result.data)).catch(() => {});
-  }, [delivery.data?.viewer.email, delivery.data?.permissions.users]);
+    if (canViewDeliveryUsers) deliveryApi.users().then(result => setDeliveryUsers(result.data)).catch(() => {});
+  }, [hasDeliveryData, canViewDeliveryUsers, viewerEmail]);
   const setPreset = mode => { setTableMode(mode); setDeliveryColumns(mode === 'compact' ? COMPACT_KEYS : mode === 'dates' ? DATE_KEYS : DELIVERY_COLUMNS.map(column => column.key)); setLeftPanelWidth(DELIVERY_COLUMNS.filter(column => (mode === 'compact' ? COMPACT_KEYS : mode === 'dates' ? DATE_KEYS : DELIVERY_COLUMNS.map(entry => entry.key)).includes(column.key)).reduce((sum, column) => sum + column.width, 0)); };
   const openDetail = (item, section = '') => { const projectId = item.projectId || tasks.find(task => task.ganttId === item.id)?.projectId; if (selectedProjectId === 'ALL' && projectId) { pendingDetail.current = { id: item.id, section }; setSelectedProjectId(projectId); } else { setDetailItemId(item.id); setDetailSection(section); } };
   const leftPanelResizeRef = useRef(null);
@@ -359,7 +371,9 @@ export default function GanttPage() {
   const horizontalScrollRef = useRef(null);
   const pageScrollRef = useRef(null);
   const [scrollbarWidth, setScrollbarWidth] = useState(0);
-  const [chartViewportWidth, setChartViewportWidth] = useState(0);
+  const chartViewportWidthRef = useRef(0);
+  const leftPanelWidthRef = useRef(0);
+  const [leftPanelOverflows, setLeftPanelOverflows] = useState(false);
   useEffect(() => {
     const body = timelineScrollRef.current;
     const heading = headingScrollRef.current;
@@ -385,10 +399,13 @@ export default function GanttPage() {
       if (Math.abs(body.scrollLeft - scrollbar.scrollLeft) > 1) body.scrollLeft = scrollbar.scrollLeft;
       sync();
     };
+    // Khi thu/mở menu, độ rộng đổi liên tục ~18 khung hình. Chỉ lưu kết quả có/không
+    // "bảng trái rộng hơn khung nhìn" nên trang chỉ vẽ lại khi kết quả đó thật sự đổi.
     const measure = () => {
-      setChartViewportWidth(body.clientWidth);
       scrollbar.firstElementChild.style.width = `${body.scrollWidth}px`;
       sync();
+      chartViewportWidthRef.current = body.clientWidth;
+      setLeftPanelOverflows(body.clientWidth > 0 && leftPanelWidthRef.current >= body.clientWidth);
     };
     const observer = new ResizeObserver(measure);
     observer.observe(body);
@@ -466,7 +483,7 @@ export default function GanttPage() {
   });
   const [groupForm, setGroupForm] = useState({ title: '', projectId: projects[0]?.id || '', parentGroupId: '', startDate: today, endDate: today });
 
-  const projectIdForItem = (item) => item.projectId || tasks.find(task => task.ganttId === item.id)?.projectId;
+  const projectIdForItem = useCallback((item) => item.projectId || tasks.find(task => task.ganttId === item.id)?.projectId, [tasks]);
   const ganttOptionSearchText = item => {
     const names = [item.code, item.title, item.phase];
     const seen = new Set([item.id]);
@@ -481,6 +498,10 @@ export default function GanttPage() {
     return names.filter(Boolean).join(' ');
   };
   const hierarchyGanttItems = useMemo(() => inferGanttGroupHierarchy(ganttItems), [ganttItems]);
+  const selectedProjectItems = useMemo(() => selectedProjectId === 'ALL'
+    ? hierarchyGanttItems
+    : hierarchyGanttItems.filter(item => projectIdForItem(item) === selectedProjectId),
+  [hierarchyGanttItems, projectIdForItem, selectedProjectId]);
   const phaseColorForGroup = item => {
     const groupsById = new Map(hierarchyGanttItems.filter(entry => entry.isGroup).map(entry => [entry.id, entry]));
     const seen = new Set();
@@ -590,7 +611,7 @@ export default function GanttPage() {
         ...(collapsedProjectIds.has(project.id) ? [] : flattenWorkGroups(items, collapsedGroupIds, collapsedTaskIds))
       ];
     }));
-  }, [ganttItems, tasks, projects, selectedProjectId, collapsedProjectIds, collapsedGroupIds, collapsedTaskIds, department, onlyMine, warningOnly, deliveryData, employees]);
+  }, [ganttItems, projects, selectedProjectId, collapsedProjectIds, collapsedGroupIds, collapsedTaskIds, department, onlyMine, warningOnly, deliveryData, employees, projectIdForItem]);
 
   // Keep a complete hierarchy for aggregate bars and dependency routing even when rows are collapsed.
   const dependencyRows = useMemo(() => {
@@ -604,7 +625,7 @@ export default function GanttPage() {
       projectItems.filter(item => projectIdForItem(item) === project.id),
       new Set()
     ));
-  }, [ganttItems, tasks, projects, selectedProjectId]);
+  }, [ganttItems, projects, selectedProjectId, projectIdForItem]);
 
   // Tính toán thời gian bắt đầu và kết thúc tổng thể của Gantt
   // Khung thời gian linh hoạt: bao phủ từ tháng sớm nhất đến tháng muộn nhất của dự án
@@ -673,7 +694,12 @@ export default function GanttPage() {
   const BAR_HEIGHT = 12;
   const visibleTableWidth = currentColumns.reduce((width, column) => width + column.width, 0);
   const LEFT_PANEL_WIDTH = tableMode === 'full' ? visibleTableWidth : Math.min(leftPanelWidth, Math.max(56, visibleTableWidth));
-  const leftPanelPosition = chartViewportWidth > 0 && LEFT_PANEL_WIDTH >= chartViewportWidth ? 'relative' : 'sticky';
+  leftPanelWidthRef.current = LEFT_PANEL_WIDTH;
+  useEffect(() => {
+    const viewport = chartViewportWidthRef.current;
+    setLeftPanelOverflows(viewport > 0 && LEFT_PANEL_WIDTH >= viewport);
+  }, [LEFT_PANEL_WIDTH]);
+  const leftPanelPosition = leftPanelOverflows ? 'relative' : 'sticky';
   const rowHeights = useMemo(() => filteredGanttItems.map(item => {
     if (item.deliveryBand) return item.deliveryBand === 'money' ? 80 : 34;
     if (item.isProjectHeader) return 30;
@@ -696,7 +722,8 @@ export default function GanttPage() {
     return offsets;
   }, [0]), [rowHeights]);
   const rowsHeight = rowHeights.reduce((sum, height) => sum + height, 0);
-  const chartBodyHeight = Math.max(sidebarCollapsed ? 360 : 200, rowsHeight + 20, viewportHeight - 170);
+  // Không phụ thuộc trạng thái menu: thu/mở menu không được bắt trang này vẽ lại.
+  const chartBodyHeight = Math.max(200, rowsHeight + 20, viewportHeight - 170);
 
   // Tính tọa độ vị trí (x, width, y) của từng thanh Gantt bên trong SVG (bắt đầu từ y = 0)
   const taskCoordinates = useMemo(() => {
@@ -754,7 +781,26 @@ export default function GanttPage() {
       };
     });
     return coords;
-  }, [filteredGanttItems, timelineStart, totalTimelineDays, pxPerDay, rowHeights, rowOffsets, hierarchyGanttItems, collapsedGroupIds, collapsedProjectIds]);
+  }, [filteredGanttItems, timelineStart, totalTimelineDays, pxPerDay, rowHeights, rowOffsets, hierarchyGanttItems, collapsedGroupIds, collapsedProjectIds, projectIdForItem]);
+
+  // Cuộn một lần khi dòng và thanh của task đích đã được dựng: dọc tới giữa màn hình, ngang tới đầu thanh Gantt.
+  useEffect(() => {
+    if (!linkTargetId || linkScrolledRef.current) return undefined;
+    const coord = taskCoordinates[linkTargetId];
+    const row = document.querySelector(`[data-gantt-row="${CSS.escape(linkTargetId)}"]`);
+    if (!row) return undefined;
+    linkScrolledRef.current = true;
+    requestAnimationFrame(() => {
+      row.scrollIntoView({ block: 'center', inline: 'nearest' });
+      if (coord && tableMode !== 'full') timelineScrollRef.current?.scrollTo({ left: Math.max(0, coord.x - 48), behavior: 'smooth' });
+    });
+    return undefined;
+  }, [linkTargetId, taskCoordinates, tableMode]);
+  useEffect(() => {
+    if (!linkTargetId) return undefined;
+    const timer = window.setTimeout(() => setLinkTargetId(null), 5000);
+    return () => window.clearTimeout(timer);
+  }, [linkTargetId]);
 
   // Tạo đường cong mũi tên phụ thuộc Finish-to-Start (FS) - TỰ ĐỘNG NỐI TỪ TASK TRƯỚC XUỐNG
   const dependencyLines = useMemo(() => {
@@ -868,10 +914,8 @@ export default function GanttPage() {
       const endX = Math.max(to.x - DEPENDENCY_ARROW_TARGET_OFFSET, 0);
       const endY = to.centerY;
       const laneX = Math.min(startX, endX) - 32;
-      const bendY = startY + (endY - startY) * 0.45;
-      const path = `M ${startX} ${startY}
-        C ${startX - 18} ${startY}, ${laneX} ${startY}, ${laneX} ${bendY}
-        S ${laneX} ${endY}, ${endX} ${endY}`;
+      // Orthogonal connector: left into the lane, straight down/up, then right into the target.
+      const path = `M ${startX} ${startY} H ${laneX} V ${endY} H ${endX}`;
 
       return {
         key,
@@ -968,7 +1012,7 @@ export default function GanttPage() {
     const laneX = endX >= dependencyDrag.startX
       ? dependencyDrag.startX + Math.max(18, (endX - dependencyDrag.startX) * 0.5)
       : Math.max(dependencyDrag.startX, endX) + 28;
-    return `M ${dependencyDrag.startX} ${dependencyDrag.startY} C ${laneX} ${dependencyDrag.startY}, ${laneX} ${endY}, ${endX} ${endY}`;
+    return `M ${dependencyDrag.startX} ${dependencyDrag.startY} H ${laneX} V ${endY} H ${endX}`;
   })() : '';
 
   // Xử lý gửi Form thêm Task
@@ -1372,10 +1416,19 @@ export default function GanttPage() {
 
   const groupMetrics = useMemo(() => {
     const result = new Map(); const byId = new Map(hierarchyGanttItems.map(item => [item.id, item]));
-    const add = (id, item, metric, free) => { const sum = result.get(id) || { planned: 0, earned: 0, actual: 0, actualHours: 0, completedActual: 0, completedActualHours: 0, completedCount: 0, budgetedWork: 0, forecastWork: 0, remainingWork: 0, varianceWork: 0, variancePercent: null, laborCost: 0, output: 0, weight: 0 }; const hasContractWork = item.contractWork !== '' && item.contractWork != null && Number.isFinite(Number(item.contractWork)); const budgetedWork = metric.budgetedWork ?? (free ? 0 : hasContractWork ? Number(item.contractWork) : Number(metric.planned) || 0); const forecastWork = metric.forecastWork ?? (Number(metric.planned) || 0); const actualWork = metric.completedActual ?? metric.actual ?? 0; const remainingWork = metric.remainingWork ?? Math.max(0, forecastWork - actualWork); const varianceWork = metric.varianceWork ?? forecastWork - budgetedWork; sum.planned += free ? 0 : metric.planned; sum.earned += metric.earned; sum.actual += metric.actual; sum.actualHours += metric.actualHours; sum.budgetedWork += budgetedWork; sum.forecastWork += forecastWork; sum.remainingWork += remainingWork; sum.varianceWork += varianceWork; sum.variancePercent = sum.budgetedWork > 0 ? sum.varianceWork / sum.budgetedWork * 100 : null; if (metric.completedCount > 0) { sum.completedActual += Number(metric.completedActual) || 0; sum.completedActualHours += Number(metric.completedActualHours) || 0; sum.completedCount += metric.completedCount; } sum.weight += free ? 0 : Number(metric.weight) || 0; sum.laborCost = sum.laborCost == null || metric.laborCost == null ? null : sum.laborCost + metric.laborCost; sum.output = sum.output == null || metric.output == null ? null : sum.output + metric.output; result.set(id, sum); };
+    const add = (id, item, metric, free) => { const sum = result.get(id) || { planned: 0, earned: 0, actual: 0, actualHours: 0, completedActual: 0, completedActualHours: 0, completedCount: 0, budgetedWork: 0, forecastWork: 0, remainingWork: 0, varianceWork: 0, variancePercent: null, laborCost: 0, output: 0, weight: 0 }; const hasContractWork = item.contractWork !== '' && item.contractWork != null && Number.isFinite(Number(item.contractWork)); const budgetedWork = metric.budgetedWork ?? (free ? 0 : hasContractWork ? Number(item.contractWork) : Number(metric.planned) || 0); const forecastWork = metric.forecastWork ?? (Number(metric.planned) || 0); const actualWork = metric.completedActual ?? 0; const remainingWork = metric.remainingWork ?? Math.max(0, forecastWork - actualWork); const varianceWork = metric.varianceWork ?? forecastWork - budgetedWork; sum.planned += free ? 0 : metric.planned; sum.earned += metric.earned; sum.actual += metric.actual; sum.actualHours += metric.actualHours; sum.budgetedWork += budgetedWork; sum.forecastWork += forecastWork; sum.remainingWork += remainingWork; sum.varianceWork += varianceWork; sum.variancePercent = sum.budgetedWork > 0 ? sum.varianceWork / sum.budgetedWork * 100 : null; if (metric.completedCount > 0) { sum.completedActual += Number(metric.completedActual) || 0; sum.completedActualHours += Number(metric.completedActualHours) || 0; sum.completedCount += metric.completedCount; } sum.weight += free ? 0 : Number(metric.weight) || 0; sum.laborCost = sum.laborCost == null || metric.laborCost == null ? null : sum.laborCost + metric.laborCost; sum.output = sum.output == null || metric.output == null ? null : sum.output + metric.output; result.set(id, sum); };
     hierarchyGanttItems.forEach(item => { const metric = deliveryData?.taskMetrics[item.id]; if (!metric) return; const free = deliveryData.records[item.id]?.freeRework; add(`project-heading-${projectIdForItem(item)}`, item, metric, free); const seen = new Set([item.id]); let parent = byId.get(item.parentTaskId || item.parentGroupId); while (parent && !seen.has(parent.id)) { seen.add(parent.id); add(parent.id, item, metric, free); parent = byId.get(parent.parentTaskId || parent.parentGroupId); } });
+    projects.forEach(project => {
+      const projectMetric = result.get(`project-heading-${project.id}`);
+      if (!projectMetric) return;
+      const comparison = summarizeProjectWork(project, deliveryData?.taskMetrics);
+      Object.assign(projectMetric, comparison, {
+        actual: comparison.actualWork,
+        completedActual: comparison.actualWork,
+      });
+    });
     return result;
-  }, [hierarchyGanttItems, deliveryData, tasks]);
+  }, [hierarchyGanttItems, deliveryData, projects, projectIdForItem]);
   const displayedWeightPercent = useMemo(() => {
     const weightFor = item => deliveryData?.taskMetrics[item.id]?.weight ?? groupMetrics.get(item.id)?.weight ?? 0;
     return allocateTaskHierarchyWeightPercent(hierarchyGanttItems, weightFor);
@@ -1414,46 +1467,51 @@ export default function GanttPage() {
       <div className="delivery-page-scroll" ref={pageScrollRef} data-modal-background-scroll>
       <div className="delivery-fixed-top">
       
+
+      <div className="delivery-navigation">
+        <nav>{[['gantt','Tiến độ & Công'],['legal','Hồ sơ'],['changes','Khách hàng'],...(deliveryData?.permissions.financial ? [['close','Chốt sản lượng tháng']] : []),...(companyPermissions.createProject ? [['new-project','+ Dự án mới / nhập HĐ']] : [])].map(([key,label]) => <button key={key} className={deliveryTab === key ? 'active' : ''} onClick={() => setDeliveryTab(key)}>{label}</button>)}</nav>
+        {deliveryTab !== 'new-project' && <fieldset disabled={previewing} className="delivery-project-context">
+          <Building aria-hidden="true" />
+          <select
+            aria-label="Dự án đang xem"
+            value={selectedProjectId}
+            onChange={(event) => setSelectedProjectId(event.target.value)}
+          >
+            <option value="ALL">Tất cả dự án</option>
+            {projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}
+          </select>
+          <button
+            type="button"
+            onClick={openProjectDateEditor}
+            hidden={!canManageStructure}
+            disabled={selectedProjectId === 'ALL'}
+            title="Chỉnh tên và thời gian dự án"
+            aria-label="Chỉnh dự án đang xem"
+          >
+            <Pencil />
+          </button>
+          <button
+            type="button"
+            onClick={handleDeleteSelectedProject}
+            hidden={!canManageStructure}
+            disabled={selectedProjectId === 'ALL'}
+            title={selectedProjectId === 'ALL' ? 'Chọn một dự án để xóa' : 'Xóa dự án và toàn bộ dữ liệu liên quan'}
+            aria-label="Xóa dự án đang xem"
+          >
+            <Trash2 />
+          </button>
+        </fieldset>}
+      </div>
+      {deliveryTab === 'gantt' && <div className="project-progress-switch" role="tablist" aria-label="Tiến độ và phân công">
+        <button type="button" role="tab" aria-selected={progressSection === 'table'} className={progressSection === 'table' ? 'active' : ''} onClick={() => setProgressSection('table')}>Bảng tiến độ & công</button>
+        <button type="button" role="tab" aria-selected={progressSection === 'assignment'} className={progressSection === 'assignment' ? 'active' : ''} onClick={() => setProgressSection('assignment')}>Phân công (máy gán)</button>
+      </div>}
       {/* THANH ĐIỀU KHIỂN & BỘ LỌC GANTT */}
-      <div className="delivery-toolbar z-[60] w-full px-4 sm:px-5 py-2 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-sm flex flex-wrap items-center justify-between gap-3">
+      {deliveryTab === 'gantt' && progressSection === 'table' && <div className="delivery-toolbar z-[60] w-full px-4 sm:px-5 py-2 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-sm flex flex-wrap items-center justify-between gap-3">
         
         <fieldset disabled={previewing} className="contents">
-        {/* Chọn dự án & Banner */}
+        {/* Công cụ tạo dữ liệu dự án */}
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2">
-            <Building className="w-5 h-5 text-sky-600 flex-shrink-0" />
-            <select
-              value={selectedProjectId}
-              onChange={(e) => setSelectedProjectId(e.target.value)}
-              className="py-2 px-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500 max-w-xs"
-            >
-              <option value="ALL">Tất cả dự án</option>
-              {projects.map(p => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
-            <button
-              type="button"
-              onClick={openProjectDateEditor}
-              hidden={!canManageStructure}
-              disabled={selectedProjectId === 'ALL'}
-              title="Chỉnh tên và thời gian dự án"
-              className="p-2 rounded-xl text-slate-400 hover:text-sky-600 hover:bg-sky-50 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed"
-            >
-              <Pencil className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              onClick={handleDeleteSelectedProject}
-              hidden={!canManageStructure}
-              disabled={selectedProjectId === 'ALL'}
-              title={selectedProjectId === 'ALL' ? 'Chọn một dự án để xóa' : 'Xóa dự án và toàn bộ dữ liệu liên quan'}
-              className="p-2 rounded-xl text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 disabled:opacity-30 disabled:cursor-not-allowed"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          </div>
-
           {/* Nút Tạo Dự Án Mới */}
           <button
             onClick={() => setShowAddProjectModal(true)}
@@ -1603,18 +1661,10 @@ export default function GanttPage() {
 
         </div>
 
-      </div>
-
-      <div className="delivery-navigation">
-        <nav>{[['gantt','Tiến độ & Công'],['legal','Hồ sơ'],['changes','Khách hàng'],...(deliveryData?.permissions.financial ? [['close','Chốt sản lượng tháng']] : []),['new-project','+ Dự án mới / nhập HĐ']].map(([key,label]) => <button key={key} className={deliveryTab === key ? 'active' : ''} onClick={() => setDeliveryTab(key)}>{label}</button>)}</nav>
-      </div>
-      {deliveryTab === 'gantt' && <div className="project-progress-switch" role="tablist" aria-label="Tiến độ và phân công">
-        <button type="button" role="tab" aria-selected={progressSection === 'table'} className={progressSection === 'table' ? 'active' : ''} onClick={() => setProgressSection('table')}>Bảng tiến độ & công</button>
-        <button type="button" role="tab" aria-selected={progressSection === 'assignment'} className={progressSection === 'assignment' ? 'active' : ''} onClick={() => setProgressSection('assignment')}>Phân công (máy gán)</button>
       </div>}
       {delivery.error && <p role="alert" className="delivery-error">{delivery.error} <button onClick={delivery.refresh}>Tải lại</button></p>}
       {selectedProjectId === 'ALL' && <p className="delivery-notice">Chọn một dự án để xem số liệu, hồ sơ và cập nhật trạng thái theo quy tắc mới.</p>}
-      {deliveryTab === 'gantt' && progressSection === 'assignment' && <AssignmentMachinePage projectId={selectedProjectId} items={ganttItems} tasks={tasks} employees={employees} updateGanttItem={updateGanttItem} readOnly={previewing || !canManageAssignments} />}
+      {deliveryTab === 'gantt' && progressSection === 'assignment' && <AssignmentMachinePage key={selectedProjectId} projectId={selectedProjectId} items={selectedProjectItems} tasks={tasks} employees={employees} updateGanttItem={updateGanttItem} readOnly={previewing || !canManageAssignments} />}
       {deliveryTab === 'gantt' && progressSection === 'table' && <><div className="delivery-kpis">
         <span>% hoàn thành HĐ <b>{summary ? summary.completion.toLocaleString('vi-VN', { maximumFractionDigits: 1 }) : '—'}%</b><small>kế hoạch {summary ? Math.round(summary.planPercent) : '—'}%</small></span>
         {deliveryData?.permissions.financial && <span title="Theo lịch sử ghi nhận từ khi sử dụng chức năng mới">Sản lượng T{currentTime.getMonth() + 1} <b>{formatCompactMoney(summary?.monthlyOutput)}</b><small>lũy kế {formatCompactMoney(summary?.output)}</small></span>}
@@ -1744,7 +1794,7 @@ export default function GanttPage() {
               
               {/* Danh Sách Các Hàng Công Việc (Khóa cứng 44px mỗi dòng) */}
               <div style={{ minHeight: `${chartBodyHeight}px` }}>
-                {filteredGanttItems.map((item, itemIndex) => <DeliveryRow key={item.id} item={item} columns={currentColumns} height={rowHeights[itemIndex]} depth={groupDepthForItem(item)} record={deliveryData?.records[item.id]} metric={metricForRow(item)} aggregate={groupPercent(item)} employees={employees} collapsed={item.isProjectHeader ? collapsedProjectIds.has(item.projectId) : item.isGroup ? collapsedGroupIds.has(item.id) : collapsedTaskIds.has(item.id)} onToggle={() => item.isProjectHeader ? toggleProjectCollapsed(item.projectId) : item.isGroup ? toggleGroupCollapsed(item.id) : toggleTaskCollapsed(item.id)} onOpen={section => openDetail(item, typeof section === 'string' ? section : '')} onEdit={() => editDeliveryItem(item)} onAssign={() => handleAssignmentsOpen(item)} onDelete={() => removeDeliveryItem(item)} onSaveWork={(id, patch) => item.isProjectHeader ? updateProject(item.projectId, patch) : updateGanttItem(id, patch)} color={item.isGroup ? phaseColorForGroup(item) : item.color} onCreateTask={child => createDeliveryTask(item, child)} readOnly={previewing || !canManageStructure} />)}
+                {filteredGanttItems.map((item, itemIndex) => <DeliveryRow key={item.id} item={item} columns={currentColumns} height={rowHeights[itemIndex]} depth={groupDepthForItem(item)} record={deliveryData?.records[item.id]} metric={metricForRow(item)} aggregate={groupPercent(item)} employees={employees} collapsed={item.isProjectHeader ? collapsedProjectIds.has(item.projectId) : item.isGroup ? collapsedGroupIds.has(item.id) : collapsedTaskIds.has(item.id)} onToggle={() => item.isProjectHeader ? toggleProjectCollapsed(item.projectId) : item.isGroup ? toggleGroupCollapsed(item.id) : toggleTaskCollapsed(item.id)} onOpen={section => openDetail(item, typeof section === 'string' ? section : '')} onEdit={() => editDeliveryItem(item)} onAssign={() => handleAssignmentsOpen(item)} onDelete={() => removeDeliveryItem(item)} onSaveWork={(id, patch) => item.isProjectHeader ? updateProject(item.projectId, patch) : updateGanttItem(id, patch)} color={item.isGroup ? phaseColorForGroup(item) : item.color} onCreateTask={child => createDeliveryTask(item, child)} readOnly={previewing || !canManageStructure} canAssign={!previewing && canManageAssignments} highlighted={item.id === linkTargetId} />)}
               </div>
 
             </div>
@@ -1880,6 +1930,15 @@ export default function GanttPage() {
                     strokeLinecap="round"
                     markerEnd="url(#arrowhead-active)"
                     className="pointer-events-none"
+                  />
+                )}
+                {linkTargetId && taskCoordinates[linkTargetId] && (
+                  <rect
+                    className="gantt-link-target pointer-events-none"
+                    x={0}
+                    y={taskCoordinates[linkTargetId].rowTop}
+                    width={ganttWidth}
+                    height={taskCoordinates[linkTargetId].rowHeight}
                   />
                 )}
                 {filteredGanttItems.map((item) => {
@@ -2157,7 +2216,7 @@ export default function GanttPage() {
 
                       {!isGroup && (
                         <>
-                        {canManageStructure && !previewing && assignmentLabels.length === 0 && (
+                        {canManageAssignments && !previewing && assignmentLabels.length === 0 && (
                           <g
                             role="button"
                             tabIndex={0}
@@ -2292,8 +2351,8 @@ export default function GanttPage() {
       </div>
 
       </>}
-      {deliveryTab === 'new-project' && <ProjectImportWorkspace onCreated={async id => { await refreshAllData(); setSelectedProjectId(id); setDeliveryTab('gantt'); }} />}
-      {deliveryTab !== 'gantt' && deliveryTab !== 'new-project' && <DeliveryResources onOpenTask={openDetail} showIT={showIT} tab={deliveryTab} data={deliveryData} delivery={delivery} projectId={selectedProjectId} employees={employees} items={hierarchyGanttItems} refreshApp={refreshAllData} readOnly={previewing} users={deliveryUsers} setUsers={setDeliveryUsers} templates={projectTemplates} setTemplates={setProjectTemplates} currentTime={currentTime} />}
+      {deliveryTab === 'new-project' && companyPermissions.createProject && <ProjectImportWorkspace onCreated={async id => { await refreshAllData(); setSelectedProjectId(id); setDeliveryTab('gantt'); }} />}
+      {deliveryTab !== 'gantt' && deliveryTab !== 'new-project' && <DeliveryResources key={`${deliveryTab}:${selectedProjectId}`} onOpenTask={openDetail} showIT={showIT} tab={deliveryTab} data={deliveryData} delivery={delivery} projectId={selectedProjectId} employees={employees} items={selectedProjectItems} refreshApp={refreshAllData} readOnly={previewing} users={deliveryUsers} setUsers={setDeliveryUsers} templates={projectTemplates} setTemplates={setProjectTemplates} currentTime={currentTime} />}
       </div></div>
       {deliveryTab === 'gantt' && progressSection === 'table' && <div ref={horizontalScrollRef} className="delivery-horizontal-scroll" role="region" aria-label="Cuộn ngang bảng và biểu đồ Gantt" tabIndex={0}><div /></div>}
       {detailItem && !detailItem.deliveryBand && <DeliveryDrawer scrollbarWidth={scrollbarWidth} key={`${detailItem.id}:${detailSection}:${deliveryData?.viewer.email || 'loading'}`} item={detailItem} data={deliveryData ? { ...deliveryData, taskMetrics: { ...deliveryData.taskMetrics, ...(groupMetrics.has(detailItem.id) ? { [detailItem.id]: groupMetrics.get(detailItem.id) } : {}) } } : null} projectId={projectIdForItem(detailItem) || selectedProjectId} delivery={delivery} employees={employees} onClose={() => setDetailItemId(null)} onEdit={() => editDeliveryItem(detailItem)} onAssign={() => handleAssignmentsOpen(detailItem)} onDelete={() => removeDeliveryItem(detailItem)} onAddSibling={() => createDeliveryTask(detailItem)} onAddChild={() => createDeliveryTask(detailItem, true)} onAddGroup={() => openInlineGroupCreation(detailItem)} onSaveNote={async note => { if (!await updateGanttItem(detailItem.id, { ganttNote: note })) throw new Error('Không lưu được ghi chú.'); }} readOnly={previewing} initialSection={detailSection} />}

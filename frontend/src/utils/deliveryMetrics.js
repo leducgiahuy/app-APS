@@ -10,6 +10,8 @@ export const DELIVERY_LABELS = {
 export const DELIVERY_ROLES = { employee: 'Nhân viên', leader: 'Leader', manager: 'Quản lý cấp trung', accountant: 'Kế toán viên / HCNS', chiefAccountant: 'Kế toán trưởng', director: 'Giám đốc', admin: 'Quản trị' };
 export const moneyAccess = role => ['manager', 'accountant', 'chiefAccountant', 'director', 'admin'].includes(role);
 export const managingRole = role => ['manager', 'director', 'admin'].includes(role);
+// Xác nhận hoàn thành, mở lại task và duyệt tăng ca là việc nghiệm thu của cấp quản lý, không phải người thực hiện.
+export const reviewingRole = role => ['leader', 'manager', 'director', 'admin'].includes(role);
 export function forecastWork(budgetedWork, actualWork, level = 0) {
   const budgeted = Math.max(0, Number(budgetedWork) || 0);
   const actual = Math.max(0, Number(actualWork) || 0);
@@ -34,6 +36,43 @@ export function workComparison(budgetedWork, actualWork, level = 0, forecastedWo
     variancePercent: budgeted > 0 ? variance / budgeted * 100 : null,
   };
 }
+
+// One canonical project-level comparison for both the project table and the
+// director overview. A project contract total is the approved budget; task
+// metrics remain the source for forecast and recognized actual work.
+export function summarizeProjectWork(project = {}, taskMetrics = {}) {
+  const metrics = Object.values(taskMetrics || {});
+  const taskBudget = metrics.reduce((sum, metric) => sum + Math.max(0, Number(metric?.budgetedWork) || 0), 0);
+  const hasProjectBudget = project.contractWork !== '' && project.contractWork != null && Number.isFinite(Number(project.contractWork));
+  const budgeted = hasProjectBudget ? Math.max(0, Number(project.contractWork)) : taskBudget;
+  const hasRecognizedActual = metrics.some(metric => Object.prototype.hasOwnProperty.call(metric || {}, 'completedActual'));
+  const actual = metrics.reduce((sum, metric) => sum + Math.max(0, Number(
+    hasRecognizedActual ? metric?.completedActual : metric?.actual
+  ) || 0), 0);
+  const forecast = metrics.reduce((sum, metric) => sum + Math.max(0, Number(metric?.forecastWork) || 0), 0);
+  const variance = forecast - budgeted;
+  return {
+    budgetedWork: budgeted,
+    actualWork: actual,
+    forecastWork: forecast,
+    remainingWork: Math.max(0, forecast - actual),
+    varianceWork: variance,
+    variancePercent: budgeted > 0 ? variance / budgeted * 100 : null,
+  };
+}
+
+export function summarizePortfolioWork(projectComparisons = []) {
+  const rows = Array.isArray(projectComparisons) ? projectComparisons : [];
+  const totals = rows.reduce((sum, row) => ({
+    budgetedWork: sum.budgetedWork + Math.max(0, Number(row?.budgetedWork) || 0),
+    actualWork: sum.actualWork + Math.max(0, Number(row?.actualWork) || 0),
+    forecastWork: sum.forecastWork + Math.max(0, Number(row?.forecastWork) || 0),
+    remainingWork: sum.remainingWork + Math.max(0, Number(row?.remainingWork) || 0),
+  }), { budgetedWork: 0, actualWork: 0, forecastWork: 0, remainingWork: 0 });
+  totals.varianceWork = totals.forecastWork - totals.budgetedWork;
+  totals.variancePercent = totals.budgetedWork > 0 ? totals.varianceWork / totals.budgetedWork * 100 : null;
+  return totals;
+}
 export const plannedDays = item => {
   const assignments = Array.isArray(item.assignees)
     ? item.assignees.filter(assignment => assignment.employeeId || assignment.employeeName)
@@ -45,6 +84,17 @@ export const plannedDays = item => {
 export const formatMoney = value => value == null ? 'Chưa nhập' : `${Number(value).toLocaleString('vi-VN', { maximumFractionDigits: 1 })} đ`;
 export const formatCompactMoney = value => value == null ? '—' : Math.abs(value) >= 1e9 ? `${(value / 1e9).toLocaleString('vi-VN', { maximumFractionDigits: 2 })} tỷ` : `${(value / 1e6).toLocaleString('vi-VN', { maximumFractionDigits: 1 })} tr`;
 export const deliveryLabel = record => DELIVERY_LABELS[record.kind || 'design'][DELIVERY_LEVELS.indexOf(record.level || 0)] || 'Chưa bắt đầu';
+/**
+ * Nhãn trạng thái của một task theo thang 0–100% ở trang Dự án (nguồn duy nhất).
+ * Task chưa từng được cập nhật ở trang Dự án dùng mức suy ra: đã hoàn thành → 100%, đã có giờ làm → 20%.
+ */
+export function taskDeliveryStatus(task = {}) {
+  const synced = task.deliveryStatusLevel != null && DELIVERY_LEVELS.includes(Number(task.deliveryStatusLevel));
+  const level = synced ? Number(task.deliveryStatusLevel) : task.status === 'completed' ? 100 : Number(task.actualWorkHours) > 0 ? 20 : 0;
+  const recognized = task.deliveryRecognized != null ? Number(task.deliveryRecognized) : level;
+  const kind = DELIVERY_LABELS[task.deliveryKind] ? task.deliveryKind : 'design';
+  return { level, label: deliveryLabel({ kind, level }), awaitingConfirmation: level >= 60 && recognized < level };
+}
 export function recognizedLevel(record = {}) {
   if (record.freeRework || record.isChangeWork) return 0;
   if (record.approvalOnly) return record.level === 100 && record.evidenceId && record.confirmedBy ? 100 : 0;
@@ -106,7 +156,10 @@ export function computeDelivery(db, projectId, data = {}, now = new Date()) {
     if (!data.records?.[item.id] && record.level === 0 && actualHours > 0) record.level = 20;
     const hasContractWork = item.contractWork !== '' && item.contractWork != null && Number.isFinite(Number(item.contractWork));
     const budgetedWork = record.freeRework || record.isChangeWork ? 0 : hasContractWork ? Number(item.contractWork) : planned;
-    const comparison = workComparison(budgetedWork, completedActual ?? actualHours / 8, record.level, planned);
+    // Work-comparison columns use recognized actual work only. Approved hours
+    // remain available in `actual` for timesheet efficiency, but must not
+    // silently reduce Remaining while the Actual column is still empty.
+    const comparison = workComparison(budgetedWork, completedActual ?? 0, record.level, planned);
     const recognized = recognizedLevel(record);
     const earned = planned * recognized / 100;
     const weight = record.freeRework ? 0 : Number.isFinite(Number(data.lockedWeights?.[item.id])) && data.lockedWeights?.[item.id] != null ? Number(data.lockedWeights[item.id]) : data.settings?.contractLocked ? 0 : totalPlanned ? planned / totalPlanned : 0;

@@ -1,5 +1,5 @@
 import React from 'react';
-import { useApp } from '../../context/AppContext';
+import { useApp, useLayout } from '../../context/AppContext';
 import {
   CheckSquare,
   CalendarRange,
@@ -30,14 +30,8 @@ export default function Sidebar() {
     ) container = container.parentElement;
     container.style.display = 'none';
   });
-  const {
-    activeTab,
-    setActiveTab,
-    sidebarCollapsed,
-    setSidebarCollapsed,
-    mobileMenuOpen,
-    setMobileMenuOpen
-  } = useApp();
+  const { activeTab, setActiveTab, permissions } = useApp();
+  const { sidebarCollapsed, setSidebarCollapsed, mobileMenuOpen, setMobileMenuOpen } = useLayout();
 
   const currentUser = getCurrentUser();
   const isAdmin = currentUser?.role === 'admin';
@@ -49,26 +43,27 @@ export default function Sidebar() {
       compactLabel: 'Công việc',
       icon: CheckSquare
     },
-    {
+    // Báo cáo toàn công ty: theo dòng "Báo cáo lãi lỗ toàn công ty" của ma trận (Giám đốc).
+    ...(permissions.viewExecutive ? [{
       id: 'director-overview',
       label: 'Tổng quan',
       compactLabel: 'Tổng quan',
       icon: BarChart3
-    },
+    }] : []),
     {
       id: 'gantt',
       label: 'Dự án',
       compactLabel: 'Dự án',
       icon: CalendarRange
     },
-    ...placeholderPages.filter(page => ['timesheets', 'finance'].includes(page.id)),
+    ...placeholderPages.filter(page => page.id === 'timesheets'),
     {
       id: 'company',
       label: 'Công ty',
       compactLabel: 'Công ty',
       icon: ShieldCheck
     },
-    ...placeholderPages.filter(page => !['timesheets', 'finance', 'permissions'].includes(page.id))
+    ...placeholderPages.filter(page => !['timesheets', 'permissions'].includes(page.id))
   ];
 
   // Chỉ thêm trang nhật ký vào menu của phiên quản trị viên.

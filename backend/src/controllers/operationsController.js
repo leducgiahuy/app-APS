@@ -84,8 +84,10 @@ export function mutateOperations(req,res){
    const store=db.delivery;let old=store.templates.find(t=>t.id===id);if(id===DEFAULT_PROJECT_TEMPLATE.id&&!old){old=structuredClone(DEFAULT_PROJECT_TEMPLATE);store.templates.push(old);}ensure(!id||old,'Mẫu không tồn tại.');changed={...(old||{}),id:old?.id||randomUUID(),name:text(value.name),baseArea:number(value.baseArea||0),items,budgetPercents:value.budgetPercents||[],milestones:value.milestones||[],scopeOptions:value.scopeOptions||[],...stamp(user)};if(old)Object.assign(old,changed);else store.templates.push(changed);
   }else if(action==='matrix'){
    requireRole(user,[]);ensure(Array.isArray(value.rows),'Ma trận không hợp lệ.');
-   ensure(value.rows.length===DEFAULT_MATRIX.length && DEFAULT_MATRIX.every(row=>value.rows.some(next=>next.key===row.key)),'Phải giữ đủ các chức năng của ma trận.');
-   ops.matrix=DEFAULT_MATRIX.map(row=>{const next=value.rows.find(next=>next.key===row.key),note=text(next.note);ensure(note.length<=1000,'Ghi chú ma trận không được vượt quá 1.000 ký tự.');return {...row,note,values:Object.fromEntries(OP_ROLES.map(role=>{const cell=text(next.values?.[role]);ensure(cell.length>0&&cell.length<=80,'Ô quyền không hợp lệ.');return [role,cell];}))};});
+   // Rows saved by earlier versions (e.g. "L. Điều phối G1") stay editable alongside the defaults.
+   const baseRows=[...DEFAULT_MATRIX,...(ops.matrix||[]).filter(row=>!DEFAULT_MATRIX.some(item=>item.key===row.key))];
+   ensure(value.rows.length===baseRows.length && baseRows.every(row=>value.rows.some(next=>next.key===row.key)),'Phải giữ đủ các chức năng của ma trận.');
+   ops.matrix=baseRows.map(row=>{const next=value.rows.find(next=>next.key===row.key),note=text(next.note);ensure(note.length<=1000,'Ghi chú ma trận không được vượt quá 1.000 ký tự.');return {...row,note,values:Object.fromEntries(OP_ROLES.map(role=>{const cell=text(next.values?.[role]);ensure(cell.length>0&&cell.length<=80,'Ô quyền không hợp lệ.');return [role,cell];}))};});
   }else if(action==='params'){
    requireRole(user,['chiefAccountant']);before=structuredClone(ops.params);
    if(companyAdmin(user.role))for(const key of Object.keys(DEFAULT_PARAMS).filter(key=>key!=='rateCard'))if(value[key]!=null)ops.params[key]=number(value[key],1e12);

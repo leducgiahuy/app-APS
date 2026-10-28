@@ -11,6 +11,7 @@ import { readDb, writeDb } from '../models/db.js';
 import { deliveryStore, canEditDeliveryTask, publicDelivery } from '../utils/deliveryAuth.js';
 import { computeDelivery, projectDeliveryItems, defaultDeliveryRecord, DELIVERY_LEVELS, managingRole, moneyAccess } from '../../../frontend/src/utils/deliveryMetrics.js';
 import { isTaskOverdue } from '../../../frontend/src/utils/date.js';
+import { syncTaskCompletionFromDelivery } from './taskController.js';
 import { addDays, dateDifference } from '../../../frontend/src/utils/workforceForecast.js';
 
 export const emptyDeliveryProject = () => ({ revision: 0, settings: { contractFee: null, hourlyRate: null }, records: {}, timesheets: [], documents: [], customerRequests: [], meetingMinutes: [], changes: [], closes: [], receipts: [], expenses: [], milestones: [], evidence: [], comments: [], audit: [], history: [] });
@@ -104,8 +105,13 @@ export function applyDeliveryMutation(ctx, body) {
     assert(['director','admin'].includes(user.role),'Chỉ Giám đốc ký phụ lục.');const cr=data.changes.find(c=>c.id===id);assert(cr&&cr.decision==='paid'&&!cr.signedAt,'CR phải được quyết định thu phí và chưa ký phụ lục.');assert(cr.createdBy!==user.email,'Không tự duyệt phụ lục do mình đề xuất.');
     assert(text(value.appendix)&&dateValid(value.signedDate)&&dateValid(value.startDate)&&dateValid(value.endDate)&&value.endDate>=value.startDate,'Cần số phụ lục, ngày ký và lịch việc mới.');assert(data.settings.contractFee!=null,'Cần giá trị hợp đồng hiện tại.');const delta=Number(value.amount),hours=Number(value.estimatedHours);assert(Number.isInteger(delta)&&delta>0&&Number.isFinite(hours)&&hours>0,'Phí và giờ bổ sung phải lớn hơn 0.');
     const project=db.projects.find(p=>p.id===projectId);assert(value.startDate>=project.startDate&&value.endDate<=project.endDate,'Lịch mới phải nằm trong thời gian dự án.');const employee=db.employees.find(e=>e.id===value.employeeId);assert(employee,'Chọn nhân sự thực hiện việc mới.');
-    const task={id:`G-${randomUUID()}`,projectId,code:`${cr.code}.PL`,title:text(value.title)||cr.title,startDate:value.startDate,endDate:value.endDate,requiredPosition:employee.title||'',estimatedHours:hours,parentGroupId:db.ganttItems.find(t=>t.id===cr.taskId)?.parentGroupId||'',dependencies:[],isGroup:false,status:'not_started',createdAt:new Date().toISOString(),changeId:cr.id};const days=assignmentWorkingDates(task,{excludeNonWorkingDays:true}).length;assert(days>0,'Khoảng lịch không có ngày làm việc.');task.assignees=[{employeeId:employee.id,employeeName:employee.name,startDate:task.startDate,endDate:task.endDate,estimatedHoursPerDay:hours/days,excludeNonWorkingDays:true}];task.assignee=employee.name;db.ganttItems.push(task);db.tasks ||= [];db.tasks.push({...task,id:`task-${randomUUID()}`,ganttId:task.id,employeeId:employee.id,employeeName:employee.name,projectName:project.name,progress:0,actualWorkHours:0});
-    data.settings.contractFee+=delta;Object.assign(cr,{appendix:text(value.appendix),signedAt:value.signedDate,signedBy:user.email,appendixAmount:delta,appendixTaskId:task.id});
+    const addedContractWork=hours/8;
+    const currentProjectBudget=project.contractWork !== '' && project.contractWork != null && Number.isFinite(Number(project.contractWork))
+      ? Number(project.contractWork)
+      : Object.values(before.taskMetrics || {}).reduce((sum,metric)=>sum+(Number(metric.budgetedWork)||0),0);
+    const task={id:`G-${randomUUID()}`,projectId,code:`${cr.code}.PL`,title:text(value.title)||cr.title,startDate:value.startDate,endDate:value.endDate,requiredPosition:employee.title||'',estimatedHours:hours,contractWork:addedContractWork,parentGroupId:db.ganttItems.find(t=>t.id===cr.taskId)?.parentGroupId||'',dependencies:[],isGroup:false,status:'not_started',createdAt:new Date().toISOString(),changeId:cr.id};const days=assignmentWorkingDates(task,{excludeNonWorkingDays:true}).length;assert(days>0,'Khoảng lịch không có ngày làm việc.');task.assignees=[{employeeId:employee.id,employeeName:employee.name,startDate:task.startDate,endDate:task.endDate,estimatedHoursPerDay:hours/days,excludeNonWorkingDays:true}];task.assignee=employee.name;db.ganttItems.push(task);db.tasks ||= [];db.tasks.push({...task,id:`task-${randomUUID()}`,ganttId:task.id,employeeId:employee.id,employeeName:employee.name,projectName:project.name,progress:0,actualWorkHours:0});
+    project.contractWork=currentProjectBudget+addedContractWork;
+    data.settings.contractFee+=delta;Object.assign(cr,{appendix:text(value.appendix),signedAt:value.signedDate,signedBy:user.email,appendixAmount:delta,appendixTaskId:task.id,approvedEstimatedHours:hours,budgetWorkAdded:addedContractWork});
     if(data.settings.contractLocked){const m=computeDelivery(db,projectId,{...data,lockedWeights:{},settings:{...data.settings,contractLocked:false}});data.lockedWeights=Object.fromEntries(Object.entries(m.taskMetrics).map(([key,t])=>[key,m.summary.totalPlanned>0?t.planned/m.summary.totalPlanned:0]));}
   } else if (action === 'applyTemplate') {
     assert(manager, 'Chỉ quản lý được áp dụng mẫu dự án.');
@@ -275,14 +281,18 @@ export function applyDeliveryMutation(ctx, body) {
     const close = data.closes.find(entry => entry.id === id); assert(close, 'Không tìm thấy kỳ chốt.'); close.status = 'reopened'; close.reopenReason = text(value.reason); close.reopenedBy = user.email;
   } else throw new Error('Thao tác không hợp lệ.');
   data.audit.push({ id: randomUUID(), actor: user.email, action: `${action}${taskId ? `:${taskId}` : ''}`, at: new Date().toISOString(), before:auditBefore, after:structuredClone(data.records) });
-  const metrics = computeDelivery(db, projectId, data);
+  let metrics = computeDelivery(db, projectId, data);
+  let completionChanged = false;
   for (const [taskId, record] of Object.entries(data.records)) {
     if (!metrics.taskMetrics[taskId]) continue;
-    const fields = { deliveryStatusLevel: record.level, deliveryRecognized: metrics.taskMetrics[taskId].recognized };
+    const fields = { deliveryStatusLevel: record.level, deliveryKind: record.kind || 'design', deliveryRecognized: metrics.taskMetrics[taskId].recognized };
     const gantt = db.ganttItems.find(row => row.id === taskId);
     if (gantt) Object.assign(gantt, fields);
     (db.tasks || []).filter(row => row.ganttId === taskId).forEach(row => Object.assign(row, fields));
+    if (syncTaskCompletionFromDelivery(db, taskId, fields.deliveryRecognized, user.name || user.email)) completionChanged = true;
   }
+  // Hoàn thành/mở lại đổi Công TT nên tính lại số liệu trước khi lưu lịch sử.
+  if (completionChanged) metrics = computeDelivery(db, projectId, data);
   data.history.push({ at: new Date().toISOString(), output: metrics.summary.output, completion: metrics.summary.completion, earned: metrics.summary.totalEarned, taskMetrics:metrics.taskMetrics, fee: data.settings.contractFee, efficiency: metrics.summary.efficiency });
   for (const milestone of metrics.milestones) { const saved = data.milestones.find(entry => entry.id === milestone.id); if (milestone.met && !saved.metOn) saved.metOn = milestone.metOn; else if (!milestone.met) saved.metOn = ''; }
   data.revision++;

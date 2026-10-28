@@ -17,6 +17,12 @@ async function authenticate() {
   try { return await loginPromise; } finally { loginPromise = null; }
 }
 export const deliveryToken = () => authenticate();
+/** Tài khoản Tiến độ của phiên hiện tại (gồm vai trò); máy chủ vẫn kiểm tra quyền ở mỗi thao tác. */
+export const deliveryViewer = async () => { await authenticate(); return session?.user || null; };
+/** Ma trận phân quyền đang áp dụng (null = dùng ma trận mặc định). */
+export const deliveryMatrix = () => session?.matrix || null;
+/** Quên phiên hiện tại để lần gọi sau đăng nhập lại (sau khi đổi mật khẩu/vai trò). */
+export const resetDeliverySession = () => { session = null; };
 async function request(endpoint, method = 'GET', body, retried = false) {
   const token = await authenticate();
   const response = await fetch(`${BASE}${endpoint}`, { method, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, ...(body ? { body: JSON.stringify(body) } : {}) });
@@ -38,6 +44,11 @@ export const deliveryApi = {
   update: async (projectId, body) => { const result = await request(`/${encodeURIComponent(projectId)}`, 'PATCH', body); recordActivity(`delivery.${body.action}`, `Cập nhật Tiến độ · dự án ${projectId}${body.taskId ? ` · task ${body.taskId}` : ''}.`); return result; },
   users: () => request('/users'),
   saveUser: body => request('/users', 'POST', body),
+  changePassword: body => request('/password', 'POST', body),
+  deleteUser: body => request('/users', 'DELETE', body),
+  deletedUsers: () => request('/users/deleted'),
+  purgeDeletedUser: id => request(id ? `/users/deleted/${encodeURIComponent(id)}` : '/users/deleted', 'DELETE'),
+  restoreUser: (id, password) => request(`/users/deleted/${encodeURIComponent(id)}/restore`, 'POST', { password }),
   templates: () => request('/templates'),
   saveTemplate: body => request('/templates', 'POST', body),
   upload: async (projectId, taskId, file, kind) => {

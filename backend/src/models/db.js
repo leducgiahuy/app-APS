@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import { removeMissingEmployeeAssignments } from '../utils/employeeAssignments.js';
 import { ensureEmployeeCodes } from '../utils/employeeCodes.js';
 import { normalizeAssignmentSchedules } from '../../../frontend/src/utils/assignmentCalendar.js';
+import { resetNeverStartedTasks } from '../utils/taskStatus.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -34,7 +35,8 @@ export function readDb() {
           const assignmentsChanged = removeMissingEmployeeAssignments(parsed);
           const codesChanged = ensureEmployeeCodes(parsed);
           const schedulesChanged = normalizeAssignmentSchedules(parsed);
-          if (assignmentsChanged || codesChanged || schedulesChanged) writeDb(parsed);
+          const statusesChanged = resetNeverStartedTasks(parsed);
+          if (assignmentsChanged || codesChanged || schedulesChanged || statusesChanged) writeDb(parsed);
           cachedDb = parsed;
           return parsed;
         }
@@ -57,6 +59,7 @@ export function readDb() {
       removeMissingEmployeeAssignments(seedObj);
       ensureEmployeeCodes(seedObj);
       normalizeAssignmentSchedules(seedObj);
+      resetNeverStartedTasks(seedObj);
       cachedDb = seedObj;
       fs.mkdirSync(path.dirname(DB_FILE), { recursive: true });
       fs.writeFileSync(DB_FILE, JSON.stringify(seedObj, null, 2), 'utf-8');
@@ -77,6 +80,7 @@ export function writeDb(data) {
     removeMissingEmployeeAssignments(data);
     ensureEmployeeCodes(data);
     normalizeAssignmentSchedules(data);
+    resetNeverStartedTasks(data);
     cachedDb = data;
     fs.mkdirSync(path.dirname(DB_FILE), { recursive: true });
     const backupDir=path.join(path.dirname(DB_FILE),'backups'),day=new Date(Date.now()+7*3600000).toISOString().slice(0,10),backupFile=path.join(backupDir,`db-${day}.json`);

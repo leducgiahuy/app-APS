@@ -46,13 +46,20 @@ export default function EmployeeCard({
   toggleOnSite,
   toggleBreak,
   setActiveTask,
-  deleteEmployee
+  deleteEmployee,
+  highlighted = false,
+  // Vào/ra ca, tạm nghỉ, chọn task: chính chủ hoặc người giám sát chấm công (ma trận "Đối chiếu ... chấm công").
+  canOperate = true,
+  canDelete = true
 }) {
   const [viewMode, setViewMode] = useState(
     isOvertimeShift(emp.shiftType) ? SHIFT_TYPE.OVERTIME : SHIFT_TYPE.REGULAR
   );
   const [pending, setPending] = useState(false);
-  const isToday = selectedDateKey === localDateKey(currentTime || new Date());
+  const todayKey = localDateKey(currentTime || new Date());
+  const isToday = selectedDateKey === todayKey;
+  // Ngày đã qua chỉ để xem lại: nút vào ca bị khóa thành "Kết thúc ngày".
+  const dayEnded = !emp.isOnSite && selectedDateKey < todayKey;
   const overtimeView = viewMode === SHIFT_TYPE.OVERTIME;
   const currentShiftIsOt = isOvertimeShift(emp.shiftType);
   const actionIsOt = emp.isOnSite ? currentShiftIsOt : overtimeView;
@@ -83,15 +90,9 @@ export default function EmployeeCard({
   const handleOnSiteAction = async () => {
     if (!emp.isOnSite) {
       const todayKey = localDateKey(new Date());
-      if (!overtimeView) {
-        const warning = regularClockInDateWarning(allTasks, emp, todayKey, selectedDateKey);
-        if (warning) {
-          window.alert(warning);
-          return;
-        }
-      }
-      if (selectedDateKey !== todayKey) {
-        window.alert('Chỉ có thể vào ca cho ngày hôm nay. Hãy chọn hôm nay để bắt đầu task.');
+      const warning = regularClockInDateWarning(allTasks, emp, todayKey, selectedDateKey, displayedTasks);
+      if (warning) {
+        window.alert(warning);
         return;
       }
       if (overtimeView) {
@@ -159,8 +160,9 @@ export default function EmployeeCard({
 
   return (
     <div
+      data-employee-id={emp.id}
       className={`p-5 rounded-2xl bg-white dark:bg-slate-900 border transition-all duration-200 shadow-sm hover:shadow-md relative overflow-hidden flex flex-col justify-between
-        ${emp.isOnSite
+        ${highlighted ? 'border-sky-500 ring-4 ring-sky-500/20' : emp.isOnSite
           ? currentShiftIsOt
             ? 'border-amber-500/40 dark:border-amber-500/30 ring-1 ring-amber-500/20'
             : 'border-emerald-500/40 dark:border-emerald-500/30 ring-1 ring-emerald-500/20'
@@ -197,13 +199,15 @@ export default function EmployeeCard({
             </div>
           </div>
 
-          <button
-            onClick={() => deleteEmployee(emp.id)}
-            title="Xóa nhân sự"
-            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
+          {canDelete && (
+            <button
+              onClick={() => deleteEmployee(emp.id)}
+              title="Xóa nhân sự"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
         <div className={`mt-4 p-3 rounded-xl border ${
@@ -250,7 +254,7 @@ export default function EmployeeCard({
               <select
                 value={selectedTaskId}
                 onChange={event => runAction(() => setActiveTask(emp.id, event.target.value, viewMode))}
-                disabled={pending || !isToday || (emp.isOnSite && overtimeView !== currentShiftIsOt)}
+                disabled={!canOperate || pending || !isToday || (emp.isOnSite && overtimeView !== currentShiftIsOt)}
                 className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-700 outline-none focus:border-sky-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 disabled:opacity-60"
               >
                 <option value="">-- Chọn task --</option>
@@ -333,7 +337,7 @@ export default function EmployeeCard({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        {canOperate && <div className="flex items-center gap-2">
           {emp.isOnSite && (
             <button
               onClick={() => runAction(() => toggleBreak(emp.id))}
@@ -349,22 +353,28 @@ export default function EmployeeCard({
           )}
           <button
             onClick={handleOnSiteAction}
-            disabled={pending}
-            title={!emp.isOnSite && !isToday ? 'Chỉ vào ca cho ngày hôm nay' : undefined}
+            disabled={pending || dayEnded}
+            title={dayEnded ? 'Ngày đã qua, không thể vào ca' : !emp.isOnSite && !isToday ? 'Chỉ vào ca đúng ngày làm việc' : undefined}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-              emp.isOnSite
-                ? 'bg-rose-50 text-rose-600 hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-300'
-                : actionIsOt
-                  ? 'bg-amber-500 text-white hover:bg-amber-400 shadow-sm'
-                  : 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-sm'
+              dayEnded
+                ? 'bg-slate-200 text-slate-500 cursor-not-allowed dark:bg-slate-800 dark:text-slate-400'
+                : emp.isOnSite
+                  ? 'bg-rose-50 text-rose-600 hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-300'
+                  : actionIsOt
+                    ? 'bg-amber-500 text-white hover:bg-amber-400 shadow-sm'
+                    : 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-sm'
             }`}
           >
-            {emp.isOnSite ? clockOutButtonLabel : clockInButtonLabel}
+            {dayEnded ? 'Kết thúc ngày' : emp.isOnSite ? clockOutButtonLabel : clockInButtonLabel}
           </button>
-        </div>
+        </div>}
       </div>
       {!isToday && (
-        <p className="mt-2 text-[10px] text-slate-500">Đang xem task theo ngày đã chọn. Vào ca và chọn task chỉ áp dụng cho hôm nay.</p>
+        <p className="mt-2 text-[10px] text-slate-500">
+          {selectedDateKey < todayKey
+            ? 'Đang xem lại ngày đã qua. Ngày này đã kết thúc nên không thể vào ca.'
+            : 'Đang xem task theo ngày đã chọn. Vào ca và chọn task chỉ áp dụng cho hôm nay.'}
+        </p>
       )}
     </div>
   );

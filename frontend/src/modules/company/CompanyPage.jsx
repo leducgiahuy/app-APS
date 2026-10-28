@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Download, FileSpreadsheet, Search, Upload } from 'lucide-react';
 import { getCurrentUser } from '../auth/authSession';
 import { Card, Kpis, OperationsFrame, Table, Tabs, useOperations } from '../operations/OperationsCommon';
 import { Matrix, Params } from '../operations/PermissionsPage';
 import { commonRules } from '../operations/DictionaryPage';
 import { dictionaryMetrics } from '../operations/dictionaryData';
+import { currentVietnamCalendarYear, vietnamHolidaysForYear } from '../../utils/vietnamCalendar';
 import './CompanyPage.css';
 
 const policies = [
@@ -113,9 +114,9 @@ function ReportsSection() {
       ['Nộp → nghiệm thu', '24 ngày', 'mục tiêu ≤ 15', 'danger'],
       ['Hồ sơ chờ nghiệm thu > 15 ngày', '3', 'nhắc QL mỗi sáng', 'danger']
     ]}/>
-    <Card title="Đạt kiểm tra lần đầu theo bộ môn" subtitle="6 tháng · lần phát hành không có lỗi nặng ở cấp 2"><Table head={['Bộ môn', 'Lần phát hành', 'Đạt lần đầu', 'Tỷ lệ', 'Lỗi hay gặp']}>{reportDepartments.map(row => <tr key={row[0]}>{row.map((cell, index) => <td key={index} className={index === 3 && Number.parseInt(cell) < 70 ? 'danger' : ''}>{index === 0 ? <b>{cell}</b> : cell}</td>)}</tr>)}</Table></Card>
-    <Card title="Xin phép theo cơ quan" subtitle="12 tháng · dùng để hứa tiến độ với khách và báo giá dịch vụ xin phép"><Table head={['Cơ quan', 'Thủ tục', 'Hồ sơ', 'Ngày gửi bình quân / thời hạn', 'Lần bị trả', 'Trong đó do lỗi công ty']}>{permitRows.map(row => <tr key={row[0]}>{row.map((cell, index) => <td key={index} className={index === 5 && cell !== '0' ? 'danger' : ''}>{index === 0 ? <b>{cell}</b> : cell}</td>)}</tr>)}</Table></Card>
-    <Card title="Kho giấy phép, văn bản chấp thuận" subtitle="Nhắc trước 60 ngày khi có hạn hiệu lực · dùng cho hồ sơ năng lực"><Table head={['Văn bản', 'Ngày', 'Hiệu lực']}>{archiveRows.map(row => <tr key={row[0]}><td><b>{row[0]}</b></td><td>{row[1]}</td><td>{row[2]}</td></tr>)}</Table></Card>
+    <Card title="Đạt kiểm tra lần đầu theo bộ môn" subtitle="6 tháng · lần phát hành không có lỗi nặng ở cấp 2"><Table head={['Bộ môn', 'Lần phát hành', 'Đạt lần đầu', 'Tỷ lệ', 'Lỗi hay gặp']} align={['left', 'center', 'center', 'center', 'left']}>{reportDepartments.map(row => <tr key={row[0]}>{row.map((cell, index) => <td key={index} className={index === 3 && Number.parseInt(cell) < 70 ? 'danger' : ''}>{index === 0 ? <b>{cell}</b> : cell}</td>)}</tr>)}</Table></Card>
+    <Card title="Xin phép theo cơ quan" subtitle="12 tháng · dùng để hứa tiến độ với khách và báo giá dịch vụ xin phép"><Table head={['Cơ quan', 'Thủ tục', 'Hồ sơ', 'Ngày gửi bình quân / thời hạn', 'Lần bị trả', 'Trong đó do lỗi công ty']} align={['left', 'left', 'center', 'center', 'center', 'center']}>{permitRows.map(row => <tr key={row[0]}>{row.map((cell, index) => <td key={index} className={index === 5 && cell !== '0' ? 'danger' : ''}>{index === 0 ? <b>{cell}</b> : cell}</td>)}</tr>)}</Table></Card>
+    <Card title="Kho giấy phép, văn bản chấp thuận" subtitle="Nhắc trước 60 ngày khi có hạn hiệu lực · dùng cho hồ sơ năng lực"><Table head={['Văn bản', 'Ngày', 'Hiệu lực']} align={['left', 'center', 'left']}>{archiveRows.map(row => <tr key={row[0]}><td><b>{row[0]}</b></td><td>{row[1]}</td><td>{row[2]}</td></tr>)}</Table></Card>
   </>;
 }
 
@@ -137,15 +138,23 @@ function ImportPanel({ api }) {
 }
 
 function CalendarPanel() {
+  const [calendarYear, setCalendarYear] = useState(() => currentVietnamCalendarYear());
+  useEffect(() => {
+    const updateYear = () => setCalendarYear(currentVietnamCalendarYear());
+    const timer = window.setInterval(updateYear, 60000);
+    window.addEventListener('focus', updateYear);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', updateYear);
+    };
+  }, []);
+  const holidays = useMemo(() => vietnamHolidaysForYear(calendarYear), [calendarYear]);
   return <><Card title="Lịch & giờ làm việc" subtitle="Nguồn dùng chung để tính ngày công, năng lực tháng và hạn xử lý"><Table head={['Ngày', 'Buổi sáng', 'Buổi chiều', 'Tổng giờ', 'Áp dụng']}>
     <tr><td><b>Thứ 2 – Thứ 6</b></td><td>08:00 – 12:00</td><td>13:00 – 17:00</td><td>8 giờ</td><td>Toàn công ty</td></tr>
     <tr><td><b>Thứ 7</b></td><td>08:00 – 12:00</td><td>Nghỉ</td><td>4 giờ</td><td>Theo lịch công ty</td></tr>
     <tr><td><b>Chủ nhật</b></td><td>Nghỉ</td><td>Nghỉ</td><td>0 giờ</td><td>Toàn công ty</td></tr>
-  </Table></Card><Card title="Ngày nghỉ và ngoại lệ năm 2026"><Table head={['Ngày', 'Tên ngày', 'Loại', 'Giờ làm']}>
-    <tr><td>01/01/2026</td><td>Tết Dương lịch</td><td>Nghỉ lễ</td><td>0</td></tr>
-    <tr><td>30/04/2026</td><td>Ngày Giải phóng miền Nam</td><td>Nghỉ lễ</td><td>0</td></tr>
-    <tr><td>01/05/2026</td><td>Quốc tế Lao động</td><td>Nghỉ lễ</td><td>0</td></tr>
-    <tr><td>02/09/2026</td><td>Quốc khánh</td><td>Nghỉ lễ</td><td>0</td></tr>
+  </Table></Card><Card title={`Ngày nghỉ và ngoại lệ năm ${calendarYear}`} subtitle="Chỉ hiển thị năm hiện tại theo giờ Việt Nam; tự chuyển khi bắt đầu năm mới"><Table head={['Ngày', 'Tên ngày', 'Loại', 'Giờ làm']}>
+    {holidays.map(day => <tr key={day.key}><td>{day.key.split('-').reverse().join('/')}</td><td>{day.label}</td><td>Nghỉ lễ</td><td>0</td></tr>)}
   </Table></Card></>;
 }
 

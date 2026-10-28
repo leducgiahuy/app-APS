@@ -48,6 +48,7 @@ export const api = {
   updateTask: (id, data) => fetchApi(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteTask: (id) => fetchApi(`/tasks/${id}`, { method: 'DELETE' }),
   createOvertime: (data) => fetchApi('/overtimes', { method: 'POST', body: JSON.stringify(data) }),
+  reviewOvertime: (id, data) => fetchApi(`/overtimes/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteOvertime: (id) => fetchApi(`/overtimes/${id}`, { method: 'DELETE' }),
 
   // === DỰ ÁN & TIẾN ĐỘ GANTT ===

@@ -25,7 +25,9 @@ export default function HRPage() {
     currentTime,
     loading,
     refreshAllData,
-    showToast
+    showToast,
+    permissions,
+    viewerEmployeeId
   } = useApp();
 
   // Tài khoản tạo trước khi có liên kết: admin mở trang thì tự gắn/tạo nhân sự tương ứng (chạy 1 lần)
@@ -45,6 +47,17 @@ export default function HRPage() {
   // Bộ lọc và tìm kiếm
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTeam, setSelectedTeam] = useState('ALL');
+  // Được đặt bởi nút "Làm" ở Việc của tôi khi người dùng cần vào ca trước khi bắt đầu task.
+  const [focusEmployeeId] = useState(() => sessionStorage.getItem('aps-focus-employee-id') || '');
+
+  useEffect(() => {
+    if (!focusEmployeeId || !employees.some(employee => employee.id === focusEmployeeId)) return undefined;
+    const timer = window.setTimeout(() => {
+      document.querySelector(`[data-employee-id="${focusEmployeeId}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      sessionStorage.removeItem('aps-focus-employee-id');
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [focusEmployeeId, employees]);
 
   // Tính toán KPI nhanh
   const totalEmployees = employees.length;
@@ -188,6 +201,9 @@ export default function HRPage() {
             toggleBreak={toggleBreak}
             setActiveTask={setActiveTask}
             deleteEmployee={deleteEmployee}
+            highlighted={emp.id === focusEmployeeId}
+            canOperate={emp.id === viewerEmployeeId || permissions.superviseAttendance}
+            canDelete={permissions.manageMembers}
           />
         ))}
       </div>

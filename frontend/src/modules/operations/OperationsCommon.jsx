@@ -14,7 +14,7 @@ export function useOperations(query) {
  const ref=useRef(null),sequence=useRef(0),busy=useRef(false),[previewUsers,setPreviewUsers]=useState([]),[mutationVersion,setMutationVersion]=useState(0);
  useLayoutEffect(()=>{ref.current=data;},[data]);
  const load=useCallback(async(quiet=false)=>{const n=++sequence.current;if(!quiet)setLoading(true);try{const response=await deliveryApi.operations(JSON.parse(key));if(n===sequence.current){setData(response.data);setError('');if(response.data.previewUsers?.length)setPreviewUsers(response.data.previewUsers);}}catch(err){if(n===sequence.current)setError(err.message);}finally{if(n===sequence.current)setLoading(false);}},[key]);
- useEffect(()=>{load();const refresh=()=>{if(!busy.current)load(true);},timer=setInterval(refresh,30000);window.addEventListener('focus',refresh);return()=>{sequence.current++;clearInterval(timer);window.removeEventListener('focus',refresh);};},[load]);
+ useEffect(()=>{const activeSequence=sequence;load();const refresh=()=>{if(!busy.current)load(true);},timer=setInterval(refresh,30000);window.addEventListener('focus',refresh);return()=>{activeSequence.current+=1;clearInterval(timer);window.removeEventListener('focus',refresh);};},[load]);
  const mutate=async(action,value={},id,projectId=query.projectId)=>{
   if(busy.current)throw new Error('Đang lưu thao tác trước.');if(data?.readOnly)throw new Error('Đang xem thử: chỉ đọc.');busy.current=true;setSaving(true);sequence.current++;
   try{const response=await deliveryApi.mutateOperations({revision:ref.current.revision,action,value,id,projectId,query});ref.current=response.data;setData(response.data);setMutationVersion(n=>n+1);setError('');return response.data;}

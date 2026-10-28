@@ -56,7 +56,7 @@ test('assignment API persists Yes/No, synchronizes linked task, and rejects a fu
   try {
     fs.writeFileSync(file, JSON.stringify({ projects: [{ id: 'p', name: 'Tên dự án cũ', startDate: item.startDate, endDate: item.endDate }], employees: [{ id: 'e', name: 'Thịnh', code: 'NV-001' }], ganttItems: [{ ...item }], tasks: [{ ...item, id: 't', ganttId: 'g', projectName: 'Tên dự án cũ', status: 'in_progress', actualWorkHours: 8 }], workforcePlan: { demands: [{ id: 'd', projectId: 'p', projectName: 'Tên dự án cũ' }] } }));
     const { createGanttItem, updateGanttItem, updateProject } = await import('../src/controllers/projectController.js');
-    const { updateTask } = await import('../src/controllers/taskController.js');
+    const { updateTask, syncTaskCompletionFromDelivery } = await import('../src/controllers/taskController.js');
     const { readDb, writeDb } = await import('../src/models/db.js');
     const call = (body, id = 'g') => {
       const res = { statusCode: 200, status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; return this; } };
@@ -113,7 +113,7 @@ test('assignment API persists Yes/No, synchronizes linked task, and rejects a fu
     assert.deepEqual(readDb().ganttItems.find(entry => entry.id === 'g').dependencies || [], []);
     const taskCall = id => {
       const taskRes = { statusCode: 200, status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; return this; } };
-      updateTask({ params: { id }, body: { status: 'completed', progress: 100 } }, taskRes);
+      updateTask({ params: { id }, body: { status: 'completed', progress: 100 }, deliveryUser: { role: 'admin' } }, taskRes);
       return taskRes;
     };
     const futureDb = readDb();
@@ -142,7 +142,10 @@ test('assignment API persists Yes/No, synchronizes linked task, and rejects a fu
     });
     writeDb(assignedDb);
     taskRes = taskCall('t');
-    assert.equal(taskRes.statusCode, 200);
+    assert.equal(taskRes.statusCode, 409, 'project tasks complete only from an approved 100% delivery status');
+    const approvedDb = readDb();
+    assert.equal(syncTaskCompletionFromDelivery(approvedDb, 'g', 100, 'Leader'), 'completed');
+    writeDb(approvedDb);
     assert.equal(readDb().tasks.find(entry => entry.id === 't').status, 'completed');
     res = call({ assignees: [] });
     assert.equal(res.statusCode, 409);

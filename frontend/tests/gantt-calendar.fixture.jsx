@@ -1,7 +1,7 @@
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import GanttCalendarBackground from '../src/modules/gantt/GanttCalendarBackground';
-import { calendarColumns } from '../src/utils/vietnamCalendar';
+import { CALENDAR_COLORS, calendarColumns } from '../src/utils/vietnamCalendar';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 const root = createRoot(document.getElementById('root'));
@@ -33,7 +33,7 @@ try {
     check(bg === svg.firstElementChild, `background behind foreground at scale ${scale}`);
     check(bg.getAttribute('pointer-events') === 'none', `background cannot intercept clicks at scale ${scale}`);
     const holiday = [...bg.children].find(r => Number(r.getAttribute('x')) === 15 * scale);
-    check(holiday?.getAttribute('fill') === '#eab308', `Hung Kings holiday aligned to 16/4 at scale ${scale}`);
+    check(holiday?.getAttribute('fill') === CALENDAR_COLORS.holiday, `Hung Kings holiday aligned to 16/4 at scale ${scale}`);
     check(holiday?.getAttribute('width') === String(scale), `column width follows zoom ${scale}`);
     const bar = svg.querySelector('[data-bar]');
     const bounds = bar.getBoundingClientRect();

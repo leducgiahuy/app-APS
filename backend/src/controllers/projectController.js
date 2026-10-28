@@ -1228,7 +1228,7 @@ export function createGanttItem(req, res) {
       endDate
     }] : [],
     notes: notes || '',
-    status: 'in_progress',
+    status: 'not_started',
     speed: speed || 'on_time',
     progress: 0,
     dependencies: defaultPredecessorIds
@@ -1284,7 +1284,7 @@ export function createGanttItem(req, res) {
       estimatedDays: newItem.days,
       contractWork: newItem.contractWork,
       ganttNote: newItem.ganttNote,
-      status: 'in_progress',
+      status: 'not_started',
       speedStatus: newItem.speed || 'on_time',
       priority: 'high',
       progress: 0,

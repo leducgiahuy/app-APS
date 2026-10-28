@@ -19,7 +19,17 @@ export function useProjectDelivery(projectId, onSharedDataChange) {
     try { const response = await deliveryApi.get(projectId); if (request === sequence.current) accept(projectId, response.data); }
     catch (error) { if (projectId === currentProject.current && request === sequence.current) setError(error.message); }
   }, [projectId, accept]);
-  useEffect(() => { refresh(); const timer = setInterval(refresh, 30000); window.addEventListener('focus', refresh); return () => { clearInterval(timer); window.removeEventListener('focus', refresh); sequence.current++; }; }, [refresh]);
+  useEffect(() => {
+    const activeSequence = sequence;
+    refresh();
+    const timer = setInterval(refresh, 30000);
+    window.addEventListener('focus', refresh);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('focus', refresh);
+      activeSequence.current += 1;
+    };
+  }, [refresh]);
   const mutate = async (action, value = {}, taskId, id) => {
     if (busy.current) throw new Error('Đang lưu thao tác trước.');
     if (dataRef.current?.projectId !== projectId) throw new Error('Dữ liệu dự án chưa tải xong.');

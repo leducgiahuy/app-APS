@@ -82,7 +82,7 @@ function PlanEditor({ editor, onClose, onSave, saving, error, positions, project
 }
 
 export default function WorkforcePlanning({ search, view = 'position' }) {
-  const { employees, tasks, ganttItems, projects, currentTime } = useApp();
+  const { employees, tasks, ganttItems, projects, currentTime, permissions } = useApp();
   const [plan, setPlan] = useState(blankPlan);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -102,7 +102,11 @@ export default function WorkforcePlanning({ search, view = 'position' }) {
   const filteredRows = forecast.rows.filter(matches);
   const recruitment = forecast.recruitment.filter(matches);
   const positions = [...new Set([...employees.map(employeePosition), ...forecast.rows.map(row => row.name)])];
-  const open = (kind, data, id) => { setError(''); setEditor({ kind, data, id }); };
+  // Ma trận "Ngân sách giờ công": Leader chỉ xem, QL cấp trung lập/sửa, Giám đốc duyệt.
+  const open = (kind, data, id) => {
+    if (!permissions.editWorkforce) { setError('Vai trò của bạn chỉ được xem kế hoạch nhân lực; QL cấp trung lập và Giám đốc duyệt.'); return; }
+    setError(''); setEditor({ kind, data, id });
+  };
   const save = async (kind, data, id, remove = false) => {
     if(kind==='recruitments'){const row=forecast.recruitment.find(r=>positionKey(r.position)===positionKey(data.position)&&r.needMonth===data.needMonth);const expected=data.expectedStart||row?.expectedStart;if(row&&expected>row.needDate&&!String(data.temporary||'').trim()){setError('Đợt tuyển dự kiến trễ: cần phương án tạm (thuê ngoài, làm thêm giờ hoặc lùi việc).');return;}}
     setSaving(true);

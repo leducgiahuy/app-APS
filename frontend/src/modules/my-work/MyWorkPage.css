@@ -117,3 +117,18 @@
 
 
 
+
+/* Nhãn trạng thái theo thang 0–100% của trang Dự án. */
+.my-work-status { flex: 0 0 auto; padding: 2px 8px; border-radius: 999px; color: #475569; background: #eef1f4; font-size: 11px; font-weight: 700; }
+.my-work-status.level-20 { color: #0369a1; background: rgba(14, 165, 233, .12); }
+.my-work-status.level-40 { color: #a16207; background: rgba(234, 179, 8, .16); }
+.my-work-status.level-60 { color: #6d28d9; background: rgba(139, 92, 246, .13); }
+.my-work-status.level-80 { color: #c2410c; background: rgba(249, 115, 22, .13); }
+.my-work-status.level-100 { color: #047857; background: rgba(16, 185, 129, .14); }
+.my-work-status.is-current { color: #fff; background: #059669; }
+.dark .my-work-status { color: #cbd5e1; background: #2a3441; }
+.dark .my-work-status.level-20 { color: #7dd3fc; background: rgba(14, 165, 233, .18); }
+.dark .my-work-status.level-40 { color: #fde047; background: rgba(234, 179, 8, .18); }
+.dark .my-work-status.level-60 { color: #c4b5fd; background: rgba(139, 92, 246, .2); }
+.dark .my-work-status.level-80 { color: #fdba74; background: rgba(249, 115, 22, .18); }
+.dark .my-work-status.level-100 { color: #6ee7b7; background: rgba(16, 185, 129, .18); }

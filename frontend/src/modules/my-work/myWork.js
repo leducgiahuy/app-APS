@@ -1,5 +1,6 @@
 import { getCurrentUser } from '../auth/authSession';
 import { isTaskAssignedTo, resolveEmployee } from '../auth/personalWork';
+import { taskDeliveryStatus } from '../../utils/deliveryMetrics';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -69,6 +70,9 @@ export function buildMyWorkItems({ tasks = [], employees = [], projects = [], no
         bucket,
         dueLabel: formatMyWorkDue(dueAt, now),
         priority: task.priority || 'normal',
+        status: task.status || 'not_started',
+        ganttId: task.ganttId || '',
+        delivery: taskDeliveryStatus(task),
         assignee: task.employeeName || task.assignees?.map(item => item.employeeName).filter(Boolean).join(', ') || '',
       };
     })

@@ -3,6 +3,7 @@ import { BarChart3 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { deliveryApi } from '../gantt/deliveryApi';
 import { capacityWeight } from '../../utils/workforceForecast';
+import { summarizePortfolioWork, summarizeProjectWork } from '../../utils/deliveryMetrics';
 import './DirectorOverviewPage.css';
 
 const number = value => value == null || !Number.isFinite(Number(value))
@@ -42,20 +43,16 @@ function assignedHoursInMonth(tasks, month) {
 }
 
 function projectWork(project, details, executiveRow) {
-  const metrics = Object.values(details?.taskMetrics || {});
-  const budgeted = metrics.reduce((sum, item) => sum + Number(item.budgetedWork || 0), 0);
-  const actual = metrics.reduce((sum, item) => sum + Number(item.actual || 0), 0);
-  const forecast = metrics.reduce((sum, item) => sum + Number(item.forecastWork || 0), 0);
-  const variance = forecast - budgeted;
+  const comparison = summarizeProjectWork(project, details?.taskMetrics);
   return {
     id: project.id,
     name: executiveRow?.name || project.name,
     code: executiveRow?.code || project.code,
-    budgeted,
-    actual,
-    forecast,
-    variance,
-    variancePercent: budgeted > 0 ? variance / budgeted * 100 : null,
+    budgeted: comparison.budgetedWork,
+    actual: comparison.actualWork,
+    forecast: comparison.forecastWork,
+    variance: comparison.varianceWork,
+    variancePercent: comparison.variancePercent,
     completion: executiveRow?.completion ?? details?.summary?.completion ?? 0,
     planPercent: executiveRow?.planPercent ?? details?.summary?.planPercent ?? 0,
     red: Number(details?.summary?.warnings || 0),
@@ -108,13 +105,22 @@ export default function DirectorOverviewPage() {
     const project = projects.find(item => item.id === row.id) || row;
     return projectWork(project, details[row.id], row);
   }), [report?.projects, projects, details]);
-  const totals = useMemo(() => rows.reduce((sum, row) => ({
-    budgeted: sum.budgeted + row.budgeted,
-    actual: sum.actual + row.actual,
-    forecast: sum.forecast + row.forecast,
-    variance: sum.variance + row.variance,
-    red: sum.red + row.red,
-  }), { budgeted: 0, actual: 0, forecast: 0, variance: 0, red: 0 }), [rows]);
+  const totals = useMemo(() => {
+    const comparison = summarizePortfolioWork(rows.map(row => ({
+      budgetedWork: row.budgeted,
+      actualWork: row.actual,
+      forecastWork: row.forecast,
+      remainingWork: Math.max(0, row.forecast - row.actual),
+    })));
+    return {
+      budgeted: comparison.budgetedWork,
+      actual: comparison.actualWork,
+      forecast: comparison.forecastWork,
+      variance: comparison.varianceWork,
+      variancePercent: comparison.variancePercent,
+      red: rows.reduce((sum, row) => sum + row.red, 0),
+    };
+  }, [rows]);
   const capacity = useMemo(() => {
     const range = monthRange(month);
     let available = 0;
@@ -135,8 +141,7 @@ export default function DirectorOverviewPage() {
   const openAction = action => {
     if (action.kind === 'capacity') return setActiveTab('workload');
     if (['debt', 'contract', 'payment', 'operation'].includes(action.kind)) {
-      sessionStorage.setItem('aps_finance_link', JSON.stringify({ projectId: action.projectId, tab: action.kind === 'debt' ? 'receivables' : action.kind === 'payment' ? 'milestones' : 'expenses' }));
-      return setActiveTab('finance');
+      return setActiveTab('director-overview');
     }
     sessionStorage.setItem('aps_report_link', JSON.stringify({ projectId: action.projectId, taskId: action.taskId, tab: action.kind === 'document' ? 'legal' : action.kind === 'change' ? 'changes' : 'gantt' }));
     return setActiveTab('gantt');
@@ -156,8 +161,7 @@ export default function DirectorOverviewPage() {
         <article className="danger"><span>Hồ sơ & chứng chỉ</span><strong>{urgentDocuments} việc</strong><small>Việc nộp hồ sơ sắp đến hạn hoặc quá hạn</small></article>
       </section>
 
-      <section className="director-overview-card">
-        <header><h2>Dự án: công dự toán so với dự báo</h2><span>từng dự án · công = 8 giờ</span></header>
+      <section className="director-overview-card" aria-label="Dự án: công dự toán so với dự báo">
         <div className="director-overview-table-wrap"><table>
           <colgroup>
             <col className="director-project-column" />
@@ -179,7 +183,7 @@ export default function DirectorOverviewPage() {
             </tr>)}
             {!rows.length && <tr><td colSpan="7" className="empty">Chưa có dự án thuộc phạm vi xem.</td></tr>}
           </tbody>
-          {!!rows.length && <tfoot><tr><th>Tổng công ty</th><th>{number(totals.budgeted)}</th><th>{number(totals.actual)}</th><th>{number(totals.forecast)}</th><th><span className={`variance ${totals.variance > 0.05 ? 'bad' : totals.variance < -0.05 ? 'good' : ''}`}>{signed(totals.variance)}{totals.budgeted ? ` (${signed(totals.variance / totals.budgeted * 100)}%)` : ''}</span></th><th>—</th><th>{totals.red}</th></tr></tfoot>}
+          {!!rows.length && <tfoot><tr><th>Tổng công ty</th><th>{number(totals.budgeted)}</th><th>{number(totals.actual)}</th><th>{number(totals.forecast)}</th><th><span className={`variance ${totals.variance > 0.05 ? 'bad' : totals.variance < -0.05 ? 'good' : ''}`}>{signed(totals.variance)}{totals.variancePercent != null ? ` (${signed(totals.variancePercent)}%)` : ''}</span></th><th>—</th><th>{totals.red}</th></tr></tfoot>}
         </table></div>
         <footer>Dự báo = công thực tế + công còn lại theo mức hoàn thành đã ghi nhận. Xanh ≤ 5%; vàng 5–10%; đỏ &gt; 10%. Bấm tên dự án để mở bảng việc.</footer>
       </section>

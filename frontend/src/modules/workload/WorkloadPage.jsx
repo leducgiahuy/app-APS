@@ -141,10 +141,11 @@ function actualHoursForPeriod(tasks, employee, start, end, now) {
 }
 
 export default function WorkloadPage() {
-  const { employees, tasks, ganttItems, projects, currentTime, setActiveTab, selectedDate, selectDate } = useApp();
+  const { employees, tasks, ganttItems, projects, currentTime, setActiveTab, selectedDate, selectDate, permissions } = useApp();
   const currentUser = getCurrentUser();
-  const isAdmin = currentUser?.role === 'admin';
-  const personalEmployee = isAdmin ? null : resolveEmployee(currentUser, employees);
+  // Ma trận "Giờ định mức / đã dùng": Nhân viên chỉ xem của mình, Leader trở lên xem cả nhóm.
+  const seesTeam = permissions.viewAllHours;
+  const personalEmployee = seesTeam ? null : resolveEmployee(currentUser, employees);
   const [period, setPeriod] = useState('day');
   // Ngày đang xem lấy từ bộ chọn ngày trên header.
   const selectedDay = dayKey(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
@@ -169,10 +170,10 @@ export default function WorkloadPage() {
     return () => container.removeEventListener('wheel', scrollHorizontally);
   }, [period]);
 
-  const normalizedEmployees = useMemo(() => isAdmin
+  const normalizedEmployees = useMemo(() => seesTeam
     ? employees.filter(employee => `${employee.name} ${employee.code} ${employee.team || ''} ${employee.title || ''}`.toLocaleLowerCase('vi').includes(search.trim().toLocaleLowerCase('vi'))).sort((a, b) => a.name.localeCompare(b.name, 'vi'))
-    : personalEmployee ? [personalEmployee] : [], [employees, search, isAdmin, personalEmployee]);
-  const scopedTasks = useMemo(() => isAdmin ? tasks : tasks.filter(task => isTaskAssignedTo(task, personalEmployee)), [tasks, isAdmin, personalEmployee]);
+    : personalEmployee ? [personalEmployee] : [], [employees, search, seesTeam, personalEmployee]);
+  const scopedTasks = useMemo(() => seesTeam ? tasks : tasks.filter(task => isTaskAssignedTo(task, personalEmployee)), [tasks, seesTeam, personalEmployee]);
 
   const columns = useMemo(() => {
     if (period === 'day') {
@@ -234,8 +235,8 @@ export default function WorkloadPage() {
     }
   };
 
-  const periods = isAdmin
-    ? [['day', 'Ngày'], ['month', 'Tháng'], ['year', 'Năm'], ['forecast', '6 tháng tới']]
+  const periods = seesTeam
+    ? [['day', 'Ngày'], ['month', 'Tháng'], ['year', 'Năm'], ...(permissions.viewWorkforce ? [['forecast', '6 tháng tới']] : [])]
     : [['day', 'Ngày của tôi'], ['month', 'Tháng của tôi'], ['year', 'Năm của tôi']];
   const effectiveYear = String(Number(selectedYear) || today.getFullYear());
   const effectiveMonth = /^\d{4}-\d{2}$/.test(selectedMonth) ? selectedMonth : monthKey;
@@ -251,7 +252,7 @@ export default function WorkloadPage() {
 
   return (
     <section className="workload-page">
-      {!isAdmin && !personalEmployee && <div className="workload-personal-empty">Tài khoản chưa được liên kết với hồ sơ nhân sự. Hãy nhờ quản trị viên chọn đúng hồ sơ tại mục <b>Tài khoản → Quản lý user → Nhân sự liên kết</b> để xem công việc cá nhân.</div>}
+      {!seesTeam && !personalEmployee && <div className="workload-personal-empty">Tài khoản chưa được liên kết với hồ sơ nhân sự. Hãy nhờ quản trị viên chọn đúng hồ sơ tại mục <b>Tài khoản → Quản lý user → Nhân sự liên kết</b> để xem công việc cá nhân.</div>}
 
       <div className="workload-sticky-controls">
       <div className="workload-toolbar">
@@ -266,18 +267,18 @@ export default function WorkloadPage() {
           <button type="button" className="workload-icon-button" onClick={() => shiftPeriod(1)} aria-label="Khoảng thời gian tiếp"><ChevronRight size={18} /></button>
         </div>}
         <div className="workload-toolbar-actions">
-          {isAdmin && <label className="workload-search"><Search size={17} /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Tìm nhân viên, mã, đội..." /></label>}
-          {isAdmin && <button type="button" className="workload-assign-button" onClick={() => setActiveTab('gantt')}>Phân công công việc <ArrowRight size={17} /></button>}
+          {seesTeam && <label className="workload-search"><Search size={17} /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Tìm nhân viên, mã, đội..." /></label>}
+          {permissions.assignTasks && <button type="button" className="workload-assign-button" onClick={() => setActiveTab('gantt')}>Phân công công việc <ArrowRight size={17} /></button>}
         </div>
       </div>
 
       {period !== 'forecast' && <div className="workload-summary-grid">
-        {!isAdmin && <>
+        {!seesTeam && <>
           <article className="workload-summary-card"><span><Clock3 size={17} /> Giờ làm đã ghi nhận</span><strong>{formatHours(personalActualHours)}<small> giờ</small></strong><em>Tổng giờ thực tế trong kỳ đã chọn</em></article>
           <article className="workload-summary-card"><span><CalendarDays size={17} /> Giờ công việc dự kiến</span><strong>{formatHours(summary.allocated)}<small> giờ</small></strong><em>Định mức cá nhân {formatHours(summary.capacity)} giờ trong kỳ</em></article>
           <article className="workload-summary-card"><span><Users size={17} /> Khả năng nhận thêm</span><strong>{formatHours(summary.remaining)}<small> giờ trống</small></strong><em>{personalProjects.length} công trình trong kỳ</em></article>
         </>}
-        {isAdmin && <>
+        {seesTeam && <>
           <article className="workload-summary-card"><span><Users size={17} /> Nhân viên còn giờ trống</span><strong>{summary.peopleWithAvailability.size}<small> / {rows.length}</small></strong></article>
           <article className="workload-summary-card"><span><Clock3 size={17} /> Giờ đã lên lịch</span><strong>{formatHours(summary.allocated)}<small> giờ</small></strong></article>
           <article className={`workload-summary-card ${summary.overloaded ? 'has-overload' : ''}`}><span><CalendarDays size={17} /> Tình trạng phân bổ</span><strong>{summary.overloaded}<small> nhân viên/kỳ quá định mức</small></strong></article>
@@ -289,11 +290,11 @@ export default function WorkloadPage() {
         <div className="workload-table-heading"><div className={period === 'month' ? 'workload-month-heading' : ''}><h2>Bảng phân bổ giờ</h2></div><span className="workload-unit-note">Thứ 2–6 đủ ngày · sáng Thứ 7</span></div>
         <div className="workload-table-scroll" ref={tableScrollRef}>
           <table className={`workload-table ${period}`}>
-            <thead><tr><th className="workload-employee-column">{isAdmin ? 'Nhân viên' : 'Thông tin của tôi'}</th><th className="workload-position-column">Vị trí</th>{columns.map(column => <th key={column.key} title={column.holiday || undefined} className={`${period === 'month' && (column.weekday === 0 || column.weekday === 6) ? 'weekend' : ''} ${column.holiday ? 'holiday' : ''}`}>{period === 'day' ? 'Phân bổ trong ngày' : column.label}</th>)}{period === 'day' && <th className="workload-detail-column">Công việc trong ngày</th>}</tr></thead>
+            <thead><tr><th className="workload-employee-column">{seesTeam ? 'Nhân viên' : 'Thông tin của tôi'}</th><th className="workload-position-column">Vị trí</th>{columns.map(column => <th key={column.key} title={column.holiday || undefined} className={`${period === 'month' && (column.weekday === 0 || column.weekday === 6) ? 'weekend' : ''} ${column.holiday ? 'holiday' : ''}`}>{period === 'day' ? 'Phân bổ trong ngày' : column.label}</th>)}{period === 'day' && <th className="workload-detail-column">Công việc trong ngày</th>}</tr></thead>
             <tbody>
               {rows.map(({ employee, cells }) => {
                 return <tr key={employee.id}>
-                  <th className="workload-employee-column"><div className="workload-employee-cell"><span className="workload-avatar">{employee.name?.slice(0, 1) || '?'}</span><span className="workload-employee-info"><strong>{isAdmin ? employee.name : 'Của tôi · ' + employee.name}</strong><small>{isAdmin ? `${employee.code} · ${employee.team || employee.title || 'Nhân viên'}` : `${employee.code} · ${employee.title || employee.team || 'Nhân sự APS'}`}</small></span></div></th>
+                  <th className="workload-employee-column"><div className="workload-employee-cell"><span className="workload-avatar">{employee.name?.slice(0, 1) || '?'}</span><span className="workload-employee-info"><strong>{seesTeam ? employee.name : 'Của tôi · ' + employee.name}</strong><small>{seesTeam ? `${employee.code} · ${employee.team || employee.title || 'Nhân viên'}` : `${employee.code} · ${employee.title || employee.team || 'Nhân sự APS'}`}</small></span></div></th>
                   <td className="workload-position-column">{employeePosition(employee)}</td>
                   {cells.map((cell, index) => {
                     const tone = allocationTone(cell.allocated, cell.capacity);
@@ -324,7 +325,7 @@ export default function WorkloadPage() {
                         {!activity.hasActualLog && <small className="workload-no-log">Chưa có nhật ký giờ thực tế cho ngày này</small>}
                       </article>;
                     })}</div> : <div className="workload-no-tasks"><strong>Chưa có task được giao trong ngày này</strong><span>Còn {formatHours(cells[0].remaining)} giờ định mức có thể phân công.</span></div>}
-                    {cells[0].remaining > 0 && <button type="button" className="workload-propose-button" onClick={() => { selectDate(new Date(`${selectedDay}T12:00:00`)); setActiveTab('tasks'); }}>{isAdmin ? 'Đề xuất giao thêm' : 'Xem công việc của tôi'} · còn {formatHours(cells[0].remaining)}h trống</button>}
+                    {cells[0].remaining > 0 && <button type="button" className="workload-propose-button" onClick={() => { selectDate(new Date(`${selectedDay}T12:00:00`)); setActiveTab('tasks'); }}>{seesTeam ? 'Đề xuất giao thêm' : 'Xem công việc của tôi'} · còn {formatHours(cells[0].remaining)}h trống</button>}
                   </td>}
                 </tr>;
               })}
@@ -333,7 +334,7 @@ export default function WorkloadPage() {
           </table>
         </div>
       </div>}
-      {!isAdmin && period !== 'day' && personalEmployee && <section className="workload-personal-projects">
+      {!seesTeam && period !== 'day' && personalEmployee && <section className="workload-personal-projects">
         <div className="workload-personal-projects-heading"><div><h2>Công trình trong {period === 'month' ? 'tháng' : 'năm'} của tôi</h2><p>Tổng hợp giờ dự kiến, giờ đã ghi nhận và task được giao trong kỳ.</p></div><span>{personalProjects.length} công trình</span></div>
         {personalProjects.length ? <div className="workload-project-list">{personalProjects.map(project => <article key={project.key} className="workload-project-card">
           <div className="workload-project-title"><strong>{project.name}</strong><span>{project.completed}/{project.tasks} task hoàn thành</span></div>

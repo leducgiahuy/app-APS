@@ -30,25 +30,31 @@ export function matchesEmployee(record, emp) {
   return Boolean(name) && name === (emp.name || '').trim().toLowerCase();
 }
 
-export function regularClockInDateWarning(tasks, emp, todayKey, viewedDateKey = todayKey) {
-  const assignments = (tasks || []).filter(task => task.status !== 'completed').flatMap(task => {
-    const records = Array.isArray(task.assignees) && task.assignees.length ? task.assignees : [task];
-    return records.filter(record => matchesEmployee(record, emp)).map(record => ({
-      task,
-      startDate: record.startDate || task.startDate,
-      endDate: record.endDate || task.endDate
-    }));
-  });
-  const upcoming = assignments.filter(record => record.startDate > todayKey)
-    .sort((a, b) => a.startDate.localeCompare(b.startDate));
-  const activeToday = assignments.some(record =>
-    (!record.startDate || record.startDate <= todayKey) && (!record.endDate || record.endDate >= todayKey)
-  );
-  const candidate = upcoming.find(record => record.task.id === emp.activeTaskId) ||
-    (viewedDateKey > todayKey || !activeToday ? upcoming[0] : null);
-  if (!candidate) return '';
-  const dateLabel = candidate.startDate.split('-').reverse().join('/');
-  return `Chưa tới ngày thực hiện task "${candidate.task.title}" (bắt đầu ${dateLabel}). Bạn chưa thể vào văn phòng để bắt đầu task này.`;
+const formatDateKey = key => String(key || '').split('-').reverse().join('/');
+
+/**
+ * Lý do không cho vào ca theo ngày đang xem; chuỗi rỗng nghĩa là được vào.
+ * `viewedTasks` là đúng danh sách task thẻ nhân sự đang hiển thị cho ngày đó,
+ * để cảnh báo nêu đúng tên task của ngày đó chứ không lấy task ở ngày khác.
+ */
+export function regularClockInDateWarning(tasks, emp, todayKey, viewedDateKey = todayKey, viewedTasks = []) {
+  if (viewedDateKey < todayKey) {
+    return `Ngày ${formatDateKey(viewedDateKey)} đã kết thúc. Không thể vào văn phòng cho ngày đã qua.`;
+  }
+  if (viewedDateKey > todayKey) {
+    const names = (viewedTasks || []).filter(task => task.status !== 'completed').map(task => task.title).filter(Boolean);
+    return names.length
+      ? `Chưa tới ngày làm việc ${formatDateKey(viewedDateKey)}. Các task của ngày này chưa thể bắt đầu:\n${names.map(name => `• ${name}`).join('\n')}\n\nChỉ có thể vào văn phòng đúng ngày làm việc.`
+      : `Chưa tới ngày ${formatDateKey(viewedDateKey)}. Chỉ có thể vào văn phòng đúng ngày làm việc.`;
+  }
+  // Hôm nay: chỉ chặn khi task đã chọn sẵn chưa tới ngày bắt đầu của chính nhân sự này.
+  const active = (tasks || []).find(task => task.id === emp?.activeTaskId && task.status !== 'completed');
+  if (!active) return '';
+  const records = Array.isArray(active.assignees) && active.assignees.length ? active.assignees : [active];
+  const record = records.find(item => matchesEmployee(item, emp));
+  const startDate = record ? record.startDate || active.startDate : '';
+  if (!startDate || startDate <= todayKey) return '';
+  return `Chưa tới ngày thực hiện task "${active.title}" (bắt đầu ${formatDateKey(startDate)}). Hãy chọn task của hôm nay trước khi vào văn phòng.`;
 }
 
 /** T2–T6 từ 18:00, T7 từ 13:30. Chủ nhật không mở tăng ca. */
