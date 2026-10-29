@@ -1009,3 +1009,145 @@
 .dark .delivery-project-picker-list li.is-active { background:#3a2630; }
 .dark .delivery-project-picker-list li.is-selected,.dark .delivery-project-picker-list li svg { color:#f0a3b7; }
 @media (max-width: 760px) { .delivery-project-picker { width:100%; } }
+
+/* Thanh ngữ cảnh dưới hàng tab (Hồ sơ, Khách hàng, Chốt sản lượng, Phân công): ô chọn dự án ở đầu bên trái,
+   cùng vị trí với thanh công cụ của Bảng tiến độ & công để chuyển tab không phải tìm lại. */
+.delivery-context-bar { display:flex; align-items:center; gap:12px; min-height:60px; padding:8px 12px; border-bottom:1px solid #e3e8ee; background:#fff; }
+.delivery-context-bar .delivery-project-context { margin:0; }
+.dark .delivery-context-bar { border-bottom-color:#344456; background:#182330; }
+/* Ô chọn dự án đặt dưới hàng mục con trong Hồ sơ / Khách hàng / Chốt sản lượng tháng, thẳng hàng trái với các mục. */
+.delivery-context-inline { display:flex; align-items:center; min-height:60px; margin:0; padding:8px 12px; border-top:1px solid #e3e8ee; border-bottom:1px solid #e3e8ee; background:#fff; }
+.delivery-context-inline .delivery-project-context { margin:0; }
+/* Chốt sản lượng tháng: Tháng | Năm tài chính | Tải lại nằm bên phải thanh chọn dự án; bảng vuông góc, rộng hết trang và sát nhau. */
+.delivery-report-controls { display:flex; align-items:center; gap:10px; margin-left:auto; }
+.delivery-resources-upgraded:has(.delivery-report-controls) { padding:0; gap:0; }
+.delivery-resources.delivery-resources-upgraded:has(.delivery-report-controls) > section,
+.delivery-resources.delivery-resources-upgraded:has(.delivery-report-controls) .delivery-resource-kpis > section { border-radius:0; border-top:0; border-left:0; border-right:0; }
+.delivery-resources-upgraded:has(.delivery-report-controls) .delivery-resource-kpis { gap:0; }
+.delivery-resources-upgraded:has(.delivery-report-controls) .delivery-resource-kpis > section + section { border-left:1px solid #e6e2dc; }
+/* Nút sửa / xóa dự án cạnh ô chọn: gọn, không khung, giống thanh công cụ Bảng tiến độ & công. */
+.delivery-context-inline .delivery-project-context > button,.delivery-context-bar .delivery-project-context > button { display:grid; place-items:center; width:32px; height:32px; padding:0; border:0 !important; border-radius:6px; background:transparent !important; color:#667381; box-shadow:none !important; }
+.delivery-context-inline .delivery-project-context > button:hover:not(:disabled),.delivery-context-bar .delivery-project-context > button:hover:not(:disabled) { background:#f4e9ed !important; color:#941b3d; }
+.dark .delivery-context-inline { border-color:#344456; background:#182330; }
+/* Khung Hồ sơ / Khách hàng: bỏ lề trong 12px của quy tắc chung (.delivery-resources section) để phần đầu và bảng
+   nằm sát mép, không còn dải trống dưới hàng ô số liệu. */
+.delivery-resources.delivery-resources-upgraded .legal-flat-panel,
+.delivery-resources.delivery-resources-upgraded .customer-flat-panel { padding:0; }
+
+/* Chữ rõ hơn và phân cấp tiêu đề / nội dung ở Hồ sơ, Khách hàng, Chốt sản lượng tháng, Dự án mới / nhập HĐ.
+   Tăng thang cỡ chữ trong vùng này (các quy tắc cũ dùng biến --text-* nên tự lớn theo), rồi chỉnh riêng từng cấp:
+   tiêu đề khung > tiêu đề cột / nhãn > nội dung > chú thích. */
+.delivery-resources.delivery-resources-upgraded,
+.project-import-workspace.project-import-workspace { --text-micro:12px; --text-caption:12.5px; --text-small:13.5px; --text-label:15px; font-size:13.5px; }
+
+/* 1. Tiêu đề khung: lớn, đậm, màu đậm; dòng mô tả bên cạnh nhỏ hơn và xám. */
+.delivery-resources.delivery-resources-upgraded :is(.legal-flat-panel,.customer-flat-panel) > header b,
+.delivery-resources.delivery-resources-upgraded .delivery-section-heading h2,
+.project-import-workspace.project-import-workspace .project-import-panel > header b { font-size:15px; font-weight:750; color:#1c232c; letter-spacing:.005em; }
+.delivery-resources.delivery-resources-upgraded :is(.legal-flat-panel,.customer-flat-panel) > header small,
+.delivery-resources.delivery-resources-upgraded .delivery-section-heading small,
+.project-import-workspace.project-import-workspace .project-import-panel > header small { font-size:12.5px; font-weight:500; color:#857d74; }
+.delivery-resources.delivery-resources-upgraded :is(.legal-flat-panel,.customer-flat-panel) > header,
+.project-import-workspace.project-import-workspace .project-import-panel > header { min-height:54px; }
+
+/* 2. Tiêu đề cột: vừa, đậm vừa, xám, có nền nhạt để tách khỏi nội dung. */
+.delivery-resources.delivery-resources-upgraded th,
+.project-import-workspace.project-import-workspace th { font-size:12.5px; font-weight:700; color:#6d655d; background:#faf8f5; letter-spacing:.01em; }
+
+/* 3. Nội dung: lớn hơn, màu đen dễ đọc. */
+.delivery-resources.delivery-resources-upgraded td,
+.project-import-workspace.project-import-workspace td { font-size:14px; color:#25211e; }
+.delivery-resources.delivery-resources-upgraded td > small { font-size:12.5px; }
+.delivery-resources.delivery-resources-upgraded td button,
+.delivery-resources.delivery-resources-upgraded :is(.legal-flat-panel,.customer-flat-panel) > header button { font-size:13px; }
+
+/* Ô số liệu (KPI): nhãn rõ, số to. */
+.delivery-resources.delivery-resources-upgraded :is(.legal-feedback-kpis,.customer-kpis) small { font-size:13px; font-weight:600; color:#6d655d; }
+.delivery-resources.delivery-resources-upgraded :is(.legal-feedback-kpis,.customer-kpis) span { font-size:12.5px; }
+.delivery-resources.delivery-resources-upgraded :is(.legal-feedback-kpis,.customer-kpis) b { font-size:24px; }
+.delivery-resources.delivery-resources-upgraded .delivery-resource-kpis > section > small { font-size:12.5px; }
+.delivery-resources.delivery-resources-upgraded .delivery-resource-kpis > section > small:first-child { font-size:13px; font-weight:600; color:#6d655d; }
+.delivery-resources.delivery-resources-upgraded .delivery-resource-kpis strong { font-size:24px; }
+
+/* Chú thích cuối khung. */
+.delivery-resources.delivery-resources-upgraded :is(.customer-footnote,.delivery-resource-footnote) { font-size:13px; }
+
+/* Dự án mới / nhập HĐ: nhãn ô nhập đậm vừa, chữ trong ô nhập lớn hơn. */
+.project-import-workspace.project-import-workspace label { font-size:13px; font-weight:600; color:#4a433d; }
+.project-import-workspace.project-import-workspace :is(input,select,textarea) { font-size:14px; }
+.project-import-workspace.project-import-workspace .project-import-panel p,
+.project-import-workspace.project-import-workspace .project-import-panel li { font-size:13.5px; }
+
+.dark .delivery-resources.delivery-resources-upgraded :is(.legal-flat-panel,.customer-flat-panel) > header b,
+.dark .delivery-resources.delivery-resources-upgraded .delivery-section-heading h2,
+.dark .project-import-workspace.project-import-workspace .project-import-panel > header b { color:#f1f4f7; }
+.dark .delivery-resources.delivery-resources-upgraded td,
+.dark .project-import-workspace.project-import-workspace td { color:#e6eaee; }
+.dark .delivery-resources.delivery-resources-upgraded th,
+.dark .project-import-workspace.project-import-workspace th { color:#aab4bf; background:#1f2935; }
+.dark .project-import-workspace.project-import-workspace label { color:#cdd5dd; }
+
+/* Bộ màu giống bảng trang Tổng quan (tông xám xanh) cho Hồ sơ, Khách hàng, Chốt sản lượng tháng, Dự án mới / nhập HĐ:
+   nền #f3f6f8 · viền #d7dee6 · kẻ dòng #e1e7ec · dải tiêu đề khung #edf2f6 · tiêu đề cột #f5f7f9 · dòng tổng #e8eef4. */
+.delivery-resources.delivery-resources-upgraded,
+.project-import-workspace.project-import-workspace { --delivery-resource-line:#e1e7ec; --delivery-resource-muted:#5f7286; color:#182433; }
+.delivery-resources.delivery-resources-upgraded :is(.legal-workspace,.customer-workspace),
+.delivery-resources.delivery-resources-upgraded :is(.legal-view-switch,.customer-view-switch),
+.project-import-workspace.project-import-workspace { background:#f3f6f8; }
+.delivery-resources.delivery-resources-upgraded :is(.legal-view-switch,.customer-view-switch) { border-bottom-color:#d7dee6; }
+.delivery-resources.delivery-resources-upgraded :is(.legal-view-switch,.customer-view-switch) button:not(.active) { border-color:#d7dee6; color:#2c3d50; }
+
+/* Khung: nền trắng, viền xám xanh; dải tiêu đề khung như "Việc cần Giám đốc xử lý". */
+.delivery-resources.delivery-resources-upgraded :is(.legal-flat-panel,.customer-flat-panel,.legal-feedback-kpis section,.customer-kpis section),
+.delivery-resources.delivery-resources-upgraded > section,
+.delivery-resources.delivery-resources-upgraded .delivery-resource-kpis > section,
+.project-import-workspace.project-import-workspace .project-import-panel { border-color:#d7dee6; background:#fff; }
+.delivery-resources.delivery-resources-upgraded :is(.legal-flat-panel,.customer-flat-panel) > header,
+.delivery-resources.delivery-resources-upgraded .delivery-section-heading,
+.project-import-workspace.project-import-workspace .project-import-panel > header { background:#edf2f6; border-bottom-color:#d7dee6; }
+.delivery-resources.delivery-resources-upgraded :is(.legal-flat-panel,.customer-flat-panel) > header b,
+.delivery-resources.delivery-resources-upgraded .delivery-section-heading h2,
+.project-import-workspace.project-import-workspace .project-import-panel > header b { color:#1d344a; }
+
+/* Bảng: tiêu đề cột #f5f7f9, kẻ dòng #e1e7ec, chữ #182433; dòng tổng dải xanh thép. */
+.delivery-resources.delivery-resources-upgraded th,
+.project-import-workspace.project-import-workspace th { color:#42576b; background:#f5f7f9; border-bottom-color:#e1e7ec; }
+.delivery-resources.delivery-resources-upgraded td,
+.project-import-workspace.project-import-workspace td { color:#182433; border-bottom-color:#e1e7ec; }
+.delivery-resources.delivery-resources-upgraded .delivery-total-row :is(td,th) { background:#e8eef4; color:#26384d; border-top:2px solid #57718b; }
+
+/* Chú thích cuối khung: nền trắng, chữ xám xanh (như dòng "Dự báo = …" ở Tổng quan). */
+.delivery-resources.delivery-resources-upgraded .delivery-resource-footnote { background:#fff; border-left:0; border-top:1px solid #e1e7ec; color:#5f7286; }
+.delivery-resources.delivery-resources-upgraded .customer-footnote { color:#5f7286; border-top-color:#e1e7ec; }
+
+/* Nhãn ô số liệu và nhãn ô nhập theo tông xám xanh. */
+.delivery-resources.delivery-resources-upgraded :is(.legal-feedback-kpis,.customer-kpis) small,
+.delivery-resources.delivery-resources-upgraded .delivery-resource-kpis > section > small:first-child { color:#42576b; }
+.project-import-workspace.project-import-workspace label { color:#2c3d50; }
+.project-import-workspace.project-import-workspace :is(input,select,textarea) { border-color:#d7dee6; }
+
+/* Thanh "Dự án đang xem" dùng cùng viền. */
+.delivery-context-inline,.delivery-context-bar { border-color:#d7dee6; }
+
+/* Giao diện tối: theo bảng tối của Tổng quan. */
+.dark .delivery-resources.delivery-resources-upgraded,
+.dark .project-import-workspace.project-import-workspace { --delivery-resource-line:#39424e; --delivery-resource-muted:#9aa6b2; color:#eef0f3; }
+.dark .delivery-resources.delivery-resources-upgraded :is(.legal-workspace,.customer-workspace,.legal-view-switch,.customer-view-switch),
+.dark .project-import-workspace.project-import-workspace { background:#151c25; }
+.dark .delivery-resources.delivery-resources-upgraded :is(.legal-flat-panel,.customer-flat-panel,.legal-feedback-kpis section,.customer-kpis section),
+.dark .delivery-resources.delivery-resources-upgraded > section,
+.dark .delivery-resources.delivery-resources-upgraded .delivery-resource-kpis > section,
+.dark .project-import-workspace.project-import-workspace .project-import-panel { border-color:#39424e; background:#1c2531; }
+.dark .delivery-resources.delivery-resources-upgraded :is(.legal-flat-panel,.customer-flat-panel) > header,
+.dark .delivery-resources.delivery-resources-upgraded .delivery-section-heading,
+.dark .project-import-workspace.project-import-workspace .project-import-panel > header { background:#242d39; border-bottom-color:#39424e; }
+.dark .delivery-resources.delivery-resources-upgraded :is(.legal-flat-panel,.customer-flat-panel) > header b,
+.dark .delivery-resources.delivery-resources-upgraded .delivery-section-heading h2,
+.dark .project-import-workspace.project-import-workspace .project-import-panel > header b { color:#f1f3f5; }
+.dark .delivery-resources.delivery-resources-upgraded th,
+.dark .project-import-workspace.project-import-workspace th { color:#c4c8ce; background:#1f2935; border-bottom-color:#39424e; }
+.dark .delivery-resources.delivery-resources-upgraded td,
+.dark .project-import-workspace.project-import-workspace td { color:#eef0f3; border-bottom-color:#39424e; }
+.dark .delivery-resources.delivery-resources-upgraded .delivery-total-row :is(td,th) { background:#26364a; color:#f2f6fa; border-top-color:#6f89a5; }
+.dark .delivery-resources.delivery-resources-upgraded .delivery-resource-footnote { background:#1c2531; color:#9aa6b2; border-top-color:#39424e; }
+.dark .delivery-context-inline,.dark .delivery-context-bar { border-color:#39424e; }

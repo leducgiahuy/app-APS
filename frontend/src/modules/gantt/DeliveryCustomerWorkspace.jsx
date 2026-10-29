@@ -10,7 +10,7 @@ const tabs = [
 const viDate = value => value ? new Date(`${String(value).slice(0, 10)}T12:00:00`).toLocaleDateString('vi-VN') : '—';
 const viDateTime = value => value ? new Date(value).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : '—';
 
-export default function DeliveryCustomerWorkspace({ data, items, disabled, open, decide, currentTime }) {
+export default function DeliveryCustomerWorkspace({ contextBar, data, items, disabled, open, decide, currentTime }) {
   const [tabChoice, setTab] = useState('rfi');
   // Tab con theo ma trận Trang & mục (Dự án → Khách hàng).
   const { canSee } = usePageAccess();
@@ -28,6 +28,7 @@ export default function DeliveryCustomerWorkspace({ data, items, disabled, open,
 
   return <div className="customer-workspace">
     <div className="customer-view-switch" role="tablist" aria-label="Các mục khách hàng">{visibleTabs.map(([key, label]) => <button key={key} type="button" role="tab" aria-selected={tab === key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>{label}</button>)}</div>
+    {contextBar?.()}
 
     {tab === 'rfi' && <div className="customer-flat-stack">
       <div className="customer-kpis"><section><small>Đang chờ CĐT</small><b>{waiting}</b><span>Phiếu chưa nhận phản hồi</span></section><section className="danger"><small>Quá hạn / đến hạn</small><b>{due}</b><span>Cần nhắc khách hàng</span></section><section><small>Ngày chậm do CĐT (dự án)</small><b>{clientDelayDays} ngày</b><span>Tổng ngày nhận phản hồi trễ</span></section></div>

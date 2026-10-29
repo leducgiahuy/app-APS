@@ -61,6 +61,13 @@ function AppStateProvider({ children }) {
   // Tab điều hướng chính
   const [activeTab, setActiveTabState] = useState('work-hub');
   const [workHubSection, setWorkHubSection] = useState('my-work');
+  // Kỳ xem của Quản Lý Nhân Sự (Ngày / Tháng / Năm…); tháng / năm chọn bằng ô ngày trên thanh tiêu đề.
+  const [workloadPeriod, setWorkloadPeriod] = useState('day');
+  const [workloadMonth, setWorkloadMonth] = useState(() => { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`; });
+  const [workloadYear, setWorkloadYear] = useState(() => String(new Date().getFullYear()));
+  // Trang Dự án → Chốt sản lượng tháng: 'fiscal-year' khi đang xem Năm tài chính (ô tiêu đề chọn năm TC thay cho tháng).
+  const [ganttHeaderMode, setGanttHeaderMode] = useState('month');
+  const [fiscalYear, setFiscalYear] = useState(() => { const now = new Date(); return now.getMonth() >= 9 ? now.getFullYear() : now.getFullYear() - 1; });
   const setActiveTab = useCallback((nextTab) => {
     if (typeof nextTab === 'function') {
       setActiveTabState(previous => nextTab(previous));
@@ -516,6 +523,16 @@ function AppStateProvider({ children }) {
         activeTab,
         setActiveTab,
         workHubSection,
+        workloadPeriod,
+        setWorkloadPeriod,
+        workloadMonth,
+        setWorkloadMonth,
+        workloadYear,
+        setWorkloadYear,
+        ganttHeaderMode,
+        setGanttHeaderMode,
+        fiscalYear,
+        setFiscalYear,
         setWorkHubSection,
         currentTime,
         selectedDate,

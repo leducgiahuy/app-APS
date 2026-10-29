@@ -13,7 +13,7 @@ const views = [
 const viDate = value => value ? new Date(value).toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }) : '—';
 const documentStatusClass = status => status === 'Có kết quả' ? 'success' : status === 'Bổ sung' ? 'danger' : status === 'Đã nộp' ? 'warning' : '';
 
-export default function DeliveryLegalWorkspace({ data, items, employees, disabled, open, onOpenTask, currentTime }) {
+export default function DeliveryLegalWorkspace({ contextBar, data, items, employees, disabled, open, onOpenTask, currentTime }) {
   const [viewChoice, setView] = useState('catalog');
   // Tab con theo ma trận Trang & mục (Dự án → Hồ sơ).
   const { canSee } = usePageAccess();
@@ -48,6 +48,7 @@ export default function DeliveryLegalWorkspace({ data, items, employees, disable
     <div className="legal-view-switch" role="tablist" aria-label="Các mục hồ sơ">
       {visibleViews.map(([key, label]) => <button key={key} type="button" role="tab" aria-selected={view === key} className={view === key ? 'active' : ''} onClick={() => setView(key)}>{label}</button>)}
     </div>
+    {contextBar?.()}
 
     {view === 'catalog' && <div className="legal-flat-stack">
       <section className="legal-flat-panel">

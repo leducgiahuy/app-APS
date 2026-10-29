@@ -89,3 +89,7 @@ Headless Edge can stop producing output while Edge updates itself; Chrome (`chro
 ## Project picker
 
 Open `/tests/project-picker.html`. It checks the "Dự án đang xem" picker: clicking anywhere on it (including the small label) opens the list, the list is exactly as wide as the picker, the current project is marked, choosing / ↑ ↓ Enter / Esc / clicking outside behave correctly. It reports `{ "passed": true }`.
+
+## Header period navigator (Quản Lý Nhân Sự)
+
+Open `/tests/header-period.html`. It renders the whole app and checks that the date box in the header follows the Quản Lý Nhân Sự period: Ngày shows the day and "Hôm nay"; Tháng shows "Tháng M/YYYY" and "Tháng này"; Năm shows "Năm YYYY" and "Năm nay". The arrows, the "… này" button and the year list change the table's period, the page no longer has its own month / year inputs, and the project page still navigates by month. It reports `{ "passed": true }`.

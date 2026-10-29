@@ -252,7 +252,7 @@ export default function GanttPage() {
   const deliveryTab = deliveryTabs.some(([key]) => key === deliveryTabChoice) ? deliveryTabChoice : deliveryTabs[0]?.[0] || 'gantt';
   const progressSections = PROGRESS_SECTIONS.filter(([key]) => canSee(`gantt.progress.${key}`));
   const progressSection = progressSections.some(([key]) => key === progressSectionChoice) ? progressSectionChoice : progressSections[0]?.[0] || 'table';
-  // Ô chọn dự án nằm đầu thanh công cụ của Bảng tiến độ & công; các tab không có thanh công cụ thì đặt ở hàng tab.
+  // Ô chọn dự án nằm đầu thanh công cụ của Bảng tiến độ & công; các tab khác có thanh ngữ cảnh riêng dưới hàng tab.
   const projectPickerInToolbar = deliveryTab === 'gantt' && progressSection === 'table';
   const roleView = deliveryView(deliveryData?.viewer.role);
   const viewerEmail = deliveryData?.viewer?.email || '';
@@ -1508,11 +1508,12 @@ export default function GanttPage() {
 
       <div className="delivery-navigation">
         <nav>{deliveryTabs.map(([key,label]) => <button key={key} className={deliveryTab === key ? 'active' : ''} onClick={() => setDeliveryTab(key)}>{label}</button>)}</nav>
-        {deliveryTab !== 'new-project' && !projectPickerInToolbar && projectPicker}
       </div>
       {deliveryTab === 'gantt' && <div className="project-progress-switch" role="tablist" aria-label="Tiến độ và phân công">
         {progressSections.map(([key, label]) => <button type="button" role="tab" key={key} aria-selected={progressSection === key} className={progressSection === key ? 'active' : ''} onClick={() => setProgressSection(key)}>{label}</button>)}
       </div>}
+      {/* Ô chọn dự án luôn nằm dưới hàng mục con: Phân công (máy gán) đặt ở đây; Hồ sơ / Khách hàng / Chốt đặt trong trang con. */}
+      {deliveryTab === 'gantt' && !projectPickerInToolbar && <div className="delivery-context-bar">{projectPicker}</div>}
       {/* THANH ĐIỀU KHIỂN & BỘ LỌC GANTT */}
       {deliveryTab === 'gantt' && progressSection === 'table' && <div className="delivery-toolbar z-[60] w-full px-4 sm:px-5 py-2 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-sm flex flex-wrap items-center justify-between gap-3">
         
@@ -2360,7 +2361,7 @@ export default function GanttPage() {
 
       </>}
       {deliveryTab === 'new-project' && companyPermissions.createProject && <ProjectImportWorkspace onCreated={async id => { await refreshAllData(); setSelectedProjectId(id); setDeliveryTab('gantt'); }} />}
-      {deliveryTab !== 'gantt' && deliveryTab !== 'new-project' && <DeliveryResources key={`${deliveryTab}:${selectedProjectId}`} onOpenTask={openDetail} showIT={showIT} tab={deliveryTab} data={deliveryData} delivery={delivery} projectId={selectedProjectId} employees={employees} items={selectedProjectItems} refreshApp={refreshAllData} readOnly={previewing} users={deliveryUsers} setUsers={setDeliveryUsers} templates={projectTemplates} setTemplates={setProjectTemplates} currentTime={currentTime} />}
+      {deliveryTab !== 'gantt' && deliveryTab !== 'new-project' && <DeliveryResources key={`${deliveryTab}:${selectedProjectId}`} onOpenTask={openDetail} showIT={showIT} tab={deliveryTab} contextBar={(extra, variant = '') => <div className={`delivery-context-inline ${variant}`.trim()}>{projectPicker}{extra}</div>} data={deliveryData} delivery={delivery} projectId={selectedProjectId} employees={employees} items={selectedProjectItems} refreshApp={refreshAllData} readOnly={previewing} users={deliveryUsers} setUsers={setDeliveryUsers} templates={projectTemplates} setTemplates={setProjectTemplates} currentTime={currentTime} />}
       </div></div>
       {deliveryTab === 'gantt' && progressSection === 'table' && <div ref={horizontalScrollRef} className="delivery-horizontal-scroll" role="region" aria-label="Cuộn ngang bảng và biểu đồ Gantt" tabIndex={0}><div /></div>}
       {detailItem && !detailItem.deliveryBand && <DeliveryDrawer scrollbarWidth={scrollbarWidth} key={`${detailItem.id}:${detailSection}:${deliveryData?.viewer.email || 'loading'}`} item={detailItem} data={deliveryData ? { ...deliveryData, taskMetrics: { ...deliveryData.taskMetrics, ...(groupMetrics.has(detailItem.id) ? { [detailItem.id]: groupMetrics.get(detailItem.id) } : {}) } } : null} projectId={projectIdForItem(detailItem) || selectedProjectId} delivery={delivery} employees={employees} onClose={() => setDetailItemId(null)} onEdit={() => editDeliveryItem(detailItem)} onAssign={() => handleAssignmentsOpen(detailItem)} onDelete={() => removeDeliveryItem(detailItem)} onAddSibling={() => createDeliveryTask(detailItem)} onAddChild={() => createDeliveryTask(detailItem, true)} onAddGroup={() => openInlineGroupCreation(detailItem)} onSaveNote={async note => { if (!await updateGanttItem(detailItem.id, { ganttNote: note })) throw new Error('Không lưu được ghi chú.'); }} readOnly={previewing} initialSection={detailSection} />}

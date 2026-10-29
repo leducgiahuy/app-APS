@@ -5,7 +5,7 @@ import DeliveryCustomerWorkspace from './DeliveryCustomerWorkspace';
 import DeliveryReporting from './DeliveryReporting';
 import './DeliveryResources.css';
 
-export default function DeliveryResources({ tab, data, delivery, projectId, employees, items, refreshApp, readOnly, onOpenTask, showIT, currentTime }) {
+export default function DeliveryResources({ tab, contextBar, data, delivery, projectId, employees, items, refreshApp, readOnly, onOpenTask, showIT, currentTime }) {
   const [editor, setEditor] = useState(null);
   const [error, setError] = useState('');
   const financial = data?.permissions.financial;
@@ -63,9 +63,9 @@ export default function DeliveryResources({ tab, data, delivery, projectId, empl
   const decide = (row, decision) => run(() => delivery.mutate('change', { ...row, decision, free: decision === 'free', status: row.status === 'Đề xuất' ? 'Đã duyệt' : row.status }, undefined, row.id));
   if (!data) return <p className="delivery-empty">Chọn một dự án và đợi dữ liệu tải xong.</p>;
   return <div className="delivery-resources delivery-resources-upgraded">{error && <p role="alert" className="delivery-error">{error}</p>}
-    {tab === 'legal' && <DeliveryLegalWorkspace data={data} items={items} employees={employees} projectId={projectId} disabled={disabled} open={open} run={run} onOpenTask={onOpenTask} currentTime={currentTime} />}
-    {tab === 'changes' && <DeliveryCustomerWorkspace data={data} items={items} disabled={disabled} open={open} decide={decide} currentTime={currentTime} />}
-    {tab === 'close' && financial && <DeliveryReporting data={data} projectId={projectId} readOnly={readOnly} onSaveSettings={value => delivery.mutate('settings', value)} refreshProject={delivery.refresh} refreshApp={refreshApp} />}
+    {tab === 'legal' && <DeliveryLegalWorkspace contextBar={contextBar} data={data} items={items} employees={employees} projectId={projectId} disabled={disabled} open={open} run={run} onOpenTask={onOpenTask} currentTime={currentTime} />}
+    {tab === 'changes' && <DeliveryCustomerWorkspace contextBar={contextBar} data={data} items={items} disabled={disabled} open={open} decide={decide} currentTime={currentTime} />}
+    {tab === 'close' && financial && <DeliveryReporting contextBar={contextBar} data={data} projectId={projectId} readOnly={readOnly} onSaveSettings={value => delivery.mutate('settings', value)} refreshProject={delivery.refresh} refreshApp={refreshApp} />}
     {showIT && <aside className="delivery-resource-it"><b>Ghi chú cho IT</b><p>{tab === 'legal' ? 'Chuỗi thủ tục theo mẫu; cơ quan, thời hạn, nhật ký và thành phần lưu riêng cho từng hồ sơ.' : tab === 'changes' ? 'Giờ thực tế lấy từ phiếu đã duyệt; quyết định thu phí / miễn phí được kiểm tra quyền ở máy chủ.' : 'Năm tài chính T10–T9. Chỉ kỳ đã khóa được cộng vào lũy kế đã chốt; số nháp được hiển thị riêng.'}</p></aside>}
     {editor && <DeliveryResourceEditor key={`${editor.action}:${editor.id || ''}`} {...editor} onSave={save} onClose={() => setEditor(null)} saving={delivery.saving} />}
   </div>;

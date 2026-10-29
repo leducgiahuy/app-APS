@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useApp } from '../../context/AppContext';
 import { usePageAccess } from '../../context/PageAccessContext';
 import { deliveryApi } from './deliveryApi';
 import DeliveryResourceEditor from './DeliveryResourceEditor';
@@ -23,15 +24,21 @@ function YearCharts({ months, totals, lockedTotals, budget }) {
   </div></section>;
 }
 const REPORT_VIEWS = [['month', 'Tháng'], ['year', 'Năm tài chính']];
-export default function DeliveryReporting({ data, projectId, readOnly, onSaveSettings, refreshProject }) {
+export default function DeliveryReporting({ contextBar, data, projectId, readOnly, onSaveSettings, refreshProject }) {
   const [viewChoice, setView] = useState('month');
   // Tháng / Năm tài chính theo ma trận Trang & mục (Dự án → Chốt sản lượng tháng).
   const { canSee } = usePageAccess();
   const views = REPORT_VIEWS.filter(([key]) => canSee(`gantt.close.${key}`));
   const view = views.some(([key]) => key === viewChoice) ? viewChoice : views[0]?.[0];
-  const [month, setMonth] = useState(vietnamMonth);
-  const [year, setYear] = useState(() => fiscalStart(vietnamMonth()));
-  const [yearInput, setYearInput] = useState(() => String(fiscalStart(vietnamMonth())));
+  // Tháng báo cáo = tháng trên ô tiêu đề; Năm tài chính chọn cũng ở ô tiêu đề (chế độ 'fiscal-year').
+  const { ganttMonth, setGanttHeaderMode, fiscalYear, setFiscalYear } = useApp();
+  const month = `${ganttMonth.getFullYear()}-${String(ganttMonth.getMonth() + 1).padStart(2, '0')}`;
+  const year = view === 'year' ? fiscalYear : fiscalStart(month);
+  useEffect(() => {
+    setGanttHeaderMode(view === 'year' ? 'fiscal-year' : 'month');
+    return () => setGanttHeaderMode('month');
+  }, [view, setGanttHeaderMode]);
+  const chooseView = key => { if (key === 'year') setFiscalYear(fiscalStart(month)); setView(key); };
   const [report, setReport] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -68,7 +75,7 @@ export default function DeliveryReporting({ data, projectId, readOnly, onSaveSet
   const currentBudget = budget / 12 * elapsed;
   const openPlan = () => setEditor({ title: report.permissions.approve ? 'Duyệt kế hoạch năm' : 'Lập kế hoạch năm', action: report.permissions.approve ? 'approvePlan' : 'savePlan', value: Object.fromEntries(yearRows.map(row => [row.id, row.annualPlan ?? ''])), fields: yearRows.map(row => ({ key: row.id, label: `${row.name} · kế hoạch năm (đ)`, type: 'number', min: 0 })) });
   return <>
-    <div className="delivery-report-toolbar"><div className="delivery-report-switch">{views.map(([key, label]) => <button key={key} className={view === key ? 'active' : ''} onClick={() => setView(key)}>{label}</button>)}</div>{view === 'month' ? <label>Tháng báo cáo<input aria-label="Tháng báo cáo" type="month" value={month} onChange={event => { if (event.target.value) { setMonth(event.target.value); setYear(fiscalStart(event.target.value)); setYearInput(String(fiscalStart(event.target.value))); } }} /></label> : <label>Năm tài chính<input aria-label="Năm bắt đầu tài chính" type="number" min="2000" max="2200" value={yearInput} onChange={event => setYearInput(event.target.value)} onBlur={() => { const next = Number(yearInput); if (Number.isInteger(next) && next >= 2000 && next <= 2200) setYear(next); else setYearInput(String(year)); }} /><span>T10/{year} – T9/{year + 1}</span></label>}<button disabled={busy} onClick={() => run(async () => { setReport(await load()); setError(''); })}>Tải lại</button></div>
+    {contextBar?.(<div className="delivery-report-controls"><div className="delivery-report-switch">{views.map(([key, label]) => <button key={key} className={view === key ? 'active' : ''} onClick={() => chooseView(key)}>{label}</button>)}</div><button disabled={busy} onClick={() => run(async () => { setReport(await load()); setError(''); })}>Tải lại</button></div>, 'is-report')}
     {error && <p role="alert" className="delivery-error">{error}</p>}
     {!report && !error && <p className="delivery-empty">Đang tải báo cáo. Chưa chốt số liệu mới.</p>}
     {report && view === 'month' && <section><div className="delivery-section-heading"><div><h2>Chốt sản lượng tháng {titleMonth(month)}</h2><small>Triệu đồng · Ngày 1–3: rà soát · Ngày 5: Giám đốc duyệt và khóa</small></div><button className="delivery-primary-action" disabled={disabled || !report.permissions.approve || !rows.length || rows.every(row => row.month.status === 'closed' || row.month.fee == null)} onClick={() => run(() => execute('approveMonth'))}>Duyệt & khóa tháng</button></div><div className="delivery-overflow"><table className="delivery-month-table"><thead><tr><th>Dự án</th><th>Phí HĐ</th><th>% đầu kỳ (đã khóa)</th><th>% cuối kỳ</th><th>Sản lượng tháng</th><th>Hiệu suất giờ</th><th>Trạng thái</th><th /></tr></thead><tbody>{rows.map(row => <tr key={row.id}><td><b>{row.name}</b></td><td>{row.id === projectId && data.permissions.manage ? <button disabled={disabled} onClick={() => setEditor({ title: 'Phí hợp đồng dự án', action: 'projectSettings', value: { contractFee: data.settings.contractFee ?? '' }, fields: [{ key: 'contractFee', label: 'Phí hợp đồng (đ)', type: 'number', min: 0, required: true }] })}>{million(row.month.fee)} ✎</button> : million(row.month.fee)}</td><td>{percent(row.month.startCompletion)}</td><td>{percent(row.month.completion)}</td><td><b>{million(row.month.output)}</b></td><td className={row.month.efficiency >= 1 ? 'delivery-efficiency-good' : 'delivery-scope'}>{number(row.month.efficiency)}</td><td><span className={`delivery-pill ${row.month.status === 'closed' ? 'success' : 'warning'}`}>{row.month.fee == null ? 'Chưa nhập phí HĐ' : row.month.status === 'closed' ? 'Đã khóa' : row.month.status === 'reviewed' ? 'Chờ GD duyệt' : 'Chưa chốt · chờ rà soát'}</span></td><td>{row.month.status === 'closed' ? report.permissions.approve && <button disabled={disabled} onClick={() => setEditor({ title: 'Mở lại tháng đã khóa', action: 'reopenMonth', value: { projectId: row.id }, fields: [{ key: 'reason', label: 'Lý do mở lại (lưu nhật ký)', required: true, type: 'textarea' }] })}>Mở lại</button> : <button disabled={disabled || !report.permissions.review || row.month.fee == null || row.month.output == null} onClick={() => run(() => execute('reviewMonth', { projectId: row.id }))}>Rà soát</button>}</td></tr>)}<tr className="delivery-total-row"><td>Cộng</td><td>{million(sum(rows.map(row => row.month.fee)))}</td><td /><td /><td>{million(sum(rows.map(row => row.month.output)))}</td><td colSpan="3" /></tr></tbody></table></div><p className="delivery-resource-footnote">Sản lượng tháng = sản lượng lũy kế cuối kỳ − lũy kế kỳ trước. Số đã khóa được lưu cố định; Giám đốc mở lại phải ghi lý do.</p></section>}

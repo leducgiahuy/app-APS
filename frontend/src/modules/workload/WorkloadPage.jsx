@@ -6,7 +6,7 @@ import { isTaskAssignedTo, resolveEmployee } from '../auth/personalWork';
 import { getGanttTaskCode } from '../../utils/taskCode';
 import { vietnamCalendarDay } from '../../utils/vietnamCalendar';
 import { assignmentWorksOnDate, assignmentWorkingDates } from '../../utils/assignmentCalendar';
-import { ArrowRight, CalendarDays, ChevronLeft, ChevronRight, Clock3, Search, Users } from 'lucide-react';
+import { ArrowRight, CalendarDays, Clock3, Search, Users } from 'lucide-react';
 import './WorkloadPage.css';
 import { capacityWeight, employeePosition } from '../../utils/workforceForecast';
 const WorkforcePlanning = lazy(() => import('./WorkforcePlanning'));
@@ -142,12 +142,11 @@ function actualHoursForPeriod(tasks, employee, start, end, now) {
 }
 
 export default function WorkloadPage() {
-  const { employees, tasks, ganttItems, projects, currentTime, setActiveTab, selectedDate, selectDate, permissions } = useApp();
+  const { employees, tasks, ganttItems, projects, currentTime, setActiveTab, selectedDate, selectDate, permissions, workloadPeriod: periodChoice, setWorkloadPeriod: setPeriod, workloadMonth: selectedMonth, workloadYear: selectedYear } = useApp();
   const currentUser = getCurrentUser();
   // Ma trận "Giờ định mức / đã dùng": Nhân viên chỉ xem của mình, Leader trở lên xem cả nhóm.
   const seesTeam = permissions.viewAllHours;
   const personalEmployee = seesTeam ? null : resolveEmployee(currentUser, employees);
-  const [periodChoice, setPeriod] = useState('day');
   const { canSee } = usePageAccess();
   // Kết hợp quyền nghiệp vụ và ma trận Trang & mục. Một kỳ chỉ hiện khi cả hai lớp đều cho phép.
   const periods = (seesTeam
@@ -157,8 +156,6 @@ export default function WorkloadPage() {
   const period = periods.some(([value]) => value === periodChoice) ? periodChoice : periods[0]?.[0] || 'day';
   // Ngày đang xem lấy từ bộ chọn ngày trên header.
   const selectedDay = dayKey(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
-  const [selectedMonth, setSelectedMonth] = useState(monthKey);
-  const [selectedYear, setSelectedYear] = useState(String(today.getFullYear()));
   const [search, setSearch] = useState('');
   const [forecastView, setForecastView] = useState('position');
   const tableScrollRef = useRef(null);
@@ -233,16 +230,6 @@ export default function WorkloadPage() {
     return result;
   }, { capacity: 0, allocated: 0, remaining: 0, overloaded: 0, peopleWithAvailability: new Set() }), [rows]);
 
-  const shiftPeriod = (direction) => {
-    if (period === 'month') {
-      const date = new Date(`${selectedMonth}-15T12:00:00`);
-      date.setMonth(date.getMonth() + direction);
-      setSelectedMonth(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`);
-    } else {
-      setSelectedYear(String((Number(selectedYear) || today.getFullYear()) + direction));
-    }
-  };
-
   const effectiveYear = String(Number(selectedYear) || today.getFullYear());
   const effectiveMonth = /^\d{4}-\d{2}$/.test(selectedMonth) ? selectedMonth : monthKey;
   const selectedStart = period === 'day' ? selectedDay : period === 'month' ? `${effectiveMonth}-01` : `${effectiveYear}-01-01`;
@@ -265,12 +252,6 @@ export default function WorkloadPage() {
           {periods.map(([value, label]) => <button type="button" role="tab" aria-selected={period === value} key={value} className={period === value ? 'active' : ''} onClick={() => setPeriod(value)}>{label}</button>)}
         </div>
         {period === 'forecast' && <div className="workload-view-switch"><span>Xem theo:</span>{[['position', 'Vị trí'], ['employee', 'Nhân viên']].map(([value, label]) => <button type="button" key={value} aria-pressed={forecastView === value} className={forecastView === value ? 'active' : ''} onClick={() => setForecastView(value)}>{label}</button>)}</div>}
-        {(period === 'month' || period === 'year') && <div className="workload-period-picker">
-          <button type="button" className="workload-icon-button" onClick={() => shiftPeriod(-1)} aria-label="Khoảng thời gian trước"><ChevronLeft size={18} /></button>
-          {period === 'month' && <input aria-label="Chọn tháng" type="month" value={selectedMonth} onChange={event => setSelectedMonth(event.target.value)} />}
-          {period === 'year' && <input aria-label="Chọn năm" type="number" min="2000" max="2100" value={selectedYear} onChange={event => setSelectedYear(event.target.value)} />}
-          <button type="button" className="workload-icon-button" onClick={() => shiftPeriod(1)} aria-label="Khoảng thời gian tiếp"><ChevronRight size={18} /></button>
-        </div>}
         <div className="workload-toolbar-actions">
           {seesTeam && <label className="workload-search"><Search size={17} /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Tìm nhân viên, mã, đội..." /></label>}
           {permissions.assignTasks && <button type="button" className="workload-assign-button" onClick={() => setActiveTab('gantt')}>Phân công công việc <ArrowRight size={17} /></button>}
