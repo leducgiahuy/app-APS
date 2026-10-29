@@ -1,4 +1,4 @@
-import { matrixAllows } from '../../../frontend/src/utils/operationsDefaults.js';
+import { roleAllows } from '../../../frontend/src/utils/operationsDefaults.js';
 import { randomBytes, scryptSync, timingSafeEqual, createHash } from 'node:crypto';
 import { projectActor } from './operationsStore.js';
 import { enforcePageAccess } from './pageAccessGuard.js';
@@ -7,11 +7,12 @@ import { DELIVERY_ROLES, managingRole, moneyAccess } from '../../../frontend/src
 import { canEditProgressTask, maskDeliveryFinance } from '../../../frontend/src/utils/deliveryView.js';
 import { permissionsFor } from '../../../frontend/src/utils/rolePermissions.js';
 
-/** Cờ thao tác trang Dự án theo ma trận phân quyền, tính trên vai trò của người xem ở dự án này. */
-function matrixFlags(role, matrix) {
-  const perms = permissionsFor(role, matrix);
+/** Cờ thao tác trang Dự án theo quy tắc nghiệp vụ của vai trò người xem ở dự án này. */
+function roleFlags(role, pageAccess) {
+  const perms = permissionsFor(role, pageAccess);
   return { schedule: perms.editSchedule, assign: perms.assignTasks, editProject: perms.editProjectInfo, deleteProject: perms.deleteProject, createProject: perms.createProject };
 }
+
 
 export function passwordHash(password, salt = randomBytes(16).toString('hex')) { return { salt, hash: scryptSync(password, salt, 32).toString('hex') }; }
 const tokenHash = token => createHash('sha256').update(token).digest('hex');
@@ -41,7 +42,7 @@ export function deliveryLogin(req, res) {
   store.sessions = store.sessions.filter(session => session.expiresAt > Date.now());
   store.sessions.push({ hash: tokenHash(token), email: user.email, expiresAt });
   if (!writeDb(db)) return res.status(500).json({ message: 'Không lưu được phiên đăng nhập.' });
-  return res.json({ success: true, data: { token, expiresAt, user: safeUser(user), matrix: db.operations?.matrix || null } });
+  return res.json({ success: true, data: { token, expiresAt, user: safeUser(user) } });
 }
 /** Người dùng tự đổi mật khẩu đăng nhập backend; cần đúng mật khẩu hiện tại. */
 export function deliveryChangePassword(req, res) {
@@ -90,8 +91,8 @@ export function deliveryUsers(req, res) {
 export function canEditDeliveryTask(user, item, db) {
   return canEditProgressTask(user, item, db.employees || []);
 }
-export function publicDelivery(data, metrics, user,matrix) {
-  const financial = moneyAccess(user.role) && matrixAllows(matrix,'hdValue',user.role);
+export function publicDelivery(data, metrics, user, pageAccess) {
+  const financial = moneyAccess(user.role) && roleAllows('hdValue',user.role);
   const cleanMetrics = structuredClone(metrics);
   if (!financial) {
     ['output', 'monthlyOutput', 'laborCost', 'expenseCost', 'cost', 'collected', 'eligiblePayment', 'deviation'].forEach(key => delete cleanMetrics.summary[key]);
@@ -99,6 +100,6 @@ export function publicDelivery(data, metrics, user,matrix) {
     cleanMetrics.milestones = (metrics.milestones || []).map(({ amount, ...milestone }) => milestone);
   }
   const settings = financial ? data.settings : { contractLocked: data.settings?.contractLocked };
-  const result = { ...cleanMetrics, settings: settings || {}, documents: (data.documents || []).map(row => financial ? row : Object.fromEntries(Object.entries(row).filter(([key]) => key !== 'fee'))), customerRequests: data.customerRequests || [], meetingMinutes: data.meetingMinutes || [], changes: (data.changes || []).map(row => { const change = { ...row, actualHours: metrics.taskMetrics[row.reworkTaskId]?.actualHours || 0 }; if (!financial) { delete change.amount; delete change.appendixAmount; } return change; }), closes: financial ? data.closes || [] : [], receipts: financial ? data.receipts || [] : [], expenses: financial ? data.expenses || [] : [], evidence: (data.evidence || []).filter(file=>!file.deletedAt).map(({ path, ...entry }) => entry), comments: data.comments || [], audit: (data.audit || []).map(({ actor, action, at }) => ({ actor, action, at })), viewer: safeUser(user), permissions: { financial, manage: managingRole(user.role), users: ['admin', 'director'].includes(user.role), ...matrixFlags(user.role, matrix) } };
+  const result = { ...cleanMetrics, settings: settings || {}, documents: (data.documents || []).map(row => financial ? row : Object.fromEntries(Object.entries(row).filter(([key]) => key !== 'fee'))), customerRequests: data.customerRequests || [], meetingMinutes: data.meetingMinutes || [], changes: (data.changes || []).map(row => { const change = { ...row, actualHours: metrics.taskMetrics[row.reworkTaskId]?.actualHours || 0 }; if (!financial) { delete change.amount; delete change.appendixAmount; } return change; }), closes: financial ? data.closes || [] : [], receipts: financial ? data.receipts || [] : [], expenses: financial ? data.expenses || [] : [], evidence: (data.evidence || []).filter(file=>!file.deletedAt).map(({ path, ...entry }) => entry), comments: data.comments || [], audit: (data.audit || []).map(({ actor, action, at }) => ({ actor, action, at })), viewer: safeUser(user), permissions: { financial, manage: managingRole(user.role), users: ['admin', 'director'].includes(user.role), ...roleFlags(user.role, pageAccess) } };
   return financial ? result : maskDeliveryFinance(result);
 }

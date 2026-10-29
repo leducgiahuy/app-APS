@@ -9,7 +9,7 @@ process.env.APS_DB_PATH = path.join(dir, 'db.json');
 
 const guard = await import('../src/utils/routeGuards.js');
 const { permissionsFor } = await import('../../frontend/src/utils/rolePermissions.js');
-const { DEFAULT_MATRIX } = await import('../../frontend/src/utils/operationsDefaults.js');
+const { operations } = await import('../src/utils/operationsStore.js');
 
 const assign = employeeId => ({ employeeId, employeeName: employeeId, startDate: '2026-01-05', endDate: '2026-01-09' });
 fs.writeFileSync(process.env.APS_DB_PATH, JSON.stringify({
@@ -43,14 +43,14 @@ function run(middleware, user, { params = {}, body = {} } = {}) {
 }
 const allowed = (middleware, role, req) => run(middleware, users[role], req) === 'next';
 
-test('quyền đọc đúng từng ô của ma trận mặc định', () => {
-  const p = role => permissionsFor(role, DEFAULT_MATRIX);
+test('quy tắc nghiệp vụ cố định theo vai trò', () => {
+  const p = role => permissionsFor(role);
   assert.equal(p('employee').viewAllTasks, false, 'Nhân viên: Phân công task = X (của mình)');
   assert.equal(p('employee').updateOwnProgressOnly, true, 'Nhân viên: Cập nhật % = L (của mình)');
   assert.equal(p('employee').viewMoney, false, 'Nhân viên không xem giá trị hợp đồng');
   assert.equal(p('leader').assignTasks, true);
   assert.equal(p('manager').assignTasks, false, 'QL cấp trung chỉ xem phân công (X)');
-  assert.equal(p('leader').approveOvertime, false, 'Leader chỉ đề xuất làm thêm giờ');
+  assert.equal(p('leader').approveOvertime, true, 'Leader duyệt làm thêm giờ (không tự duyệt phiếu của mình)');
   assert.equal(p('manager').approveOvertime, true);
   assert.equal(p('director').approveOvertime, true, 'Giám đốc: D (vượt hạn mức)');
   assert.equal(p('manager').viewMoney, true);
@@ -62,17 +62,26 @@ test('quyền đọc đúng từng ô của ma trận mặc định', () => {
   assert.equal(p('admin').assignTasks, true, 'Quản trị có toàn quyền');
 });
 
-test('sửa ma trận thì quyền đổi theo', () => {
-  const matrix = DEFAULT_MATRIX.map(row => row.key === 'assign' ? { ...row, values: { ...row.values, manager: 'L/S' } } : row);
-  assert.equal(permissionsFor('manager', matrix).assignTasks, true);
+test('bảng phân quyền cũ đã xóa: dữ liệu cũ / bản sao lưu còn bảng này thì bị bỏ và không ảnh hưởng quyền', () => {
+  const db = { operations: { matrix: [{ key: 'assign', values: { manager: 'L/S' } }], members: [] } };
+  assert.equal(operations(db).matrix, undefined);
+  assert.equal(db.operations.matrix, undefined, 'xóa khỏi dữ liệu để lần ghi kế tiếp không còn');
+  assert.equal(permissionsFor('manager').assignTasks, false, 'quy tắc giữ nguyên, không đọc bảng cũ');
 });
 
-test('chỉ Leader được tạo, xóa task và đổi kế hoạch task', () => {
+// Ma trận Trang & mục (mặc định): Phân công (máy gán) S cho Leader / QL / GĐ, Nhân viên X; Bảng tiến độ & công S cho Leader / QL / GĐ.
+const setPageAccess = rows => { const db = JSON.parse(fs.readFileSync(process.env.APS_DB_PATH, 'utf8')); db.operations = { ...(db.operations || {}), pageAccess: rows }; fs.writeFileSync(process.env.APS_DB_PATH, JSON.stringify(db)); };
+
+test('tạo, xóa task và đổi kế hoạch theo ô S ở Phân công (máy gán) của ma trận', () => {
   const create = { body: { projectId: 'p', title: 'Mới' } };
-  assert.equal(allowed(guard.guardCreateTask, 'leader', create), true);
-  for (const role of ['employee', 'manager', 'director']) assert.equal(allowed(guard.guardCreateTask, role, create), false, role);
+  for (const role of ['leader', 'manager', 'director']) assert.equal(allowed(guard.guardCreateTask, role, create), true, role);
+  assert.equal(allowed(guard.guardCreateTask, 'employee', create), false);
   assert.equal(allowed(guard.guardDeleteTask, 'leader', { params: { id: 't-an' } }), true);
-  assert.equal(allowed(guard.guardDeleteTask, 'manager', { params: { id: 't-an' } }), false);
+  assert.equal(allowed(guard.guardDeleteTask, 'employee', { params: { id: 't-an' } }), false);
+  // Đổi ô trong ma trận là quyền đổi theo ngay.
+  setPageAccess({ 'gantt.progress.assignment': { values: { manager: 'X' } } });
+  assert.equal(allowed(guard.guardCreateTask, 'manager', create), false, 'QL bị đổi thành X');
+  setPageAccess({});
   assert.equal(allowed(guard.guardUpdateTask, 'employee', { params: { id: 't-an' }, body: { endDate: '2026-02-01' } }), false, 'nhân viên không tự dời hạn');
 });
 
@@ -92,34 +101,42 @@ test('xác nhận hoàn thành: không phải nhân viên, không tự xác nh�
   assert.equal(allowed(guard.guardUpdateTask, 'manager', done('t-lead')), true);
 });
 
-test('nhân viên chỉ thấy task và phiếu tăng ca của mình', () => {
+test('xem task ở Tiến độ theo ma trận: thấy mục Tiến độ thì xem mọi task, bị ẩn thì chỉ task của mình', () => {
   let payload;
   const res = { json(data) { payload = data; return this; } };
   const req = { params: {}, deliveryUser: users.employee, deliveryCompanyUser: users.employee };
   guard.scopeTaskList(req, res, () => res.json({ data: { tasks: [{ id: 't-an', assignees: [assign('e-an')] }, { id: 't-binh', employeeId: 'e-binh' }], overtimes: [{ id: 'a', employeeId: 'e-an' }, { id: 'b', employeeId: 'e-binh' }] } }));
+  assert.deepEqual(payload.data.tasks.map(task => task.id), ['t-an', 't-binh'], 'Nhân viên có S ở Tiến độ');
+  setPageAccess({ 'work-hub.tasks': { values: { employee: '—' } } });
+  guard.scopeTaskList(req, res, () => res.json({ data: { tasks: [{ id: 't-an', assignees: [assign('e-an')] }, { id: 't-binh', employeeId: 'e-binh' }], overtimes: [{ id: 'a', employeeId: 'e-an' }, { id: 'b', employeeId: 'e-binh' }] } }));
   assert.deepEqual(payload.data.tasks.map(task => task.id), ['t-an']);
   assert.deepEqual(payload.data.overtimes.map(row => row.id), ['a']);
+  setPageAccess({});
 });
 
-test('làm thêm giờ: nhân viên đăng ký cho mình, QL/GĐ duyệt, không tự duyệt', () => {
+test('làm thêm giờ: nhân viên đăng ký cho mình, Leader/QL/GĐ duyệt, không tự duyệt', () => {
   assert.equal(allowed(guard.guardCreateOvertime, 'employee', { body: { employeeId: 'e-an' } }), true);
   assert.equal(allowed(guard.guardCreateOvertime, 'employee', { body: { employeeId: 'e-binh' } }), false);
   assert.equal(allowed(guard.guardCreateOvertime, 'leader', { body: { employeeId: 'e-an' } }), true, 'Leader đề xuất cho nhân viên');
-  assert.equal(allowed(guard.guardReviewOvertime, 'leader', { params: { id: 'ot-an' } }), false);
+  assert.equal(allowed(guard.guardReviewOvertime, 'leader', { params: { id: 'ot-an' } }), true);
   assert.equal(allowed(guard.guardReviewOvertime, 'manager', { params: { id: 'ot-an' } }), true);
   assert.equal(allowed(guard.guardDeleteOvertime, 'employee', { params: { id: 'ot-an' } }), true, 'hủy phiếu chờ duyệt của mình');
   assert.equal(allowed(guard.guardDeleteOvertime, 'employee', { params: { id: 'ot-lead' } }), false);
 });
 
-test('Gantt: Leader/QL sửa lịch, chỉ Leader phân công, GĐ chỉ xem', () => {
+test('Gantt: sửa lịch theo ô S ở Bảng tiến độ & công, phân công theo ô S ở Phân công (máy gán)', () => {
   const schedule = { params: { id: 'g1' }, body: { startDate: '2026-01-06' } };
   const assignment = { params: { id: 'g1' }, body: { assignees: [assign('e-binh')] } };
   assert.equal(allowed(guard.guardUpdateGantt, 'leader', schedule), true);
   assert.equal(allowed(guard.guardUpdateGantt, 'manager', schedule), true);
-  assert.equal(allowed(guard.guardUpdateGantt, 'director', schedule), false);
+  assert.equal(allowed(guard.guardUpdateGantt, 'director', schedule), true, 'Giám đốc có S');
   assert.equal(allowed(guard.guardUpdateGantt, 'employee', schedule), false);
   assert.equal(allowed(guard.guardUpdateGantt, 'leader', assignment), true);
-  assert.equal(allowed(guard.guardUpdateGantt, 'manager', assignment), false);
+  assert.equal(allowed(guard.guardUpdateGantt, 'manager', assignment), true);
+  assert.equal(allowed(guard.guardUpdateGantt, 'employee', assignment), false);
+  setPageAccess({ 'gantt.progress.table': { values: { director: 'X' } } });
+  assert.equal(allowed(guard.guardUpdateGantt, 'director', schedule), false, 'đổi thành X là chỉ xem');
+  setPageAccess({});
 });
 
 test('dự án, nhân sự, chấm công', () => {
@@ -133,6 +150,4 @@ test('dự án, nhân sự, chấm công', () => {
   assert.equal(allowed(guard.guardAttendance, 'employee', { params: { id: 'e-binh' } }), false);
   assert.equal(allowed(guard.guardAttendance, 'manager', { params: { id: 'e-binh' } }), true);
   assert.equal(allowed(guard.guardEditWorkforce, 'leader'), false);
-  assert.equal(allowed(guard.guardViewWorkforce, 'leader'), true);
-  assert.equal(allowed(guard.guardViewWorkforce, 'employee'), false);
 });

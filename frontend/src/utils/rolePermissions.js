@@ -1,8 +1,9 @@
-import { DEFAULT_MATRIX, companyAdmin, matrixAllows } from './operationsDefaults.js';
+import { ROLE_RULES, companyAdmin, roleAllows } from './operationsDefaults.js';
+import { pageAccessAllows } from './pageAccess.js';
 
 /**
- * Quyền theo cấp bậc, đọc trực tiếp từ ma trận phân quyền (Công ty → Ma trận quyền).
- * Dùng chung cho backend (chặn API) và frontend (ẩn/hiện nút), nên sửa ma trận là đổi quyền ở cả hai nơi.
+ * Quy tắc nghiệp vụ cố định theo vai trò (ROLE_RULES): ai lập, ai duyệt, ai xác nhận, chỉ dữ liệu của mình…
+ * Dùng chung cho backend (chặn API) và frontend (ẩn/hiện nút). Ẩn / hiện trang và mục do ma trận "Trang & mục" quyết định.
  *
  * Ký hiệu ô: X xem · L lập · S sửa · XN xác nhận · D duyệt · "(của mình)" chỉ dữ liệu của bản thân · — không truy cập.
  */
@@ -11,26 +12,30 @@ import { DEFAULT_MATRIX, companyAdmin, matrixAllows } from './operationsDefaults
 export const LEVEL_ROLES = ['employee', 'leader', 'manager', 'director'];
 export const roleFromLevel = level => LEVEL_ROLES.includes(level) ? level : 'employee';
 
-function cell(matrix, key, role) {
-  return (matrix?.length ? matrix : DEFAULT_MATRIX).find(row => row.key === key)?.values?.[role] || '—';
+function cell(key, role) {
+  return ROLE_RULES.find(row => row.key === key)?.values?.[role] || '—';
 }
 
 /** Ô chỉ cho phép dữ liệu của bản thân, ví dụ "L (của mình)". */
-export function ownOnly(matrix, key, role) {
-  return role !== 'admin' && /của mình/i.test(cell(matrix, key, role));
+export function ownOnly(key, role) {
+  return role !== 'admin' && /của mình/i.test(cell(key, role));
 }
 
 /** Có quyền duyệt (D) hoặc xác nhận (XN); "Đề xuất" hay "Kiểm tra" không tính là duyệt. */
-export function canApprove(matrix, key, role) {
+export function canApprove(key, role) {
   if (role === 'admin') return true;
-  return String(cell(matrix, key, role)).split(/[/\s()]+/).some(token => token === 'D' || token === 'XN');
+  return String(cell(key, role)).split(/[/\s()]+/).some(token => token === 'D' || token === 'XN');
 }
 
-/** Toàn bộ cờ quyền của một vai trò; vai trò rỗng/lạ được coi như Nhân viên (mức thấp nhất). */
-export function permissionsFor(role, matrix) {
+/**
+ * Toàn bộ cờ quyền của một vai trò; vai trò rỗng/lạ được coi như Nhân viên (mức thấp nhất).
+ * pageAccess (ma trận Trang & mục) quyết định: sửa lịch = S ở "Bảng tiến độ & công", phân công = S ở
+ * "Phân công (máy gán)", xem mọi task = thấy mục "Tiến độ". Chưa có ma trận thì theo quy tắc cố định.
+ */
+export function permissionsFor(role, pageAccess = null) {
   const r = role === 'admin' || LEVEL_ROLES.includes(role) || ['accountant', 'chiefAccountant'].includes(role) ? role : 'employee';
-  const read = key => matrixAllows(matrix, key, r, 'read');
-  const write = key => matrixAllows(matrix, key, r, 'write');
+  const read = key => roleAllows( key, r, 'read');
+  const write = key => roleAllows( key, r, 'write');
   return {
     role: r,
     // A. Dự án
@@ -39,17 +44,17 @@ export function permissionsFor(role, matrix) {
     editProjectInfo: write('projectInfo'),
     deleteProject: companyAdmin(r),
     // B. Tiến độ & công việc
-    editSchedule: write('progress'),
-    viewAllTasks: read('assign') && !ownOnly(matrix, 'assign', r),
-    assignTasks: write('assign') && !ownOnly(matrix, 'assign', r),
+    editSchedule: pageAccess ? pageAccessAllows(pageAccess, 'gantt.progress.table', r, 'write') : write('progress'),
+    viewAllTasks: pageAccess ? pageAccessAllows(pageAccess, 'work-hub.tasks', r) : read('assign') && !ownOnly('assign', r),
+    assignTasks: pageAccess ? pageAccessAllows(pageAccess, 'gantt.progress.assignment', r, 'write') : write('assign') && !ownOnly('assign', r),
     updateProgress: write('editStatus'),
-    updateOwnProgressOnly: ownOnly(matrix, 'editStatus', r),
-    confirmWork: canApprove(matrix, 'confirmStatus', r),
+    updateOwnProgressOnly: ownOnly('editStatus', r),
+    confirmWork: canApprove('confirmStatus', r),
     // C. Giờ công
     registerOvertime: write('otRegister'),
-    registerOwnOvertimeOnly: !canApprove(matrix, 'otRegister', r) && !/Đề xuất/.test(cell(matrix, 'otRegister', r)),
-    approveOvertime: canApprove(matrix, 'otRegister', r),
-    viewAllHours: read('hours') && !ownOnly(matrix, 'hours', r),
+    registerOwnOvertimeOnly: !canApprove('otRegister', r) && !/Đề xuất/.test(cell('otRegister', r)),
+    approveOvertime: canApprove('otRegister', r),
+    viewAllHours: read('hours') && !ownOnly('hours', r),
     superviseAttendance: read('attendance'),
     // D. Nhân lực / ngân sách giờ công
     viewWorkforce: read('budgetLabor'),

@@ -22,7 +22,10 @@ window.fetch = async (url, options = {}) => {
       if (index < 0) plan[kind].push({ ...record, id: id || 'new' }); else plan[kind][index] = { ...record, id };
     }
     data = structuredClone(plan);
-  } else if (endpoint === 'employees') data = [employee];
+  } else if (endpoint === 'delivery/session') data = { token: 'mock', expiresAt: Date.now() + 1e8, user: { email: 'demo@aps.vn', name: 'Quản trị', role: 'admin', employeeId: '' } };
+  // Vai trò Quản trị: xem bảng phân bổ của cả đội và mục 6 tháng tới (theo quy tắc vai trò + ma trận Trang & mục).
+  else if (endpoint === 'delivery/page-access') data = { role: 'admin', access: {} };
+  else if (endpoint === 'employees') data = [employee];
   else if (endpoint === 'tasks') data = { tasks: [], overtimes: [] };
   else if (endpoint === 'projects') data = [{ id: 'p', name: 'Dự án hiện tại' }];
   else if (endpoint === 'gantt') data = [];

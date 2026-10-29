@@ -1,7 +1,7 @@
 import { cashflowReport } from './operationsCashflow.js';
 import { financeReport } from './operationsReports.js';
 import { projectActor,operations } from './operationsStore.js';
-import { moneyRole,matrixAllows } from '../../../frontend/src/utils/operationsDefaults.js';
+import { moneyRole,roleAllows } from '../../../frontend/src/utils/operationsDefaults.js';
 import { computeDelivery, moneyAccess, projectDeliveryItems } from '../../../frontend/src/utils/deliveryMetrics.js';
 import { fiscalMonths, fiscalStart, monthSnapshot, vietnamMonth } from '../../../frontend/src/utils/deliveryResources.js';
 import { buildWorkforceForecast } from '../../../frontend/src/utils/workforceForecast.js';
@@ -41,7 +41,7 @@ export function buildExecutiveReport(db, user, month, now = new Date()) {
     const planMetrics = month < currentMonth ? computeDelivery(db, project.id, data, asOf) : metrics;
     const snapshot = monthSnapshot(data, month, metrics, now);
     const effective=projectActor(db,user,project.id),explicit=(db.operations?.members||[]).some(m=>m.projectId===project.id&&m.email===user.email&&!m.deletedAt);
-    const maySeeMoney = moneyRole(effective.role) && matrixAllows(operations(db).matrix,'hdValue',effective.role) && (user.role !== 'manager' || explicit || managesProject(db, user, project));
+    const maySeeMoney = moneyRole(effective.role) && roleAllows('hdValue',effective.role) && (user.role !== 'manager' || explicit || managesProject(db, user, project));
     const approvedBudget=(db.operations?.budgets||[]).some(b=>b.projectId===project.id&&b.status==='approved');
     const projectedMargin=approvedBudget&&maySeeMoney?financeReport(db,project.id,effective).marginPercent:null;
     const items = projectDeliveryItems(db, project.id);

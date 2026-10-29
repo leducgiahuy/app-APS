@@ -34,7 +34,8 @@ export const PAGE_ACCESS_TREE = [
   ] },
   { key: 'gantt', label: 'Dự án', children: [
     item('gantt.progress', 'Tiến độ & Công', PROJECT_TEAM, [
-      item('gantt.progress.table', 'Bảng tiến độ & công', PROJECT_TEAM),
+      // S ở đây = sửa lịch dự án (thêm / dời / xóa task). Nhân viên chỉ xem; trạng thái task của mình cập nhật nhờ S ở mục cha.
+      item('gantt.progress.table', 'Bảng tiến độ & công', ['X', 'S', 'S', 'X', 'X', 'S']),
       item('gantt.progress.assignment', 'Phân công (máy gán)', ['X', 'S', 'S', 'X', 'X', 'S']),
     ]),
     item('gantt.legal', 'Hồ sơ', PROJECT_TEAM, [

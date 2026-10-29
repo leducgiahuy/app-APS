@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BarChart3 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { usePageAccess } from '../../context/PageAccessContext';
 import { deliveryApi } from '../gantt/deliveryApi';
 import { monthFillPercent } from '../../utils/monthCapacity';
 import { summarizePortfolioWork, summarizeProjectWork } from '../../utils/deliveryMetrics';
@@ -32,6 +33,7 @@ function projectWork(project, details, executiveRow) {
 
 export default function DirectorOverviewPage() {
   const { projects, tasks, ganttItems, employees, ganttMonth, setActiveTab } = useApp();
+  const { canSee } = usePageAccess();
   const month = `${ganttMonth.getFullYear()}-${String(ganttMonth.getMonth() + 1).padStart(2, '0')}`;
   const [report, setReport] = useState(null);
   const [details, setDetails] = useState({});
@@ -70,8 +72,8 @@ export default function DirectorOverviewPage() {
     return () => { generation.current += 1; window.clearInterval(timer); window.removeEventListener('focus', refresh); };
   }, [load, projects, tasks, ganttItems, employees]);
 
-  const role = report?.viewer?.role;
-  const mayView = ['director', 'admin'].includes(role) && report?.permissions?.executive;
+  // Ai xem được trang do ma trận Trang & mục quyết định (máy chủ cũng chặn theo cùng ma trận).
+  const mayView = Boolean(report) && canSee('director-overview.kpis');
   const rows = useMemo(() => (report?.projects || []).map(row => {
     const project = projects.find(item => item.id === row.id) || row;
     return projectWork(project, details[row.id], row);
@@ -115,7 +117,7 @@ export default function DirectorOverviewPage() {
     </div>
     {error && <div className="director-overview-error" role="alert">{error}<button onClick={() => load()}>Thử lại</button></div>}
     {loading && !report && <p className="director-overview-loading">Đang tải số liệu điều hành…</p>}
-    {report && !mayView && <section className="director-overview-denied"><BarChart3 size={32} /><h2>Tổng quan</h2><p>Trang này chỉ hiển thị cho vai trò Giám đốc hoặc Quản trị viên.</p></section>}
+    {report && !mayView && <section className="director-overview-denied"><BarChart3 size={32} /><h2>Tổng quan</h2><p>Vai trò của bạn chưa được cấp quyền xem trang này (Công ty → Cài đặt → Ma trận quyền).</p></section>}
     {report && mayView && <>
       <section className="director-overview-kpis">
         <article className="danger"><span>Dự án vượt công</span><strong>{overBudget.length} dự án</strong><small>{overBudget.length ? `Vượt ${number(overBudget.reduce((sum, row) => sum + row.variance, 0))} công · ${totals.red} việc đỏ` : 'Không có dự án vượt dự báo'}</small></article>

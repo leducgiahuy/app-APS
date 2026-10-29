@@ -40,7 +40,7 @@ export function PageAccessProvider({ children }) {
     const canSee = key => pageAccessAllows(state.access, key, state.role);
     const canEdit = key => pageAccessAllows(state.access, key, state.role, 'write');
     const isVisible = key => pageVisible(state.access, key, state.role);
-    return { ready: true, role: state.role, canSee, canEdit, pageVisible: isVisible, visiblePages: PAGE_ACCESS_TREE.map(page => page.key).filter(isVisible), refresh: load };
+    return { ready: true, role: state.role, access: state.access, canSee, canEdit, pageVisible: isVisible, visiblePages: PAGE_ACCESS_TREE.map(page => page.key).filter(isVisible), refresh: load };
   }, [state, load]);
   return <PageAccessContext.Provider value={value}>{children}</PageAccessContext.Provider>;
 }

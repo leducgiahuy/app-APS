@@ -89,7 +89,8 @@ test('weekly hours, role approval, budget, payment and accounting imports persis
   for(const role of ['director','accountant','chiefAccountant'])assert.equal((await mutate('expenseDecision',{status:'approved',documentRef:'CT-01'},expense.id,role)).status,200);
   r=await mutate('accountingImport',{rows:[{kind:'disbursement',externalId:'PC-001',projectId:'p',expenseRequestId:expense.id,date:day,amount:200000}]},undefined,'accountant');let paid=r.data.finance.requests.find(row=>row.id===expense.id);assert.equal(paid.status,'partiallyPaid');assert.equal(paid.paidAmount,200000);
   r=await mutate('accountingImport',{rows:[{kind:'disbursement',externalId:'PC-002',projectId:'p',expenseRequestId:expense.id,date:day,amount:300000}]},undefined,'accountant');paid=r.data.finance.requests.find(row=>row.id===expense.id);assert.equal(paid.status,'paid');assert.equal(paid.paidAmount,500000);
-  const matrixRows=structuredClone(r.data.matrix);matrixRows[0].note='Ghi chú phân quyền đã chỉnh sửa';r=await mutate('matrix',{rows:matrixRows});assert.equal(r.status,200);assert.equal(r.data.matrix[0].note,'Ghi chú phân quyền đã chỉnh sửa');
+  // Bảng phân quyền cũ đã xóa: không trả về, không lưu được nữa.
+  assert.equal(r.data.matrix,undefined);assert.notEqual((await mutate('matrix',{rows:[]})).status,200);
   assert.equal((await call('/operations','PATCH',{action:'params',value:{limitA:1},revision:0},admin)).status,409);
   r=await mutate('template',{name:'Mẫu cấu hình',baseArea:100,items:[{id:'x',title:'Thiết kế từ mẫu',requiredPosition:'Kiến trúc sư',startOffset:0,endOffset:1,estimatedHours:16}]});assert.equal(r.status,200);const templateId=r.data.templates.find(row=>row.name==='Mẫu cấu hình').id;
   const projectInput={name:'Dự án từ khung mới',code:'NEW-01',templateId,startDate:week,endDate:day,area:200,contractFee:200000000};

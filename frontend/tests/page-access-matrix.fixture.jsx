@@ -2,7 +2,6 @@
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Matrix } from '../src/modules/operations/PermissionsPage';
-import { DEFAULT_MATRIX } from '../src/utils/operationsDefaults';
 import { PAGE_ACCESS_TREE } from '../src/utils/pageAccess';
 import '../src/index.css';
 
@@ -10,7 +9,7 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 const checks = [];
 const check = (ok, name) => { if (!ok) throw new Error(name); checks.push(name); };
 const saved = [];
-const api = { data: { viewer: { role: 'director' }, companyRole: 'director', readOnly: false, matrix: DEFAULT_MATRIX, pageAccess: {} }, saving: false,
+const api = { data: { viewer: { role: 'director' }, companyRole: 'director', readOnly: false, pageAccess: {} }, saving: false,
   mutate: async (action, value) => { saved.push([action, value]); }, run: async fn => fn() };
 const out = document.getElementById('test-results');
 const click = async node => act(async () => { node.dispatchEvent(new MouseEvent('click', { bubbles: true })); });

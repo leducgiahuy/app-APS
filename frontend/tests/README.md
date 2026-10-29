@@ -85,3 +85,7 @@ Open `/tests/page-access-matrix.html`. It renders the permission matrix with fak
 Open `/tests/page-access-live.html`. It renders the whole app with fake data, changes the "Trang & mục" matrix and the signed-in role while the page is open, and checks that the left menu, the Công việc sections and the current page hide / switch immediately: a hidden page leaves the menu, a hidden open section falls back to the first visible one, an all-hidden role sees a notice, a role change to Giám đốc shows Tổng quan, and Admin always sees every page. It reports `{ "passed": true }`.
 
 Headless Edge can stop producing output while Edge updates itself; Chrome (`chrome.exe --headless --dump-dom …`) runs the same fixtures.
+
+## Project picker
+
+Open `/tests/project-picker.html`. It checks the "Dự án đang xem" picker: clicking anywhere on it (including the small label) opens the list, the list is exactly as wide as the picker, the current project is marked, choosing / ↑ ↓ Enter / Esc / clicking outside behave correctly. It reports `{ "passed": true }`.

@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { readDb,writeDb } from '../models/db.js';
 import { operations,projectActor,stamp } from '../utils/operationsStore.js';
 import { allSheets,operationsReport,canReviewSheet,sheetFlags,vietnamDay,addDate,monday,financeReport,sumBy } from '../utils/operationsReports.js';
-import { DEFAULT_MATRIX,DEFAULT_PARAMS,OP_ROLES,companyAdmin,matrixAllows } from '../../../frontend/src/utils/operationsDefaults.js';
+import { DEFAULT_PARAMS,OP_ROLES,companyAdmin,roleAllows } from '../../../frontend/src/utils/operationsDefaults.js';
 import { computeDelivery,projectDeliveryItems } from '../../../frontend/src/utils/deliveryMetrics.js';
 import { ownsDeliveryTask } from '../../../frontend/src/utils/deliveryView.js';
 import { PAGE_ACCESS_CODES,PAGE_ACCESS_ITEMS,normalizePageAccess } from '../../../frontend/src/utils/pageAccess.js';
@@ -19,7 +19,7 @@ const number=(value,max=1e15)=>{ensure(value!=='' && value!=null && Number.isFin
 const money=value=>{const n=number(value);ensure(Number.isInteger(n),'Tiền phải là số nguyên đồng.');return n;};
 const self=(user,row)=>user.email===row.createdBy || Boolean(user.employeeId && row.employeeId===user.employeeId);
 const requireRole=(user,roles)=>ensure(companyAdmin(user.role)||roles.includes(user.role),'Bạn không có quyền thực hiện thao tác này.',403);
-const permission=(ops,actor,key)=>ensure(matrixAllows(ops.matrix,key,actor.role,'write'),'Vai trò trên dự án không được phép thực hiện chức năng này.',403);
+const permission=(ops,actor,key)=>ensure(roleAllows(key,actor.role,'write'),'Vai trò trên dự án không được phép thực hiện chức năng này.',403);
 function dataFor(db,id){db.delivery ||= {projects:{}};db.delivery.projects ||= {};db.delivery.projects[id] ||= emptyDeliveryProject();return db.delivery.projects[id];}
 function recordProject(db,id){const data=dataFor(db,id);data.revision=(data.revision||0)+1;const metrics=computeDelivery(db,id,data);data.history ||= [];data.history.push({at:new Date().toISOString(),completion:metrics.summary.completion,output:metrics.summary.output,earned:metrics.summary.totalEarned,efficiency:metrics.summary.efficiency,fee:data.settings.contractFee,taskMetrics:metrics.taskMetrics});}
 function flowStep(role,label){return {role,label,status:'pending'};}
@@ -90,12 +90,6 @@ export function mutateOperations(req,res){
    for(const row of Object.values(value.rows)){ensure(OP_ROLES.every(role=>row?.values?.[role]==null||PAGE_ACCESS_CODES.some(option=>option.code===row.values[role])),'Ô quyền chỉ nhận X, S hoặc —.');ensure(text(row?.note).length<=1000,'Ghi chú ma trận không được vượt quá 1.000 ký tự.');}
    const current=normalizePageAccess(ops.pageAccess);
    ops.pageAccess=normalizePageAccess(Object.fromEntries(Object.entries(current).map(([key,row])=>{const next=value.rows[key];return [key,next?{values:{...row.values,...next.values},note:next.note==null?row.note:text(next.note)}:row];})));
-  }else if(action==='matrix'){
-   requireRole(user,[]);ensure(Array.isArray(value.rows),'Ma trận không hợp lệ.');
-   // Rows saved by earlier versions (e.g. "L. Điều phối G1") stay editable alongside the defaults.
-   const baseRows=[...DEFAULT_MATRIX,...(ops.matrix||[]).filter(row=>!DEFAULT_MATRIX.some(item=>item.key===row.key))];
-   ensure(value.rows.length===baseRows.length && baseRows.every(row=>value.rows.some(next=>next.key===row.key)),'Phải giữ đủ các chức năng của ma trận.');
-   ops.matrix=baseRows.map(row=>{const next=value.rows.find(next=>next.key===row.key),note=text(next.note);ensure(note.length<=1000,'Ghi chú ma trận không được vượt quá 1.000 ký tự.');return {...row,note,values:Object.fromEntries(OP_ROLES.map(role=>{const cell=text(next.values?.[role]);ensure(cell.length>0&&cell.length<=80,'Ô quyền không hợp lệ.');return [role,cell];}))};});
   }else if(action==='params'){
    requireRole(user,['chiefAccountant']);before=structuredClone(ops.params);
    if(companyAdmin(user.role))for(const key of Object.keys(DEFAULT_PARAMS).filter(key=>key!=='rateCard'))if(value[key]!=null)ops.params[key]=number(value[key],1e12);
@@ -132,7 +126,7 @@ export function mutateOperations(req,res){
     data.revision=(data.revision||0)+1;
    }
    if(action==='submitWeek'){
-    for(const project of db.projects){const data=db.delivery?.projects?.[project.id];if(!data)continue;const a=projectActor(db,user,project.id);if(!a||!matrixAllows(ops.matrix,'tsSubmit',a.role,'write'))continue;data.timesheets.filter(row=>row.source==='weekly'&&row.employeeId===user.employeeId&&row.date>=week&&row.date<=end&&row.hours>0&&['draft','returned'].includes(row.status)).forEach(row=>Object.assign(row,{status:'submitted',submittedAt:at}));}
+    for(const project of db.projects){const data=db.delivery?.projects?.[project.id];if(!data)continue;const a=projectActor(db,user,project.id);if(!a||!roleAllows('tsSubmit',a.role,'write'))continue;data.timesheets.filter(row=>row.source==='weekly'&&row.employeeId===user.employeeId&&row.date>=week&&row.date<=end&&row.hours>0&&['draft','returned'].includes(row.status)).forEach(row=>Object.assign(row,{status:'submitted',submittedAt:at}));}
    }
   }else if(action==='reviewHours'){
    const all=allSheets(db),entry=all.find(row=>row.id===id&&row.projectId===projectId);ensure(entry,'Dòng giờ không tồn tại.');

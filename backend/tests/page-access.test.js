@@ -65,8 +65,8 @@ test('page access matrix is saved by director/admin only and keeps unknown cells
     assert.equal(state.pageAccess['gantt.legal'].values.employee, '—');
     assert.equal(state.pageAccess['gantt.legal'].values.leader, 'S', 'ô không gửi lên giữ nguyên');
     assert.equal(state.pageAccess['gantt.legal'].note, 'Nhân viên không xem hồ sơ');
-    // Ma trận quyền thao tác cũ vẫn còn nguyên và vẫn có hiệu lực.
-    assert.ok(state.matrix.some(row => row.key === 'editStatus'));
+    // Bảng phân quyền cũ đã xóa hẳn: không còn trong dữ liệu trả về.
+    assert.equal(state.matrix, undefined);
   } finally {
     server?.close();
   }
@@ -134,4 +134,12 @@ test('server applies the page access matrix to every request and picks up change
   } finally {
     server?.close();
   }
+});
+
+test('workforce plan (Quản Lý Nhân Sự → 6 tháng tới) is visible exactly to the roles the matrix allows', async () => {
+  const { requiredPageAccess } = await import('../src/utils/pageAccessGuard.js');
+  assert.deepEqual(requiredPageAccess('GET', '/workforce-plan'), { keys: ['work-hub.workload.forecast'], mode: 'read' });
+  const access = normalizePageAccess({ 'work-hub.workload.forecast': { values: { chiefAccountant: 'X' } } });
+  assert.equal(pageAccessAllows(access, 'work-hub.workload.forecast', 'chiefAccountant'), true, 'tích X là xem được, không còn bảng cũ chặn');
+  assert.equal(pageAccessAllows(access, 'work-hub.workload.forecast', 'employee'), false);
 });

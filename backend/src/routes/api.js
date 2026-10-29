@@ -66,7 +66,7 @@ router.patch('/delivery/:projectId', requireDeliveryUser, updateDeliveryProject)
 router.post('/delivery/:projectId/evidence', requireDeliveryUser, uploadDeliveryEvidence);
 router.get('/delivery/:projectId/evidence/:fileId', requireDeliveryUser, downloadDeliveryEvidence);
 router.use(requireDeliveryUser);
-router.get('/workforce-plan', guard.guardViewWorkforce, getWorkforcePlan);
+router.get('/workforce-plan', getWorkforcePlan);
 router.patch('/workforce-plan', guard.guardEditWorkforce, updateWorkforcePlan);
 
 // === NHẬT KÝ HOẠT ĐỘNG ===
@@ -76,7 +76,7 @@ router.delete('/activity', clearActivityLogEntries);
 
 // === PHÂN HỆ 1: NHÂN SỰ & CÔNG TRƯỜNG ===
 router.get('/employees', getEmployees);
-// Mỗi thao tác ghi đi qua guard.* (utils/routeGuards.js) để kiểm theo ma trận phân quyền.
+// Mỗi thao tác ghi đi qua guard.* (utils/routeGuards.js) để kiểm theo quy tắc nghiệp vụ của vai trò.
 router.post('/employees', guard.guardManageMembers, createEmployee);
 router.patch('/employees/:id', guard.guardEditEmployee, updateEmployee);
 router.patch('/employees/:id/toggle-onsite', guard.guardAttendance, toggleOnSite);

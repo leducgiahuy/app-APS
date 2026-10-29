@@ -20,7 +20,6 @@ export const deliveryToken = () => authenticate();
 /** Tài khoản Tiến độ của phiên hiện tại (gồm vai trò); máy chủ vẫn kiểm tra quyền ở mỗi thao tác. */
 export const deliveryViewer = async () => { await authenticate(); return session?.user || null; };
 /** Ma trận phân quyền đang áp dụng (null = dùng ma trận mặc định). */
-export const deliveryMatrix = () => session?.matrix || null;
 /** Quên phiên hiện tại để lần gọi sau đăng nhập lại (sau khi đổi mật khẩu/vai trò). */
 export const resetDeliverySession = () => { session = null; };
 async function request(endpoint, method = 'GET', body, retried = false) {

@@ -16,7 +16,7 @@ db.ganttItems.splice(1,0,{id:'sg',projectId:'proj-1',isGroup:true,parentGroupId:
 db.ganttItems.filter(item=>!item.isGroup).forEach(item=>{item.parentGroupId='sg';});
 const users=[{email:'demo@aps.vn',name:'Quản trị',role:'admin',employeeId:''},{email:'duy@aps.vn',name:'Duy',role:'employee',employeeId:'e'}];
 const saved={revision:0,settings:{contractFee:3200000000,hourlyRate:350000},records:{t0:{kind:'design',level:60,dueAt:'2026-10-13T17:00:00+07:00',recipient:'Ban quản lý dự án',department:'Kiến trúc'}},timesheets:[],evidence:[],documents:[],changes:[],closes:[],receipts:[],expenses:[],milestones:[],comments:[],audit:[],history:[]};
-const data=()=>({...saved,...computeDelivery(db,'proj-1',saved),viewer:users[0],permissions:{manage:true,financial:true,users:true}});
+const data=()=>({...saved,...computeDelivery(db,'proj-1',saved),viewer:users[0],permissions:{manage:true,financial:true,users:true,schedule:true,assign:true,editProject:true,deleteProject:true,createProject:true}});
 let failSave=false;let failDelete=false;let confirmDelete=true;
 let holdSave=false;let finishSave;
 let fiscalPlan={revision:0,projects:{},status:'draft'};

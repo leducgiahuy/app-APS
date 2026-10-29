@@ -1,9 +1,10 @@
 import { readDb } from '../models/db.js';
 import { projectActor } from './operationsStore.js';
 import { permissionsFor } from '../../../frontend/src/utils/rolePermissions.js';
+import { normalizePageAccess } from '../../../frontend/src/utils/pageAccess.js';
 
 /**
- * Chặn API cũ (nhân sự, task, Gantt, dự án, tăng ca) theo ma trận phân quyền.
+ * Chặn API cũ (nhân sự, task, Gantt, dự án, tăng ca) theo quy tắc nghiệp vụ cố định của vai trò (utils/rolePermissions.js).
  * Vai trò được tính trên dự án của dữ liệu đang thao tác (Vai trò theo dự án), nếu không có thì theo tài khoản.
  */
 
@@ -17,7 +18,7 @@ export function accessFor(req, projectId, db = readDb()) {
   if (!companyUser) return null;
   const actor = projectId ? projectActor(db, companyUser, projectId) : req.deliveryUser;
   if (!actor) return null;
-  return { actor, perms: permissionsFor(actor.role, db.operations?.matrix) };
+  return { actor, perms: permissionsFor(actor.role, normalizePageAccess(db.operations?.pageAccess)) };
 }
 
 /** Middleware cho thao tác không gắn dự án cụ thể. */

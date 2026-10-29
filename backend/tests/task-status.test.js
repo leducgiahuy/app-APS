@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { resetNeverStartedTasks } from '../src/utils/taskStatus.js';
+import { clearStaleTaskSelections, resetNeverStartedTasks } from '../src/utils/taskStatus.js';
 
 test('legacy "in progress" tasks without any work evidence go back to not started', () => {
   const db = {
@@ -43,4 +43,27 @@ test('the rule applies automatically to any data written or restored later', asy
   db.tasks.push({ id: 'imported', status: 'in_progress' });
   writeDb(db);
   assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).tasks[1].status, 'not_started', 'new writes are normalized');
+});
+
+test('a pre-selected task that was completed, cancelled or deleted is cleared so check-in is never blocked by it', () => {
+  const db = {
+    tasks: [{ id: 'done', status: 'completed' }, { id: 'open', status: 'not_started' }, { id: 'gone-cancel', status: 'cancelled' }],
+    employees: [
+      { id: 'thinh', isOnSite: false, activeTaskId: 'done', activeTaskTitle: 'Thiết kế ý tưởng', activeTaskShiftType: 'overtime' },
+      { id: 'a', isOnSite: false, activeTaskId: 'open', activeTaskTitle: 'Việc sắp làm' },
+      { id: 'b', isOnSite: false, activeTaskId: 'deleted-task' },
+      { id: 'c', isOnSite: false, activeTaskId: 'gone-cancel' },
+      { id: 'd', isOnSite: true, activeTaskId: 'done' },
+      { id: 'e', isOnSite: false, activeTaskId: 'ot:slip' },
+    ],
+  };
+  assert.equal(clearStaleTaskSelections(db), true);
+  const pick = id => db.employees.find(employee => employee.id === id);
+  assert.deepEqual([pick('thinh').activeTaskId, pick('thinh').activeTaskTitle, pick('thinh').activeTaskShiftType], [null, null, null]);
+  assert.equal(pick('a').activeTaskId, 'open', 'task còn làm được thì giữ lựa chọn');
+  assert.equal(pick('b').activeTaskId, null, 'task đã bị xóa');
+  assert.equal(pick('c').activeTaskId, null, 'task đã hủy');
+  assert.equal(pick('d').activeTaskId, 'done', 'ca đang mở không đụng tới');
+  assert.equal(pick('e').activeTaskId, 'ot:slip', 'tăng ca không gắn task giữ nguyên');
+  assert.equal(clearStaleTaskSelections(db), false, 'chạy lại không đổi gì');
 });

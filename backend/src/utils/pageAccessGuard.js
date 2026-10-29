@@ -26,7 +26,7 @@ const OPERATIONS_ACTIONS = {
   attendanceImport: ['company.settings.imports'], companyImport: ['company.settings.imports'], accountingImport: ['company.settings.imports'],
   policyRead: ['company.policies.reads'],
   params: ['company.settings.params'],
-  matrix: ['company.settings.matrix'], pageAccess: ['company.settings.matrix'],
+  pageAccess: ['company.settings.matrix'],
   projectCreate: ['gantt.new-project'], projectDecision: ['gantt.new-project'], template: ['gantt.new-project'],
 };
 
@@ -47,7 +47,8 @@ export function requiredPageAccess(method, path, body = {}) {
   if (/^\/delivery\/[^/]+\/evidence\/[^/]+$/.test(path)) return read(GANTT_SECTIONS);
   if (/^\/delivery\/[^/]+\/evidence$/.test(path)) return write(['gantt.progress', 'gantt.legal']);
   if (/^\/delivery\/[^/]+$/.test(path)) return reading ? read([...GANTT_SECTIONS, 'director-overview.kpis']) : write(DELIVERY_ACTIONS[body?.action] || GANTT_SECTIONS);
-  if (path === '/workforce-plan') return reading ? read(['work-hub.workload']) : write(['work-hub.workload']);
+  // Kế hoạch nhân lực = mục Quản Lý Nhân Sự → 6 tháng tới; sửa còn theo quy tắc QL lập / Giám đốc duyệt.
+  if (path === '/workforce-plan') return reading ? read(['work-hub.workload.forecast']) : write(['work-hub.workload.forecast']);
   if (reading) return null;
   if (/^\/employees\/[^/]+\/(toggle-onsite|toggle-break|active-task)$/.test(path)) return write(['work-hub.hr', 'work-hub.my-work']);
   if (/^\/employees(\/[^/]+)?$/.test(path)) return write(['work-hub.hr']);

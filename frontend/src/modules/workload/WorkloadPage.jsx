@@ -153,7 +153,7 @@ export default function WorkloadPage() {
   const periods = (seesTeam
     ? [['day', 'Ngày'], ['month', 'Tháng'], ['year', 'Năm'], ['forecast', '6 tháng tới']]
     : [['day', 'Ngày của tôi'], ['month', 'Tháng của tôi'], ['year', 'Năm của tôi'], ['forecast', '6 tháng tới']]
-  ).filter(([value]) => (value !== 'forecast' || permissions.viewWorkforce) && canSee(`work-hub.workload.${value}`));
+  ).filter(([value]) => canSee(`work-hub.workload.${value}`));
   const period = periods.some(([value]) => value === periodChoice) ? periodChoice : periods[0]?.[0] || 'day';
   // Ngày đang xem lấy từ bộ chọn ngày trên header.
   const selectedDay = dayKey(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());

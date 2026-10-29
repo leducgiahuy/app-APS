@@ -32,7 +32,7 @@ export default function Sidebar() {
     ) container = container.parentElement;
     container.style.display = 'none';
   });
-  const { activeTab, setActiveTab, permissions } = useApp();
+  const { activeTab, setActiveTab } = useApp();
   const { sidebarCollapsed, setSidebarCollapsed, mobileMenuOpen, setMobileMenuOpen } = useLayout();
   const { pageVisible } = usePageAccess();
 
@@ -46,13 +46,13 @@ export default function Sidebar() {
       compactLabel: 'Công việc',
       icon: CheckSquare
     },
-    // Báo cáo toàn công ty: theo dòng "Báo cáo lãi lỗ toàn công ty" của ma trận (Giám đốc).
-    ...(permissions.viewExecutive ? [{
+    // Ẩn / hiện theo ma trận Trang & mục (mục Tổng quan · 10 số chính).
+    {
       id: 'director-overview',
       label: 'Tổng quan',
       compactLabel: 'Tổng quan',
       icon: BarChart3
-    }] : []),
+    },
     {
       id: 'gantt',
       label: 'Dự án',

@@ -29,3 +29,22 @@ export function resetNeverStartedTasks(db) {
   });
   return changed;
 }
+
+// Task "chọn sẵn" của nhân sự đang không ở văn phòng mà đã hoàn thành / hủy / bị xóa thì tự gỡ,
+// để lần "Vào văn phòng" kế tiếp không bị chặn bởi một task không còn làm được. Ca đang mở không đụng tới.
+export function clearStaleTaskSelections(db) {
+  if (!db) return false;
+  const tasks = new Map((db.tasks || []).map(task => [task.id, task]));
+  let changed = false;
+  for (const employee of db.employees || []) {
+    const id = employee.activeTaskId;
+    if (!id || employee.isOnSite || String(id).startsWith('ot:')) continue;
+    const task = tasks.get(id);
+    if (task && !['completed', 'cancelled'].includes(task.status)) continue;
+    employee.activeTaskId = null;
+    employee.activeTaskTitle = null;
+    employee.activeTaskShiftType = null;
+    changed = true;
+  }
+  return changed;
+}

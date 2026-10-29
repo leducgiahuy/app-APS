@@ -1,5 +1,5 @@
 import { DEFAULT_PROCEDURES } from '../../../frontend/src/utils/deliveryResources.js';
-import { matrixAllows } from '../../../frontend/src/utils/operationsDefaults.js';
+import { roleAllows } from '../../../frontend/src/utils/operationsDefaults.js';
 import { operations } from '../utils/operationsStore.js';
 import { allSheets, canReviewSheet, sheetFlags } from '../utils/operationsReports.js';
 import { assignmentWorkingDates } from '../../../frontend/src/utils/assignmentCalendar.js';
@@ -12,6 +12,7 @@ import { deliveryStore, canEditDeliveryTask, publicDelivery } from '../utils/del
 import { computeDelivery, projectDeliveryItems, defaultDeliveryRecord, DELIVERY_LEVELS, managingRole, moneyAccess, reviewingRole, taskStatusWindow, taskStatusWindowMessage } from '../../../frontend/src/utils/deliveryMetrics.js';
 import { isTaskOverdue } from '../../../frontend/src/utils/date.js';
 import { reopenTaskFromDelivery, syncTaskCompletionFromDelivery } from './taskController.js';
+import { normalizePageAccess } from '../../../frontend/src/utils/pageAccess.js';
 import { addDays, dateDifference } from '../../../frontend/src/utils/workforceForecast.js';
 
 export const emptyDeliveryProject = () => ({ revision: 0, settings: { contractFee: null, hourlyRate: null }, records: {}, timesheets: [], documents: [], customerRequests: [], meetingMinutes: [], changes: [], closes: [], receipts: [], expenses: [], milestones: [], evidence: [], comments: [], audit: [], history: [] });
@@ -35,7 +36,7 @@ function context(req) {
   return { db, data, user: req.deliveryUser, projectId: req.params.projectId };
 }
 function response(ctx) {
-  return { ...publicDelivery(ctx.data, computeDelivery(ctx.db, ctx.projectId, ctx.data), ctx.user,ctx.db.operations?.matrix), procedures:(ctx.db.operations?.procedures||DEFAULT_PROCEDURES).map(row=>moneyAccess(ctx.user.role)?row:Object.fromEntries(Object.entries(row).filter(([key])=>key!=='fee'))), revision: ctx.data.revision, history: moneyAccess(ctx.user.role)&&matrixAllows(ctx.db.operations?.matrix,'hdValue',ctx.user.role) ? ctx.data.history : [] };
+  return { ...publicDelivery(ctx.data, computeDelivery(ctx.db, ctx.projectId, ctx.data), ctx.user, normalizePageAccess(ctx.db.operations?.pageAccess)), procedures:(ctx.db.operations?.procedures||DEFAULT_PROCEDURES).map(row=>moneyAccess(ctx.user.role)?row:Object.fromEntries(Object.entries(row).filter(([key])=>key!=='fee'))), revision: ctx.data.revision, history: moneyAccess(ctx.user.role)&&roleAllows('hdValue',ctx.user.role) ? ctx.data.history : [] };
 }
 export function getDeliveryProject(req, res) {
   try {
@@ -61,8 +62,8 @@ export function applyDeliveryMutation(ctx, body) {
   const financial = moneyAccess(user.role);
   const before = computeDelivery(db, projectId, data);
   const current = item ? before.records[taskId] : null;
-  const matrixKey={task:'editStatus',confirm:'confirmStatus',reopenTask:'confirmStatus',timesheet:'tsSubmit',lockWeights:'scope',milestone:'milestones',reopenMonth:'payment'}[action];
-  if(matrixKey)assert(matrixAllows(operations(db).matrix,matrixKey,user.role,'write') || user.role==='admin','Ma trận phân quyền không cho phép thao tác này.');
+  const ruleKey={task:'editStatus',confirm:'confirmStatus',reopenTask:'confirmStatus',timesheet:'tsSubmit',lockWeights:'scope',milestone:'milestones',reopenMonth:'payment'}[action];
+  if(ruleKey)assert(roleAllows(ruleKey,user.role,'write') || user.role==='admin','Vai trò của bạn không được thực hiện thao tác này.');
   const auditBefore=structuredClone(data.records);
   if (['task', 'confirm', 'reopenTask', 'comment'].includes(action)) assert(item, 'Task không tồn tại hoặc không phải task lá của dự án.');
   if (action === 'task') {

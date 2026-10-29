@@ -1,10 +1,10 @@
 import React, { createContext, useCallback, useContext, useMemo, useState, useEffect } from 'react';
 import { api } from '../api';
 import { getCurrentUser, recordActivity } from '../modules/auth/authSession';
-import { deliveryMatrix, deliveryViewer } from '../modules/gantt/deliveryApi';
+import { deliveryViewer } from '../modules/gantt/deliveryApi';
 import { permissionsFor } from '../utils/rolePermissions';
 import { accountForEmployee } from '../modules/auth/accountEmployeeSync';
-import { PageAccessProvider } from './PageAccessContext';
+import { PageAccessProvider, usePageAccess } from './PageAccessContext';
 import { reviewingRole } from '../utils/deliveryMetrics';
 
 const AppContext = createContext();
@@ -92,12 +92,14 @@ function AppStateProvider({ children }) {
   const [projects, setProjects] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
-  // Tài khoản phân quyền ở backend (vai trò + nhân sự liên kết) và ma trận đang áp dụng.
-  // Chưa tải xong thì coi như quyền thấp nhất; backend vẫn là nơi chặn cuối cùng.
+  // Tài khoản phân quyền ở backend (vai trò + nhân sự liên kết). Vai trò lấy theo nguồn quyền tự cập nhật
+  // (PageAccessContext) nên đổi vai trò là các nút đổi theo ngay. Chưa tải xong thì coi như quyền thấp nhất;
+  // backend vẫn là nơi chặn cuối cùng.
   const [viewer, setViewer] = useState(() => getCurrentUser()?.role === 'admin' ? { role: 'admin' } : null);
-  const [matrix, setMatrix] = useState(null);
-  const viewerRole = viewer?.role || '';
-  const permissions = useMemo(() => permissionsFor(viewerRole, matrix), [viewerRole, matrix]);
+  const liveAccess = usePageAccess();
+  const viewerRole = (liveAccess.ready && liveAccess.role) || viewer?.role || '';
+  // Sửa lịch / phân công / xem mọi task theo ma trận Trang & mục (đổi là áp dụng ngay).
+  const permissions = useMemo(() => permissionsFor(viewerRole, liveAccess.access || null), [viewerRole, liveAccess.access]);
 
   // Thông báo Toast
   const [toast, setToast] = useState(null);
@@ -215,7 +217,7 @@ function AppStateProvider({ children }) {
     // eslint-disable-next-line react/set-state-in-effect
     refreshAllData();
     deliveryViewer()
-      .then(user => { setViewer(user); setMatrix(deliveryMatrix()); })
+      .then(user => setViewer(user))
       .catch(() => setViewer(null));
   }, []);
 

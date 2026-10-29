@@ -2,7 +2,7 @@ import { readDb } from '../models/db.js';
 import { accessFor, assignedToActor, deny, isOwnEmployee } from './permissionGuard.js';
 
 /**
- * Middleware chặn từng route cũ theo ma trận phân quyền (xem utils/rolePermissions.js).
+ * Middleware chặn từng route cũ theo quy tắc nghiệp vụ cố định của vai trò (xem utils/rolePermissions.js).
  * Mọi lời từ chối trả 403 kèm lý do để giao diện hiện toast.
  */
 
@@ -112,7 +112,7 @@ export function guardCreateOvertime(req, res, next) {
 export function guardReviewOvertime(req, res, next) {
   const overtime = (readDb().overtimes || []).find(row => row.id === req.params.id);
   if (!overtime) return next();
-  if (!accessFor(req)?.perms.approveOvertime) return deny(res, 'Chỉ QL cấp trung hoặc Giám đốc được duyệt làm thêm giờ.');
+  if (!accessFor(req)?.perms.approveOvertime) return deny(res, 'Chỉ Leader, QL cấp trung hoặc Giám đốc được duyệt làm thêm giờ.');
   if (isOwnEmployee(req, overtime.employeeId)) return deny(res, 'Không tự duyệt phiếu làm thêm giờ của mình.');
   return next();
 }
@@ -137,10 +137,7 @@ export function guardAttendance(req, res, next) {
   return deny(res, 'Bạn chỉ được vào/ra ca và chọn task cho chính mình.');
 }
 
-// === KẾ HOẠCH NHÂN LỰC ===
-export function guardViewWorkforce(req, res, next) {
-  return accessFor(req)?.perms.viewWorkforce ? next() : deny(res, 'Vai trò của bạn không xem kế hoạch nhân lực.');
-}
+// === KẾ HOẠCH NHÂN LỰC === (xem: theo ma trận Trang & mục, mục Quản Lý Nhân Sự → 6 tháng tới)
 export function guardEditWorkforce(req, res, next) {
   return accessFor(req)?.perms.editWorkforce ? next() : deny(res, 'Chỉ QL cấp trung lập và Giám đốc duyệt kế hoạch nhân lực.');
 }

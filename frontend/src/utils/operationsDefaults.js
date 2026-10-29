@@ -2,7 +2,9 @@ export const OP_ROLES = ['employee', 'leader', 'manager', 'accountant', 'chiefAc
 export const OP_ROLE_NAMES = { employee:'Nhân viên', leader:'Leader', manager:'QL cấp trung', accountant:'Kế toán viên / HCNS', chiefAccountant:'Kế toán trưởng', director:'Giám đốc', admin:'Quản trị' };
 export const BUDGET_GROUPS = ['Nhân công nội bộ','Thuê ngoài (khảo sát, phối cảnh, bộ môn)','In ấn, scan, đóng quyển','Đi lại, công tác','Chuyển phát hồ sơ','Tiếp khách, hội họp','Phí, lệ phí (thẩm tra, thẩm định, xin phép)','Phần mềm, thiết bị, bảo hiểm','Chi phí chung phân bổ & dự phòng'];
 const row = (section,key,label,values,note='') => ({section,key,label,values:Object.fromEntries(OP_ROLES.map((role,index)=>[role,values[index] || '—'])),note});
-export const DEFAULT_MATRIX = [
+// Quy tắc nghiệp vụ cố định theo vai trò (ai lập, ai duyệt, ai xác nhận, ai xem tiền…). Không còn là bảng sửa được:
+// việc ẩn / hiện trang và mục chỉ do ma trận "Trang & mục" (utils/pageAccess.js) quyết định.
+export const ROLE_RULES = [
  row('A. Thông tin dự án','projectInfo','Thông tin (tên, địa điểm, CĐT, quy mô)',['X','X','X/S','X','X','X/S']),
  row('A. Thông tin dự án','scope','Phạm vi công việc, sản phẩm phải giao',['X','X','L/S','—','X','D']),
  row('A. Thông tin dự án','hdValue','Giá trị hợp đồng, phụ lục, điều khoản thanh toán',['—','—','X','X','X','L/D']),
@@ -14,7 +16,8 @@ export const DEFAULT_MATRIX = [
  row('C. Giờ công','tsApproveStaff','Duyệt timesheet nhân viên',['—','D','Kiểm tra ngẫu nhiên','—','—','X'],'Leader chỉ duyệt / trả lại, không sửa'),
  row('C. Giờ công','tsApproveLeader','Duyệt timesheet Leader',['—','—','D','—','—','X']),
  row('C. Giờ công','tsApproveManager','Duyệt timesheet QL cấp trung',['—','—','—','—','—','D']),
- row('C. Giờ công','otRegister','Đăng ký làm thêm giờ',['L','Đề xuất','D','X','X','D (vượt hạn mức)']),
+ // Leader / QL cấp trung / Giám đốc duyệt làm thêm giờ (không tự duyệt phiếu của mình) — đã thống nhất với người dùng.
+ row('C. Giờ công','otRegister','Đăng ký làm thêm giờ',['L','D','D','X','X','D (vượt hạn mức)']),
  row('C. Giờ công','attendance','Đối chiếu timesheet với chấm công',['—','—','X','L/S','X','X']),
  row('C. Giờ công','anomalies','Báo cáo bất thường giờ công',['—','—','X','X','X','X']),
  row('C. Giờ công','unlock','Mở khóa, sửa timesheet đã duyệt',['—','Đề xuất','D','—','—','D'],'Bắt buộc lý do, lưu nhật ký'),
@@ -54,8 +57,8 @@ export const DEFAULT_MATRIX = [
 export const DEFAULT_PARAMS = { limitA:2000000, limitB:10000000, budgetWarning:80, advanceDays:7, otLimit:40, identicalDays:5, overtimeSpike:150, exactEstimate:90, hoursUsed:80, completionLow:50, randomChecks:2, sessionHours:8, leadDays:45, rateCard:[] };
 export const companyAdmin = role => ['admin','director'].includes(role);
 export const moneyRole = role => ['manager','accountant','chiefAccountant','director','admin'].includes(role);
-export function matrixAllows(matrix,key,role,mode='read') {
+export function roleAllows(key,role,mode='read') {
  if(role==='admin')return true;
- const cell=(matrix || DEFAULT_MATRIX).find(row=>row.key===key)?.values?.[role] || '—';
+ const cell=ROLE_RULES.find(row=>row.key===key)?.values?.[role] || '—';
  return mode==='read' ? cell!=='—' : /L|S|D|XN|Đề xuất/.test(cell);
 }

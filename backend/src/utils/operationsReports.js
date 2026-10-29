@@ -3,7 +3,7 @@ import { hoursAnomalies, monthlyReviewSample } from './operationsAnomalies.js';
 import { cashflowReport } from './operationsCashflow.js';
 import { computeDelivery, projectDeliveryItems } from '../../../frontend/src/utils/deliveryMetrics.js';
 import { ownsDeliveryTask } from '../../../frontend/src/utils/deliveryView.js';
-import { BUDGET_GROUPS, companyAdmin, moneyRole, matrixAllows } from '../../../frontend/src/utils/operationsDefaults.js';
+import { BUDGET_GROUPS, companyAdmin, moneyRole, roleAllows } from '../../../frontend/src/utils/operationsDefaults.js';
 import { operations, projectActor } from './operationsStore.js';
 import { appAttendanceHours } from './appAttendance.js';
 import { normalizePageAccess } from '../../../frontend/src/utils/pageAccess.js';
@@ -54,7 +54,7 @@ export function financeReport(db,projectId,actor) {
  const ops=operations(db),data=db.delivery?.projects?.[projectId] || {},metrics=computeDelivery(db,projectId,data);
  const budget=ops.budgets.filter(row=>row.projectId===projectId && !row.deletedAt && row.status==='approved').at(-1);
  const requests=ops.expenseRequests.filter(row=>row.projectId===projectId && !row.deletedAt && row.status!=='rejected');
- const full=moneyRole(actor.role) && matrixAllows(ops.matrix,'hdValue',actor.role), leader=actor.role==='leader';
+ const full=moneyRole(actor.role) && roleAllows('hdValue',actor.role), leader=actor.role==='leader';
  const groups=BUDGET_GROUPS.map((name,index)=>{
   const group=index+1,line=budget?.lines.find(row=>row.group===group);
   const expenses=(data.expenses || []).filter(row=>row.status==='approved' && Number(row.group || 2)===group);
@@ -65,7 +65,7 @@ export function financeReport(db,projectId,actor) {
   const result={group,name,budget:planned,actual,committed,remaining:planned==null || actual==null ? null : planned-actual-committed,used,warning:used!=null && used>=ops.params.budgetWarning};
   if(leader && group===1)return {...result,budget:line?.hours ?? null,actual:metrics.summary.totalActual*8,committed:0,remaining:line?.hours==null?null:line.hours-metrics.summary.totalActual*8,used:line?.hours>0?metrics.summary.totalActual*8/line.hours*100:null,unit:'giờ'};
   return {...result,unit:'đ'};
- }).filter(row=>(full || leader && row.group<=6)&&matrixAllows(ops.matrix,row.group===1?'budgetLabor':row.group<=6?'budgetDirect':row.group<=8?'budgetFees':'budgetOverhead',actor.role));
+ }).filter(row=>(full || leader && row.group<=6)&&roleAllows(row.group===1?'budgetLabor':row.group<=6?'budgetDirect':row.group<=8?'budgetFees':'budgetOverhead',actor.role));
  const totalBudget=budget ? sumBy(budget.lines,'amount') : null;
  const laborBudget=budget?.lines.find(row=>row.group===1)?.amount;
  const forecastCost=totalBudget!=null && metrics.summary.efficiency>0 && laborBudget!=null ? totalBudget-laborBudget+laborBudget/metrics.summary.efficiency : null;
@@ -86,8 +86,8 @@ export function operationsReport(db,user,query={}) {
  const projects=(db.projects || []).filter(row=>projectActor(db,user,row.id)).map(row=>({id:row.id,name:row.name,code:row.code,manager:row.manager,status:row.status,role:projectActor(db,user,row.id).role}));
  const visibleEntries=all.filter(row=>{ const a=projectActor(db,user,row.projectId);if(!a)return false;if(companyAdmin(a.role)||['manager','accountant','chiefAccountant'].includes(a.role))return true;if(row.employeeId===a.employeeId)return true;return a.role==='leader' && canReviewSheet(db,a,row); });
  const finance=projectId && actor ? financeReport(db,projectId,actor):null;
- const financial=moneyRole(actor.role) && matrixAllows(ops.matrix,'hdValue',actor.role),companyFinance=['accountant','chiefAccountant','director','admin'].includes(user.role);
- const params={...ops.params};if(!financial||!matrixAllows(ops.matrix,'rateCard',actor.role))delete params.rateCard;
+ const financial=moneyRole(actor.role) && roleAllows('hdValue',actor.role),companyFinance=['accountant','chiefAccountant','director','admin'].includes(user.role);
+ const params={...ops.params};if(!financial||!roleAllows('rateCard',actor.role))delete params.rateCard;
  const tasks=projects.flatMap(project=>{const metrics=computeDelivery(db,project.id,db.delivery?.projects?.[project.id]||{});return projectDeliveryItems(db,project.id).map(item=>({id:item.id,projectId:project.id,projectName:project.name,code:item.code,title:item.title,startDate:item.startDate,endDate:item.endDate,assignees:metrics.taskMetrics[item.id]?.assignments || [],requiredPosition:item.requiredPosition,role:project.role}));}).filter(item=>item.role!=='employee' || ownsDeliveryTask(projectActor(db,user,item.projectId),item));
  const visibleRecord=row=>{const a=projectActor(db,user,row.projectId);return a&&(row.employeeId===a.employeeId || companyAdmin(a.role)||['manager','accountant','chiefAccountant'].includes(a.role)||a.role==='leader'&&canReviewSheet(db,a,row));};
  const reviewMonth=week.slice(0,7);
@@ -100,10 +100,10 @@ export function operationsReport(db,user,query={}) {
   otRequests:ops.otRequests.filter(row=>!row.deletedAt && visibleRecord(row)),
   unlocks:ops.unlocks.filter(row=>!row.deletedAt && visibleRecord(row)),checks:ops.checks.filter(row=>actor.role!=='employee'&&projects.some(p=>p.id===row.projectId)),
   randomSample:actor.role==='employee'?[]:monthlyReviewSample(visibleEntries,reviewMonth,ops.params.randomChecks),balanceMonths:actor.role==='employee'?[]:balanceMonths,
-  anomalies:matrixAllows(ops.matrix,'anomalies',actor.role)?hoursAnomalies(db,visibleEntries,reviewMonth):{},
-  matrix:ops.matrix,pageAccess:normalizePageAccess(ops.pageAccess),params,procedures:(ops.procedures||DEFAULT_PROCEDURES).map(row=>financial?row:Object.fromEntries(Object.entries(row).filter(([key])=>key!=='fee'))),accounts:['manager','director','admin'].includes(user.role)?(db.delivery?.users||[]).filter(u=>!u.disabled).map(({email,name,role,employeeId})=>({email,name,role,employeeId})):[],templates:projectTemplates(db).map(t=>({...(companyAdmin(user.role)?t:{}),id:t.id,name:t.name,count:t.items.length,scopeOptions:t.scopeOptions||[]})),projectApprovals:(ops.projectApprovals||[]).filter(row=>projects.some(p=>p.id===row.projectId)),members:ops.members.filter(row=>!row.deletedAt && projects.some(p=>p.id===row.projectId) && (!projectId || row.projectId===projectId)),finance,
-  ...(companyFinance&&matrixAllows(ops.matrix,'cashCompany',user.role)?{legacyExecutive:db.delivery?.executive||null,cashForecasts:ops.cashForecasts,cashflow:cashflowReport(db,query.month||vietnamDay().slice(0,7))}:{}),
-  ...(financial&&matrixAllows(ops.matrix,'receivables',actor.role)?{receivables:[...(db.delivery?.executive?.receivables||[]).filter(row=>projects.some(p=>p.id===row.projectId&&moneyRole(p.role))&&(!projectId||row.projectId===projectId)).map(row=>({...row,source:'legacy',projectName:db.projects.find(p=>p.id===row.projectId)?.name,received:Number(row.paidAmount||0),remaining:Math.max(0,Number(row.amount)-Number(row.paidAmount||0)),age:Math.floor((Date.parse(vietnamDay())-Date.parse(row.dueDate))/86400000)})),...ops.paymentRequests.filter(row=>row.status==='sent' && projects.some(p=>p.id===row.projectId && moneyRole(p.role)) && (actor.role!=='manager'||!projectId||row.projectId===projectId)).map(row=>{const receipts=db.delivery?.projects?.[row.projectId]?.receipts||[];const received=sumBy(receipts.filter(receipt=>receipt.paymentRequestId===row.id),'amount');return {...row,projectName:db.projects.find(p=>p.id===row.projectId)?.name,received,remaining:Math.max(0,row.amount-received),age:Math.floor((Date.parse(vietnamDay())-Date.parse(row.dueDate))/86400000)};})]}:{}),
+  anomalies:roleAllows('anomalies',actor.role)?hoursAnomalies(db,visibleEntries,reviewMonth):{},
+  pageAccess:normalizePageAccess(ops.pageAccess),params,procedures:(ops.procedures||DEFAULT_PROCEDURES).map(row=>financial?row:Object.fromEntries(Object.entries(row).filter(([key])=>key!=='fee'))),accounts:['manager','director','admin'].includes(user.role)?(db.delivery?.users||[]).filter(u=>!u.disabled).map(({email,name,role,employeeId})=>({email,name,role,employeeId})):[],templates:projectTemplates(db).map(t=>({...(companyAdmin(user.role)?t:{}),id:t.id,name:t.name,count:t.items.length,scopeOptions:t.scopeOptions||[]})),projectApprovals:(ops.projectApprovals||[]).filter(row=>projects.some(p=>p.id===row.projectId)),members:ops.members.filter(row=>!row.deletedAt && projects.some(p=>p.id===row.projectId) && (!projectId || row.projectId===projectId)),finance,
+  ...(companyFinance&&roleAllows('cashCompany',user.role)?{legacyExecutive:db.delivery?.executive||null,cashForecasts:ops.cashForecasts,cashflow:cashflowReport(db,query.month||vietnamDay().slice(0,7))}:{}),
+  ...(financial&&roleAllows('receivables',actor.role)?{receivables:[...(db.delivery?.executive?.receivables||[]).filter(row=>projects.some(p=>p.id===row.projectId&&moneyRole(p.role))&&(!projectId||row.projectId===projectId)).map(row=>({...row,source:'legacy',projectName:db.projects.find(p=>p.id===row.projectId)?.name,received:Number(row.paidAmount||0),remaining:Math.max(0,Number(row.amount)-Number(row.paidAmount||0)),age:Math.floor((Date.parse(vietnamDay())-Date.parse(row.dueDate))/86400000)})),...ops.paymentRequests.filter(row=>row.status==='sent' && projects.some(p=>p.id===row.projectId && moneyRole(p.role)) && (actor.role!=='manager'||!projectId||row.projectId===projectId)).map(row=>{const receipts=db.delivery?.projects?.[row.projectId]?.receipts||[];const received=sumBy(receipts.filter(receipt=>receipt.paymentRequestId===row.id),'amount');return {...row,projectName:db.projects.find(p=>p.id===row.projectId)?.name,received,remaining:Math.max(0,row.amount-received),age:Math.floor((Date.parse(vietnamDay())-Date.parse(row.dueDate))/86400000)};})]}:{}),
   integrationMappings:companyFinance?{projects:(db.projects||[]).map(({id,code,name})=>({id,code,name})),employees:(db.employees||[]).map(({id,code,name})=>({id,code,name})),payments:ops.paymentRequests.map(({id,code,projectId})=>({id,code,projectId})),expenses:ops.expenseRequests.map(({id,code,projectId})=>({id,code,projectId}))}:null,syncEvents:companyFinance?ops.syncEvents:[],notifications:ops.notifications.filter(row=>row.email===user.email || companyAdmin(user.role)),
   policyReads:ops.policyReads.filter(row=>row.email===user.email || companyAdmin(user.role)),companyImports:ops.companyImports,
   audit:companyAdmin(user.role)?ops.audit.slice(-150).reverse():[],

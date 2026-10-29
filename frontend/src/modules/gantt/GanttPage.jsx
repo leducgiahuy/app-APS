@@ -21,6 +21,7 @@ import AssignmentCalendarConfirmation from './AssignmentCalendarConfirmation';
 import AssignmentMachinePage from './AssignmentMachinePage';
 import { useApp } from '../../context/AppContext';
 import { usePageAccess } from '../../context/PageAccessContext';
+import ProjectPicker from './ProjectPicker';
 import ModalOverlay from '../../components/layout/ModalOverlay';
 import SearchableSelect from '../../components/SearchableSelect';
 import DateInput from '../../components/DateInput';
@@ -34,7 +35,6 @@ import {
   CalendarRange,
   Plus,
   Trash2,
-  Building,
   Layers,
   ChevronDown,
   Pencil,
@@ -252,13 +252,15 @@ export default function GanttPage() {
   const deliveryTab = deliveryTabs.some(([key]) => key === deliveryTabChoice) ? deliveryTabChoice : deliveryTabs[0]?.[0] || 'gantt';
   const progressSections = PROGRESS_SECTIONS.filter(([key]) => canSee(`gantt.progress.${key}`));
   const progressSection = progressSections.some(([key]) => key === progressSectionChoice) ? progressSectionChoice : progressSections[0]?.[0] || 'table';
+  // Ô chọn dự án nằm đầu thanh công cụ của Bảng tiến độ & công; các tab không có thanh công cụ thì đặt ở hàng tab.
+  const projectPickerInToolbar = deliveryTab === 'gantt' && progressSection === 'table';
   const roleView = deliveryView(deliveryData?.viewer.role);
   const viewerEmail = deliveryData?.viewer?.email || '';
   const viewerRole = deliveryData?.viewer?.role || '';
   const ownByDefault = roleView.ownByDefault;
   const hasDeliveryData = Boolean(deliveryData);
   const canViewDeliveryUsers = Boolean(deliveryData?.permissions.users);
-  // Theo ma trận phân quyền, tính trên vai trò của người xem ở dự án đang chọn:
+  // Theo quy tắc nghiệp vụ của vai trò người xem ở dự án đang chọn:
   // "Tiến độ tổng thể" → sửa cấu trúc/lịch; "Phân công task" → giao việc.
   const canManageStructure = Boolean(deliveryData?.permissions.schedule);
   const canManageAssignments = Boolean(deliveryData?.permissions.assign);
@@ -1473,6 +1475,31 @@ export default function GanttPage() {
   const showIT = false;
   const refreshDeliveryMetrics = delivery.refresh;
   useEffect(() => { refreshDeliveryMetrics(); }, [ganttItems, tasks, refreshDeliveryMetrics]);
+  const projectPicker = (
+    <fieldset disabled={previewing} className="delivery-project-context">
+      <ProjectPicker projects={projects} value={selectedProjectId} onChange={setSelectedProjectId} disabled={previewing} />
+      <button
+        type="button"
+        onClick={openProjectDateEditor}
+        hidden={!canManageStructure}
+        disabled={selectedProjectId === 'ALL'}
+        title="Chỉnh tên và thời gian dự án"
+        aria-label="Chỉnh dự án đang xem"
+      >
+        <Pencil />
+      </button>
+      <button
+        type="button"
+        onClick={handleDeleteSelectedProject}
+        hidden={!canManageStructure}
+        disabled={selectedProjectId === 'ALL'}
+        title={selectedProjectId === 'ALL' ? 'Chọn một dự án để xóa' : 'Xóa dự án và toàn bộ dữ liệu liên quan'}
+        aria-label="Xóa dự án đang xem"
+      >
+        <Trash2 />
+      </button>
+    </fieldset>
+  );
   return (
     <div className={`delivery-page ${detailItem ? "with-detail" : ""} ${tableMode === "full" ? "full-table" : ""}`} style={{ "--delivery-scrollbar-width": `${scrollbarWidth}px` }}>
       <div className="delivery-page-scroll" ref={pageScrollRef} data-modal-background-scroll>
@@ -1481,37 +1508,7 @@ export default function GanttPage() {
 
       <div className="delivery-navigation">
         <nav>{deliveryTabs.map(([key,label]) => <button key={key} className={deliveryTab === key ? 'active' : ''} onClick={() => setDeliveryTab(key)}>{label}</button>)}</nav>
-        {deliveryTab !== 'new-project' && <fieldset disabled={previewing} className="delivery-project-context">
-          <Building aria-hidden="true" />
-          <select
-            aria-label="Dự án đang xem"
-            value={selectedProjectId}
-            onChange={(event) => setSelectedProjectId(event.target.value)}
-          >
-            <option value="ALL">Tất cả dự án</option>
-            {projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}
-          </select>
-          <button
-            type="button"
-            onClick={openProjectDateEditor}
-            hidden={!canManageStructure}
-            disabled={selectedProjectId === 'ALL'}
-            title="Chỉnh tên và thời gian dự án"
-            aria-label="Chỉnh dự án đang xem"
-          >
-            <Pencil />
-          </button>
-          <button
-            type="button"
-            onClick={handleDeleteSelectedProject}
-            hidden={!canManageStructure}
-            disabled={selectedProjectId === 'ALL'}
-            title={selectedProjectId === 'ALL' ? 'Chọn một dự án để xóa' : 'Xóa dự án và toàn bộ dữ liệu liên quan'}
-            aria-label="Xóa dự án đang xem"
-          >
-            <Trash2 />
-          </button>
-        </fieldset>}
+        {deliveryTab !== 'new-project' && !projectPickerInToolbar && projectPicker}
       </div>
       {deliveryTab === 'gantt' && <div className="project-progress-switch" role="tablist" aria-label="Tiến độ và phân công">
         {progressSections.map(([key, label]) => <button type="button" role="tab" key={key} aria-selected={progressSection === key} className={progressSection === key ? 'active' : ''} onClick={() => setProgressSection(key)}>{label}</button>)}
@@ -1522,6 +1519,7 @@ export default function GanttPage() {
         <fieldset disabled={previewing} className="contents">
         {/* Công cụ tạo dữ liệu dự án */}
         <div className="flex flex-wrap items-center gap-3">
+          {projectPicker}
           {/* Nút Tạo Dự Án Mới */}
           <button
             onClick={() => setShowAddProjectModal(true)}
