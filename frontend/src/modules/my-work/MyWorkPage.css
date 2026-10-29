@@ -18,7 +18,7 @@
 .my-work-head { min-height: 58px; color: #514a47; font-size: 13px; font-weight: 700; text-transform: uppercase; }
 .my-work-head > span:last-child { justify-content: flex-end; }
 .my-work-row > span { min-width: 0; padding: 9px 10px; }.my-work-row > span:last-child { display: flex; justify-content: center; }
-.my-work-due { display: inline-flex; padding: 4px 10px; border-radius: 999px; color: #655d58; background: #f2efeb; font-size: 12px; font-weight: 700; }
+.my-work-due { display: inline-flex; padding: 4px 10px; border-radius: 999px; color: #655d58; background: #f2efeb; font-size: 12px; font-weight: 700; white-space: nowrap; }
 .my-work-due.urgent { color: #d0382f; background: #fde5e1; }
 .my-work-due.upcoming { color: #a56300; background: #fff1d6; }
 .my-work-title { display: flex; align-items: center; gap: 8px; overflow: hidden; color: #171717; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
@@ -26,6 +26,8 @@
 .my-work-title.is-read { color: #7f7772; font-weight: 400; }
 .my-work-project { overflow: hidden; color: #8a7e77; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .my-work-action { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-width: 72px; padding: 7px 10px; border: 0; border-radius: 9px; color: #fff; background: #941d40; font-size: 12px; font-weight: 700; cursor: pointer; }
+.my-work-not-started { display: inline-flex; align-items: center; justify-content: center; min-width: 72px; padding: 6px 10px; border: 1px dashed #d8cfc8; border-radius: 9px; color: #8a7e77; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.dark .my-work-not-started { border-color: #4a5563; color: #aab3bf; }
 .my-work-action:hover { background: #781631; }
 .my-work-empty { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 46px 20px; color: #99908a; text-align: center; }
 .my-work-empty strong { color: #625a56; }
@@ -51,6 +53,7 @@
   .my-work-head .my-work-header-actions { grid-column: 1 / -1; justify-content: flex-start; }
   .my-work-action { min-width: 58px; padding-inline: 8px; }
   .my-work-action svg { display: none; }
+  .my-work-due { white-space: normal; }
 }
 
 /* Dark theme: preserve the table hierarchy without light surfaces. */

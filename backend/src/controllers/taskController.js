@@ -515,14 +515,23 @@ export function syncTaskCompletionFromDelivery(db, ganttId, recognized, actor = 
   }
   if (Number(recognized) < 100 && target.status === 'completed' && target.completedBy === 'delivery') {
     // Chỉ mở lại task do trang Dự án tự hoàn thành; task hoàn thành theo cách cũ giữ nguyên.
-    reopenTaskRecord(target, actor, 'Mức Phê duyệt / bằng chứng 100% đã bị thay đổi hoặc thu hồi ở trang Dự án');
-    if (task && gantt) {
-      for (const field of ['completedAt', 'delayHours', 'earlyHours', 'completedBy']) delete gantt[field];
-      Object.assign(gantt, { status: 'in_progress', progress: 0, speed: 'on_time' });
-    }
-    return 'reopened';
+    return reopenTaskFromDelivery(db, ganttId, actor, 'Mức Phê duyệt / bằng chứng 100% đã bị thay đổi hoặc thu hồi ở trang Dự án');
   }
   return '';
+}
+
+/** Mở lại task dự án (task tiến độ lẫn dòng Gantt), giữ nguyên giờ công. Trả về 'reopened' hoặc ''. */
+export function reopenTaskFromDelivery(db, ganttId, actor, reason) {
+  const gantt = (db.ganttItems || []).find(item => item.id === ganttId);
+  const task = (db.tasks || []).find(item => item.ganttId === ganttId);
+  const target = task || gantt;
+  if (!target || (target.status !== 'completed' && gantt?.status !== 'completed')) return '';
+  reopenTaskRecord(target, actor, reason);
+  if (task && gantt) {
+    for (const field of ['completedAt', 'delayHours', 'earlyHours', 'completedBy']) delete gantt[field];
+    Object.assign(gantt, { status: 'in_progress', progress: 0, speed: 'on_time' });
+  }
+  return 'reopened';
 }
 
 // Xóa nhiệm vụ (đồng bộ xóa trong Gantt)

@@ -12,6 +12,20 @@ export const moneyAccess = role => ['manager', 'accountant', 'chiefAccountant', 
 export const managingRole = role => ['manager', 'director', 'admin'].includes(role);
 // Xác nhận hoàn thành, mở lại task và duyệt tăng ca là việc nghiệm thu của cấp quản lý, không phải người thực hiện.
 export const reviewingRole = role => ['leader', 'manager', 'director', 'admin'].includes(role);
+
+// Mức trạng thái của task chỉ được cập nhật từ ngày bắt đầu đến khi task hoàn thành; hoàn thành thì khóa
+// (muốn sửa phải mở lại task). Dùng chung cho giao diện và máy chủ. todayKey dạng YYYY-MM-DD theo giờ Việt Nam.
+export function taskStatusWindow(item, linkedTask, todayKey) {
+  const startDate = String(item?.startDate || linkedTask?.startDate || '').slice(0, 10);
+  if (item?.status === 'completed' || linkedTask?.status === 'completed') return { open: false, reason: 'completed', startDate };
+  if (startDate && todayKey && todayKey < startDate) return { open: false, reason: 'not_started', startDate };
+  return { open: true, reason: '', startDate };
+}
+export const taskStatusWindowMessage = window => window.reason === 'completed'
+  ? 'Task đã hoàn thành nên trạng thái đã khóa. Cần mở lại task để chỉnh.'
+  : window.reason === 'not_started'
+    ? `Chưa tới ngày bắt đầu task (${window.startDate.split('-').reverse().join('/')}) nên chưa cập nhật được trạng thái.`
+    : '';
 export function forecastWork(budgetedWork, actualWork, level = 0) {
   const budgeted = Math.max(0, Number(budgetedWork) || 0);
   const actual = Math.max(0, Number(actualWork) || 0);

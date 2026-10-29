@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
+import { randomUUID } from 'node:crypto';
 import * as backendShift from '../src/utils/shift.js';
 import * as frontendShift from '../../frontend/src/utils/shift.js';
 import * as assignmentCalendar from '../../frontend/src/utils/assignmentCalendar.js';
@@ -62,8 +63,12 @@ async function harness() {
   const calendar = new vm.SyntheticModule(Object.keys(assignmentCalendar), function () {
     for (const [key, value] of Object.entries(assignmentCalendar)) this.setExport(key, value);
   }, { context });
+  const cryptoModule = new vm.SyntheticModule(['randomUUID'], function () {
+    this.setExport('randomUUID', randomUUID);
+  }, { context });
+  const attendance = new vm.SourceTextModule(await readFile(new URL('../src/utils/appAttendance.js', import.meta.url), 'utf8'), { context });
   const controller = new vm.SourceTextModule(await readFile(new URL('../src/controllers/hrController.js', import.meta.url), 'utf8'), { context });
-  await controller.link(specifier => specifier.includes('models/db') ? dbModule : specifier.includes('employeeCodes') ? codes : specifier.includes('assignmentCalendar') ? calendar : rules);
+  await controller.link(specifier => specifier.includes('models/db') ? dbModule : specifier.includes('employeeCodes') ? codes : specifier.includes('assignmentCalendar') ? calendar : specifier.includes('appAttendance') ? attendance : specifier === 'node:crypto' ? cryptoModule : rules);
   await controller.evaluate();
   function call(name, body = {}) {
     let status = 200;
@@ -141,6 +146,8 @@ test('automatic OT checkout closes exactly the approved hours', async () => {
   assert.equal(response.meta.autoCheckedOutIds[0], 'e');
   assert.equal(db.tasks[0].actualWorkHours, 2);
   assert.equal(db.employees[0].lastShiftCheckOutAt, '2026-10-09T13:00:00.000Z');
+  // Ca tự kết thúc vẫn lưu giờ có mặt để đối chiếu phiếu giờ về sau.
+  assert.equal(JSON.stringify(db.appAttendance.map(row => [row.date, row.hours, row.checkOutAt, row.shiftType])), JSON.stringify([['2026-10-09', 2, '2026-10-09T13:00:00.000Z', 'overtime']]));
 });
 
 test('OT without linked task supports break, resume and checkout', async () => {

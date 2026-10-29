@@ -1,38 +1,43 @@
 import { Fragment,useState } from 'react';
 import { useOperations,OperationsFrame,Tabs,Card,Table,Decision,num,vnd,dateLabel,numberField } from './OperationsCommon';
+import { ChevronDown,ChevronRight } from 'lucide-react';
 import { OP_ROLES,OP_ROLE_NAMES,companyAdmin } from '../../utils/operationsDefaults';
 import TemplateEditor from './TemplateEditor';
+import { PAGE_ACCESS_CODES,PAGE_ACCESS_TREE,normalizePageAccess } from '../../utils/pageAccess';
+import { notifyPageAccessChanged } from '../../context/PageAccessContext';
+// Tiêu đề cột của ma trận quyền: tên ngắn, viết hoa (tên đầy đủ vẫn dùng ở các ô chọn vai trò).
+const MATRIX_ROLE_HEADERS=Object.fromEntries(OP_ROLES.map(key=>[key,(key==='accountant'?'Kế toán viên':OP_ROLE_NAMES[key]).toLocaleUpperCase('vi')]));
 
-const PERMISSION_OPTIONS=[
- {code:'X',label:'Xem'},
- {code:'L',label:'Lập / đề xuất'},
- {code:'S',label:'Sửa'},
- {code:'XN',label:'Xác nhận'},
- {code:'D',label:'Duyệt'}
-];
-
-function splitPermissionValue(value){
- const raw=String(value??'').trim();
- const match=raw.match(/^((?:XN|X|L|S|D)(?:\/(?:XN|X|L|S|D))*)(.*)$/);
- if(!match||(match[2]&&!/^[\s(]/.test(match[2]))) return {tokens:[],suffix:''};
- return {tokens:match[1].split('/'),suffix:match[2]};
-}
-
-function togglePermission(value,code){
- const {tokens,suffix}=splitPermissionValue(value);
- const next=tokens.includes(code)?tokens.filter(token=>token!==code):[...tokens,code];
- const ordered=PERMISSION_OPTIONS.map(option=>option.code).filter(token=>next.includes(token));
- return ordered.length?`${ordered.join('/')}${suffix}`:'—';
-}
-
+// Ma trận "Trang & mục": trang là thanh ngang, mục nằm trong trang, mục con nằm trong mục và đóng / mở được.
 export function Matrix({api}){
- const [editing,setEditing]=useState(false),[draft,setDraft]=useState(api.data.matrix),[activeCell,setActiveCell]=useState('');
+ const saved=normalizePageAccess(api.data.pageAccess);
+ const [editing,setEditing]=useState(false),[draft,setDraft]=useState(saved),[collapsed,setCollapsed]=useState(()=>new Set());
  const role=api.data.viewer.role==='admin'?'director':api.data.viewer.role;
- const updateCell=(rowKey,key,value)=>setDraft(current=>current.map(item=>item.key===rowKey?{...item,values:{...item.values,[key]:value}}:item));
- const updateNote=(rowKey,note)=>setDraft(current=>current.map(item=>item.key===rowKey?{...item,note}:item));
- const stopEditing=()=>{setDraft(api.data.matrix);setActiveCell('');setEditing(false);};
- return <Card title="Ma trận phân quyền · Rev01" subtitle="Cột viền đỏ là vai trò của bạn trên dự án đang chọn" actions={companyAdmin(api.data.companyRole)&&!api.data.readOnly?<button disabled={api.saving} onClick={()=>{if(editing){stopEditing();return;}setDraft(api.data.matrix);setActiveCell('');setEditing(true);}}>{editing?'Hủy sửa':'Sửa ma trận'}</button>:null} footer="X: Xem · L: Lập / đề xuất · S: Sửa · XN: Xác nhận · D: Duyệt · —: Không truy cập. Vai trò được tính theo từng dự án."><div className="operations-table-scroll"><table className="operations-matrix"><thead><tr><th>Dữ liệu / chức năng</th>{OP_ROLES.map(key=><th className={role===key?'current-role':''} key={key}>{OP_ROLE_NAMES[key]}</th>)}<th>Ghi chú</th></tr></thead><tbody>{(editing?draft:api.data.matrix).map((row,index,rows)=><Fragment key={row.key}>{(index===0||rows[index-1].section!==row.section)&&<tr className="section" key={`${row.section}:section`}><th colSpan="8">{row.section}</th></tr>}<tr key={row.key}><td>{row.label}</td>{OP_ROLES.map(key=>{const cellId=`${row.key}:${key}`,value=row.values[key],selected=splitPermissionValue(value).tokens,isOpen=activeCell===cellId;return <td key={key} className={`${role===key?'current-role ':''}${isOpen?'permission-cell-open':''}`.trim()}>{editing?<div className="operations-permission-editor" onBlur={event=>{if(!event.currentTarget.contains(event.relatedTarget))setActiveCell('');}} onKeyDown={event=>{if(event.key==='Escape'){setActiveCell('');event.currentTarget.querySelector('input')?.focus();}}}><input aria-label={`${row.label} · ${OP_ROLE_NAMES[key]}`} aria-expanded={isOpen} aria-controls={isOpen?`permission-picker-${cellId}`:undefined} value={value} onFocus={()=>setActiveCell(cellId)} onClick={()=>setActiveCell(cellId)} onChange={event=>updateCell(row.key,key,event.target.value)}/>{isOpen&&<div id={`permission-picker-${cellId}`} className="operations-permission-picker" role="group" aria-label={`Chọn quyền cho ${row.label} · ${OP_ROLE_NAMES[key]}`}><div className="operations-permission-picker-title"><strong>Ký hiệu quyền</strong><span>Có thể chọn nhiều quyền</span></div>{PERMISSION_OPTIONS.map(option=><button type="button" key={option.code} className={selected.includes(option.code)?'selected':''} aria-pressed={selected.includes(option.code)} onClick={()=>updateCell(row.key,key,togglePermission(value,option.code))}><b>{option.code}</b><span>{option.label}</span></button>)}<button type="button" className={String(value).trim()==='—'?'selected permission-none':'permission-none'} aria-pressed={String(value).trim()==='—'} onClick={()=>updateCell(row.key,key,'—')}><b>—</b><span>Không truy cập</span></button></div>}</div>:<span className={`operations-pill${value==="—"?" no-access":""}`}>{value}</span>}</td>;})}<td className="operations-matrix-note">{editing?<textarea aria-label={`Ghi chú · ${row.label}`} rows="2" maxLength="1000" value={row.note||''} onFocus={()=>setActiveCell('')} onChange={event=>updateNote(row.key,event.target.value)}/>:row.note}</td></tr></Fragment>)}</tbody></table></div>{editing&&<div className="operations-panel-pad"><button className="primary" disabled={api.saving} onClick={()=>api.run(async()=>{await api.mutate('matrix',{rows:draft});setActiveCell('');setEditing(false);})}>Lưu ma trận</button></div>}</Card>;
+ const rows=editing?draft:saved;
+ const canEdit=companyAdmin(api.data.companyRole)&&!api.data.readOnly;
+ const sections=PAGE_ACCESS_TREE.flatMap(page=>page.children).filter(section=>section.children.length);
+ const allOpen=collapsed.size===0;
+ const toggle=key=>setCollapsed(current=>{const next=new Set(current);if(next.has(key))next.delete(key);else next.add(key);return next;});
+ const updateCell=(key,roleKey,code)=>setDraft(current=>({...current,[key]:{...current[key],values:{...current[key].values,[roleKey]:code}}}));
+ const updateNote=(key,note)=>setDraft(current=>({...current,[key]:{...current[key],note}}));
+ const cells=(entry,parentKey)=>OP_ROLES.map(key=>{
+  const code=rows[entry.key].values[key],hiddenByParent=parentKey&&rows[parentKey].values[key]==='—'&&code!=='—';
+  return <td key={key} className={role===key?'current-role':''}>{editing
+   ?<select className="page-access-select" aria-label={`${entry.label} · ${OP_ROLE_NAMES[key]}`} value={code} onChange={event=>updateCell(entry.key,key,event.target.value)}>{PAGE_ACCESS_CODES.map(option=><option key={option.code} value={option.code}>{option.code} · {option.label}</option>)}</select>
+   :<span className={`operations-pill${code==='—'||hiddenByParent?' no-access':''}`} title={hiddenByParent?'Đang ẩn vì mục cha bị ẩn':undefined}>{code}</span>}</td>;
+ });
+ const note=entry=><td className="operations-matrix-note">{editing?<textarea aria-label={`Ghi chú · ${entry.label}`} rows="2" maxLength="1000" value={rows[entry.key].note} onChange={event=>updateNote(entry.key,event.target.value)}/>:rows[entry.key].note}</td>;
+ return <Card title="Ma trận phân quyền · Trang & mục" subtitle="Cột viền đỏ là vai trò của bạn · Trang hiện trên menu khi vai trò thấy ít nhất một mục của trang" actions={<>{sections.length>0&&<button type="button" onClick={()=>setCollapsed(allOpen?new Set(sections.map(section=>section.key)):new Set())}>{allOpen?'Thu gọn tất cả':'Mở tất cả'}</button>}{canEdit&&<button disabled={api.saving} onClick={()=>{setDraft(saved);setEditing(!editing);}}>{editing?'Hủy sửa':'Sửa ma trận'}</button>}</>} footer="X: Xem · S: Xem & thao tác · —: Ẩn. Mục con chỉ hiện khi mục chứa nó được thấy. Admin luôn thấy tất cả."><div className="operations-table-scroll"><table className="operations-matrix page-access-matrix"><thead><tr><th>Trang / mục</th>{OP_ROLES.map(key=><th className={role===key?'current-role':''} key={key}>{MATRIX_ROLE_HEADERS[key]}</th>)}<th>Ghi chú</th></tr></thead><tbody>
+  {PAGE_ACCESS_TREE.map(page=><Fragment key={page.key}>
+   <tr className="page-row"><th colSpan={OP_ROLES.length+2}>{page.label}</th></tr>
+   {page.children.map(section=>{const open=!collapsed.has(section.key);return <Fragment key={section.key}>
+    <tr className="section-row"><td><div className="page-access-label">{section.children.length?<button type="button" className="page-access-toggle" aria-expanded={open} aria-label={`${open?'Thu gọn':'Mở'} ${section.label}`} onClick={()=>toggle(section.key)}>{open?<ChevronDown size={14}/>:<ChevronRight size={14}/>}</button>:<span className="page-access-toggle-space"/>}<span>{section.label}</span></div></td>{cells(section)}{note(section)}</tr>
+    {open&&section.children.map(child=><tr className="child-row" key={child.key}><td><div className="page-access-label"><span>{child.label}</span></div></td>{cells(child,section.key)}{note(child)}</tr>)}
+   </Fragment>;})}
+  </Fragment>)}
+ </tbody></table></div>{editing&&<div className="operations-panel-pad"><button className="primary" disabled={api.saving} onClick={()=>api.run(async()=>{await api.mutate('pageAccess',{rows:draft});setEditing(false);notifyPageAccessChanged();})}>Lưu ma trận</button></div>}</Card>;
 }
+
 export function Params({api}){
  const [draft,setDraft]=useState(api.data.params),editable=companyAdmin(api.data.companyRole)&&!api.data.readOnly;
  const fields=[['limitA','Mức A – Leader tự chi dưới (đ)'],['limitB','Mức B – trần duyệt QL cấp trung (đ)'],['budgetWarning','Ngưỡng cảnh báo ngân sách (%)'],['advanceDays','Hạn hoàn ứng (ngày)'],['otLimit','Hạn mức làm thêm / người / tháng (giờ)'],['leadDays','Thời gian tuyển chuẩn (ngày)'],['randomChecks','Timesheet kiểm tra ngẫu nhiên / tháng']];

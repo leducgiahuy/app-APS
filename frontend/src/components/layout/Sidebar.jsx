@@ -1,5 +1,7 @@
 import React from 'react';
 import { useApp, useLayout } from '../../context/AppContext';
+import { usePageAccess } from '../../context/PageAccessContext';
+import { PAGE_ACCESS_TREE } from '../../utils/pageAccess';
 import {
   CheckSquare,
   CalendarRange,
@@ -32,6 +34,7 @@ export default function Sidebar() {
   });
   const { activeTab, setActiveTab, permissions } = useApp();
   const { sidebarCollapsed, setSidebarCollapsed, mobileMenuOpen, setMobileMenuOpen } = useLayout();
+  const { pageVisible } = usePageAccess();
 
   const currentUser = getCurrentUser();
   const isAdmin = currentUser?.role === 'admin';
@@ -75,6 +78,9 @@ export default function Sidebar() {
       icon: Activity
     });
   }
+
+  // Ẩn trang mà vai trò không thấy mục nào (theo ma trận Trang & mục).
+  const visibleMenuItems = menuItems.filter(item => !PAGE_ACCESS_TREE.some(page => page.key === item.id) || pageVisible(item.id));
 
   const handleSelectTab = (tabId) => {
     setActiveTab(tabId === 'work-hub' ? 'my-work' : tabId);
@@ -123,7 +129,7 @@ export default function Sidebar() {
             </div>
           )}
 
-          {menuItems.map((item) => {
+          {visibleMenuItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
             return (

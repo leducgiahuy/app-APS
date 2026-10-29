@@ -4,6 +4,7 @@ import HRPage from '../hr/HRPage';
 import TasksPage from '../tasks/TasksPage';
 import WorkloadPage from '../workload/WorkloadPage';
 import './WorkHubPage.css';
+import { useVisibleTabs } from '../../context/PageAccessContext';
 
 const SECTIONS = [
   ['my-work', 'Việc của tôi'],
@@ -14,10 +15,12 @@ const SECTIONS = [
 
 export default function WorkHubPage() {
   const { workHubSection, setWorkHubSection } = useApp();
-  const section = SECTIONS.some(([key]) => key === workHubSection) ? workHubSection : 'my-work';
+  // Chỉ hiện mục vai trò được thấy; mục đang mở bị tắt quyền thì chuyển sang mục đầu tiên còn lại.
+  const sections = useVisibleTabs(SECTIONS, key => `work-hub.${key}`);
+  const section = sections.some(([key]) => key === workHubSection) ? workHubSection : sections[0]?.[0];
   return <div className="work-hub-page">
     <nav className="work-hub-tabs" aria-label="Các mục Công việc">
-      {SECTIONS.map(([key, label]) => <button type="button" key={key} className={section === key ? 'active' : ''} aria-current={section === key ? 'page' : undefined} onClick={() => setWorkHubSection(key)}>{label}</button>)}
+      {sections.map(([key, label]) => <button type="button" key={key} className={section === key ? 'active' : ''} aria-current={section === key ? 'page' : undefined} onClick={() => setWorkHubSection(key)}>{label}</button>)}
     </nav>
     <div className={`work-hub-content section-${section}`}>
       {section === 'my-work' && <MyWorkPage />}

@@ -33,6 +33,7 @@ async function request(endpoint, method = 'GET', body, retried = false) {
 }
 export const deliveryApi = {
   notifications: () => request('/notifications'),
+  pageAccess: () => request('/page-access'),
   previewProject: value => request('/project-preview','POST',value),
   operations: query => request(`/operations?${new URLSearchParams(query)}`),
   mutateOperations: body => request('/operations', 'PATCH', body),

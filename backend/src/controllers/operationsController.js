@@ -9,6 +9,7 @@ import { allSheets,operationsReport,canReviewSheet,sheetFlags,vietnamDay,addDate
 import { DEFAULT_MATRIX,DEFAULT_PARAMS,OP_ROLES,companyAdmin,matrixAllows } from '../../../frontend/src/utils/operationsDefaults.js';
 import { computeDelivery,projectDeliveryItems } from '../../../frontend/src/utils/deliveryMetrics.js';
 import { ownsDeliveryTask } from '../../../frontend/src/utils/deliveryView.js';
+import { PAGE_ACCESS_CODES,PAGE_ACCESS_ITEMS,normalizePageAccess } from '../../../frontend/src/utils/pageAccess.js';
 import { emptyDeliveryProject } from './deliveryController.js';
 
 const ensure=(condition,message,status=400)=>{if(!condition)throw Object.assign(new Error(message),{status});};
@@ -82,6 +83,13 @@ export function mutateOperations(req,res){
   }else if(action==='template'){
    requireRole(user,[]);ensure(text(value.name)&&Array.isArray(value.items)&&value.items.length<=1000,'Cần tên và danh sách công việc của mẫu.');const seen=new Set();const items=value.items.map(item=>{ensure(text(item.id)&&!seen.has(item.id)&&text(item.title),'Task cần ID duy nhất và tên.');seen.add(item.id);return {...item,startOffset:number(item.startOffset||0,3650),endOffset:number(item.endOffset||0,3650),estimatedHours:number(item.estimatedHours||0)};});for(const item of items)ensure(item.endOffset>=item.startOffset&&(!item.parentTaskId||seen.has(item.parentTaskId))&&(!item.parentGroupId||seen.has(item.parentGroupId)),'Lịch / nhóm cha của mẫu không hợp lệ.');
    const store=db.delivery;let old=store.templates.find(t=>t.id===id);if(id===DEFAULT_PROJECT_TEMPLATE.id&&!old){old=structuredClone(DEFAULT_PROJECT_TEMPLATE);store.templates.push(old);}ensure(!id||old,'Mẫu không tồn tại.');changed={...(old||{}),id:old?.id||randomUUID(),name:text(value.name),baseArea:number(value.baseArea||0),items,budgetPercents:value.budgetPercents||[],milestones:value.milestones||[],scopeOptions:value.scopeOptions||[],...stamp(user)};if(old)Object.assign(old,changed);else store.templates.push(changed);
+  }else if(action==='pageAccess'){
+   // Ma trận "Trang & mục": chỉ Giám đốc / Admin sửa; mỗi ô là X, S hoặc —.
+   requireRole(user,[]);ensure(value.rows&&typeof value.rows==='object'&&!Array.isArray(value.rows),'Ma trận trang & mục không hợp lệ.');
+   ensure(Object.keys(value.rows).every(key=>PAGE_ACCESS_ITEMS.some(entry=>entry.key===key)),'Có mục không thuộc web.');
+   for(const row of Object.values(value.rows)){ensure(OP_ROLES.every(role=>row?.values?.[role]==null||PAGE_ACCESS_CODES.some(option=>option.code===row.values[role])),'Ô quyền chỉ nhận X, S hoặc —.');ensure(text(row?.note).length<=1000,'Ghi chú ma trận không được vượt quá 1.000 ký tự.');}
+   const current=normalizePageAccess(ops.pageAccess);
+   ops.pageAccess=normalizePageAccess(Object.fromEntries(Object.entries(current).map(([key,row])=>{const next=value.rows[key];return [key,next?{values:{...row.values,...next.values},note:next.note==null?row.note:text(next.note)}:row];})));
   }else if(action==='matrix'){
    requireRole(user,[]);ensure(Array.isArray(value.rows),'Ma trận không hợp lệ.');
    // Rows saved by earlier versions (e.g. "L. Điều phối G1") stay editable alongside the defaults.

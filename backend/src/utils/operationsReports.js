@@ -5,6 +5,8 @@ import { computeDelivery, projectDeliveryItems } from '../../../frontend/src/uti
 import { ownsDeliveryTask } from '../../../frontend/src/utils/deliveryView.js';
 import { BUDGET_GROUPS, companyAdmin, moneyRole, matrixAllows } from '../../../frontend/src/utils/operationsDefaults.js';
 import { operations, projectActor } from './operationsStore.js';
+import { appAttendanceHours } from './appAttendance.js';
+import { normalizePageAccess } from '../../../frontend/src/utils/pageAccess.js';
 import { projectTemplates } from './defaultProjectTemplate.js';
 import { assignmentWorkingDates } from '../../../frontend/src/utils/assignmentCalendar.js';
 export const vietnamDay = (date=new Date()) => new Date(date.getTime()+7*3600000).toISOString().slice(0,10);
@@ -19,9 +21,8 @@ export function allSheets(db) {
 export function attendanceHours(db,employeeId,date) {
  const imported=(db.operations?.attendance || []).filter(row=>!row.deletedAt && row.employeeId===employeeId && row.date===date);
  if(imported.length)return sumBy(imported,'hours');
- const employee=db.employees?.find(row=>row.id===employeeId);
- if(employee?.isOnSite && employee.checkInAt && vietnamDay(new Date(employee.checkInAt))===date) return Math.max(0,(Date.now()-Date.parse(employee.checkInAt))/3600000-(Number(employee.breakMinutes)||0)/60);
- return null;
+ // Không có dữ liệu máy chấm công: dùng giờ Vào / Rời văn phòng trong app (đã trừ giờ nghỉ, gồm cả ca đang mở).
+ return appAttendanceHours(db,employeeId,date);
 }
 export function sheetFlags(db,entry,all=allSheets(db)) {
  const item=projectDeliveryItems(db,entry.projectId).find(row=>row.id===entry.taskId);
@@ -100,7 +101,7 @@ export function operationsReport(db,user,query={}) {
   unlocks:ops.unlocks.filter(row=>!row.deletedAt && visibleRecord(row)),checks:ops.checks.filter(row=>actor.role!=='employee'&&projects.some(p=>p.id===row.projectId)),
   randomSample:actor.role==='employee'?[]:monthlyReviewSample(visibleEntries,reviewMonth,ops.params.randomChecks),balanceMonths:actor.role==='employee'?[]:balanceMonths,
   anomalies:matrixAllows(ops.matrix,'anomalies',actor.role)?hoursAnomalies(db,visibleEntries,reviewMonth):{},
-  matrix:ops.matrix,params,procedures:(ops.procedures||DEFAULT_PROCEDURES).map(row=>financial?row:Object.fromEntries(Object.entries(row).filter(([key])=>key!=='fee'))),accounts:['manager','director','admin'].includes(user.role)?(db.delivery?.users||[]).filter(u=>!u.disabled).map(({email,name,role,employeeId})=>({email,name,role,employeeId})):[],templates:projectTemplates(db).map(t=>({...(companyAdmin(user.role)?t:{}),id:t.id,name:t.name,count:t.items.length,scopeOptions:t.scopeOptions||[]})),projectApprovals:(ops.projectApprovals||[]).filter(row=>projects.some(p=>p.id===row.projectId)),members:ops.members.filter(row=>!row.deletedAt && projects.some(p=>p.id===row.projectId) && (!projectId || row.projectId===projectId)),finance,
+  matrix:ops.matrix,pageAccess:normalizePageAccess(ops.pageAccess),params,procedures:(ops.procedures||DEFAULT_PROCEDURES).map(row=>financial?row:Object.fromEntries(Object.entries(row).filter(([key])=>key!=='fee'))),accounts:['manager','director','admin'].includes(user.role)?(db.delivery?.users||[]).filter(u=>!u.disabled).map(({email,name,role,employeeId})=>({email,name,role,employeeId})):[],templates:projectTemplates(db).map(t=>({...(companyAdmin(user.role)?t:{}),id:t.id,name:t.name,count:t.items.length,scopeOptions:t.scopeOptions||[]})),projectApprovals:(ops.projectApprovals||[]).filter(row=>projects.some(p=>p.id===row.projectId)),members:ops.members.filter(row=>!row.deletedAt && projects.some(p=>p.id===row.projectId) && (!projectId || row.projectId===projectId)),finance,
   ...(companyFinance&&matrixAllows(ops.matrix,'cashCompany',user.role)?{legacyExecutive:db.delivery?.executive||null,cashForecasts:ops.cashForecasts,cashflow:cashflowReport(db,query.month||vietnamDay().slice(0,7))}:{}),
   ...(financial&&matrixAllows(ops.matrix,'receivables',actor.role)?{receivables:[...(db.delivery?.executive?.receivables||[]).filter(row=>projects.some(p=>p.id===row.projectId&&moneyRole(p.role))&&(!projectId||row.projectId===projectId)).map(row=>({...row,source:'legacy',projectName:db.projects.find(p=>p.id===row.projectId)?.name,received:Number(row.paidAmount||0),remaining:Math.max(0,Number(row.amount)-Number(row.paidAmount||0)),age:Math.floor((Date.parse(vietnamDay())-Date.parse(row.dueDate))/86400000)})),...ops.paymentRequests.filter(row=>row.status==='sent' && projects.some(p=>p.id===row.projectId && moneyRole(p.role)) && (actor.role!=='manager'||!projectId||row.projectId===projectId)).map(row=>{const receipts=db.delivery?.projects?.[row.projectId]?.receipts||[];const received=sumBy(receipts.filter(receipt=>receipt.paymentRequestId===row.id),'amount');return {...row,projectName:db.projects.find(p=>p.id===row.projectId)?.name,received,remaining:Math.max(0,row.amount-received),age:Math.floor((Date.parse(vietnamDay())-Date.parse(row.dueDate))/86400000)};})]}:{}),
   integrationMappings:companyFinance?{projects:(db.projects||[]).map(({id,code,name})=>({id,code,name})),employees:(db.employees||[]).map(({id,code,name})=>({id,code,name})),payments:ops.paymentRequests.map(({id,code,projectId})=>({id,code,projectId})),expenses:ops.expenseRequests.map(({id,code,projectId})=>({id,code,projectId}))}:null,syncEvents:companyFinance?ops.syncEvents:[],notifications:ops.notifications.filter(row=>row.email===user.email || companyAdmin(user.role)),

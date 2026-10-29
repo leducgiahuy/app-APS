@@ -7,6 +7,11 @@ import { commonRules } from '../operations/DictionaryPage';
 import { dictionaryMetrics } from '../operations/dictionaryData';
 import { currentVietnamCalendarYear, vietnamHolidaysForYear } from '../../utils/vietnamCalendar';
 import './CompanyPage.css';
+import { useAccessTabs } from '../../context/PageAccessContext';
+
+const MAIN_TABS = [[ 'policies', 'Quy định & hướng dẫn' ], [ 'reports', 'Báo cáo' ], [ 'settings', 'Cài đặt & nhập file' ]];
+const POLICY_TABS = [[ 'policies', 'Quy định công ty' ], [ 'guide', 'Hướng dẫn sử dụng' ], [ 'reads', 'Xác nhận đã đọc' ]];
+const SETTING_TABS = [[ 'imports', 'Nhập file' ], [ 'matrix', 'Ma trận quyền' ], [ 'calendar', 'Lịch & giờ làm việc' ], [ 'params', 'Tham số' ], [ 'dictionary', 'Từ điển & thuật ngữ' ], [ 'rules', 'Quy tắc chung' ]];
 
 const policies = [
   ['QD-01', 'Quy định thời gian làm việc và chấm công', 'HCNS', '01/10/2026', ['Lịch làm việc chuẩn: Thứ 2–6, 8 giờ/ngày; sáng Thứ 7, 4 giờ.', 'Mỗi dòng giờ công phải gắn với một công việc thực tế.', 'Giờ làm thêm phải có đăng ký và đi đúng luồng duyệt.']],
@@ -75,7 +80,8 @@ function SubTabs({ items, value, onChange }) {
 function PolicySection({ api }) {
   const user = getCurrentUser();
   const identity = api.data.viewer.email || user?.email || 'current-user';
-  const [subTab, setSubTab] = useState('policies');
+  const [subTabChoice, setSubTab] = useState('policies');
+  const [policyTabs, subTab] = useAccessTabs(POLICY_TABS, subTabChoice, key => `company.policies.${key === 'policies' ? 'rules' : key}`);
   const [search, setSearch] = useState('');
   const filtered = policies.filter(item => `${item.code} ${item.title} ${item.owner}`.toLocaleLowerCase('vi').includes(search.toLocaleLowerCase('vi')));
   const readFor = policy => api.data.policyReads?.find(row => row.email === identity && row.code === policy.code && row.version === policy.version);
@@ -83,7 +89,7 @@ function PolicySection({ api }) {
   const readCount = policies.filter(readFor).length;
 
   return <>
-    <SubTabs value={subTab} onChange={setSubTab} items={[[ 'policies', 'Quy định công ty' ], [ 'guide', 'Hướng dẫn sử dụng' ], [ 'reads', 'Xác nhận đã đọc' ]]}/>
+    <SubTabs value={subTab} onChange={setSubTab} items={policyTabs}/>
     {subTab === 'policies' && <Card title={`Quy định công ty · ${policies.length} quy định`} subtitle="Có phiên bản, ngày hiệu lực và yêu cầu đọc lại khi ban hành phiên bản mới" actions={<label className="company-search"><Search size={15}/><input type="search" placeholder="Tìm mã hoặc tên quy định" value={search} onChange={event => setSearch(event.target.value)}/></label>}>
       <div className="company-policy-list">{filtered.map(policy => {
         const readAt = readFor(policy)?.readAt;
@@ -165,9 +171,10 @@ function DictionaryPanel() {
 }
 
 function SettingsSection({ api }) {
-  const [subTab, setSubTab] = useState('imports');
+  const [subTabChoice, setSubTab] = useState('imports');
+  const [settingTabs, subTab] = useAccessTabs(SETTING_TABS, subTabChoice, key => `company.settings.${key}`);
   return <>
-    <SubTabs value={subTab} onChange={setSubTab} items={[[ 'imports', 'Nhập file' ], [ 'matrix', 'Ma trận quyền' ], [ 'calendar', 'Lịch & giờ làm việc' ], [ 'params', 'Tham số' ], [ 'dictionary', 'Từ điển & thuật ngữ' ], [ 'rules', 'Quy tắc chung' ]]}/>
+    <SubTabs value={subTab} onChange={setSubTab} items={settingTabs}/>
     {subTab === 'imports' && <ImportPanel api={api}/>}
     {subTab === 'matrix' && <Matrix api={api}/>} 
     {subTab === 'calendar' && <CalendarPanel/>}
@@ -180,8 +187,10 @@ function SettingsSection({ api }) {
 export default function CompanyPage() {
   const [query, setQuery] = useState({});
   const api = useOperations(query);
-  const [tab, setTab] = useState('policies');
-  return <OperationsFrame className="company-operations-page" api={api} query={query} setQuery={setQuery} project={false} guide="Dữ liệu cấp công ty: quy định có phiên bản, báo cáo chất lượng, cấu hình nhập file, lịch, tham số, từ điển và phân quyền dùng chung." toolbar={<div className="company-main-tabs"><Tabs value={tab} onChange={setTab} items={[[ 'policies', 'Quy định & hướng dẫn' ], [ 'reports', 'Báo cáo' ], [ 'settings', 'Cài đặt & nhập file' ]]}/></div>}>
+  const [tabChoice, setTab] = useState('policies');
+  // Tab / tab con của trang Công ty theo ma trận Trang & mục.
+  const [mainTabs, tab] = useAccessTabs(MAIN_TABS, tabChoice, key => `company.${key}`);
+  return <OperationsFrame className="company-operations-page" api={api} query={query} setQuery={setQuery} project={false} guide="Dữ liệu cấp công ty: quy định có phiên bản, báo cáo chất lượng, cấu hình nhập file, lịch, tham số, từ điển và phân quyền dùng chung." toolbar={<div className="company-main-tabs"><Tabs value={tab} onChange={setTab} items={mainTabs}/></div>}>
     <div className="company-page">
       {tab === 'policies' && <PolicySection api={api}/>}
       {tab === 'reports' && <ReportsSection/>}

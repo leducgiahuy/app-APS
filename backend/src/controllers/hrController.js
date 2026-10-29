@@ -1,5 +1,6 @@
 import { readDb, writeDb } from '../models/db.js';
 import { nextEmployeeCode } from '../utils/employeeCodes.js';
+import { recordAppAttendance } from '../utils/appAttendance.js';
 import { assignmentWorksOnDate } from '../../../frontend/src/utils/assignmentCalendar.js';
 import {
   employeeOtEntries,
@@ -222,6 +223,7 @@ function closeExpiredShifts(db, now = new Date()) {
 
     const shiftEnd = new Date(checkInTimestamp + requiredWorkMs + completedBreakMs);
     if (emp.workSessionStartedAt) updateEmployeeTaskSessions(db, emp, emp.workSessionStartedAt, shiftEnd.toISOString());
+    recordAppAttendance(db, emp, shiftEnd.toISOString(), { completedBreakOnly: true });
     emp.isOnSite = false;
     emp.isOnBreak = false;
     emp.breakStartedAt = null;
@@ -430,6 +432,7 @@ export function toggleOnSite(req, res) {
     if (emp.workSessionStartedAt && !isSyntheticOvertimeTaskId(emp.activeTaskId)) {
       updateEmployeeTaskSessions(db, emp, emp.workSessionStartedAt, now.toISOString());
     }
+    recordAppAttendance(db, emp, now.toISOString());
     emp.activeTaskId = null;
     emp.checkInAt = null;
     emp.checkInTime = null;

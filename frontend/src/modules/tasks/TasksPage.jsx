@@ -7,7 +7,7 @@ import SearchableSelect from '../../components/SearchableSelect';
 import { formatDateVi, inclusiveDays, scheduledProgress, isTaskOverdue, isTaskActiveOnDate, taskDelayHours, formatDelayHours, todayIsoDate } from '../../utils/date';
 import { getGanttTaskCode } from '../../utils/taskCode';
 import { getCurrentUser } from '../auth/authSession';
-import { taskDeliveryStatus } from '../../utils/deliveryMetrics';
+import { taskDeliveryStatus, taskStatusWindow, taskStatusWindowMessage } from '../../utils/deliveryMetrics';
 import {
   CheckSquare,
   Flame,
@@ -344,6 +344,8 @@ export default function TasksPage() {
               const taskSpeedStatus = getTaskSpeedStatus(task);
               const delayHours = taskDelayHours(task, currentTime);
               const earlyHours = Number(task.earlyHours) || 0;
+              // Cập nhật trạng thái chỉ mở từ ngày bắt đầu đến khi task hoàn thành.
+              const statusWindow = taskStatusWindow(task, null, todayIsoDate(currentTime));
               const isNearDeadline = progress >= 80 && task.status !== 'completed';
               const progressColor = task.status === 'completed'
                 ? 'bg-emerald-500'
@@ -583,7 +585,7 @@ export default function TasksPage() {
                           {option.label}
                         </button>
                       ))}
-                      {task.ganttId ? (
+                      {task.ganttId ? (statusWindow.open ? (
                         <button
                           onClick={() => openInProject(task)}
                           title="Hoàn thành khi trạng thái đạt 100% có bằng chứng được xác nhận ở trang Dự án"
@@ -591,7 +593,17 @@ export default function TasksPage() {
                         >
                           Cập nhật trạng thái
                         </button>
-                      ) : task.status !== 'completed' && (canReviewWork && !isOwnTask(task) ? (
+                      ) : (
+                        // Chỉ hiển thị, không bấm được: chưa tới ngày bắt đầu (xám) hoặc đã hoàn thành (xanh lá).
+                        <span
+                          title={taskStatusWindowMessage(statusWindow)}
+                          className={`ml-1 px-2.5 py-1 rounded-lg text-xs font-semibold cursor-default select-none ${statusWindow.reason === 'completed'
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-slate-200 text-slate-500 dark:bg-slate-700 dark:text-slate-300'}`}
+                        >
+                          {statusWindow.reason === 'completed' ? 'Hoàn thành' : 'Chưa tới ngày'}
+                        </span>
+                      )) : task.status !== 'completed' && (canReviewWork && !isOwnTask(task) ? (
                         <button
                           onClick={() => handleCompleteTask(task)}
                           className="ml-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-500 transition-colors"

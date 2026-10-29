@@ -87,8 +87,9 @@ test('executive API persists financial inputs, rejects stale edits and unauthori
     assert.equal(report.settings.contracts.at(-1).signedBy, 'demo@aps.vn');
     assert.equal((await mutate('delete', { collection: 'cashPlans' }, admin, planId)).status, 200);
     assert(!report.settings.cashPlans.some(row => row.id === planId));
-    const employee = (await call(`/executive?month=${month}`, 'GET', null, tokens.employee)).data;
-    assert.equal(employee.settings, undefined); assert.equal(employee.executive, undefined); assert.equal(employee.projects[0].overdueAmount, undefined);
+    // Ma trận Trang & mục: mục Tổng quan · 10 số chính mặc định ẩn với nhân viên nên không đọc được báo cáo điều hành.
+    const employee = await call(`/executive?month=${month}`, 'GET', null, tokens.employee);
+    assert.equal(employee.status, 403); assert.equal(employee.data, undefined);
     assert(fs.readFileSync(process.env.APS_DB_PATH, 'utf8').includes('executive:contract'));
   } finally { if (server) await new Promise(resolve => server.close(resolve)); fs.rmSync(directory, { recursive: true, force: true }); }
 });

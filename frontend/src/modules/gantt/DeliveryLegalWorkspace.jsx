@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { usePageAccess } from '../../context/PageAccessContext';
 import { DEFAULT_PROCEDURES } from '../../utils/deliveryResources';
 import { formatCompactMoney } from '../../utils/deliveryMetrics';
 import { shortDateTime } from './DeliveryRow';
@@ -13,7 +14,11 @@ const viDate = value => value ? new Date(value).toLocaleDateString('vi-VN', { ti
 const documentStatusClass = status => status === 'Có kết quả' ? 'success' : status === 'Bổ sung' ? 'danger' : status === 'Đã nộp' ? 'warning' : '';
 
 export default function DeliveryLegalWorkspace({ data, items, employees, disabled, open, onOpenTask, currentTime }) {
-  const [view, setView] = useState('catalog');
+  const [viewChoice, setView] = useState('catalog');
+  // Tab con theo ma trận Trang & mục (Dự án → Hồ sơ).
+  const { canSee } = usePageAccess();
+  const visibleViews = views.filter(([key]) => canSee(`gantt.legal.${key}`));
+  const view = visibleViews.some(([key]) => key === viewChoice) ? viewChoice : visibleViews[0]?.[0];
   const [selectedId, setSelectedId] = useState('');
   const stored = useMemo(() => [...(data.documents || [])].sort((a, b) => (a.order || 0) - (b.order || 0)), [data.documents]);
   const rows = useMemo(() => {
@@ -41,7 +46,7 @@ export default function DeliveryLegalWorkspace({ data, items, employees, disable
 
   return <div className="legal-workspace">
     <div className="legal-view-switch" role="tablist" aria-label="Các mục hồ sơ">
-      {views.map(([key, label]) => <button key={key} type="button" role="tab" aria-selected={view === key} className={view === key ? 'active' : ''} onClick={() => setView(key)}>{label}</button>)}
+      {visibleViews.map(([key, label]) => <button key={key} type="button" role="tab" aria-selected={view === key} className={view === key ? 'active' : ''} onClick={() => setView(key)}>{label}</button>)}
     </div>
 
     {view === 'catalog' && <div className="legal-flat-stack">

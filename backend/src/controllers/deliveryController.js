@@ -9,9 +9,9 @@ import os from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { readDb, writeDb } from '../models/db.js';
 import { deliveryStore, canEditDeliveryTask, publicDelivery } from '../utils/deliveryAuth.js';
-import { computeDelivery, projectDeliveryItems, defaultDeliveryRecord, DELIVERY_LEVELS, managingRole, moneyAccess } from '../../../frontend/src/utils/deliveryMetrics.js';
+import { computeDelivery, projectDeliveryItems, defaultDeliveryRecord, DELIVERY_LEVELS, managingRole, moneyAccess, reviewingRole, taskStatusWindow, taskStatusWindowMessage } from '../../../frontend/src/utils/deliveryMetrics.js';
 import { isTaskOverdue } from '../../../frontend/src/utils/date.js';
-import { syncTaskCompletionFromDelivery } from './taskController.js';
+import { reopenTaskFromDelivery, syncTaskCompletionFromDelivery } from './taskController.js';
 import { addDays, dateDifference } from '../../../frontend/src/utils/workforceForecast.js';
 
 export const emptyDeliveryProject = () => ({ revision: 0, settings: { contractFee: null, hourlyRate: null }, records: {}, timesheets: [], documents: [], customerRequests: [], meetingMinutes: [], changes: [], closes: [], receipts: [], expenses: [], milestones: [], evidence: [], comments: [], audit: [], history: [] });
@@ -20,6 +20,10 @@ const dateValid = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.te
 const timestampValid = value => !value || (typeof value === 'string' && Number.isFinite(Date.parse(value)));
 const money = value => value === '' || value == null ? null : Number(value);
 const assert = (condition, message) => { if (!condition) throw new Error(message); };
+const vietnamToday = () => new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10);
+// Các ô trạng thái / giao hồ sơ bị khóa khi task chưa tới ngày bắt đầu hoặc đã hoàn thành.
+const STATUS_FIELDS = ['level', 'kind', 'dueAt', 'sentAt', 'recipient', 'submissionContent', 'evidenceId', 'department', 'approvalOnly'];
+const sameField = (left, right) => typeof left === 'boolean' || typeof right === 'boolean' ? Boolean(left) === Boolean(right) : String(left ?? '') === String(right ?? '');
 const fileRoot = () => path.join(path.dirname(path.resolve(process.env.APS_DB_PATH || path.join(process.env.LOCALAPPDATA || process.env.XDG_DATA_HOME || path.join(os.homedir(), '.local', 'share'), 'APS Project Manager', 'db.json'))), 'delivery-files');
 
 function context(req) {
@@ -57,25 +61,24 @@ export function applyDeliveryMutation(ctx, body) {
   const financial = moneyAccess(user.role);
   const before = computeDelivery(db, projectId, data);
   const current = item ? before.records[taskId] : null;
-  const matrixKey={task:'editStatus',confirm:'confirmStatus',timesheet:'tsSubmit',lockWeights:'scope',milestone:'milestones',reopenMonth:'payment'}[action];
+  const matrixKey={task:'editStatus',confirm:'confirmStatus',reopenTask:'confirmStatus',timesheet:'tsSubmit',lockWeights:'scope',milestone:'milestones',reopenMonth:'payment'}[action];
   if(matrixKey)assert(matrixAllows(operations(db).matrix,matrixKey,user.role,'write') || user.role==='admin','Ma trận phân quyền không cho phép thao tác này.');
   const auditBefore=structuredClone(data.records);
-  if (['task', 'confirm', 'comment'].includes(action)) assert(item, 'Task không tồn tại hoặc không phải task lá của dự án.');
+  if (['task', 'confirm', 'reopenTask', 'comment'].includes(action)) assert(item, 'Task không tồn tại hoặc không phải task lá của dự án.');
   if (action === 'task') {
     assert(canEditDeliveryTask(user, item, db), 'Bạn chỉ được cập nhật việc của mình hoặc việc thuộc nhóm phụ trách.');
     const level = Number(value.level ?? current.level);
     assert(DELIVERY_LEVELS.includes(level), 'Chỉ được chọn mức 0, 20, 40, 60, 80 hoặc 100%.');
     const linkedTask = (db.tasks || []).find(task => task.ganttId === item.id);
-    const completedTask = item.status === 'completed' || linkedTask?.status === 'completed';
-    const overdueTask = !completedTask && (isTaskOverdue(item) || isTaskOverdue(linkedTask));
-    if (value.level !== undefined && completedTask) {
-      assert(level >= 40, 'Task đã hoàn thành nên chỉ có thể chọn mức trạng thái từ 40% trở lên; không thể chọn 0% hoặc 20%.');
-    }
+    const statusWindow = taskStatusWindow(item, linkedTask, vietnamToday());
+    const overdueTask = statusWindow.open && (isTaskOverdue(item) || isTaskOverdue(linkedTask));
     assert(['design', 'legal'].includes(value.kind || current.kind), 'Loại việc không hợp lệ.');
     ['dueAt', 'sentAt'].forEach(key => assert(timestampValid(value[key]), 'Ngày giờ nộp hồ sơ không hợp lệ.'));
     const record = { ...current, level, kind: value.kind || current.kind, dueAt: value.dueAt ?? current.dueAt, sentAt: value.sentAt ?? current.sentAt, recipient: text(value.recipient ?? current.recipient), submissionContent: text(value.submissionContent ?? current.submissionContent), notes: text(value.notes ?? current.notes), evidenceId: value.evidenceId ?? current.evidenceId, submittedBy: user.email, updatedAt: new Date().toISOString() };
     if (manager) { record.department = text(value.department ?? current.department); record.approvalOnly = value.approvalOnly ?? current.approvalOnly; record.assignmentRoles = value.assignmentRoles ?? current.assignmentRoles ?? {}; }
-    if (record.approvalOnly && !completedTask && !overdueTask) assert(level === 0 || level === 100, 'Việc CĐT phê duyệt chỉ có mức 0% hoặc 100%.');
+    // Ngoài khoảng từ ngày bắt đầu đến khi hoàn thành: chỉ được sửa ghi chú, phân vai; trạng thái/hồ sơ giữ nguyên.
+    if (!statusWindow.open) assert(STATUS_FIELDS.every(key => sameField(record[key], current[key])), taskStatusWindowMessage(statusWindow));
+    if (record.approvalOnly && statusWindow.open && !overdueTask) assert(level === 0 || level === 100, 'Việc CĐT phê duyệt chỉ có mức 0% hoặc 100%.');
     const approvedHours = computeDelivery(db, projectId, data).taskMetrics[taskId]?.actualHours || 0;
     if (!overdueTask && level === 20 && current.level !== 20) assert(approvedHours > 0, 'Mức 20% cần có giờ chấm công đã được duyệt vào việc.');
     if (!overdueTask && level === 0 && current.level !== 0) assert(approvedHours === 0, 'Đã có giờ công; không thể chuyển về Chưa bắt đầu.');
@@ -91,11 +94,21 @@ export function applyDeliveryMutation(ctx, body) {
     assert(['leader', 'manager', 'director', 'admin'].includes(user.role) && canEditDeliveryTask(user, item, db), 'Bạn không có quyền xác nhận task này.');
     assert(user.email !== current.submittedBy && !item.assignees?.some(assignment => assignment.employeeId === user.employeeId && user.employeeId), 'Không được xác nhận việc do chính mình thực hiện hoặc tự báo cáo.');
     assert(manager || !item.assignees?.some(assignment => deliveryStore(db).users.some(person => !person.disabled && person.role === 'leader' && person.employeeId === assignment.employeeId)), 'Việc của Leader cần quản lý xác nhận.');
+    const statusWindow = taskStatusWindow(item, (db.tasks || []).find(task => task.ganttId === item.id), vietnamToday());
+    assert(statusWindow.open, taskStatusWindowMessage(statusWindow));
     assert(current.level >= 60 && current.evidenceId, 'Cần mức từ 60% và có bằng chứng trước khi xác nhận.');
     const requiredKind = current.level === 60 ? (current.kind === 'legal' ? 'receipt' : 'handover') : current.level === 80 ? 'feedback' : 'approval';
     const evidence = data.evidence.find(file => file.id === current.evidenceId && file.taskId === taskId);
     assert(evidence?.kind === requiredKind, `Mức này cần bằng chứng loại ${requiredKind === 'receipt' ? 'Biên nhận nộp hồ sơ' : requiredKind === 'handover' ? 'Email/biên bản giao' : requiredKind === 'feedback' ? 'Văn bản góp ý/bổ sung' : 'Văn bản/email chấp thuận'}.`);
     data.records[taskId] = { ...current, confirmedBy: user.email, confirmedAt: new Date().toISOString() };
+  } else if (action === 'reopenTask') {
+    // Lối duy nhất để sửa trạng thái task đã hoàn thành (kể cả task hoàn thành theo cách cũ, chưa có xác nhận).
+    assert(reviewingRole(user.role) && canEditDeliveryTask(user, item, db), 'Chỉ Leader / Quản lý / Giám đốc / Admin được mở lại task.');
+    assert(text(value.reason), 'Cần lý do mở lại task.');
+    assert(item.status === 'completed' || (db.tasks || []).some(task => task.ganttId === item.id && task.status === 'completed'), 'Task chưa hoàn thành.');
+    // Bỏ xác nhận để task không tự hoàn thành lại ngay khi tính lại % ghi nhận.
+    data.records[taskId] = { ...current, confirmedBy: '', confirmedAt: '', reopenedBy: user.email, reopenedAt: new Date().toISOString(), reopenReason: text(value.reason) };
+    reopenTaskFromDelivery(db, taskId, user.name || user.email, text(value.reason));
   } else if (action === 'revokeConfirmation' || action === 'revokeEvidence') {
     const target=items.find(t=>t.id===taskId);assert(target&&canEditDeliveryTask(user,target,db),'Không có quyền thu hồi bằng chứng / xác nhận.');assert(text(value.reason),'Cần lý do thu hồi.');
     const record={...before.records[taskId],...(action==='revokeConfirmation'?{confirmedBy:'',confirmedAt:''}:{}),revokedBy:user.email,revokedAt:new Date().toISOString(),revokeReason:text(value.reason)};

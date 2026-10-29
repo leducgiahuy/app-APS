@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import { usePageAccess } from '../../context/PageAccessContext';
 import { getCurrentUser } from '../auth/authSession';
 import { isTaskAssignedTo, resolveEmployee } from '../auth/personalWork';
 import { getGanttTaskCode } from '../../utils/taskCode';
@@ -146,7 +147,14 @@ export default function WorkloadPage() {
   // Ma trận "Giờ định mức / đã dùng": Nhân viên chỉ xem của mình, Leader trở lên xem cả nhóm.
   const seesTeam = permissions.viewAllHours;
   const personalEmployee = seesTeam ? null : resolveEmployee(currentUser, employees);
-  const [period, setPeriod] = useState('day');
+  const [periodChoice, setPeriod] = useState('day');
+  const { canSee } = usePageAccess();
+  // Kết hợp quyền nghiệp vụ và ma trận Trang & mục. Một kỳ chỉ hiện khi cả hai lớp đều cho phép.
+  const periods = (seesTeam
+    ? [['day', 'Ngày'], ['month', 'Tháng'], ['year', 'Năm'], ['forecast', '6 tháng tới']]
+    : [['day', 'Ngày của tôi'], ['month', 'Tháng của tôi'], ['year', 'Năm của tôi'], ['forecast', '6 tháng tới']]
+  ).filter(([value]) => (value !== 'forecast' || permissions.viewWorkforce) && canSee(`work-hub.workload.${value}`));
+  const period = periods.some(([value]) => value === periodChoice) ? periodChoice : periods[0]?.[0] || 'day';
   // Ngày đang xem lấy từ bộ chọn ngày trên header.
   const selectedDay = dayKey(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
   const [selectedMonth, setSelectedMonth] = useState(monthKey);
@@ -235,9 +243,6 @@ export default function WorkloadPage() {
     }
   };
 
-  const periods = seesTeam
-    ? [['day', 'Ngày'], ['month', 'Tháng'], ['year', 'Năm'], ...(permissions.viewWorkforce ? [['forecast', '6 tháng tới']] : [])]
-    : [['day', 'Ngày của tôi'], ['month', 'Tháng của tôi'], ['year', 'Năm của tôi']];
   const effectiveYear = String(Number(selectedYear) || today.getFullYear());
   const effectiveMonth = /^\d{4}-\d{2}$/.test(selectedMonth) ? selectedMonth : monthKey;
   const selectedStart = period === 'day' ? selectedDay : period === 'month' ? `${effectiveMonth}-01` : `${effectiveYear}-01-01`;

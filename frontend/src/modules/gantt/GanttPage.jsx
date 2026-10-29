@@ -20,6 +20,7 @@ import GanttExcludedDaysBar from './GanttExcludedDaysBar';
 import AssignmentCalendarConfirmation from './AssignmentCalendarConfirmation';
 import AssignmentMachinePage from './AssignmentMachinePage';
 import { useApp } from '../../context/AppContext';
+import { usePageAccess } from '../../context/PageAccessContext';
 import ModalOverlay from '../../components/layout/ModalOverlay';
 import SearchableSelect from '../../components/SearchableSelect';
 import DateInput from '../../components/DateInput';
@@ -177,6 +178,10 @@ const getTaskLeafDescendants = (parentId, items) => {
   return leaves;
 };
 
+const DELIVERY_TABS = [['gantt', 'Tiến độ & Công'], ['legal', 'Hồ sơ'], ['changes', 'Khách hàng'], ['close', 'Chốt sản lượng tháng'], ['new-project', '+ Dự án mới / nhập HĐ']];
+const DELIVERY_TAB_ACCESS = { gantt: 'gantt.progress', legal: 'gantt.legal', changes: 'gantt.customer', close: 'gantt.close', 'new-project': 'gantt.new-project' };
+const PROGRESS_SECTIONS = [['table', 'Bảng tiến độ & công'], ['assignment', 'Phân công (máy gán)']];
+
 export default function GanttPage() {
   const today = todayIsoDate();
   const {
@@ -201,8 +206,9 @@ export default function GanttPage() {
   const [selectedProjectId, setSelectedProjectId] = useState(reportLink?.projectId || projects[0]?.id || 'proj-1');
   const [leftPanelWidth, setLeftPanelWidth] = useState(() => DELIVERY_COLUMNS.filter(column => COMPACT_KEYS.includes(column.key)).reduce((sum, column) => sum + column.width, 0));
   const delivery = useProjectDelivery(selectedProjectId, refreshAllData);
-  const [deliveryTab, setDeliveryTab] = useState(['gantt', 'legal', 'changes', 'close'].includes(reportLink?.tab) ? reportLink.tab : 'gantt');
-  const [progressSection, setProgressSection] = useState('table');
+  const [deliveryTabChoice, setDeliveryTab] = useState(['gantt', 'legal', 'changes', 'close'].includes(reportLink?.tab) ? reportLink.tab : 'gantt');
+  const [progressSectionChoice, setProgressSection] = useState('table');
+  const { canSee } = usePageAccess();
   const [tableMode, setTableMode] = useState('compact');
   const [deliveryColumns, setDeliveryColumns] = useState(() => {
     try {
@@ -241,6 +247,11 @@ export default function GanttPage() {
   
   const previewing = false;
   const deliveryData = delivery.data;
+  // Tab / tab con hiện theo ma trận Trang & mục; tab đang mở bị tắt quyền thì về tab đầu tiên còn được thấy.
+  const deliveryTabs = DELIVERY_TABS.filter(([key]) => canSee(DELIVERY_TAB_ACCESS[key]) && (key !== 'close' || deliveryData?.permissions.financial));
+  const deliveryTab = deliveryTabs.some(([key]) => key === deliveryTabChoice) ? deliveryTabChoice : deliveryTabs[0]?.[0] || 'gantt';
+  const progressSections = PROGRESS_SECTIONS.filter(([key]) => canSee(`gantt.progress.${key}`));
+  const progressSection = progressSections.some(([key]) => key === progressSectionChoice) ? progressSectionChoice : progressSections[0]?.[0] || 'table';
   const roleView = deliveryView(deliveryData?.viewer.role);
   const viewerEmail = deliveryData?.viewer?.email || '';
   const viewerRole = deliveryData?.viewer?.role || '';
@@ -1469,7 +1480,7 @@ export default function GanttPage() {
       
 
       <div className="delivery-navigation">
-        <nav>{[['gantt','Tiến độ & Công'],['legal','Hồ sơ'],['changes','Khách hàng'],...(deliveryData?.permissions.financial ? [['close','Chốt sản lượng tháng']] : []),...(companyPermissions.createProject ? [['new-project','+ Dự án mới / nhập HĐ']] : [])].map(([key,label]) => <button key={key} className={deliveryTab === key ? 'active' : ''} onClick={() => setDeliveryTab(key)}>{label}</button>)}</nav>
+        <nav>{deliveryTabs.map(([key,label]) => <button key={key} className={deliveryTab === key ? 'active' : ''} onClick={() => setDeliveryTab(key)}>{label}</button>)}</nav>
         {deliveryTab !== 'new-project' && <fieldset disabled={previewing} className="delivery-project-context">
           <Building aria-hidden="true" />
           <select
@@ -1503,8 +1514,7 @@ export default function GanttPage() {
         </fieldset>}
       </div>
       {deliveryTab === 'gantt' && <div className="project-progress-switch" role="tablist" aria-label="Tiến độ và phân công">
-        <button type="button" role="tab" aria-selected={progressSection === 'table'} className={progressSection === 'table' ? 'active' : ''} onClick={() => setProgressSection('table')}>Bảng tiến độ & công</button>
-        <button type="button" role="tab" aria-selected={progressSection === 'assignment'} className={progressSection === 'assignment' ? 'active' : ''} onClick={() => setProgressSection('assignment')}>Phân công (máy gán)</button>
+        {progressSections.map(([key, label]) => <button type="button" role="tab" key={key} aria-selected={progressSection === key} className={progressSection === key ? 'active' : ''} onClick={() => setProgressSection(key)}>{label}</button>)}
       </div>}
       {/* THANH ĐIỀU KHIỂN & BỘ LỌC GANTT */}
       {deliveryTab === 'gantt' && progressSection === 'table' && <div className="delivery-toolbar z-[60] w-full px-4 sm:px-5 py-2 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-sm flex flex-wrap items-center justify-between gap-3">

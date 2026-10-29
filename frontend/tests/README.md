@@ -71,3 +71,17 @@ Open `/tests/workforce-planning.html`. It checks six-month capacity/demand, posi
 ## Sidebar animation smoothness
 
 Open `/tests/sidebar-perf.html` with the frontend dev server running. It renders the whole app with a 160-task fake project (no backend requests), opens the project page, toggles the left menu three times each way and records frame times, plus 3 seconds idle. The result lists `maxFrameMs` and `slowFrames` (> 34 ms) per toggle; a smooth result keeps frames near 16 ms with no slow frames after the first toggle. Frame timing needs real time, so run it in a visible or CDP-driven browser rather than with `--virtual-time-budget`.
+
+## My work order across projects
+
+Open `/tests/my-work-order.html`. It checks that tasks from several projects share one timeline ordered by due date (not grouped by project), that same-day tasks sort by project name then task code (A1.2 before A1.10), that tasks without a due date come last, and that completed tasks are hidden. It reports `{ "passed": true }`.
+
+## Permission matrix: pages & sections
+
+Open `/tests/page-access-matrix.html`. It renders the permission matrix with fake data and checks that the five menu pages are the tall header bars, sections sit inside their page, sub-sections nest under their section and collapse / expand (one by one and all at once), the role columns and "Ghi chú" stay, edit cells only offer X / S / —, saving sends the changed cell, and that the old "Quyền thao tác" tab is gone. It reports `{ "passed": true }`.
+
+## Page access applied live
+
+Open `/tests/page-access-live.html`. It renders the whole app with fake data, changes the "Trang & mục" matrix and the signed-in role while the page is open, and checks that the left menu, the Công việc sections and the current page hide / switch immediately: a hidden page leaves the menu, a hidden open section falls back to the first visible one, an all-hidden role sees a notice, a role change to Giám đốc shows Tổng quan, and Admin always sees every page. It reports `{ "passed": true }`.
+
+Headless Edge can stop producing output while Edge updates itself; Chrome (`chrome.exe --headless --dump-dom …`) runs the same fixtures.

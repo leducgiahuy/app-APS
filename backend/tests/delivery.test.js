@@ -62,7 +62,7 @@ test('protected delivery API persists, enforces roles/confirmation/OT/revisions 
     let state = (await call('/p', 'GET', null, admin)).data;
     const mutate = async (action, value, taskId, id, token = admin) => { const result = await call('/p', 'PATCH', { revision: state.revision, action, value, taskId, id }, token); if (result.status === 200) state = result.data; return result; };
     assert.equal((await mutate('settings', { contractFee: 3200000000, hourlyRate: 350000 })).status, 200);
-    assert.equal((await mutate('settings', { contractFee: 1 }, null, null, worker)).status, 400);
+    assert.equal((await mutate('settings', { contractFee: 1 }, null, null, worker)).status, 403, 'nhân viên không có quyền mục Chốt sản lượng');
     const hidden = (await call('/p', 'GET', null, worker)).data;
     assert.equal(hidden.settings.contractFee, undefined); assert.equal(hidden.summary.output, undefined); assert.equal(hidden.taskMetrics.a.output, undefined); assert.equal(hidden.taskMetrics.a.laborCost, undefined);
     let statusDb = JSON.parse(fs.readFileSync(process.env.APS_DB_PATH, 'utf8'));
@@ -80,10 +80,34 @@ test('protected delivery API persists, enforces roles/confirmation/OT/revisions 
     statusDb.ganttItems.find(item => item.id === 'a').status = 'completed';
     fs.writeFileSync(process.env.APS_DB_PATH, JSON.stringify(statusDb));
     state = (await call('/p', 'GET', null, worker)).data;
-    const completedLowLevel = await mutate('task', { level: 20 }, 'a', null, worker);
-    assert.equal(completedLowLevel.status, 400);
-    assert.match(completedLowLevel.message, /từ 40% trở lên/i);
+    // Task đã hoàn thành: trạng thái khóa hoàn toàn, chỉ còn sửa ghi chú; muốn sửa phải có người duyệt mở lại.
+    for (const level of [0, 20, 40, 60, 80, 100].filter(level => level !== state.records.a.level)) {
+      const locked = await mutate('task', { level }, 'a', null, worker);
+      assert.equal(locked.status, 400);
+      assert.match(locked.message, /đã hoàn thành.*khóa/i);
+    }
+    assert.equal((await mutate('task', { submissionContent: 'Bản sửa sau hoàn thành' }, 'a', null, worker)).status, 400);
+    assert.equal((await mutate('task', { notes: 'Ghi chú sau hoàn thành' }, 'a', null, worker)).status, 200);
+    assert.equal((await mutate('reopenTask', { reason: 'Tự mở lại' }, 'a', null, worker)).status, 400);
+    assert.equal((await mutate('reopenTask', {}, 'a')).status, 400);
+    assert.equal((await mutate('reopenTask', { reason: 'CĐT yêu cầu chỉnh lại' }, 'a')).status, 200);
+    statusDb = JSON.parse(fs.readFileSync(process.env.APS_DB_PATH, 'utf8'));
+    assert.equal(statusDb.ganttItems.find(item => item.id === 'a').status, 'in_progress');
     assert.equal((await mutate('task', { level: 40 }, 'a', null, worker)).status, 200);
+    // Chưa tới ngày bắt đầu: không đổi được mức, không xác nhận được; ghi chú vẫn sửa được.
+    const originalStart = statusDb.ganttItems.find(item => item.id === 'a').startDate;
+    statusDb.ganttItems.find(item => item.id === 'a').startDate = '2999-01-01';
+    fs.writeFileSync(process.env.APS_DB_PATH, JSON.stringify(statusDb));
+    state = (await call('/p', 'GET', null, worker)).data;
+    const early = await mutate('task', { level: 60 }, 'a', null, worker);
+    assert.equal(early.status, 400);
+    assert.match(early.message, /Chưa tới ngày bắt đầu task \(01\/01\/2999\)/);
+    assert.equal((await mutate('confirm', {}, 'a')).status, 400);
+    assert.equal((await mutate('task', { notes: 'Ghi chú trước ngày bắt đầu' }, 'a', null, worker)).status, 200);
+    statusDb = JSON.parse(fs.readFileSync(process.env.APS_DB_PATH, 'utf8'));
+    statusDb.ganttItems.find(item => item.id === 'a').startDate = originalStart;
+    fs.writeFileSync(process.env.APS_DB_PATH, JSON.stringify(statusDb));
+    state = (await call('/p', 'GET', null, worker)).data;
     statusDb = JSON.parse(fs.readFileSync(process.env.APS_DB_PATH, 'utf8'));
     Object.assign(statusDb.ganttItems.find(item => item.id === 'a'), { status: 'in_progress', endDate: '2000-01-01' });
     fs.writeFileSync(process.env.APS_DB_PATH, JSON.stringify(statusDb));

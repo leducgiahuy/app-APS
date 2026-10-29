@@ -1,6 +1,7 @@
 import { matrixAllows } from '../../../frontend/src/utils/operationsDefaults.js';
 import { randomBytes, scryptSync, timingSafeEqual, createHash } from 'node:crypto';
 import { projectActor } from './operationsStore.js';
+import { enforcePageAccess } from './pageAccessGuard.js';
 import { readDb, writeDb } from '../models/db.js';
 import { DELIVERY_ROLES, managingRole, moneyAccess } from '../../../frontend/src/utils/deliveryMetrics.js';
 import { canEditProgressTask, maskDeliveryFinance } from '../../../frontend/src/utils/deliveryView.js';
@@ -63,7 +64,9 @@ export function requireDeliveryUser(req, res, next) {
   if (!user) return res.status(401).json({ message: 'Phiên Tiến độ đã hết hạn hoặc quyền đã bị thu hồi.' });
   const effective = projectActor(db, user, req.params.projectId);
   if (!effective) return res.status(403).json({ message: 'Bạn không có vai trò trên dự án này.' });
-  req.deliveryUser = effective; req.deliveryCompanyUser = user; req.deliverySessionHash = session.hash; next();
+  req.deliveryUser = effective; req.deliveryCompanyUser = user; req.deliverySessionHash = session.hash;
+  // Ma trận "Trang & mục": chặn yêu cầu tới mục mà vai trò không được thấy / chỉ được xem.
+  return enforcePageAccess(req, res, next, db);
 }
 export const safeUser = ({ hash, salt, ...user }) => user;
 export function deliveryUsers(req, res) {

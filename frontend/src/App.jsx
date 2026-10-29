@@ -1,5 +1,7 @@
 ﻿import { useEffect, useLayoutEffect, useRef, lazy, Suspense } from 'react';
 import { AppProvider, useApp, useLayout } from './context/AppContext';
+import { usePageAccess } from './context/PageAccessContext';
+import { PAGE_ACCESS_TREE } from './utils/pageAccess';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
 import Toast from './components/layout/Toast';
@@ -39,7 +41,13 @@ function ContentColumn({ children }) {
 }
 
 function MainLayout() {
-  const { activeTab } = useApp();
+  const { activeTab, setActiveTab } = useApp();
+  const { ready, pageVisible, visiblePages } = usePageAccess();
+  // Trang đang mở bị tắt quyền (đổi ma trận / đổi vai trò): chuyển sang trang đầu tiên còn được thấy.
+  const pageBlocked = ready && PAGE_ACCESS_TREE.some(page => page.key === activeTab) && !pageVisible(activeTab);
+  useEffect(() => {
+    if (pageBlocked && visiblePages[0]) setActiveTab(visiblePages[0]);
+  }, [pageBlocked, visiblePages, setActiveTab]);
   const placeholderPage = placeholderPages.find(page => page.id === activeTab);
   const fixedControls = Boolean(placeholderPage) || ['work-hub', 'director-overview', 'activity', 'gantt', 'company'].includes(activeTab);
   useEffect(() => {
@@ -54,12 +62,13 @@ function MainLayout() {
       <ContentColumn>
         <Header />
         <main key={activeTab} className={`app-page-scroll ${activeTab === 'gantt' ? 'app-gantt-scroll' : activeTab === 'activity' ? 'app-activity-scroll' : activeTab === 'director-overview' ? 'app-dashboard-scroll' : ''} flex-1 w-full animate-fade-in ${placeholderPage || activeTab === 'work-hub' || activeTab === 'director-overview' || activeTab === 'gantt' || activeTab === 'activity' || activeTab === 'company' ? 'max-w-none mx-0 p-0' : 'p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto'}`}>
-          {activeTab === 'work-hub' && <WorkHubPage />}
-          {activeTab === 'director-overview' && <DirectorOverviewPage />}
-          {activeTab === 'gantt' && <Suspense fallback={<p className="p-4 text-sm text-slate-500">Đang tải tiến độ…</p>}><GanttPage /></Suspense>}
-          {activeTab === 'company' && <Suspense fallback={<p className="p-4">Đang tải trang Công ty…</p>}><CompanyPage /></Suspense>}
+          {pageBlocked && !visiblePages.length && <p className="p-6 text-sm text-slate-500">Tài khoản của bạn chưa được cấp quyền xem trang nào. Liên hệ Giám đốc / quản trị để được phân quyền.</p>}
+          {!pageBlocked && activeTab === 'work-hub' && <WorkHubPage />}
+          {!pageBlocked && activeTab === 'director-overview' && <DirectorOverviewPage />}
+          {!pageBlocked && activeTab === 'gantt' && <Suspense fallback={<p className="p-4 text-sm text-slate-500">Đang tải tiến độ…</p>}><GanttPage /></Suspense>}
+          {!pageBlocked && activeTab === 'company' && <Suspense fallback={<p className="p-4">Đang tải trang Công ty…</p>}><CompanyPage /></Suspense>}
           {activeTab === 'activity' && getCurrentUser()?.role === 'admin' && <AdminActivityPage />}
-          {placeholderPage && <Suspense fallback={<p className="p-4">Đang tải…</p>}>{activeTab === 'timesheets' && <TimesheetsPage/>}{activeTab === 'permissions' && <PermissionsPage/>}</Suspense>}
+          {!pageBlocked && placeholderPage && <Suspense fallback={<p className="p-4">Đang tải…</p>}>{activeTab === 'timesheets' && <TimesheetsPage/>}{activeTab === 'permissions' && <PermissionsPage/>}</Suspense>}
         </main>
       </ContentColumn>
       <Toast />

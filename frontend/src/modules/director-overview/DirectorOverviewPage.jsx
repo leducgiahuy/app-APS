@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BarChart3 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { deliveryApi } from '../gantt/deliveryApi';
-import { capacityWeight } from '../../utils/workforceForecast';
+import { monthFillPercent } from '../../utils/monthCapacity';
 import { summarizePortfolioWork, summarizeProjectWork } from '../../utils/deliveryMetrics';
 import './DirectorOverviewPage.css';
 
@@ -12,35 +12,6 @@ const number = value => value == null || !Number.isFinite(Number(value))
 const signed = value => value == null || !Number.isFinite(Number(value))
   ? '—'
   : `${Number(value) > 0 ? '+' : ''}${number(value)}`;
-
-function monthRange(month) {
-  const [year, index] = month.split('-').map(Number);
-  const first = new Date(year, index - 1, 1);
-  const last = new Date(year, index, 0);
-  const key = date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-  return { first: key(first), last: key(last), days: last.getDate() };
-}
-
-function assignedHoursInMonth(tasks, month) {
-  const range = monthRange(month);
-  return tasks.reduce((total, task) => {
-    const streams = Array.isArray(task.assignees) && task.assignees.length ? task.assignees : [task];
-    return total + streams.reduce((sum, assignment) => {
-      const start = assignment.startDate || task.startDate;
-      const end = assignment.endDate || task.endDate;
-      if (!start || !end || end < range.first || start > range.last) return sum;
-      const from = new Date(`${start < range.first ? range.first : start}T12:00:00`);
-      const to = new Date(`${end > range.last ? range.last : end}T12:00:00`);
-      let weight = 0;
-      for (const date = new Date(from); date <= to; date.setDate(date.getDate() + 1)) {
-        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-        weight += capacityWeight(key);
-      }
-      const daily = Number(assignment.estimatedHoursPerDay ?? task.estimatedHoursPerDay) || 8;
-      return sum + weight * daily;
-    }, 0);
-  }, 0);
-}
 
 function projectWork(project, details, executiveRow) {
   const comparison = summarizeProjectWork(project, details?.taskMetrics);
@@ -121,16 +92,7 @@ export default function DirectorOverviewPage() {
       red: rows.reduce((sum, row) => sum + row.red, 0),
     };
   }, [rows]);
-  const capacity = useMemo(() => {
-    const range = monthRange(month);
-    let available = 0;
-    for (let day = 1; day <= range.days; day += 1) {
-      const date = `${month}-${String(day).padStart(2, '0')}`;
-      available += employees.reduce((sum, employee) => sum + capacityWeight(date) * (Number(employee.standardHours) || 8), 0);
-    }
-    const assigned = assignedHoursInMonth(tasks, month);
-    return available ? assigned / available * 100 : null;
-  }, [employees, tasks, month]);
+  const capacity = useMemo(() => monthFillPercent(tasks, employees, month, ganttItems), [tasks, employees, month, ganttItems]);
   const overBudget = rows.filter(row => row.variance > 0.05);
   const urgentDocuments = (report?.projects || []).reduce((sum, row) => sum + (row.urgent?.length || 0), 0);
 

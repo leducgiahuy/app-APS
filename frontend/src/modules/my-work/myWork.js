@@ -3,6 +3,7 @@ import { isTaskAssignedTo, resolveEmployee } from '../auth/personalWork';
 import { taskDeliveryStatus } from '../../utils/deliveryMetrics';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const WEEKDAYS = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
 
 function dateKey(value) {
   if (!value) return '';
@@ -38,8 +39,10 @@ export function formatMyWorkDue(dueAt, now = new Date()) {
   if (days === -1) return 'Quá hạn 1 ngày';
   if (days === 0) return 'Hôm nay';
   if (days === 1) return 'Ngày mai';
-  if (days <= 7) return due.toLocaleDateString('vi-VN', { weekday: 'long' });
-  return due.toLocaleDateString('vi-VN');
+  const dayMonth = `${String(due.getDate()).padStart(2, '0')}/${String(due.getMonth() + 1).padStart(2, '0')}`;
+  // Kèm ngày để không nhầm tuần (hạn đúng 7 ngày nữa trùng thứ với hôm nay).
+  if (days <= 7) return `${WEEKDAYS[due.getDay()]} · ${dayMonth}`;
+  return `${dayMonth}/${due.getFullYear()}`;
 }
 
 /**
@@ -76,11 +79,17 @@ export function buildMyWorkItems({ tasks = [], employees = [], projects = [], no
         assignee: task.employeeName || task.assignees?.map(item => item.employeeName).filter(Boolean).join(', ') || '',
       };
     })
-    .sort((left, right) => {
-      const leftDue = left.dueAt || '9999-12-31';
-      const rightDue = right.dueAt || '9999-12-31';
-      return leftDue.localeCompare(rightDue) || left.title.localeCompare(right.title, 'vi');
-    });
+    .sort(compareMyWorkItems);
+}
+
+// Một dòng thời gian chung cho mọi dự án: hạn sớm trước, không gom theo dự án.
+// Cùng ngày thì xếp theo tên dự án rồi mã task (A1.2 trước A1.10); việc chưa có hạn nằm cuối.
+export function compareMyWorkItems(left, right) {
+  const leftDue = left.dueAt || '9999-12-31';
+  const rightDue = right.dueAt || '9999-12-31';
+  return leftDue.localeCompare(rightDue)
+    || String(left.projectName || '').localeCompare(String(right.projectName || ''), 'vi')
+    || left.title.localeCompare(right.title, 'vi', { numeric: true });
 }
 
 export function myWorkSummary(items = []) {

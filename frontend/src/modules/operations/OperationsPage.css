@@ -99,3 +99,13 @@
 .dark .operations-matrix tr.section th { color:#dce6ee; background:#26384b; }
 
 .operations-project-wizard{width:min(1200px,96vw);max-height:92vh;overflow:auto;border-radius:12px;box-shadow:0 20px 80px #0004;padding:20px}.operations-wizard-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:14px}.operations-wizard-heading h2{font-size:18px;font-weight:700}.operations-grid-form select[multiple]{min-height:65px}
+
+/* Ma trận "Trang & mục": trang là thanh ngang cao, mục / mục con lồng bên trong và đóng mở được. */
+.page-access-matrix tr.page-row th { height:54px; padding:0 16px; font-size:16px; font-weight:800; letter-spacing:.01em; text-align:left; color:#263d52; background:#e8eef4; border-top:2px solid #cfd9e3; }
+.page-access-matrix tr.section-row td:first-child { font-weight:650; }
+.page-access-label { display:flex; align-items:center; gap:8px; min-height:28px; }
+.page-access-matrix tr.child-row .page-access-label { padding-left:52px; color:var(--op-text); font-size:14px; font-weight:500; }
+.operations-page .page-access-matrix button.page-access-toggle:not(.operations-tabs button) { display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; padding:0; border-radius:5px; flex-shrink:0; }
+.page-access-toggle-space { display:inline-block; width:22px; flex-shrink:0; }
+.page-access-select { width:118px; padding:4px 6px; border:1px solid var(--op-line); border-radius:6px; background:var(--op-surface); color:inherit; font-size:12px; }
+.dark .page-access-matrix tr.page-row th { color:#dce6ee; background:#26384b; border-top-color:#35506b; }

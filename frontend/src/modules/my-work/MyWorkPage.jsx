@@ -6,7 +6,7 @@ import { deliveryApi } from '../gantt/deliveryApi';
 import { isTaskAssignedTo, resolveEmployee } from '../auth/personalWork';
 import { formatDateVi } from '../../utils/date';
 import { localDateKey, matchesEmployee } from '../../utils/shift';
-import { buildMyWorkItems, myWorkSummary } from './myWork';
+import { buildMyWorkItems, compareMyWorkItems, myWorkSummary } from './myWork';
 import './MyWorkPage.css';
 
 // Ngày bắt đầu của chính người dùng: ưu tiên khoảng phân công riêng, sau đó mới tới ngày của task.
@@ -65,8 +65,7 @@ export default function MyWorkPage() {
     });
     return [...workflowItems, ...taskItems].sort((left, right) => {
       const rank = { urgent: 0, upcoming: 1, following: 2 };
-      return rank[left.bucket] - rank[right.bucket]
-        || (left.dueAt || '9999-12-31').localeCompare(right.dueAt || '9999-12-31');
+      return rank[left.bucket] - rank[right.bucket] || compareMyWorkItems(left, right);
     });
   }, [workflow.notifications, taskItems, projects]);
   const summary = useMemo(() => myWorkSummary(items), [items]);
@@ -166,6 +165,10 @@ export default function MyWorkPage() {
           </div>
           {visibleItems.map(item => {
             const isCurrent = item.type === 'task' && myEmployee?.activeTaskId === item.recordId && myEmployee.isOnSite && !myEmployee.isOnBreak;
+            // Chưa tới ngày bắt đầu (của chính mình nếu được giao, nếu không thì của task): ẩn nút Làm.
+            const task = item.type === 'task' ? tasks.find(record => record.id === item.recordId) : null;
+            const startKey = task && myEmployee && isTaskAssignedTo(task, myEmployee) ? assignmentStartFor(task, myEmployee) : item.startDate || '';
+            const notStarted = item.type === 'task' && startKey && todayKey < startKey;
             return (
               <div className="my-work-row" role="row" key={item.id}>
                 <span role="cell"><span className={`my-work-due ${item.bucket}`}>{item.dueLabel}</span></span>
@@ -179,7 +182,9 @@ export default function MyWorkPage() {
                   {isCurrent && <span className="my-work-status is-current">Đang tính giờ</span>}
                 </span>
                 <span role="cell" className="my-work-project">{item.projectName}</span>
-                <span role="cell"><button type="button" className="my-work-action" onClick={() => openItem(item)}>{isCurrent ? 'Mở' : 'Làm'} <ArrowRight size={14} /></button></span>
+                <span role="cell">{notStarted
+                  ? <span className="my-work-not-started" title={`Task bắt đầu từ ${formatDateVi(startKey)}`}>Bắt đầu {startKey.slice(8, 10)}/{startKey.slice(5, 7)}</span>
+                  : <button type="button" className="my-work-action" onClick={() => openItem(item)}>{isCurrent ? 'Mở' : 'Làm'} <ArrowRight size={14} /></button>}</span>
               </div>
             );
           })}

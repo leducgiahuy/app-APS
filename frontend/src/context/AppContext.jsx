@@ -4,6 +4,8 @@ import { getCurrentUser, recordActivity } from '../modules/auth/authSession';
 import { deliveryMatrix, deliveryViewer } from '../modules/gantt/deliveryApi';
 import { permissionsFor } from '../utils/rolePermissions';
 import { accountForEmployee } from '../modules/auth/accountEmployeeSync';
+import { PageAccessProvider } from './PageAccessContext';
+import { reviewingRole } from '../utils/deliveryMetrics';
 
 const AppContext = createContext();
 // Tách khỏi AppContext để mỗi tích tắc đồng hồ hay mỗi lần thu/mở menu không bắt mọi trang vẽ lại
@@ -37,7 +39,7 @@ function LayoutProvider({ children }) {
 }
 
 export function AppProvider({ children }) {
-  return <ClockProvider><LayoutProvider><AppStateProvider>{children}</AppStateProvider></LayoutProvider></ClockProvider>;
+  return <ClockProvider><LayoutProvider><PageAccessProvider><AppStateProvider>{children}</AppStateProvider></PageAccessProvider></LayoutProvider></ClockProvider>;
 }
 
 /** Giờ hiện tại cập nhật từng giây — chỉ dùng cho đồng hồ hiển thị. */
