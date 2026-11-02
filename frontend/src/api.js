@@ -1,7 +1,7 @@
 import { deliveryToken } from './modules/gantt/deliveryApi';
 
 /**
- * API Client kết nối với Backend Express (http://localhost:5000/api)
+ * API Client kết nối với Backend Express qua đường dẫn tương đối /api (cùng tên miền với giao diện)
  * Đã cấu hình fallback dữ liệu dự phòng tự động nếu Backend tạm thời chưa khởi động.
  */
 

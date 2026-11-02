@@ -1,6 +1,7 @@
 import { getCurrentUser, recordActivity } from '../auth/authSession';
 
-const BASE = 'http://localhost:5000/api/delivery';
+// Đường dẫn tương đối: chạy được cả khi deploy (cùng tên miền) lẫn khi dev (Vite proxy /api).
+const BASE = '/api/delivery';
 let session = null;
 let loginPromise = null;
 async function authenticate() {

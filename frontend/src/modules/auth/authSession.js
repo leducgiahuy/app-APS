@@ -5,7 +5,8 @@ const SESSION_KEY = 'aps-authenticated';
 const ACTIVITY_KEY = 'aps-activity-log';
 const AUTH_ATTEMPTS_KEY = 'aps-auth-attempts';
 const AUTH_SESSION_MS = 8 * 60 * 60 * 1000;
-const ACTIVITY_API = 'http://localhost:5000/api/activity';
+const API_ROOT = '/api';
+const ACTIVITY_API = `${API_ROOT}/activity`;
 const DEMO_USER = {
   name: 'Nguyễn Minh Anh',
   email: 'demo@aps.vn',
@@ -77,6 +78,53 @@ export function authenticateUser(email, password) {
   attempts[normalizedEmail] = { count, lockedUntil: count >= 5 ? Date.now() + 15 * 60 * 1000 : 0 };
   localStorage.setItem(AUTH_ATTEMPTS_KEY, JSON.stringify(attempts));
   return null;
+}
+
+/**
+ * Đăng nhập qua máy chủ: backend là nơi giữ tài khoản và mật khẩu (đã mã hóa), nên tài khoản admin tạo
+ * đăng nhập được trên mọi máy. Thành công thì lưu hồ sơ phiên vào trình duyệt này để các trang dùng như trước.
+ * Máy chủ không phản hồi (đang dev offline) thì quay về kiểm tra tài khoản lưu trên trình duyệt.
+ */
+export async function authenticateWithServer(email, password) {
+  const normalizedEmail = email.trim().toLowerCase();
+  let response;
+  try {
+    response = await fetch(`${API_ROOT}/delivery/session`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: normalizedEmail, password }) });
+  } catch {
+    const user = authenticateUser(normalizedEmail, password);
+    return user ? { user } : { error: 'Không kết nối được máy chủ và tài khoản không có trên trình duyệt này.' };
+  }
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) return { error: result.message || 'Thông tin đăng nhập chưa đúng.' };
+  const { token, user: serverUser } = result.data || {};
+  let employee = null;
+  try {
+    const employees = await fetch(`${API_ROOT}/employees`, { headers: { Authorization: `Bearer ${token}` } }).then((res) => res.ok ? res.json() : null);
+    employee = employees?.data?.find((row) => row.id === serverUser?.employeeId) || null;
+  } catch { /* Hồ sơ nhân sự chỉ để điền phòng ban/SĐT; thiếu vẫn đăng nhập được. */ }
+  return { user: cacheServerUser({ ...serverUser, email: normalizedEmail }, password, employee) };
+}
+
+/** Ghi/ cập nhật tài khoản đăng nhập từ máy chủ vào trình duyệt; giữ các trường chỉ có ở trình duyệt (công ty, ảnh...). */
+function cacheServerUser(serverUser, password, employee) {
+  const users = getUsers();
+  const existing = users.find((user) => user.email === serverUser.email);
+  const isAdmin = serverUser.role === 'admin';
+  const user = {
+    company: 'APS Việt Nam',
+    ...existing,
+    email: serverUser.email,
+    name: serverUser.name || existing?.name || serverUser.email,
+    password,
+    role: isAdmin ? 'admin' : 'user',
+    employeeId: serverUser.employeeId || existing?.employeeId || '',
+    level: isAdmin ? existing?.level || 'director' : normalizeLevel(serverUser.role),
+    department: existing?.department || employee?.team || '',
+    specialty: existing?.specialty || '',
+    phone: existing?.phone || (employee?.phone && employee.phone !== 'Đang cập nhật' ? employee.phone : ''),
+  };
+  localStorage.setItem(USERS_KEY, JSON.stringify(existing ? users.map((entry) => entry === existing ? user : entry) : [...users, user]));
+  return user;
 }
 
 /** Lưu nhật ký thao tác, luôn bỏ qua mật khẩu và giới hạn dung lượng ở 1.000 sự kiện. */
