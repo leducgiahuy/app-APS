@@ -9,6 +9,8 @@
  * Hỗ trợ .xlsx (mẫu mới) và .csv (mẫu cũ); .xls đời cũ không đọc được, cần lưu lại thành .xlsx.
  */
 
+import { QUOTE_DEPARTMENTS } from './quoteStandardItems';
+
 /** Mã trường ở cột A → tên thuộc tính trong draft của form. */
 const FIELD_KEYS = {
   TEN_DU_AN: 'name',
@@ -80,7 +82,10 @@ function parseCsv(text) {
   return rows;
 }
 
-/** Đọc file thành mảng dòng, mỗi dòng là 4 ô đầu (cột A–D) đã lấy giá trị thô. */
+/** Số cột đọc của mẫu: A mã, B tên, C–H 6 cột bộ môn, I công báo giá. */
+const SHEET_COLUMNS = 3 + QUOTE_DEPARTMENTS.length;
+
+/** Đọc file thành mảng dòng, mỗi dòng là các ô cột A–I đã lấy giá trị thô. */
 async function readSheetRows(file) {
   const name = file.name.toLocaleLowerCase('vi');
   if (name.endsWith('.csv')) return parseCsv((await file.text()).replace(/^﻿/, ''));
@@ -89,7 +94,7 @@ async function readSheetRows(file) {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(await file.arrayBuffer());
   const rows = [];
-  workbook.worksheets.forEach(sheet => sheet.eachRow(row => rows.push([1, 2, 3, 4].map(column => cellValue(row.getCell(column).value)))));
+  workbook.worksheets.forEach(sheet => sheet.eachRow(row => rows.push(Array.from({ length: SHEET_COLUMNS }, (_, index) => cellValue(row.getCell(index + 1).value)))));
   return rows;
 }
 
@@ -98,18 +103,30 @@ const infoRows = rows => rows.map(row => [String(row[0] ?? '').trim(), row.lengt
 
 /**
  * Khối HẠNG MỤC BÁO GIÁ: các dòng nằm dưới dòng tiêu đề có MA_HANG_MUC ở cột A.
- * Bỏ qua dòng trống và dòng TỔNG CỘNG; dòng có tên nhưng thiếu/sai số công thì bỏ ra và cảnh báo.
+ * Mẫu mới: tiêu đề 2 dòng, dòng thứ 2 là tên 6 bộ môn (C–H), công ở cột I; ô bộ môn có chữ (mã KT, KC..., khác "-") = bộ môn tham gia.
+ * Mẫu cũ: 1 cột BO_MON ghi mã (C), công ở cột D.
+ * Bỏ qua dòng trống, dòng TỔNG CỘNG và dòng ghi chú gộp ô.
+ * Dòng mục lớn (mã chỉ gồm 1 chữ cái + số như A, A1, B3, hoặc cột công ghi "-") đọc thành nhóm (isGroup), không có công.
+ * Hạng mục chưa có công vẫn được đọc với workDays = 0 để người lập nhập tiếp trên web; công ghi sai (không phải số) thì cảnh báo.
  */
 function quoteItemRows(rows, warnings) {
   const header = rows.findIndex(row => String(row[0] ?? '').trim() === 'MA_HANG_MUC');
   if (header < 0) return [];
+  const split = normalize(rows[header + 1]?.[2]) === normalize(QUOTE_DEPARTMENTS[0].label);
   const items = [];
-  for (const [code, title, department, workDays] of rows.slice(header + 1)) {
+  for (const row of rows.slice(header + (split ? 2 : 1))) {
+    const [code, title] = row;
+    const department = split ? QUOTE_DEPARTMENTS.filter((dept, offset) => { const mark = String(row[2 + offset] ?? '').trim(); return mark && mark !== '-'; }).map(dept => dept.code).join(', ') : row[2];
+    const workDays = split ? row[2 + QUOTE_DEPARTMENTS.length] : row[3];
     const name = String(title ?? '').trim();
-    if (!name || normalize(name) === 'tong cong') continue;
-    const days = Number(toNumberText(workDays ?? ''));
-    if (!(days > 0)) { warnings.push(`Hạng mục "${name}" chưa có số công nên bị bỏ qua`); continue; }
-    items.push({ code: String(code ?? '').trim(), title: name, department: String(department ?? '').trim(), workDays: days });
+    const codeText = String(code ?? '').trim(), daysText = String(workDays ?? '').trim();
+    // Dòng ghi chú gộp ô ngang (mã trùng tên, VD chú thích cuối mẫu) không phải hạng mục.
+    if (!name || codeText === name || normalize(name) === 'tong cong') continue;
+    // Dòng mục lớn (A, A1...) là nhóm: giữ để hiện và gom việc trên Gantt, không lấy công (công tổng nếu có sẽ không cộng trùng).
+    if (daysText === '-' || /^[A-Z]\d*$/i.test(codeText)) { items.push({ code: codeText, title: name, isGroup: true, department: '', workDays: 0 }); continue; }
+    const parsed = daysText === '' ? '0' : toNumberText(workDays), days = parsed === '' ? NaN : Number(parsed);
+    if (!(days >= 0)) warnings.push(`Công của hạng mục "${name}" không phải số, hãy nhập lại trên web`);
+    items.push({ code: codeText, title: name, department: String(department ?? '').trim(), workDays: days >= 0 ? days : 0 });
   }
   return items;
 }
@@ -161,7 +178,8 @@ export async function readQuoteInfo(file, { templates = [], managers = [] } = {}
  */
 export function quoteItemsToTemplateItems(items, positionOf = () => '') {
   let cursor = 0;
-  return items.map((item, index) => {
+  // Template chỉ lưu việc; dòng mục lớn (nhóm) của file không đưa vào.
+  return items.filter(item => !item.isGroup).map((item, index) => {
     const startOffset = cursor;
     cursor += Math.max(1, Math.ceil(item.workDays));
     const id = `tpl-${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${index}`}`;

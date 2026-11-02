@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { assignmentWorkingDates } from '../../utils/assignmentCalendar';
 import { calendarCapacity, employeePosition, positionKey } from '../../utils/workforceForecast';
 import { calculateAssignmentHours } from '../../utils/ganttEffort';
+import { EXTERNAL_DEPARTMENTS, employeeDepartment, employeeDepartments, taskDepartments } from '../../utils/departmentCodes';
 import './AssignmentMachinePage.css';
 
 const assignmentList = (item, linkedTask) => {
@@ -26,13 +27,8 @@ const overlapHours = (item, assignment, target) => {
   return calculateAssignmentHours({ ...item, startDate, endDate }, { ...assignment, startDate, endDate });
 };
 
-const departmentCode = employee => {
-  const source = `${employee?.team || ''} ${employee?.title || ''}`.toLocaleLowerCase('vi');
-  if (/pháp|phap/.test(source)) return 'PL';
-  if (/cơ điện|co dien|mep|pccc/.test(source)) return 'MEP';
-  if (/khảo sát|khao sat|địa chất|dia chat/.test(source)) return 'KC';
-  return 'KT';
-};
+/** Nhãn bộ môn: mỗi mã 1 nhãn màu (KT, KC, MEP, HT, PCCC, CĐT, PL). */
+const DeptBadges = ({ codes }) => codes.length ? codes.map(code => <span key={code} className={`dept dept-${code === 'CĐT' ? 'cdt' : code.toLowerCase()}`}>{code}</span>) : <span className="dept">—</span>;
 
 export default function AssignmentMachinePage({ projectId, items, tasks, employees, updateGanttItem, readOnly }) {
   const [selectedIds, setSelectedIds] = useState([]);
@@ -58,8 +54,10 @@ export default function AssignmentMachinePage({ projectId, items, tasks, employe
       const currentEmployee = employees.find(employee => employee.id === current[0]?.employeeId) || employees.find(employee => employee.name === current[0]?.employeeName);
       const required = item.requiredPosition || item.position || currentEmployee?.title || '';
       let candidates = employees.filter(employee => employee.status !== 'inactive');
-      const exact = candidates.filter(employee => positionKey(employeePosition(employee)) === positionKey(required));
-      if (exact.length) candidates = exact;
+      // Việc ghi bộ môn (VD "KC, HT" từ file báo giá): chỉ đề xuất người thuộc các bộ môn đó, đồng bộ với cách tự gán khi tạo dự án.
+      const departments = taskDepartments(item).filter(code => !EXTERNAL_DEPARTMENTS.includes(code));
+      const exact = candidates.filter(employee => departments.length ? employeeDepartments(employee).some(code => departments.includes(code)) : positionKey(employeePosition(employee)) === positionKey(required));
+      if (exact.length || departments.length) candidates = exact;
       const loadInRange = employee => {
         const existing = items.filter(source => !source.isGroup && !source.isProjectHeader).reduce((sum, source) => sum + assignmentList(source, linkedByGantt.get(source.id)).filter(assignment => assignment.employeeId === employee.id).reduce((total, assignment) => total + overlapHours(source, assignment, item), 0), 0);
         const proposed = recommendations.filter(entry => entry.employeeId === employee.id).reduce((sum, entry) => sum + overlapHours(entry.item, entry.assignment, item), 0);
@@ -73,7 +71,7 @@ export default function AssignmentMachinePage({ projectId, items, tasks, employe
       const beforePercent = rangeCapacity ? Math.round(before / rangeCapacity * 100) : 0;
       const afterPercent = rangeCapacity ? Math.round((before + (currentEmployee ? 0 : hours)) / rangeCapacity * 100) : 0;
       if (recommended && !currentEmployee) recommendations.push({ employeeId: recommended.id, item, assignment: { startDate: item.startDate, endDate: item.endDate, estimatedHoursPerDay: hours / Math.max(1, assignmentWorkingDates(item, { startDate: item.startDate, endDate: item.endDate, excludeNonWorkingDays: true }).length), excludeNonWorkingDays: true } });
-      return { item, linked, current, currentEmployee, recommended, hours, started, beforePercent, afterPercent, overloaded: !currentEmployee && (!recommended || afterPercent > 100) };
+      return { item, linked, current, departments: taskDepartments(item), currentEmployee, recommended, hours, started, beforePercent, afterPercent, overloaded: !currentEmployee && (!recommended || afterPercent > 100) };
     });
   }, [employees, items, linkedByGantt, projectItems]);
 
@@ -117,19 +115,19 @@ export default function AssignmentMachinePage({ projectId, items, tasks, employe
     </div>
     <div className="machine-panel">
       <header><b>Phân công · {projectId === 'ALL' ? 'Tất cả dự án' : 'Dự án đang chọn'}</b><small> Chọn việc rồi gán hàng loạt, hoặc đổi người trực tiếp tại từng dòng</small></header>
-      <div className="machine-bulk"><span>Gán các việc đã tích cho</span><select value={bulkEmployeeId} onChange={event => setBulkEmployeeId(event.target.value)} disabled={readOnly}><option value="">Chọn người</option>{employees.map(employee => <option key={employee.id} value={employee.id}>{employee.name} · {departmentCode(employee)}</option>)}</select><button onClick={assignBulk} disabled={readOnly || !bulkEmployeeId || !selectedIds.length}>Gán</button></div>
+      <div className="machine-bulk"><span>Gán các việc đã tích cho</span><select value={bulkEmployeeId} onChange={event => setBulkEmployeeId(event.target.value)} disabled={readOnly}><option value="">Chọn người</option>{employees.map(employee => <option key={employee.id} value={employee.id}>{employee.name} · {employeeDepartment(employee) || '—'}</option>)}</select><button onClick={assignBulk} disabled={readOnly || !bulkEmployeeId || !selectedIds.length}>Gán</button></div>
       <div className="machine-table-wrap"><table><thead><tr><th></th><th>Việc</th><th>Bộ môn</th><th>Công DT</th><th>Người làm</th><th>Nguồn</th><th>Lý do · tải trước → sau</th></tr></thead><tbody>{rows.map(row => {
         const employee = employees.find(person => person.id === chosenEmployeeId(row));
         const locked = row.started || Boolean(row.currentEmployee) || row.linked?.status === 'completed' || row.item.status === 'completed';
         return <tr key={row.item.id} className={row.overloaded ? 'overloaded' : ''}>
           <td><input type="checkbox" aria-label={`Chọn ${row.item.title}`} disabled={readOnly || locked} checked={selectedIds.includes(row.item.id)} onChange={event => setSelectedIds(current => event.target.checked ? [...current, row.item.id] : current.filter(id => id !== row.item.id))} /></td>
-          <td><b>{row.item.code}</b> {row.item.title}</td><td><span className={`dept dept-${departmentCode(employee).toLowerCase()}`}>{departmentCode(employee)}</span></td><td>{(row.hours / 8).toLocaleString('vi-VN', { maximumFractionDigits: 1 })}</td>
-          <td>{locked || row.currentEmployee ? <span>{employee?.name || 'Chưa phân công'}</span> : <select aria-label={`Người làm ${row.item.title}`} disabled={readOnly || savingId === row.item.id} value={overrides[row.item.id] || ''} onChange={event => assign(row, event.target.value)}><option value="">Đề xuất: {row.recommended?.name || 'Chưa có người phù hợp'}</option>{employees.map(person => <option key={person.id} value={person.id}>{person.name}</option>)}</select>}</td>
+          <td><b>{row.item.code}</b> {row.item.title}</td><td><span className="dept-list"><DeptBadges codes={row.departments.length ? row.departments : [employeeDepartment(employee)].filter(Boolean)} /></span></td><td>{(row.hours / 8).toLocaleString('vi-VN', { maximumFractionDigits: 1 })}</td>
+          <td>{locked || row.currentEmployee ? <span>{row.current.length > 1 ? row.current.map(assignment => assignment.employeeName).filter(Boolean).join(', ') : employee?.name || 'Chưa phân công'}</span> : <select aria-label={`Người làm ${row.item.title}`} disabled={readOnly || savingId === row.item.id} value={overrides[row.item.id] || ''} onChange={event => assign(row, event.target.value)}><option value="">Đề xuất: {row.recommended?.name || 'Chưa có người phù hợp'}</option>{employees.map(person => <option key={person.id} value={person.id}>{person.name}</option>)}</select>}</td>
           <td><span className={`source ${row.currentEmployee ? 'kept' : 'auto'}`}>{row.currentEmployee ? 'Đang làm · giữ nguyên' : 'Máy gán'}</span></td>
           <td>{row.currentEmployee ? (row.started ? 'Việc đã bắt đầu' : 'Phân công hiện có · giữ nguyên') : `${row.beforePercent}% → ${row.afterPercent}%`}{row.overloaded && <span className="overload-label">Quá tải do thiếu người</span>}</td>
         </tr>;
       })}</tbody></table></div>
     </div>
-    <div className="machine-panel machine-load"><header><b>Tải sau phân công</b><small> Tải cập nhật theo các việc của dự án đang chọn</small></header><table><thead><tr><th>Người</th><th>Bộ môn</th><th>Tải</th><th></th></tr></thead><tbody>{loadRows.map(({ employee, percent }) => <tr key={employee.id}><td><b>{employee.name}</b></td><td><span className={`dept dept-${departmentCode(employee).toLowerCase()}`}>{departmentCode(employee)}</span></td><td className={percent > 100 ? 'load-high' : percent >= 90 ? 'load-warn' : 'load-ok'}>{percent}%</td><td><div className="load-track"><i style={{ width: `${Math.min(100, percent)}%` }} /></div></td></tr>)}</tbody></table></div>
+    <div className="machine-panel machine-load"><header><b>Tải sau phân công</b><small> Tải cập nhật theo các việc của dự án đang chọn</small></header><table><thead><tr><th>Người</th><th>Bộ môn</th><th>Tải</th><th></th></tr></thead><tbody>{loadRows.map(({ employee, percent }) => <tr key={employee.id}><td><b>{employee.name}</b></td><td><DeptBadges codes={[employeeDepartment(employee)].filter(Boolean)} /></td><td className={percent > 100 ? 'load-high' : percent >= 90 ? 'load-warn' : 'load-ok'}>{percent}%</td><td><div className="load-track"><i style={{ width: `${Math.min(100, percent)}%` }} /></div></td></tr>)}</tbody></table></div>
   </section>;
 }
