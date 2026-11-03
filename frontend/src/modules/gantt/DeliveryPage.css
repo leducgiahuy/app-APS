@@ -376,29 +376,44 @@
 .delivery-row button {
   flex-shrink:0
 }
+/* Người làm: mỗi người một dòng cao 18px, cách nhau 4px (khớp PERSON_LINE_HEIGHT ở GanttPage); vòng chữ cái không bị bóp méo. */
 .delivery-people {
   display:flex;
   flex-direction:column;
-  gap:2px;
+  justify-content:center;
+  gap:4px;
+  width:100%;
+  min-width:0;
   overflow:hidden
 }
-.delivery-people span {
+.delivery-people > span {
   display:flex;
   align-items:center;
-  gap:4px;
+  gap:6px;
+  height:18px;
+  min-width:0;
   white-space:nowrap
 }
 .delivery-people i {
   display:inline-flex;
+  flex:none;
   align-items:center;
   justify-content:center;
-  width:16px;
-  height:16px;
+  width:18px;
+  height:18px;
   border-radius:50%;
   background:#f6e7ed;
   color:#861b36;
-  font-size:var(--text-caption);
-  font-style:normal
+  font-size:10px;
+  font-weight:700;
+  font-style:normal;
+  line-height:1
+}
+.delivery-person-name {
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  line-height:18px
 }
 .delivery-people button {
   color:#861b36;

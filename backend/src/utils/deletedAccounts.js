@@ -1,5 +1,6 @@
 import { readDb, writeDb } from '../models/db.js';
 import { deliveryStore, passwordHash, safeUser } from './deliveryAuth.js';
+import { purgeEmployeeData } from './deletionCleanup.js';
 
 /**
  * Xóa tài khoản khỏi toàn bộ dữ liệu đang dùng nhưng giữ một bản lưu trữ chỉ Quản trị xem được.
@@ -48,7 +49,9 @@ export function deleteAccount(req, res) {
   store.users = store.users.filter(user => user.email !== email);
   store.sessions = store.sessions.filter(session => session.email !== email);
   if (store.loginAttempts) delete store.loginAttempts[email];
-  if (employee) db.employees = employees.filter(row => row.id !== employee.id);
+  if (employee) { db.employees = employees.filter(row => row.id !== employee.id); purgeEmployeeData(db, [employee.id]); }
+  // Dấu đã xóa: trình duyệt khác còn giữ bản cũ của tài khoản này không được đẩy nó lên lại.
+  store.deletedEmails = [...new Set([...(store.deletedEmails || []), email])];
   members.forEach(row => { row.deletedAt = deletedAt; row.deletedReason = 'account-deleted'; });
 
   if (!writeDb(db)) return res.status(500).json({ message: 'Không xóa được tài khoản. Vui lòng thử lại.' });
@@ -92,6 +95,7 @@ export function restoreDeletedAccount(req, res) {
   const employee = record.employee && !db.employees.some(row => row.id === record.employee.id) ? record.employee : null;
   if (employee) db.employees.push({ ...employee, isOnSite: false, isOnBreak: false, checkInAt: null, checkInTime: null, activeTaskId: null, activeTaskTitle: null, workSessionStartedAt: null });
   const role = record.backendUser?.role || record.account?.level || 'employee';
+  store.deletedEmails = (store.deletedEmails || []).filter(email => email !== record.email);
   store.users.push({ ...(record.backendUser || {}), email: record.email, name: record.name, role, employeeId: record.employee?.id || '', disabled: false, ...passwordHash(password) });
   (db.operations?.members || []).forEach(row => {
     if (record.memberIds?.includes(row.id) && row.deletedReason === 'account-deleted') { delete row.deletedAt; delete row.deletedReason; }

@@ -172,13 +172,15 @@ export async function linkAccountsToEmployees() {
 
 /**
  * Máy chủ là bản chuẩn của tài khoản: tài khoản đã có hồ sơ trên máy chủ được ghi đè vào trình duyệt
- * (gồm user do máy / admin khác tạo, sửa); tài khoản từng đồng bộ mà máy chủ không còn (đã xóa ở nơi khác) bị bỏ.
+ * (gồm user do máy / admin khác tạo, sửa); tài khoản từng đồng bộ mà máy chủ không còn, hoặc máy chủ đánh dấu đã xóa, bị bỏ.
  */
 async function pullServerAccounts() {
-  const backendUsers = (await deliveryApi.users()).data || [];
+  const response = await deliveryApi.users();
+  const backendUsers = response.data || [], deleted = new Set(response.deletedEmails || []);
   for (const entry of backendUsers) if (entry.role !== 'admin' && entry.profileSavedAt) applyServerProfile(entry, { add: true });
   for (const user of getUsers().filter((entry) => entry.role === 'user')) {
-    if (user.profileSavedAt && !backendUsers.some((entry) => entry.email === user.email)) forgetLocalUser(user.email);
+    const onServer = backendUsers.some((entry) => entry.email === user.email);
+    if (!onServer && (user.profileSavedAt || deleted.has(user.email))) forgetLocalUser(user.email);
   }
   return backendUsers;
 }
@@ -189,9 +191,14 @@ async function pushLocalAccounts(backendUsers) {
   for (const user of getUsers().filter((entry) => entry.role === 'user')) {
     const existing = backendUsers.find((entry) => entry.email === user.email);
     if (existing?.profileSavedAt) continue;
-    const expected = backendAccount(user);
-    await deliveryApi.saveUser(existing ? expected : { ...expected, password: user.password });
-    synced += 1;
+    const expected = { ...backendAccount(user), sync: true };
+    try {
+      await deliveryApi.saveUser(existing ? expected : { ...expected, password: user.password });
+      synced += 1;
+    } catch (error) {
+      // Máy chủ báo tài khoản đã bị xóa: bỏ bản cũ trên trình duyệt thay vì tạo lại.
+      if (error.status === 410) forgetLocalUser(user.email); else throw error;
+    }
   }
   return synced;
 }

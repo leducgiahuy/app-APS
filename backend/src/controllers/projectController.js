@@ -1,6 +1,7 @@
 import { positionKey,employeePosition } from '../../../frontend/src/utils/workforceForecast.js';
 import { calculateAssignmentHours } from '../../../frontend/src/utils/ganttEffort.js';
 import { readDb, writeDb } from '../models/db.js';
+import { purgeProjectData } from '../utils/deletionCleanup.js';
 import { assignmentWorkingDates, normalizeAssignmentSchedules } from '../../../frontend/src/utils/assignmentCalendar.js';
 
 /**
@@ -236,7 +237,8 @@ export function deleteProject(req, res) {
   });
 
   const [removedProject] = db.projects.splice(projectIndex, 1);
-  if (db.delivery?.projects) delete db.delivery.projects[id];
+  // Ngân sách, thành viên, phiếu chi, hồ sơ tiến độ… của dự án cũng bị gỡ, không còn cộng vào báo cáo.
+  purgeProjectData(db, [id]);
   writeDb(db);
 
   return res.json({

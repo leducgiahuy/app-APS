@@ -31,6 +31,16 @@ function projectWork(project, details, executiveRow) {
   };
 }
 
+/** % hoàn thành và % kế hoạch của cả công ty, trọng số = công dự toán từng dự án. */
+function weightedPercents(rows) {
+  const weightOf = row => Math.max(0, Number(row.budgeted) || 0);
+  const totalWeight = rows.reduce((sum, row) => sum + weightOf(row), 0);
+  const average = key => totalWeight > 0
+    ? rows.reduce((sum, row) => sum + (Number(row[key]) || 0) * weightOf(row), 0) / totalWeight
+    : rows.reduce((sum, row) => sum + (Number(row[key]) || 0), 0) / Math.max(1, rows.length);
+  return { completion: average('completion'), planPercent: average('planPercent') };
+}
+
 export default function DirectorOverviewPage() {
   const { projects, tasks, ganttItems, employees, ganttMonth, setActiveTab } = useApp();
   const { canSee } = usePageAccess();
@@ -92,6 +102,9 @@ export default function DirectorOverviewPage() {
       variance: comparison.varianceWork,
       variancePercent: comparison.variancePercent,
       red: rows.reduce((sum, row) => sum + row.red, 0),
+      // % không cộng thẳng được: lấy trung bình theo trọng số công dự toán (dự án lớn ảnh hưởng nhiều hơn);
+      // chưa dự án nào có dự toán thì lấy trung bình cộng.
+      ...weightedPercents(rows),
     };
   }, [rows]);
   const capacity = useMemo(() => monthFillPercent(tasks, employees, month, ganttItems), [tasks, employees, month, ganttItems]);
@@ -147,7 +160,7 @@ export default function DirectorOverviewPage() {
             </tr>)}
             {!rows.length && <tr><td colSpan="7" className="empty">Chưa có dự án thuộc phạm vi xem.</td></tr>}
           </tbody>
-          {!!rows.length && <tfoot><tr><th>Tổng công ty</th><th>{number(totals.budgeted)}</th><th>{number(totals.actual)}</th><th>{number(totals.forecast)}</th><th><span className={`variance ${totals.variance > 0.05 ? 'bad' : totals.variance < -0.05 ? 'good' : ''}`}>{signed(totals.variance)}{totals.variancePercent != null ? ` (${signed(totals.variancePercent)}%)` : ''}</span></th><th>—</th><th>{totals.red}</th></tr></tfoot>}
+          {!!rows.length && <tfoot><tr><th>Tổng công ty</th><th>{number(totals.budgeted)}</th><th>{number(totals.actual)}</th><th>{number(totals.forecast)}</th><th><span className={`variance ${totals.variance > 0.05 ? 'bad' : totals.variance < -0.05 ? 'good' : ''}`}>{signed(totals.variance)}{totals.variancePercent != null ? ` (${signed(totals.variancePercent)}%)` : ''}</span></th><th>{number(totals.completion)}% / {number(totals.planPercent)}%</th><th>{totals.red}</th></tr></tfoot>}
         </table></div>
         <footer>Dự báo = công thực tế + công còn lại theo mức hoàn thành đã ghi nhận. Xanh ≤ 5%; vàng 5–10%; đỏ &gt; 10%. Bấm tên dự án để mở bảng việc.</footer>
       </section>

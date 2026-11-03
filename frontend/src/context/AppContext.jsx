@@ -434,7 +434,7 @@ function AppStateProvider({ children }) {
   };
 
   const deleteProject = async (id) => {
-    if (!window.confirm('Xóa dự án sẽ xóa toàn bộ task, Gantt và OT liên quan. Bạn có chắc chắn không?')) return false;
+    if (!window.confirm('Xóa dự án sẽ xóa hẳn toàn bộ task, Gantt, OT, ngân sách, thành viên và hồ sơ tiến độ của dự án, không hoàn tác được. Bạn có chắc chắn không?')) return false;
     try {
       const project = projects.find(item => item.id === id);
       await api.deleteProject(id);

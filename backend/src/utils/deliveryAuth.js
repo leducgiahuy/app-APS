@@ -74,11 +74,17 @@ export const safeUser = ({ hash, salt, ...user }) => user;
 export function deliveryUsers(req, res) {
   if (!['admin', 'director'].includes(req.deliveryUser.role)) return res.status(403).json({ message: 'Chỉ quản trị/giám đốc được cấp quyền.' });
   const db = readDb(); const store = deliveryStore(db);
-  if (req.method === 'GET') return res.json({ success: true, data: store.users.map(safeUser) });
+  if (req.method === 'GET') return res.json({ success: true, data: store.users.map(safeUser), deletedEmails: store.deletedEmails || [] });
   const { email, name, role, employeeId, password, disabled } = req.body || {};
   if (typeof email !== 'string' || !/^\S+@\S+\.\S+$/.test(email) || !DELIVERY_ROLES[role]) return res.status(400).json({ message: 'Email hoặc vai trò không hợp lệ.' });
   if (req.deliveryUser.role !== 'admin' && role === 'admin') return res.status(403).json({ message: 'Chỉ quản trị được tạo quản trị viên.' });
   const existing = store.users.find(item => item.email === email.trim().toLowerCase());
+  // Trình duyệt đồng bộ bản cũ (sync) của tài khoản đã bị xóa: không tạo lại. Admin chủ động tạo mới cùng email thì được.
+  const deletedEmails = store.deletedEmails || [];
+  if (!existing && deletedEmails.includes(email.trim().toLowerCase())) {
+    if (req.body?.sync) return res.status(410).json({ message: 'Tài khoản này đã bị xóa.', deleted: true });
+    store.deletedEmails = deletedEmails.filter(entry => entry !== email.trim().toLowerCase());
+  }
   if (existing?.role === 'admin' && req.deliveryUser.role !== 'admin') return res.status(403).json({ message: 'Không được sửa quyền quản trị.' });
   if (existing?.email === req.deliveryUser.email && (disabled || role !== existing.role)) return res.status(400).json({ message: 'Không thể tự thu hồi quyền của phiên đang dùng.' });
   if (employeeId && !(db.employees || []).some(employee => employee.id === employeeId)) return res.status(400).json({ message: 'Nhân sự liên kết không tồn tại.' });
@@ -93,7 +99,7 @@ export function deliveryUsers(req, res) {
     store.sessions = store.sessions.filter(session => session.email !== user.email || session.hash === req.deliverySessionHash && user.email === req.deliveryUser.email);
   }
   if (!writeDb(db)) return res.status(500).json({ message: 'Không lưu được quyền.' });
-  return res.json({ success: true, data: store.users.map(safeUser) });
+  return res.json({ success: true, data: store.users.map(safeUser), deletedEmails: store.deletedEmails || [] });
 }
 export function canEditDeliveryTask(user, item, db) {
   return canEditProgressTask(user, item, db.employees || []);

@@ -6,6 +6,8 @@ import { removeMissingEmployeeAssignments } from '../utils/employeeAssignments.j
 import { ensureEmployeeCodes } from '../utils/employeeCodes.js';
 import { normalizeAssignmentSchedules } from '../../../frontend/src/utils/assignmentCalendar.js';
 import { clearStaleTaskSelections, resetNeverStartedTasks } from '../utils/taskStatus.js';
+import { structureFlatWbs } from '../../../frontend/src/utils/wbsStructure.js';
+import { removeOrphanRecords } from '../utils/deletionCleanup.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -15,6 +17,20 @@ const DB_FILE = path.resolve(process.env.APS_DB_PATH || path.join(DEFAULT_DATA_R
 
 let cachedDb = null;
 const SEED_FILE = path.join(__dirname, '../../data/seed.json');
+
+/** Bản sao lưu hằng ngày mới nhất còn đọc được (backups/db-YYYY-MM-DD.json), hoặc null. */
+function latestValidBackup() {
+  const backupDir = path.join(path.dirname(DB_FILE), 'backups');
+  if (!fs.existsSync(backupDir)) return null;
+  const names = fs.readdirSync(backupDir).filter(name => /^db-\d{4}-\d{2}-\d{2}\.json$/.test(name)).sort().reverse();
+  for (const name of names) {
+    try {
+      const data = JSON.parse(fs.readFileSync(path.join(backupDir, name), 'utf-8'));
+      if (data && Array.isArray(data.projects) && Array.isArray(data.ganttItems)) return { name, data };
+    } catch { /* bản sao lưu hỏng: thử bản cũ hơn */ }
+  }
+  return null;
+}
 
 // Đọc dữ liệu từ file db.json (có cache bộ nhớ & dự phòng seed.json an toàn)
 export function readDb() {
@@ -37,7 +53,11 @@ export function readDb() {
           const schedulesChanged = normalizeAssignmentSchedules(parsed);
           const statusesChanged = resetNeverStartedTasks(parsed);
           const selectionsChanged = clearStaleTaskSelections(parsed);
-          if (assignmentsChanged || codesChanged || schedulesChanged || statusesChanged || selectionsChanged) writeDb(parsed);
+          // Dự án nhập file bằng code cũ: dòng A/A1 thành nhóm, A1.1.1 thành task con.
+          const wbsChanged = structureFlatWbs(parsed);
+          // Dữ liệu cũ / bản khôi phục còn dòng của dự án, nhân sự đã xóa thì gỡ luôn.
+          const orphansChanged = removeOrphanRecords(parsed);
+          if (assignmentsChanged || codesChanged || schedulesChanged || statusesChanged || selectionsChanged || wbsChanged || orphansChanged) writeDb(parsed);
           cachedDb = parsed;
           return parsed;
         }
@@ -52,9 +72,23 @@ export function readDb() {
     return cachedDb;
   }
 
-  // Fallback an toàn tới seed.json nếu db.json trống hoặc bị lỗi
+  // db.json đã có nhưng trống / hỏng: lấy bản sao lưu hằng ngày mới nhất, không nạp dữ liệu mẫu
+  // (dữ liệu mẫu sẽ làm dự án, nhân sự đã xóa xuất hiện lại). File hỏng được giữ lại để tra cứu.
+  const backup = latestValidBackup();
+  if (backup) {
+    try {
+      if (fs.existsSync(DB_FILE)) fs.copyFileSync(DB_FILE, `${DB_FILE}.corrupt-${Date.now()}`);
+      console.error(`db.json không đọc được, dùng bản sao lưu ${backup.name}`);
+      writeDb(backup.data);
+      return backup.data;
+    } catch (backupErr) {
+      console.error('Lỗi khi nạp bản sao lưu:', backupErr.message);
+    }
+  }
+
+  // Chỉ máy mới cài (chưa có db.json, chưa có sao lưu) mới nạp seed.json
   try {
-    if (fs.existsSync(SEED_FILE)) {
+    if (!fs.existsSync(DB_FILE) && fs.existsSync(SEED_FILE)) {
       const rawSeed = fs.readFileSync(SEED_FILE, 'utf-8');
       const seedObj = JSON.parse(rawSeed);
       removeMissingEmployeeAssignments(seedObj);
@@ -62,6 +96,8 @@ export function readDb() {
       normalizeAssignmentSchedules(seedObj);
       resetNeverStartedTasks(seedObj);
       clearStaleTaskSelections(seedObj);
+      structureFlatWbs(seedObj);
+      removeOrphanRecords(seedObj);
       cachedDb = seedObj;
       fs.mkdirSync(path.dirname(DB_FILE), { recursive: true });
       fs.writeFileSync(DB_FILE, JSON.stringify(seedObj, null, 2), 'utf-8');
@@ -84,6 +120,8 @@ export function writeDb(data) {
     normalizeAssignmentSchedules(data);
     resetNeverStartedTasks(data);
     clearStaleTaskSelections(data);
+    structureFlatWbs(data);
+    removeOrphanRecords(data);
     cachedDb = data;
     fs.mkdirSync(path.dirname(DB_FILE), { recursive: true });
     const backupDir=path.join(path.dirname(DB_FILE),'backups'),day=new Date(Date.now()+7*3600000).toISOString().slice(0,10),backupFile=path.join(backupDir,`db-${day}.json`);

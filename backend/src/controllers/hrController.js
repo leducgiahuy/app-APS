@@ -1,4 +1,5 @@
 import { readDb, writeDb } from '../models/db.js';
+import { purgeEmployeeData } from '../utils/deletionCleanup.js';
 import { nextEmployeeCode } from '../utils/employeeCodes.js';
 import { recordAppAttendance } from '../utils/appAttendance.js';
 import { assignmentWorksOnDate } from '../../../frontend/src/utils/assignmentCalendar.js';
@@ -567,7 +568,14 @@ export function deleteEmployee(req, res) {
     });
   }
 
+  // Nhân sự gắn tài khoản: xóa ở trang Tài khoản (gỡ cả hai), nếu không trang Thành viên sẽ tự tạo lại hồ sơ cho tài khoản.
+  const account = (db.delivery?.users || []).find(user => user.employeeId === id && !user.disabled);
+  if (account) {
+    return res.status(409).json({ success: false, message: `Nhân sự đang gắn tài khoản ${account.email}. Hãy xóa tài khoản này ở trang Tài khoản, hồ sơ nhân sự sẽ bị xóa cùng.` });
+  }
+
   const removed = db.employees.splice(index, 1);
+  purgeEmployeeData(db, [id]);
   writeDb(db);
 
   return res.json({

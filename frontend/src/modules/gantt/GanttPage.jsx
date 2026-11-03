@@ -26,6 +26,7 @@ import ModalOverlay from '../../components/layout/ModalOverlay';
 import SearchableSelect from '../../components/SearchableSelect';
 import DateInput from '../../components/DateInput';
 import EmployeeCombobox from '../../components/EmployeeCombobox';
+import { WBS_PHASE_PRESETS, phasePresetFor } from '../../utils/wbsStructure';
 import {
   inferGanttGroupHierarchy,
   getGroupDescendantTasks
@@ -86,16 +87,14 @@ const orderByDependencies = items => {
 };
 
 const GANTT_TABLE_MIN_WIDTH = 120;
+// Một dòng tên ở cột Người làm: 18px + 4px khoảng cách.
+const PERSON_LINE_HEIGHT = 22;
 // Giới hạn khi kéo đổi độ rộng một cột của bảng tiến độ.
 const COLUMN_MIN_WIDTH = 40;
 const COLUMN_MAX_WIDTH = 640;
 const clampColumnWidth = width => Math.round(Math.min(COLUMN_MAX_WIDTH, Math.max(COLUMN_MIN_WIDTH, width)));
-const GANTT_PHASE_PRESETS = [
-  { code: 'A', title: 'A. THIẾT KẾ XÂY DỰNG', color: '#2563eb' },
-  { code: 'B', title: 'B. XIN PHÉP / PHÁP LÍ', color: '#dc2626' },
-  { code: 'C', title: 'C. THẦU THI CÔNG', color: '#16a34a' },
-  { code: 'L', title: 'L. NGHỈ LỄ VIỆT NAM', color: '#eab308' }
-];
+// Giai đoạn A/B/C/L: nhận theo chữ cái đầu (mã "A" hoặc tên "A. …"), không cần trùng tên mẫu.
+const GANTT_PHASE_PRESETS = WBS_PHASE_PRESETS;
 
 const flattenWorkGroups = (items, collapsedGroupIds, collapsedTaskIds = new Set()) => {
   const hierarchyItems = inferGanttGroupHierarchy(items);
@@ -557,14 +556,14 @@ export default function GanttPage() {
     let current = groupsById.get(item.id) || item;
     while (current && !seen.has(current.id)) {
       seen.add(current.id);
-      const phase = GANTT_PHASE_PRESETS.find(preset => preset.title === current.title);
+      const phase = phasePresetFor(current);
       if (phase) return phase.color;
       current = current.parentGroupId ? groupsById.get(current.parentGroupId) : null;
     }
     const subsectionCode = String(item.title || '').match(/^\s*([A-Z]\d+)\s*[. ]/i)?.[1]?.toUpperCase();
     if (!subsectionCode) return item.color || '#64748b';
     const phase = hierarchyGanttItems.find(candidate => candidate.isGroup && projectIdForItem(candidate) === projectIdForItem(item) && String(candidate.title || '').match(/^\s*([A-Z])\s*\./i)?.[1]?.toUpperCase() === subsectionCode[0]);
-    return GANTT_PHASE_PRESETS.find(preset => preset.title === phase?.title)?.color || item.color || '#64748b';
+    return phasePresetFor(phase)?.color || item.color || '#64748b';
   };
   const groupDepthForItem = item => {
     const groupsById = new Map(hierarchyGanttItems.map(entry => [entry.id, entry]));
@@ -763,7 +762,8 @@ export default function GanttPage() {
         (assignment.employeeName || '').trim().toLocaleLowerCase('vi')
     );
     const additionalOvertimeRows = (item.overtimeContributions || []).filter(contribution => !hasAssignee(contribution)).length;
-    return Math.max(ROW_HEIGHT, 10 + assigneeCount * 16) + additionalOvertimeRows * 16;
+    // Mỗi người làm chiếm một dòng 18px + khoảng cách 4px (xem .delivery-people trong DeliveryPage.css), đệm trên dưới 8px.
+    return Math.max(ROW_HEIGHT, 16 + assigneeCount * PERSON_LINE_HEIGHT - 4) + additionalOvertimeRows * 16;
   }), [filteredGanttItems, tasks]);
   const rowOffsets = useMemo(() => rowHeights.reduce((offsets, height, index) => {
     offsets.push((offsets[index] || 0) + height);
@@ -1233,7 +1233,7 @@ export default function GanttPage() {
     const project = projects.find(item => item.id === projectId);
     const startDate = project?.startDate || todayIsoDate();
     const phaseGroup = ganttItems.find(item =>
-      item.isGroup && projectIdForItem(item) === projectId && GANTT_PHASE_PRESETS.some(phase => phase.title === item.title)
+      item.isGroup && projectIdForItem(item) === projectId && phasePresetFor(item)
     );
     setGroupForm({ title: '', projectId: projectId || '', parentGroupId: phaseGroup?.id || '', startDate, endDate: project?.endDate || startDate });
     setGroupCreateContext(null);
@@ -1260,7 +1260,7 @@ export default function GanttPage() {
 
     setPhaseMenuOpen(false);
     const existingGroup = ganttItems.find(item =>
-      item.isGroup && projectIdForItem(item) === project.id && item.title === phase.title
+      item.isGroup && projectIdForItem(item) === project.id && phasePresetFor(item)?.code === phase.code
     );
     const startDate = existingGroup?.startDate || project.startDate || todayIsoDate();
     const endDate = existingGroup?.endDate || project.endDate || startDate;
@@ -2797,7 +2797,7 @@ export default function GanttPage() {
                     const project = projects.find(item => item.id === event.target.value);
                     const startDate = project?.startDate || todayIsoDate();
                     const phaseGroup = ganttItems.find(item =>
-                      item.isGroup && projectIdForItem(item) === event.target.value && GANTT_PHASE_PRESETS.some(phase => phase.title === item.title)
+                      item.isGroup && projectIdForItem(item) === event.target.value && phasePresetFor(item)
                     );
                     setGroupForm(current => ({
                       ...current,
@@ -2825,7 +2825,7 @@ export default function GanttPage() {
                   onChange={parentGroupId => setGroupForm(current => ({ ...current, parentGroupId }))}
                   options={[
                     { value: '', label: '-- Mục gốc dự án --' },
-                    ...ganttItems.filter(item => item.isGroup && projectIdForItem(item) === groupForm.projectId && GANTT_PHASE_PRESETS.some(phase => phase.title === item.title))
+                    ...ganttItems.filter(item => item.isGroup && projectIdForItem(item) === groupForm.projectId && phasePresetFor(item))
                       .map(item => ({ value: item.id, label: item.title, searchText: ganttOptionSearchText(item) }))
                   ]}
                 />

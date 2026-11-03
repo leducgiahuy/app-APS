@@ -4,6 +4,7 @@ import { calculateAssignmentHours } from '../../../frontend/src/utils/ganttEffor
 import { assignmentWorkingDates } from '../../../frontend/src/utils/assignmentCalendar.js';
 import { addDate } from './operationsReports.js';
 import { projectTemplates } from './defaultProjectTemplate.js';
+import { WBS_PHASE_PRESETS, cleanWbsCode, linkWbsItems, wbsLevel } from '../../../frontend/src/utils/wbsStructure.js';
 import { EXTERNAL_DEPARTMENTS, employeeDepartments, taskDepartments } from '../../../frontend/src/utils/departmentCodes.js';
 const check=(ok,message)=>{if(!ok)throw new Error(message);};
 const nonnegative=value=>{const n=Number(value);check(Number.isFinite(n)&&n>=0,'Giá trị số phải không âm.');return n;};
@@ -14,11 +15,12 @@ const overlapHours=(task,assignment,startDate,endDate)=>{
 };
 /**
  * Dựng "template tạm" từ bảng hạng mục trong file báo giá, dùng khi dạng dự án chưa có template.
- * - Mỗi dòng (code, title, department, workDays) thành 1 việc; số giờ = công báo giá × 8, không co giãn theo diện tích.
- *   Hạng mục chưa có công giữ 0 giờ (fixedHours), không tự lấy đủ công theo số ngày như việc của template.
- * - Việc xếp nối tiếp theo thứ tự trong file, mỗi việc chiếm số ngày tỷ lệ với số công của nó trong khoảng dự án.
- * - Dòng mục lớn (isGroup: phần A, B... và nhóm A1, A2...) thành nhóm trên Gantt, tiêu đề "A. ..." / "A1. ...";
- *   nhóm A1 nằm trong phần A, việc nằm trong nhóm gần nhất phía trên; ngày của nhóm bao trùm các việc con, nhóm không có công.
+ * Cấp theo STT (quy tắc chung ở wbsStructure.js):
+ * - A, B, C, L… = giai đoạn (tên "A. …", màu theo danh sách Giai đoạn); A1, B2… = mục con của giai đoạn cùng chữ cái;
+ * - A1.1 = task trong mục gần nhất phía trên; A1.1.1 = task con của A1.1.
+ * - Mỗi task lá: số giờ = công báo giá × 8, không co giãn theo diện tích; chưa có công giữ 0 giờ (fixedHours).
+ * - Task lá xếp nối tiếp theo thứ tự trong file, số ngày tỷ lệ với số công trong khoảng dự án.
+ * - Nhóm và task cha không có công riêng: ngày bao trùm các dòng con; giờ task cha = tổng giờ task con.
  * - Vị trí để tự gán người: lấy theo cách các template đã có ánh xạ bộ môn → vị trí (VD KT → Thiết Kế);
  *   bộ môn chưa từng xuất hiện trong template nào thì dùng chính tên bộ môn.
  */
@@ -26,28 +28,25 @@ function quoteItemsTemplate(db,input){
  const rows=input.quoteItems;check(Array.isArray(rows)&&rows.some(row=>!row.isGroup)&&rows.length<=1000,'Bảng hạng mục trong file báo giá đang trống.');
  const positionOf=new Map(projectTemplates(db).flatMap(t=>t.items||[]).filter(t=>t.requiredPosition&&t.assignmentPosition).map(t=>[positionKey(t.requiredPosition),t.assignmentPosition]));
  const span=Math.round((Date.parse(input.endDate)-Date.parse(input.startDate))/86400000)+1;
- const hours=rows.map(row=>row.isGroup?0:nonnegative(row.workDays||0)*8),known=hours.filter(value=>value>0);
- // Xếp lịch theo trọng số = số giờ; hạng mục chưa có công lấy trọng số trung bình để vẫn có khoảng ngày hợp lý (số giờ vẫn là 0).
- const average=known.length?known.reduce((sum,value)=>sum+value,0)/known.length:8,weights=rows.map((row,index)=>row.isGroup?0:hours[index]>0?hours[index]:average),total=weights.reduce((sum,value)=>sum+value,0);
- let before=0,phase=null,group=null,previousTask='';
  const items=rows.map((row,index)=>{
   const id=`file-${index+1}`,code=String(row.code||'').trim(),title=String(row.title||'').trim().replace(/:$/,'').trim(),department=String(row.department||'').trim();check(title,'Mỗi hạng mục trong file cần có tên.');
-  if(row.isGroup){
-   // Mã 1 chữ cái (A) là phần; mã chữ + số (A1) là nhóm con của phần cùng chữ cái.
-   const sub=/\d/.test(code),item={id,code,title:code?`${code}. ${title}`:title,isGroup:true,parentGroupId:sub&&phase&&code.startsWith(phase.code)?phase.id:'',startOffset:null,endOffset:null,estimatedHours:0,fixedHours:true,scaleWithArea:false,dependencies:[]};
-   if(sub)group=item;else{phase=item;group=null;}
-   return item;
-  }
-  const startOffset=total>0?Math.min(span-1,Math.floor(before/total*span)):0;before+=weights[index];
-  const endOffset=total>0?Math.max(startOffset,Math.min(span-1,Math.ceil(before/total*span)-1)):span-1;
-  const item={id,code,title,parentGroupId:(group||phase)?.id||'',requiredPosition:department,assignmentPosition:positionOf.get(positionKey(department))||department,startOffset,endOffset,estimatedHours:hours[index],fixedHours:true,scaleWithArea:false,dependencies:previousTask?[previousTask]:[]};
-  previousTask=id;
-  return item;
+  if(row.isGroup){const preset=wbsLevel(code)==='phase'?WBS_PHASE_PRESETS.find(p=>p.code===cleanWbsCode(code)):null;return {id,code,title:code?`${code}. ${title}`:title,isGroup:true,parentGroupId:'',startOffset:null,endOffset:null,estimatedHours:0,fixedHours:true,scaleWithArea:false,dependencies:[],...(preset?{color:preset.color}:{})};}
+  return {id,code,title,parentGroupId:'',requiredPosition:department,assignmentPosition:positionOf.get(positionKey(department))||department,estimatedHours:nonnegative(row.workDays||0)*8,fixedHours:true,scaleWithArea:false,dependencies:[]};
  });
- // Ngày của nhóm = từ việc con sớm nhất đến việc con muộn nhất (tính cả nhóm con); nhóm rỗng lấy ngày đầu dự án.
- const groups=items.filter(item=>item.isGroup).reverse();
- for(const g of groups){const children=items.filter(item=>item.parentGroupId===g.id&&item.startOffset!=null);if(children.length){g.startOffset=Math.min(...children.map(c=>c.startOffset));g.endOffset=Math.max(...children.map(c=>c.endOffset));}}
- groups.forEach(g=>{g.startOffset??=0;g.endOffset??=0;});
+ const {parentTaskIds}=linkWbsItems(items,{promote:()=>false});
+ // Xếp lịch task lá theo trọng số = số giờ; task chưa có công lấy trọng số trung bình để vẫn có khoảng ngày hợp lý (số giờ vẫn là 0).
+ const leaves=items.filter(item=>!item.isGroup&&!parentTaskIds.has(item.id)),known=leaves.map(item=>item.estimatedHours).filter(value=>value>0);
+ const average=known.length?known.reduce((sum,value)=>sum+value,0)/known.length:8,weights=leaves.map(item=>item.estimatedHours>0?item.estimatedHours:average),total=weights.reduce((sum,value)=>sum+value,0);
+ let before=0;
+ leaves.forEach((item,index)=>{
+  item.startOffset=total>0?Math.min(span-1,Math.floor(before/total*span)):0;before+=weights[index];
+  item.endOffset=total>0?Math.max(item.startOffset,Math.min(span-1,Math.ceil(before/total*span)-1)):span-1;
+  if(index)item.dependencies=[leaves[index-1].id];
+ });
+ // Task cha rồi nhóm (từ dưới lên): ngày bao trùm dòng con; nhóm rỗng lấy ngày đầu dự án.
+ const parents=items.filter(item=>item.isGroup||parentTaskIds.has(item.id)),childrenOf=p=>items.filter(item=>item!==p&&(p.isGroup?item.parentGroupId===p.id&&!item.parentTaskId:item.parentTaskId===p.id)&&item.startOffset!=null);
+ for(const p of [...parents].reverse()){const children=childrenOf(p);if(children.length){p.startOffset=Math.min(...children.map(c=>c.startOffset));p.endOffset=Math.max(...children.map(c=>c.endOffset));}if(!p.isGroup)p.estimatedHours=children.reduce((sum,c)=>sum+(Number(c.estimatedHours)||0),0);}
+ parents.forEach(p=>{p.startOffset??=0;p.endOffset??=0;});
  return {id:'',name:'Theo bảng hạng mục trong file',baseArea:0,items,budgetPercents:[],milestones:[],scopeOptions:[]};
 }
 

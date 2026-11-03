@@ -67,8 +67,9 @@ async function harness() {
     this.setExport('randomUUID', randomUUID);
   }, { context });
   const attendance = new vm.SourceTextModule(await readFile(new URL('../src/utils/appAttendance.js', import.meta.url), 'utf8'), { context });
+  const cleanup = new vm.SourceTextModule(await readFile(new URL('../src/utils/deletionCleanup.js', import.meta.url), 'utf8'), { context });
   const controller = new vm.SourceTextModule(await readFile(new URL('../src/controllers/hrController.js', import.meta.url), 'utf8'), { context });
-  await controller.link(specifier => specifier.includes('models/db') ? dbModule : specifier.includes('employeeCodes') ? codes : specifier.includes('assignmentCalendar') ? calendar : specifier.includes('appAttendance') ? attendance : specifier === 'node:crypto' ? cryptoModule : rules);
+  await controller.link(specifier => specifier.includes('models/db') ? dbModule : specifier.includes('employeeCodes') ? codes : specifier.includes('assignmentCalendar') ? calendar : specifier.includes('appAttendance') ? attendance : specifier.includes('deletionCleanup') ? cleanup : specifier === 'node:crypto' ? cryptoModule : rules);
   await controller.evaluate();
   function call(name, body = {}) {
     let status = 200;
