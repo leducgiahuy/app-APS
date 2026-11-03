@@ -1,4 +1,5 @@
 import { DEFAULT_PROCEDURES } from '../../../frontend/src/utils/deliveryResources.js';
+import { logDeliveryActivity } from '../utils/activityLog.js';
 import { roleAllows } from '../../../frontend/src/utils/operationsDefaults.js';
 import { operations } from '../utils/operationsStore.js';
 import { allSheets, canReviewSheet, sheetFlags } from '../utils/operationsReports.js';
@@ -315,7 +316,9 @@ export function updateDeliveryProject(req, res) {
   try {
     const ctx = context(req);
     if (req.body.revision !== ctx.data.revision) return res.status(409).json({ message: 'Dữ liệu vừa được cập nhật ở phiên khác. Đã tải bản mới; hãy kiểm tra rồi lưu lại.' });
+    const before = req.body.taskId ? structuredClone(ctx.data.records?.[req.body.taskId] || null) : null;
     applyDeliveryMutation(ctx, req.body);
+    logDeliveryActivity(ctx.db, req.deliveryCompanyUser || ctx.user, ctx.projectId, req.body, ctx.data, before);
     if (!writeDb(ctx.db)) return res.status(500).json({ message: 'Không lưu được dữ liệu Tiến độ.' });
     return res.json({ success: true, data: response(ctx) });
   } catch (error) { return res.status(400).json({ message: error.message }); }

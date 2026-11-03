@@ -1,50 +1,20 @@
+import { OP_ROLES, OP_ROLE_NAMES } from '../../utils/operationsDefaults.js';
+
 /**
- * Danh mục dùng cho hồ sơ tài khoản: cấp bậc, phòng ban, chuyên môn.
+ * Cấp bậc dùng cho hồ sơ tài khoản.
  *
  * - `role` (admin/user) trong authSession là QUYỀN HỆ THỐNG: ai được vào trang quản trị.
- * - `level` ở đây là CẤP BẬC TỔ CHỨC: nhân viên → leader → quản lý → giám đốc.
- *   Mã cấp bậc trùng với mã vai trò trong `DELIVERY_ROLES` (utils/deliveryMetrics.js)
- *   để sau này có thể dùng trực tiếp khi phân quyền xem dữ liệu dự án/tài chính.
+ * - `level` ở đây là CẤP BẬC TỔ CHỨC, đúng bằng các cột vai trò của ma trận "Trang & mục"
+ *   (OP_ROLES): tài khoản thấy trang / mục nào là do cột cấp bậc của nó trong ma trận quyết định.
+ *
+ * Phòng ban / chuyên môn không còn danh sách cố định: danh mục lưu ở máy chủ, tự thêm khi admin nhập giá trị mới.
  */
 
-/** Cấp bậc theo thứ tự từ thấp đến cao; `rank` dùng để so sánh cấp (số lớn hơn = cấp cao hơn). */
-export const ACCOUNT_LEVELS = [
-  { value: 'employee', label: 'Nhân viên', rank: 1 },
-  { value: 'leader', label: 'Leader', rank: 2 },
-  { value: 'manager', label: 'Quản lý', rank: 3 },
-  { value: 'director', label: 'Giám đốc', rank: 4 },
-];
+/** Cấp bậc theo thứ tự cột của ma trận phân quyền; nhãn trùng tiêu đề cột. */
+export const ACCOUNT_LEVELS = OP_ROLES.map((value) => ({ value, label: value === 'accountant' ? 'Kế toán viên' : OP_ROLE_NAMES[value] }));
 
 /** Cấp bậc gán cho tài khoản cũ chưa có thông tin cấp bậc. */
 export const DEFAULT_LEVEL = 'employee';
-
-/** Phòng ban gợi ý, khớp với trường `team` của nhân sự trong module HR. Admin vẫn có thể nhập phòng ban khác. */
-export const DEPARTMENTS = [
-  'Ban Giám Đốc',
-  'Ban Chỉ Huy',
-  'Tư Vấn Thiết Kế',
-  'Kỹ Thuật Hiện Trường',
-  'Cơ Điện & PCCC',
-  'Khảo Sát Địa Chất',
-  'Đấu Thầu & Hợp Đồng',
-  'Ban Pháp Lý',
-  'Kế Toán & HCNS',
-];
-
-/** Chuyên môn gợi ý theo bộ môn đang dùng trong báo cáo công ty. Admin vẫn có thể nhập chuyên môn khác. */
-export const SPECIALTIES = [
-  'Kiến trúc',
-  'Kết cấu',
-  'MEP · Điện nước',
-  'PCCC',
-  'Pháp lý',
-  'QS · Dự toán',
-  'Giám sát thi công',
-  'Khảo sát địa chất',
-  'Quản lý dự án',
-  'Kế toán',
-  'Hành chính nhân sự',
-];
 
 /** Chuẩn hóa mã cấp bậc; giá trị lạ hoặc rỗng quay về cấp mặc định. */
 export function normalizeLevel(level) {

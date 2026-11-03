@@ -43,7 +43,7 @@ export function requiredPageAccess(method, path, body = {}) {
   if (path === '/delivery/reporting') return reading ? read(['gantt.close']) : write(['gantt.close']);
   if (path === '/delivery/project-preview') return write(['gantt.new-project']);
   if (path === '/delivery/operations') return reading ? null : OPERATIONS_ACTIONS[body?.action] ? write(OPERATIONS_ACTIONS[body.action]) : null;
-  if (/^\/delivery\/(notifications|users|templates)$/.test(path)) return null;
+  if (/^\/delivery\/(notifications|users|templates|profile|account-catalog)$/.test(path)) return null;
   if (/^\/delivery\/[^/]+\/evidence\/[^/]+$/.test(path)) return read(GANTT_SECTIONS);
   if (/^\/delivery\/[^/]+\/evidence$/.test(path)) return write(['gantt.progress', 'gantt.legal']);
   if (/^\/delivery\/[^/]+$/.test(path)) return reading ? read([...GANTT_SECTIONS, 'director-overview.kpis']) : write(DELIVERY_ACTIONS[body?.action] || GANTT_SECTIONS);
@@ -81,5 +81,6 @@ export function enforcePageAccess(req, res, next, db = readDb()) {
 /** GET /delivery/page-access: vai trò hiện tại và ma trận đã chuẩn hóa để giao diện ẩn / hiện ngay. */
 export function getPageAccess(req, res) {
   const db = readDb();
-  return res.json({ success: true, data: { role: req.deliveryCompanyUser?.role || '', access: normalizePageAccess(db.operations?.pageAccess) } });
+  // profileSavedAt: mốc lưu hồ sơ gần nhất, để trình duyệt biết khi nào cần tải lại hồ sơ tài khoản.
+  return res.json({ success: true, data: { role: req.deliveryCompanyUser?.role || '', access: normalizePageAccess(db.operations?.pageAccess), profileSavedAt: req.deliveryCompanyUser?.profileSavedAt || '' } });
 }

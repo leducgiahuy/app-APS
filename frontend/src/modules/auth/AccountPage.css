@@ -108,3 +108,19 @@ html.dark .account-back, html.dark .account-logout { border-color: #655b5a; colo
 html.dark .account-footer, html.dark .account-empty { border-color: #5c5251; color: #c9c0be; }
 html.dark .account-empty { background: #454041; }
 @media (max-width: 600px) { .account-page { padding: 0 14px 28px; } .account-header { height: 68px; } .account-header-actions { gap: 6px; } .account-back, .account-logout { padding: 8px; font-size: 0; } .account-back svg, .account-logout svg { width: 17px; height: 17px; } .account-brand img { width: 178px; height: 48px; } .account-card { margin-top: 22px; padding: 21px 17px; } .account-heading-icon { width: 46px; height: 46px; } .account-form-grid, .account-form-grid-3 { grid-template-columns: minmax(0, 1fr); gap: 13px; } .account-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); } .account-tabs button { justify-content: flex-start; padding: 7px; } .password-form > label { max-width: none; } .account-primary { width: 100%; } .account-photo-row { align-items: flex-start; padding: 11px; } .account-avatar-preview { width: 64px; height: 64px; border-radius: 15px; } }
+/* Ô phòng ban / chuyên môn: gõ mới hoặc chọn nhanh từ danh sách đã từng nhập (nút × bỏ khỏi danh sách). */
+.account-catalog { position: relative; }
+.account-form .account-catalog input { padding-right: 34px; }
+.account-catalog-chevron { position: absolute; top: 50%; right: 12px; color: #8a979c; transform: translateY(-50%); pointer-events: none; }
+.account-catalog-menu { position: absolute; z-index: 5; top: calc(100% + 4px); left: 0; right: 0; max-height: 220px; margin: 0; padding: 5px; overflow-y: auto; list-style: none; border: 1px solid #dce3e3; border-radius: 9px; background: #fff; box-shadow: 0 12px 30px rgb(41 57 67 / 14%); }
+.account-catalog-menu li { display: flex; align-items: center; gap: 2px; }
+.account-catalog-option { flex: 1; min-width: 0; padding: 9px 10px; overflow: hidden; border: 0; border-radius: 6px; color: #33434b; background: transparent; font: inherit; font-size: 11px; font-weight: 600; text-align: left; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.account-catalog-option:hover { background: #f3e8eb; color: #861b36; }
+.account-catalog-remove { display: grid; flex: none; place-items: center; width: 26px; height: 26px; border: 0; border-radius: 6px; color: #a2adb0; background: transparent; cursor: pointer; }
+.account-catalog-remove:hover { color: #b42318; background: #fdecea; }
+.account-catalog-empty { padding: 9px 10px; color: #8a979c; font-size: 10px; font-weight: 500; }
+html.dark .account-catalog-menu { border-color: #655b5a; background: #393536; box-shadow: 0 12px 30px rgb(17 12 13 / 35%); }
+html.dark .account-catalog-option { color: #f0ebea; }
+html.dark .account-catalog-option:hover { color: #edb2bf; background: #4a3f41; }
+html.dark .account-catalog-remove:hover { color: #f4a8a0; background: #4d3432; }
+html.dark .account-catalog-empty, html.dark .account-catalog-chevron { color: #b4aaa8; }

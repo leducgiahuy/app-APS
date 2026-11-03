@@ -38,6 +38,7 @@ import {
 import { getStats } from '../controllers/statsController.js';
 import { clearActivityLogEntries, createActivityLogEntry, getActivityLog } from '../controllers/activityController.js';
 import * as guard from '../utils/routeGuards.js';
+import { deliveryAccountCatalog, deliveryProfile } from '../utils/accountProfile.js';
 import { deleteAccount, listDeletedAccounts, purgeDeletedAccounts, restoreDeletedAccount } from '../utils/deletedAccounts.js';
 
 const router = express.Router();
@@ -50,6 +51,10 @@ router.patch('/delivery/operations', requireDeliveryUser, mutateOperations);
 router.get('/delivery/users', requireDeliveryUser, deliveryUsers);
 router.post('/delivery/users', requireDeliveryUser, deliveryUsers);
 router.post('/delivery/password', requireDeliveryUser, deliveryChangePassword);
+router.get('/delivery/profile', requireDeliveryUser, deliveryProfile);
+router.patch('/delivery/profile', requireDeliveryUser, deliveryProfile);
+router.get('/delivery/account-catalog', requireDeliveryUser, deliveryAccountCatalog);
+router.delete('/delivery/account-catalog', requireDeliveryUser, deliveryAccountCatalog);
 router.delete('/delivery/users', requireDeliveryUser, deleteAccount);
 router.get('/delivery/users/deleted', requireDeliveryUser, listDeletedAccounts);
 router.post('/delivery/users/deleted/:id/restore', requireDeliveryUser, restoreDeletedAccount);

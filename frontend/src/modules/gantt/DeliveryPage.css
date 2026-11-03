@@ -49,6 +49,20 @@
 .delivery-toolbar>div {
   gap:6px!important
 }
+.delivery-toolbar .delivery-toolbar-control {
+  box-sizing:border-box;
+  height:32px!important;
+  min-height:32px!important;
+  border-radius:5px!important
+}
+.delivery-toolbar div.delivery-toolbar-control>button {
+  box-sizing:border-box;
+  height:24px!important;
+  min-height:24px!important;
+  padding-top:2px!important;
+  padding-bottom:2px!important;
+  border-radius:5px!important
+}
 
 .delivery-navigation {
   display:flex;
@@ -287,6 +301,13 @@
 .delivery-column-left { justify-content:flex-start; text-align:left; }
 .delivery-column-center { justify-content:center; text-align:center; }
 .delivery-table-heading .delivery-column.status { padding-right:14px; }
+/* Tay kéo đổi độ rộng cột ở mép phải tiêu đề; nội dung ô hẹp lại thì cắt bằng dấu "…". */
+.delivery-column-resizer { position:absolute; top:0; right:-4px; z-index:2; width:8px; height:100%; cursor:col-resize; touch-action:none; }
+.delivery-column-resizer::after { content:""; position:absolute; top:22%; bottom:22%; left:3px; width:2px; border-radius:2px; background:transparent; transition:background .15s; }
+.delivery-column-resizer:hover::after, .delivery-column-resizer:active::after, .delivery-column-resizer:focus-visible::after { background:#be123c; }
+.delivery-column-resizer:focus-visible { outline:none; }
+.delivery-cell > * { min-width:0; }
+.delivery-cell > span, .delivery-cell > div { overflow:hidden; text-overflow:ellipsis; }
 .delivery-cell {
   height:100%;
   display:flex;

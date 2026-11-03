@@ -4,6 +4,7 @@ import { projectBlueprint } from '../utils/projectBlueprint.js';
 import { DEFAULT_PROJECT_TEMPLATE } from '../utils/defaultProjectTemplate.js';
 import { randomUUID } from 'node:crypto';
 import { readDb,writeDb } from '../models/db.js';
+import { logOperationsActivity } from '../utils/activityLog.js';
 import { operations,projectActor,stamp } from '../utils/operationsStore.js';
 import { allSheets,operationsReport,canReviewSheet,sheetFlags,vietnamDay,addDate,monday,financeReport,sumBy } from '../utils/operationsReports.js';
 import { DEFAULT_PARAMS,OP_ROLES,companyAdmin,roleAllows } from '../../../frontend/src/utils/operationsDefaults.js';
@@ -223,6 +224,7 @@ export function mutateOperations(req,res){
   const deltas=[];for(const key of Object.keys(original).filter(key=>!['audit','revision'].includes(key)))if(JSON.stringify(original[key])!==JSON.stringify(ops[key]))deltas.push({collection:key,before:original[key],after:structuredClone(ops[key])});
   for(const pid of Object.keys(db.delivery?.projects||{}))if(JSON.stringify(originalProjects[pid])!==JSON.stringify(db.delivery.projects[pid]))deltas.push({collection:`project:${pid}`,before:originalProjects[pid]||null,after:structuredClone(db.delivery.projects[pid])});
   ops.revision++;ops.audit.push({id:randomUUID(),action,projectId:projectId||'',actor:user.email,at,before:deltas.map(row=>({collection:row.collection,value:row.before})),after:deltas.map(row=>({collection:row.collection,value:row.after}))});db.operations=ops;
+  logOperationsActivity(db,req.deliveryCompanyUser||user,req.body);
   updateOperationsJobs(db);ensure(writeDb(db),'Không lưu được dữ liệu.');
   return res.json({success:true,data:{...operationsReport(db,user,{...query,projectId:query.projectId??projectId}),...(action==='projectCreate'?{createdProjectId:ops.lastCreatedProjectId}:{})}});
  }catch(error){return res.status(error.status||400).json({message:error.message});}

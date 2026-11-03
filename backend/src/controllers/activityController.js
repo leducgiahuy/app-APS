@@ -1,5 +1,5 @@
-import { randomUUID } from 'crypto';
 import { readDb, writeDb } from '../models/db.js';
+import { appendActivity } from '../utils/activityLog.js';
 
 /** Trả danh sách nhật ký dùng chung để admin xem hoạt động từ các trình duyệt khác nhau. */
 export function getActivityLog(req, res) {
@@ -13,19 +13,7 @@ export function createActivityLogEntry(req, res) {
   if (!email || !action) return res.status(400).json({ success: false, message: 'email và action là bắt buộc.' });
 
   const db = readDb();
-  db.activityLog = Array.isArray(db.activityLog) ? db.activityLog : [];
-  const event = {
-    id: randomUUID(),
-    timestamp: timestamp || new Date().toISOString(),
-    email: String(email).slice(0, 180),
-    name: String(name || email).slice(0, 180),
-    role: role === 'admin' ? 'admin' : 'user',
-    action: String(action).slice(0, 100),
-    details: String(details || '').slice(0, 300),
-  };
-
-  db.activityLog.unshift(event);
-  db.activityLog = db.activityLog.slice(0, 1000);
+  const event = appendActivity(db, { timestamp, email, name, role, action, details });
   if (!writeDb(db)) return res.status(500).json({ success: false, message: 'Không thể lưu nhật ký hoạt động.' });
   res.status(201).json({ success: true, data: event });
 }

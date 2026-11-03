@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Briefcase, Phone, Trash2 } from 'lucide-react';
+import { Briefcase, Phone } from 'lucide-react';
 import { isTaskActiveOnDate } from '../../utils/date';
 import { getUsers } from '../auth/authSession';
 import { getLevelLabel } from '../auth/accountOptions';
@@ -46,11 +46,9 @@ export default function EmployeeCard({
   toggleOnSite,
   toggleBreak,
   setActiveTask,
-  deleteEmployee,
   highlighted = false,
   // Vào/ra ca, tạm nghỉ, chọn task: chính chủ hoặc người giám sát chấm công (ma trận "Đối chiếu ... chấm công").
-  canOperate = true,
-  canDelete = true
+  canOperate = true
 }) {
   const [viewMode, setViewMode] = useState(
     isOvertimeShift(emp.shiftType) ? SHIFT_TYPE.OVERTIME : SHIFT_TYPE.REGULAR
@@ -198,16 +196,6 @@ export default function EmployeeCard({
               </p>
             </div>
           </div>
-
-          {canDelete && (
-            <button
-              onClick={() => deleteEmployee(emp.id)}
-              title="Xóa nhân sự"
-              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          )}
         </div>
 
         <div className={`mt-4 p-3 rounded-xl border ${

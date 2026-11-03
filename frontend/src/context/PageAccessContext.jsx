@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { deliveryApi } from '../modules/gantt/deliveryApi';
+import { applyServerProfile, getCurrentUser } from '../modules/auth/authSession';
 import { pageAccessAllows, pageVisible, PAGE_ACCESS_TREE } from '../utils/pageAccess';
 
 // Quyền xem trang / mục của người đang đăng nhập theo ma trận "Trang & mục".
@@ -22,6 +23,9 @@ export function PageAccessProvider({ children }) {
       const response = await deliveryApi.pageAccess();
       const next = { ready: true, role: response.data?.role || '', access: response.data?.access || null };
       setState(previous => JSON.stringify(previous) === JSON.stringify(next) ? previous : next);
+      // Hồ sơ vừa được sửa ở máy / tab khác: tải bản mới về để tên, ảnh… trên giao diện luôn mới nhất.
+      const savedAt = response.data?.profileSavedAt;
+      if (savedAt && savedAt !== getCurrentUser()?.profileSavedAt) applyServerProfile((await deliveryApi.profile()).data);
     } catch {
       // Mất kết nối tạm thời: giữ quyền đã biết; máy chủ vẫn chặn yêu cầu không hợp lệ.
     }

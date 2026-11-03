@@ -1,7 +1,7 @@
 import { api } from '../../api';
 import { deliveryApi } from '../gantt/deliveryApi';
 import { roleFromLevel } from '../../utils/rolePermissions';
-import { createUser, deletableBlockReason, deleteUser, findUser, getUsers, linkUserEmployee, restoreUser, validateNewUser } from './authSession';
+import { applyServerProfile, createUser, deletableBlockReason, deleteUser, findUser, forgetLocalUser, getUsers, linkUserEmployee, restoreUser, validateNewUser } from './authSession';
 import { getLevelLabel } from './accountOptions';
 import { normalize } from './personalWork';
 
@@ -12,9 +12,13 @@ import { normalize } from './personalWork';
  * còn cấp bậc tài khoản là vai trò dùng để đối chiếu ma trận phân quyền ở backend.
  */
 
-/** Bản ghi tài khoản phân quyền ở backend: cấp bậc → vai trò, kèm nhân sự liên kết. */
+/** Bản ghi tài khoản ở backend: cấp bậc → vai trò, nhân sự liên kết và hồ sơ (máy chủ là bản chuẩn của hồ sơ). */
 function backendAccount(user, extra = {}) {
-  return { email: user.email, name: user.name, role: roleFromLevel(user.level), employeeId: user.employeeId || '', disabled: false, ...extra };
+  return {
+    email: user.email, name: user.name, role: roleFromLevel(user.level), employeeId: user.employeeId || '', disabled: false,
+    company: user.company || '', phone: user.phone || '', avatarData: user.avatarData || '', department: user.department || '', specialty: user.specialty || '',
+    ...extra,
+  };
 }
 
 /** Dựng hồ sơ nhân sự từ tài khoản: phòng ban → ban/đội, chuyên môn (hoặc cấp bậc) → chức danh. */
@@ -146,10 +150,12 @@ export async function syncEmployeeForUser(email) {
 }
 
 /**
- * Bù cho tài khoản tạo trước khi có liên kết: gắn với nhân sự khớp hoặc tạo mới.
- * Không ghi đè hồ sơ nhân sự đã có; trả về số tài khoản vừa được liên kết/tạo nhân sự.
+ * Admin mở trang Tài khoản: kéo bản mới nhất từ máy chủ trước, rồi bù cho tài khoản tạo trước khi có liên kết
+ * (gắn với nhân sự khớp hoặc tạo mới, không ghi đè hồ sơ nhân sự đã có) và đẩy tài khoản cũ chỉ có ở trình duyệt lên.
+ * Trả về số tài khoản vừa được liên kết / đồng bộ.
  */
 export async function linkAccountsToEmployees() {
+  const backendUsers = await pullServerAccounts();
   const pending = getUsers().filter((user) => user.role === 'user');
   if (!pending.length) return 0;
   // Luôn đọc danh sách mới từ máy chủ; lỗi mạng sẽ dừng hẳn thay vì tạo trùng nhân sự.
@@ -161,20 +167,29 @@ export async function linkAccountsToEmployees() {
     if (created) known.push(employee);
     changed += 1;
   }
-  return changed + await syncBackendAccounts();
+  return changed + await pushLocalAccounts(backendUsers);
 }
 
 /**
- * Đưa vai trò backend về đúng cấp bậc tài khoản. Chỉ ghi khi lệch (ghi lại sẽ đăng xuất user đó);
- * tài khoản chưa có ở backend được tạo kèm mật khẩu đang lưu.
+ * Máy chủ là bản chuẩn của tài khoản: tài khoản đã có hồ sơ trên máy chủ được ghi đè vào trình duyệt
+ * (gồm user do máy / admin khác tạo, sửa); tài khoản từng đồng bộ mà máy chủ không còn (đã xóa ở nơi khác) bị bỏ.
  */
-async function syncBackendAccounts() {
+async function pullServerAccounts() {
   const backendUsers = (await deliveryApi.users()).data || [];
+  for (const entry of backendUsers) if (entry.role !== 'admin' && entry.profileSavedAt) applyServerProfile(entry, { add: true });
+  for (const user of getUsers().filter((entry) => entry.role === 'user')) {
+    if (user.profileSavedAt && !backendUsers.some((entry) => entry.email === user.email)) forgetLocalUser(user.email);
+  }
+  return backendUsers;
+}
+
+/** Tài khoản cũ chỉ có ở trình duyệt / chưa có hồ sơ trên máy chủ: đẩy lên một lần (kèm mật khẩu nếu máy chủ chưa có). */
+async function pushLocalAccounts(backendUsers) {
   let synced = 0;
   for (const user of getUsers().filter((entry) => entry.role === 'user')) {
-    const expected = backendAccount(user);
     const existing = backendUsers.find((entry) => entry.email === user.email);
-    if (existing && existing.role === expected.role && (existing.employeeId || '') === expected.employeeId && !existing.disabled && existing.name === expected.name) continue;
+    if (existing?.profileSavedAt) continue;
+    const expected = backendAccount(user);
     await deliveryApi.saveUser(existing ? expected : { ...expected, password: user.password });
     synced += 1;
   }

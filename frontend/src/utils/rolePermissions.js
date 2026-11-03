@@ -1,4 +1,4 @@
-import { ROLE_RULES, companyAdmin, roleAllows } from './operationsDefaults.js';
+import { OP_ROLES, ROLE_RULES, companyAdmin, roleAllows } from './operationsDefaults.js';
 import { pageAccessAllows } from './pageAccess.js';
 
 /**
@@ -8,8 +8,8 @@ import { pageAccessAllows } from './pageAccess.js';
  * Ký hiệu ô: X xem · L lập · S sửa · XN xác nhận · D duyệt · "(của mình)" chỉ dữ liệu của bản thân · — không truy cập.
  */
 
-/** Cấp bậc tài khoản (trang Tài khoản) trùng mã vai trò trong ma trận. */
-export const LEVEL_ROLES = ['employee', 'leader', 'manager', 'director'];
+/** Cấp bậc tài khoản (trang Tài khoản) trùng mã vai trò trong ma trận: đủ 6 cột, gồm Kế toán viên / Kế toán trưởng. */
+export const LEVEL_ROLES = OP_ROLES;
 export const roleFromLevel = level => LEVEL_ROLES.includes(level) ? level : 'employee';
 
 function cell(key, role) {

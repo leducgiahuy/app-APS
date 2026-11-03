@@ -2,6 +2,7 @@ import { roleAllows } from '../../../frontend/src/utils/operationsDefaults.js';
 import { randomBytes, scryptSync, timingSafeEqual, createHash } from 'node:crypto';
 import { projectActor } from './operationsStore.js';
 import { enforcePageAccess } from './pageAccessGuard.js';
+import { profileFields, rememberCatalogValues } from './accountProfile.js';
 import { readDb, writeDb } from '../models/db.js';
 import { DELIVERY_ROLES, managingRole, moneyAccess } from '../../../frontend/src/utils/deliveryMetrics.js';
 import { canEditProgressTask, maskDeliveryFinance } from '../../../frontend/src/utils/deliveryView.js';
@@ -82,9 +83,15 @@ export function deliveryUsers(req, res) {
   if (existing?.email === req.deliveryUser.email && (disabled || role !== existing.role)) return res.status(400).json({ message: 'Không thể tự thu hồi quyền của phiên đang dùng.' });
   if (employeeId && !(db.employees || []).some(employee => employee.id === employeeId)) return res.status(400).json({ message: 'Nhân sự liên kết không tồn tại.' });
   if ((!existing || password) && (typeof password !== 'string' || password.length < 8 || password.length > 512)) return res.status(400).json({ message: 'Mật khẩu cấp quyền cần ít nhất 8 ký tự.' });
-  const user = { ...(existing || {}), email: email.trim().toLowerCase(), name: String(name || email).trim(), role, employeeId: employeeId || '', disabled: Boolean(disabled), ...(password ? passwordHash(password) : {}) };
+  const profile = profileFields(req.body);
+  if (Object.keys(profile).length) profile.profileSavedAt = new Date().toISOString();
+  const user = { ...(existing || {}), ...profile, email: email.trim().toLowerCase(), name: String(name || email).trim(), role, employeeId: employeeId || '', disabled: Boolean(disabled), ...(password ? passwordHash(password) : {}) };
   if (existing) store.users[store.users.indexOf(existing)] = user; else store.users.push(user);
-  store.sessions = store.sessions.filter(session => session.email !== user.email || session.hash === req.deliverySessionHash && user.email === req.deliveryUser.email);
+  rememberCatalogValues(db, profile);
+  // Chỉ đổi vai trò / khóa / mật khẩu mới buộc đăng nhập lại; sửa hồ sơ không làm user bị đăng xuất.
+  if (!existing || password || existing.role !== user.role || Boolean(existing.disabled) !== user.disabled) {
+    store.sessions = store.sessions.filter(session => session.email !== user.email || session.hash === req.deliverySessionHash && user.email === req.deliveryUser.email);
+  }
   if (!writeDb(db)) return res.status(500).json({ message: 'Không lưu được quyền.' });
   return res.json({ success: true, data: store.users.map(safeUser) });
 }

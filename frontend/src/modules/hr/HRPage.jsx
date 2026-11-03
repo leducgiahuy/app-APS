@@ -20,7 +20,6 @@ export default function HRPage() {
     toggleOnSite,
     toggleBreak,
     setActiveTask,
-    deleteEmployee,
     selectedDate,
     currentTime,
     loading,
@@ -200,10 +199,8 @@ export default function HRPage() {
             toggleOnSite={toggleOnSite}
             toggleBreak={toggleBreak}
             setActiveTask={setActiveTask}
-            deleteEmployee={deleteEmployee}
             highlighted={emp.id === focusEmployeeId}
             canOperate={emp.id === viewerEmployeeId || permissions.superviseAttendance}
-            canDelete={permissions.manageMembers}
           />
         ))}
       </div>

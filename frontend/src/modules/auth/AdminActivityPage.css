@@ -34,6 +34,12 @@
 .activity-event-pill.accounts { color: #8a6d36; border-color: #ede3cc; background: #f7f1e3; }
 .activity-event-pill.data { color: #4d7868; border-color: #d7e8df; background: #edf5f0; }
 .activity-event-pill.navigation { color: #6f6b8f; border-color: #e2e0ee; background: #f0eff6; }
+/* Màu nhãn theo nhóm dữ liệu của nhật ký. */
+.activity-event-pill.employee, .activity-event-pill.project, .activity-event-pill.task { color: #4d7868; border-color: #d7e8df; background: #edf5f0; }
+.activity-event-pill.delivery, .activity-event-pill.hours, .activity-event-pill.overtime { color: #4f7484; border-color: #d5e3e7; background: #eaf2f4; }
+.activity-event-pill.finance { color: #8a5a12; border-color: #f0dfbf; background: #fbf2e1; }
+.activity-event-pill.account { color: #8a6d36; border-color: #ede3cc; background: #f7f1e3; }
+.activity-event-pill.system { color: #861b36; border-color: #efd3da; background: #fbeef1; }
 .activity-role { display: block; margin-top: 4px; color: #929da0; font-size: 11px; }
 .activity-detail { min-width: 210px; color: #65747a !important; line-height: 1.5; }
 .activity-empty { display: flex; flex: 1 1 auto; min-height: 0; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 20px; border: 1px dashed #cad5d8; border-radius: 13px; color: #79909a; background: #f7f9f8; }
@@ -58,6 +64,11 @@ html.dark .activity-event-pill.auth { color: #d6cecb; border-color: #5c5251; bac
 html.dark .activity-event-pill.accounts { color: #f0d58f; border-color: #6b5428; background: #382f1d; }
 html.dark .activity-event-pill.data { color: #a4d3bb; border-color: #486450; background: #293a32; }
 html.dark .activity-event-pill.navigation { color: #c7c1ed; border-color: #59536d; background: #403b4d; }
+html.dark .activity-event-pill.employee, html.dark .activity-event-pill.project, html.dark .activity-event-pill.task { color: #a4d3bb; border-color: #486450; background: #293a32; }
+html.dark .activity-event-pill.delivery, html.dark .activity-event-pill.hours, html.dark .activity-event-pill.overtime { color: #b5d3de; border-color: #4b6670; background: #2b3a40; }
+html.dark .activity-event-pill.finance { color: #f2c779; border-color: #6b5226; background: #3a2f1c; }
+html.dark .activity-event-pill.account { color: #f0d58f; border-color: #6b5428; background: #382f1d; }
+html.dark .activity-event-pill.system { color: #f1b3c2; border-color: #6d3a47; background: #43282f; }
 html.dark .activity-list-header > span { color: #a4d3bb; }
 html.dark .activity-list-header i { background: #7fb99b; box-shadow: 0 0 0 4px #293a32; }
 html.dark .activity-empty { border-color: #655b5a; color: #c9c0be; background: #393536; }

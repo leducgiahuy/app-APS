@@ -9,7 +9,7 @@ import DeliveryDrawer from './DeliveryDrawer';
 import DeliveryResources from './DeliveryResources';
 import DeliveryChartOverlay from './DeliveryChartOverlay';
 import { deliveryApi } from './deliveryApi';
-import { DELIVERY_ROLES, formatCompactMoney, summarizeProjectWork } from '../../utils/deliveryMetrics';
+import { summarizeProjectWork } from '../../utils/deliveryMetrics';
 import './DeliveryPage.css';
 import GanttRowGrid from './GanttRowGrid';
 import GanttCalendarBackground from './GanttCalendarBackground';
@@ -86,6 +86,10 @@ const orderByDependencies = items => {
 };
 
 const GANTT_TABLE_MIN_WIDTH = 120;
+// Giới hạn khi kéo đổi độ rộng một cột của bảng tiến độ.
+const COLUMN_MIN_WIDTH = 40;
+const COLUMN_MAX_WIDTH = 640;
+const clampColumnWidth = width => Math.round(Math.min(COLUMN_MAX_WIDTH, Math.max(COLUMN_MIN_WIDTH, width)));
 const GANTT_PHASE_PRESETS = [
   { code: 'A', title: 'A. THIẾT KẾ XÂY DỰNG', color: '#2563eb' },
   { code: 'B', title: 'B. XIN PHÉP / PHÁP LÍ', color: '#dc2626' },
@@ -230,7 +234,8 @@ export default function GanttPage() {
         const actualIndex = withoutComparison.indexOf('actualWork');
         restored = [...withoutComparison.slice(0, actualIndex + 1), ...comparisonKeys, ...withoutComparison.slice(actualIndex + 1)];
       }
-      return [...new Set([...COMPACT_KEYS, ...restored])];
+      // Cột nào cũng ẩn / hiện được (kể cả 5 cột cơ bản); chỉ lưu rỗng thì quay về bộ cột mặc định.
+      return restored.length ? [...new Set(restored)] : COMPACT_KEYS;
     } catch { return COMPACT_KEYS; }
   });
   const [detailItemId, setDetailItemId] = useState(null);
@@ -241,7 +246,6 @@ export default function GanttPage() {
   const [detailSection, setDetailSection] = useState('');
   const [department, setDepartment] = useState('');
   const [onlyMine, setOnlyMine] = useState(false);
-  const [warningOnly, setWarningOnly] = useState(false);
   const [deliveryUsers, setDeliveryUsers] = useState([]);
   const [projectTemplates, setProjectTemplates] = useState([]);
   
@@ -265,21 +269,53 @@ export default function GanttPage() {
   const canManageStructure = Boolean(deliveryData?.permissions.schedule);
   const canManageAssignments = Boolean(deliveryData?.permissions.assign);
   useEffect(() => { if (viewerEmail || viewerRole) setOnlyMine(ownByDefault); }, [viewerEmail, viewerRole, ownByDefault, selectedProjectId]);
+  // Độ rộng từng cột do người dùng kéo ở tiêu đề; tiêu đề và mọi dòng cùng đọc width từ currentColumns nên co giãn theo nhau.
+  const [columnWidths, setColumnWidths] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('aps_delivery_column_widths_v1'));
+      return saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {};
+    } catch { return {}; }
+  });
+  useEffect(() => { localStorage.setItem('aps_delivery_column_widths_v1', JSON.stringify(columnWidths)); }, [columnWidths]);
+  // Phụ thuộc vào cờ đúng/sai thay vì cả object permissions: dữ liệu dự án tải lại định kỳ tạo object mới,
+  // nếu không thì danh sách cột "đổi" theo và độ rộng khung bảng đã kéo bị đặt lại sau vài giây.
+  const canSeeMoneyColumns = Boolean(deliveryData?.permissions?.financial);
   const currentColumns = useMemo(
-    () => DELIVERY_COLUMNS.filter(column => deliveryColumns.includes(column.key) && (!column.financial || deliveryData?.permissions.financial)),
-    [deliveryColumns, deliveryData?.permissions]
+    () => DELIVERY_COLUMNS
+      .filter(column => deliveryColumns.includes(column.key) && (!column.financial || canSeeMoneyColumns))
+      .map(column => Number.isFinite(columnWidths[column.key]) ? { ...column, width: clampColumnWidth(columnWidths[column.key]) } : column),
+    [deliveryColumns, canSeeMoneyColumns, columnWidths]
   );
+  const columnResizeRef = useRef(null);
+  const startColumnResize = (event, column) => {
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    columnResizeRef.current = { key: column.key, pointerX: event.clientX, width: column.width };
+  };
+  const resizeColumn = event => {
+    const start = columnResizeRef.current;
+    if (!start) return;
+    setColumnWidths(current => ({ ...current, [start.key]: clampColumnWidth(start.width + event.clientX - start.pointerX) }));
+  };
+  const stopColumnResize = event => {
+    columnResizeRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  };
+  const resetColumnWidth = key => setColumnWidths(({ [key]: _removed, ...rest }) => rest);
+  const nudgeColumnWidth = (column, delta) => setColumnWidths(current => ({ ...current, [column.key]: clampColumnWidth(column.width + delta) }));
   const maxLeftPanelWidth = Math.max(GANTT_TABLE_MIN_WIDTH, currentColumns.reduce((sum, column) => sum + column.width, 0));
-  useEffect(() => { setLeftPanelWidth(currentColumns.reduce((sum, column) => sum + column.width, 0)); }, [currentColumns]);
+  // Khung bảng chỉ về vừa khít các cột khi tổng độ rộng cột thật sự đổi (bật / tắt cột, kéo độ rộng một cột).
+  const columnsTotalWidth = currentColumns.reduce((sum, column) => sum + column.width, 0);
+  useEffect(() => { setLeftPanelWidth(columnsTotalWidth); }, [columnsTotalWidth]);
   const departments = [...new Set([...employees.map(employee => employee.team), ...Object.values(deliveryData?.records || {}).map(record => record.department)].filter(Boolean))];
   useEffect(() => { localStorage.setItem('aps_delivery_columns_v1', JSON.stringify(deliveryColumns)); }, [deliveryColumns]);
-  useEffect(() => { setDetailItemId(pendingDetail.current?.id || null); setDetailSection(pendingDetail.current?.section || ''); pendingDetail.current = null; setDepartment(''); setWarningOnly(false); }, [selectedProjectId]);
+  useEffect(() => { setDetailItemId(pendingDetail.current?.id || null); setDetailSection(pendingDetail.current?.section || ''); pendingDetail.current = null; setDepartment(''); }, [selectedProjectId]);
   useEffect(() => {
     if (!hasDeliveryData) return;
     deliveryApi.templates().then(result => setProjectTemplates(result.data)).catch(() => {});
     if (canViewDeliveryUsers) deliveryApi.users().then(result => setDeliveryUsers(result.data)).catch(() => {});
   }, [hasDeliveryData, canViewDeliveryUsers, viewerEmail]);
-  const setPreset = mode => { setTableMode(mode); setDeliveryColumns(mode === 'compact' ? COMPACT_KEYS : mode === 'dates' ? DATE_KEYS : DELIVERY_COLUMNS.map(column => column.key)); setLeftPanelWidth(DELIVERY_COLUMNS.filter(column => (mode === 'compact' ? COMPACT_KEYS : mode === 'dates' ? DATE_KEYS : DELIVERY_COLUMNS.map(entry => entry.key)).includes(column.key)).reduce((sum, column) => sum + column.width, 0)); };
   const openDetail = (item, section = '') => { const projectId = item.projectId || tasks.find(task => task.ganttId === item.id)?.projectId; if (selectedProjectId === 'ALL' && projectId) { pendingDetail.current = { id: item.id, section }; setSelectedProjectId(projectId); } else { setDetailItemId(item.id); setDetailSection(section); } };
   const leftPanelResizeRef = useRef(null);
   const [columnFilterOpen, setColumnFilterOpen] = useState(false);
@@ -595,12 +631,11 @@ export default function GanttPage() {
       ? ganttItems
       : ganttItems.filter(g => projectIdForItem(g) === selectedProjectId);
 
-    if (department || onlyMine || warningOnly) {
+    if (department || onlyMine) {
       const hierarchy = inferGanttGroupHierarchy(projectItems);
       const included = new Set(hierarchy.filter(item => !item.isGroup &&
         (!onlyMine || ownsDeliveryTask(deliveryData?.viewer, item)) &&
-        (!department || deliveryData?.records?.[item.id]?.department === department || item.assignees?.some(assignment => employees.find(employee => employee.id === assignment.employeeId)?.team === department)) &&
-        (!warningOnly || deliveryData?.taskMetrics?.[item.id]?.alert.warning)
+        (!department || deliveryData?.records?.[item.id]?.department === department || item.assignees?.some(assignment => employees.find(employee => employee.id === assignment.employeeId)?.team === department))
       ).map(item => item.id));
       for (const id of [...included]) { let current = hierarchy.find(item => item.id === id); const seen = new Set(); while (current && !seen.has(current.id)) { seen.add(current.id); included.add(current.id); current = hierarchy.find(item => item.id === (current.parentTaskId || current.parentGroupId)); } }
       projectItems = projectItems.filter(item => included.has(item.id));
@@ -624,7 +659,7 @@ export default function GanttPage() {
         ...(collapsedProjectIds.has(project.id) ? [] : flattenWorkGroups(items, collapsedGroupIds, collapsedTaskIds))
       ];
     }));
-  }, [ganttItems, projects, selectedProjectId, collapsedProjectIds, collapsedGroupIds, collapsedTaskIds, department, onlyMine, warningOnly, deliveryData, employees, projectIdForItem]);
+  }, [ganttItems, projects, selectedProjectId, collapsedProjectIds, collapsedGroupIds, collapsedTaskIds, department, onlyMine, deliveryData, employees, projectIdForItem]);
 
   // Keep a complete hierarchy for aggregate bars and dependency routing even when rows are collapsed.
   const dependencyRows = useMemo(() => {
@@ -1469,9 +1504,6 @@ export default function GanttPage() {
   }, [detailItemId, detailItem]);
 
   const summary = deliveryData?.summary;
-  const personalAlerts = Object.entries(deliveryData?.taskMetrics || {}).filter(([id]) => ownsDeliveryTask(deliveryData?.viewer, hierarchyGanttItems.find(item => item.id === id))).map(([, metric]) => metric.alert);
-  const alertCounts = roleView.ownByDefault ? { warnings: personalAlerts.filter(alert => alert.warning).length, soon: personalAlerts.filter(alert => alert.soon).length, overdue: personalAlerts.filter(alert => alert.overdue).length, stuck: personalAlerts.filter(alert => alert.stuck).length } : summary;
-  const [excludeRework, setExcludeRework] = useState(false);
   const showIT = false;
   const refreshDeliveryMetrics = delivery.refresh;
   useEffect(() => { refreshDeliveryMetrics(); }, [ganttItems, tasks, refreshDeliveryMetrics]);
@@ -1574,7 +1606,7 @@ export default function GanttPage() {
               aria-expanded={phaseMenuOpen}
               disabled={projects.length === 0 || !canManageStructure}
               onClick={() => setPhaseMenuOpen(open => !open)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-all disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+              className="delivery-toolbar-control flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-all disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
             >
               <Layers className="h-3.5 w-3.5" />
               <span>Giai đoạn</span>
@@ -1602,6 +1634,27 @@ export default function GanttPage() {
         </fieldset>
         {/* Thu phóng & Nút thêm */}
         <div className="flex flex-wrap items-center gap-2">
+          <div className="delivery-toolbar-task-filters flex flex-wrap items-center gap-2">
+            <select
+              aria-label="Bộ môn"
+              value={department}
+              onChange={event => setDepartment(event.target.value)}
+              className="delivery-toolbar-control rounded-xl border-0 bg-slate-100 px-3 py-2 text-xs font-bold text-slate-800 outline-none transition-all hover:bg-slate-200 focus:ring-2 focus:ring-sky-500/30 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+            >
+              <option value="">Bộ môn: Tất cả</option>
+              {departments.map(value => <option key={value}>{value}</option>)}
+            </select>
+            <label className="delivery-toolbar-control flex items-center gap-2 rounded-xl border-0 bg-slate-100 px-3 py-2 text-xs font-bold text-slate-800 transition-all hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">
+              <input
+                type="checkbox"
+                checked={onlyMine}
+                disabled={!deliveryData?.viewer.employeeId}
+                onChange={event => setOnlyMine(event.target.checked)}
+                className="h-3.5 w-3.5 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+              />
+              Chỉ việc của tôi
+            </label>
+          </div>
           
           {/* Lọc giai đoạn */}
           {/* Thu phóng (Zoom Level) */}
@@ -1611,7 +1664,7 @@ export default function GanttPage() {
               aria-haspopup="menu"
               aria-expanded={columnFilterOpen}
               onClick={() => setColumnFilterOpen(open => !open)}
-              className="flex shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+              className="delivery-toolbar-control flex shrink-0 items-center gap-1.5 rounded-xl border-0 bg-slate-100 px-3 py-2 text-xs font-bold text-slate-800 transition-all hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
             >
               <SlidersHorizontal className="h-3.5 w-3.5" />
               <span>Bộ lọc</span>
@@ -1633,7 +1686,9 @@ export default function GanttPage() {
                     <label key={column.key} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800">
                       <input
                         type="checkbox"
-                        checked={deliveryColumns.includes(column.key)} disabled={COMPACT_KEYS.includes(column.key)}
+                        checked={deliveryColumns.includes(column.key)}
+                        // Giữ ít nhất một cột để bảng không trống.
+                        disabled={deliveryColumns.includes(column.key) && currentColumns.length <= 1}
                         onChange={event => setDeliveryColumns(current => event.target.checked ? [...current, column.key] : current.filter(key => key !== column.key))}
                         className="h-3.5 w-3.5 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
                       />
@@ -1645,7 +1700,7 @@ export default function GanttPage() {
             )}
           </div>
 
-          <div className="flex w-[120px] shrink-0 items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+          <div className="delivery-toolbar-control flex w-[120px] shrink-0 items-center rounded-xl border-0 bg-slate-100 p-1 dark:bg-slate-800">
             <button
               onClick={() => setZoomLevel('month')}
               className={`flex-1 px-2 py-1 rounded-lg text-xs font-semibold ${
@@ -1664,7 +1719,7 @@ export default function GanttPage() {
             </button>
           </div>
 
-          <div className="delivery-date-range hidden sm:flex w-auto whitespace-nowrap shrink-0 items-center justify-center gap-1.5 px-3 py-1 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400 text-xs font-semibold">
+          <div className="delivery-toolbar-control delivery-date-range hidden w-auto shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border-0 bg-sky-500/10 px-3 py-2 text-xs font-bold text-sky-600 dark:bg-sky-500/10 dark:text-sky-400 sm:flex">
             <span>T{timelineStart.getMonth() + 1}/{timelineStart.getFullYear()} - T{timelineEnd.getMonth() + 1}/{timelineEnd.getFullYear()}</span>
           </div>
 
@@ -1674,15 +1729,6 @@ export default function GanttPage() {
       {delivery.error && <p role="alert" className="delivery-error">{delivery.error} <button onClick={delivery.refresh}>Tải lại</button></p>}
       {selectedProjectId === 'ALL' && <p className="delivery-notice">Chọn một dự án để xem số liệu, hồ sơ và cập nhật trạng thái theo quy tắc mới.</p>}
       {deliveryTab === 'gantt' && progressSection === 'assignment' && <AssignmentMachinePage key={selectedProjectId} projectId={selectedProjectId} items={selectedProjectItems} tasks={tasks} employees={employees} updateGanttItem={updateGanttItem} readOnly={previewing || !canManageAssignments} />}
-      {deliveryTab === 'gantt' && progressSection === 'table' && <><div className="delivery-kpis">
-        <span>% hoàn thành HĐ <b>{summary ? summary.completion.toLocaleString('vi-VN', { maximumFractionDigits: 1 }) : '—'}%</b><small>kế hoạch {summary ? Math.round(summary.planPercent) : '—'}%</small></span>
-        {deliveryData?.permissions.financial && <span title="Theo lịch sử ghi nhận từ khi sử dụng chức năng mới">Sản lượng T{currentTime.getMonth() + 1} <b>{formatCompactMoney(summary?.monthlyOutput)}</b><small>lũy kế {formatCompactMoney(summary?.output)}</small></span>}
-        {roleView.ownByDefault && <span>Tăng trong tháng <b>{summary?.progressThisMonth == null ? '—' : `${summary.progressThisMonth > 0 ? '+' : ''}${summary.progressThisMonth.toLocaleString('vi-VN', { maximumFractionDigits: 1 })} điểm`}</b></span>}
-        <span>Hiệu suất giờ <b style={{ color: (excludeRework ? summary?.efficiencyWithoutRework : summary?.efficiency) == null ? undefined : (excludeRework ? summary?.efficiencyWithoutRework : summary?.efficiency) >= 1 ? '#16835d' : (excludeRework ? summary?.efficiencyWithoutRework : summary?.efficiency) >= .85 ? '#b27b18' : '#c34d53' }}>{(excludeRework ? summary?.efficiencyWithoutRework : summary?.efficiency)?.toLocaleString('vi-VN', { maximumFractionDigits: 2 }) ?? '—'}</b><label title="Loại giờ làm lại khỏi mẫu số"><input type="checkbox" checked={excludeRework} onChange={event => setExcludeRework(event.target.checked)} />Không tính làm lại</label></span>
-        <button onClick={() => setWarningOnly(value => !value)} className={warningOnly ? 'active' : ''}>Cảnh báo{roleView.ownByDefault ? ' của tôi' : ''} <b>{alertCounts?.warnings ?? '—'}</b><small>{alertCounts?.soon ?? 0} sắp đến hạn · {alertCounts?.overdue ?? 0} quá hạn · {alertCounts?.stuck ?? 0} đứng lâu</small></button>
-        {deliveryData?.permissions.financial && <span>Đủ ĐK thanh toán, chưa đề nghị <b>{formatCompactMoney(summary?.eligiblePayment)}</b></span>}
-      </div>{!roleView.financial && deliveryData && <p className="delivery-role-notice">Phí hợp đồng, sản lượng và mọi giá trị tiền được ẩn với vai trò {DELIVERY_ROLES[deliveryData.viewer.role]}.{roleView.ownByDefault && !deliveryData.viewer.employeeId && ' Tài khoản chưa liên kết nhân sự; cần liên kết để hiển thị việc của bạn.'}</p>}<div className="delivery-table-controls"><span>Cột hiển thị</span>{[['compact','Gọn'],['dates','+ Ngày & công'],['full','Toàn bảng (ẩn Gantt)']].map(([key,label]) => <button key={key} className={tableMode === key ? 'active' : ''} onClick={() => setPreset(key)}>{label}</button>)}<select aria-label="Bộ môn" value={department} onChange={event => setDepartment(event.target.value)}><option value="">Bộ môn: Tất cả</option>{departments.map(value => <option key={value}>{value}</option>)}</select><label><input type="checkbox" checked={onlyMine} disabled={!deliveryData?.viewer.employeeId} onChange={event => setOnlyMine(event.target.checked)} />Chỉ việc của tôi</label><small>Bấm vào dòng để xem chi tiết</small></div>
-      </>}
 
       {deliveryTab === 'gantt' && progressSection === 'table' && <div className="delivery-chart-heading-scroll" ref={headingScrollRef}>
         <div className="flex" style={{ width: LEFT_PANEL_WIDTH + (tableMode === 'full' ? 0 : ganttWidth), minWidth: '100%' }}>
@@ -1714,10 +1760,28 @@ export default function GanttPage() {
                 {currentColumns.map(column => (
                   <div
                     key={column.key}
-                    className={`delivery-column ${column.key} ${column.alignLeft ? 'delivery-column-left' : 'delivery-column-center'} flex h-full shrink-0 items-center border-r border-slate-200 dark:border-slate-700 ${column.key === 'createdAt' || ['contractWork', 'actualWork', 'remainingWork', 'varianceWork', 'note'].includes(column.key) ? 'text-[10px]' : ''}`}
+                    className={`delivery-column ${column.key} ${column.alignLeft ? 'delivery-column-left' : 'delivery-column-center'} relative flex h-full shrink-0 items-center border-r border-slate-200 dark:border-slate-700 ${column.key === 'createdAt' || ['contractWork', 'actualWork', 'remainingWork', 'varianceWork', 'note'].includes(column.key) ? 'text-[10px]' : ''}`}
                     style={{ width: `${column.width}px`, minWidth: `${column.width}px` }}
                   >
-                    <span className={`${column.alignLeft ? 'truncate whitespace-nowrap' : ''} normal-case`}>{column.label}</span>
+                    <span className="truncate whitespace-nowrap normal-case">{column.label}</span>
+                    <div
+                      role="separator"
+                      aria-orientation="vertical"
+                      aria-label={`Kéo để đổi độ rộng cột ${column.label}`}
+                      aria-valuenow={column.width}
+                      tabIndex={0}
+                      title="Kéo để đổi độ rộng · nhấp đúp để về mặc định"
+                      className="delivery-column-resizer"
+                      onPointerDown={event => startColumnResize(event, column)}
+                      onPointerMove={resizeColumn}
+                      onPointerUp={stopColumnResize}
+                      onPointerCancel={stopColumnResize}
+                      onDoubleClick={() => resetColumnWidth(column.key)}
+                      onKeyDown={event => {
+                        if (event.key === 'ArrowLeft') { event.preventDefault(); nudgeColumnWidth(column, -8); }
+                        if (event.key === 'ArrowRight') { event.preventDefault(); nudgeColumnWidth(column, 8); }
+                      }}
+                    />
                   </div>
                 ))}
               </div>

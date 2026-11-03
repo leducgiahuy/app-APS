@@ -105,26 +105,52 @@ export async function authenticateWithServer(email, password) {
   return { user: cacheServerUser({ ...serverUser, email: normalizedEmail }, password, employee) };
 }
 
-/** Ghi/ cập nhật tài khoản đăng nhập từ máy chủ vào trình duyệt; giữ các trường chỉ có ở trình duyệt (công ty, ảnh...). */
+/** Trường hồ sơ người dùng tự sửa (ngoài tên); phòng ban / chuyên môn / cấp bậc chỉ admin sửa. */
+export const SELF_PROFILE_FIELDS = ['company', 'phone', 'avatarData'];
+
+/**
+ * Ghi/ cập nhật tài khoản từ máy chủ vào trình duyệt. Máy chủ là bản chuẩn của hồ sơ: đã có `profileSavedAt`
+ * thì tên, công ty, SĐT, ảnh, phòng ban, chuyên môn đều lấy từ máy chủ, nên đóng/mở lại hay đổi máy vẫn thấy bản mới nhất.
+ * Hồ sơ cũ chưa từng lưu lên máy chủ thì giữ bản trong trình duyệt (`needsUpload` để đẩy lên một lần).
+ */
 function cacheServerUser(serverUser, password, employee) {
   const users = getUsers();
   const existing = users.find((user) => user.email === serverUser.email);
   const isAdmin = serverUser.role === 'admin';
+  const onServer = Boolean(serverUser.profileSavedAt);
+  const pick = (key, fallback) => (onServer && typeof serverUser[key] === 'string' ? serverUser[key] : fallback);
   const user = {
-    company: 'APS Việt Nam',
     ...existing,
     email: serverUser.email,
-    name: serverUser.name || existing?.name || serverUser.email,
-    password,
+    name: (onServer ? serverUser.name : existing?.name || serverUser.name) || serverUser.email,
+    password: password ?? existing?.password ?? '',
     role: isAdmin ? 'admin' : 'user',
     employeeId: serverUser.employeeId || existing?.employeeId || '',
     level: isAdmin ? existing?.level || 'director' : normalizeLevel(serverUser.role),
-    department: existing?.department || employee?.team || '',
-    specialty: existing?.specialty || '',
-    phone: existing?.phone || (employee?.phone && employee.phone !== 'Đang cập nhật' ? employee.phone : ''),
+    company: pick('company', existing?.company || 'APS Việt Nam'),
+    phone: pick('phone', existing?.phone || (employee?.phone && employee.phone !== 'Đang cập nhật' ? employee.phone : '')),
+    avatarData: pick('avatarData', existing?.avatarData || ''),
+    department: pick('department', existing?.department || employee?.team || ''),
+    specialty: pick('specialty', existing?.specialty || ''),
+    profileSavedAt: serverUser.profileSavedAt || '',
   };
   localStorage.setItem(USERS_KEY, JSON.stringify(existing ? users.map((entry) => entry === existing ? user : entry) : [...users, user]));
-  return user;
+  window.dispatchEvent(new Event(ACCOUNT_EVENT));
+  return { ...user, needsUpload: !onServer && Boolean(existing) };
+}
+
+/** Sự kiện phát ra khi hồ sơ trong trình duyệt vừa được làm mới từ máy chủ (Header, trang Tài khoản nghe để vẽ lại). */
+export const ACCOUNT_EVENT = 'aps-account-updated';
+
+/** Làm mới hồ sơ tài khoản trong trình duyệt từ bản ghi máy chủ (mật khẩu giữ nguyên); `add` thêm cả tài khoản chưa có. */
+export function applyServerProfile(serverUser, { add = false } = {}) {
+  if (!serverUser?.email || (!add && !findUser(serverUser.email))) return null;
+  return cacheServerUser(serverUser);
+}
+
+/** Bỏ tài khoản khỏi trình duyệt khi máy chủ không còn tài khoản đó (đã bị xóa ở máy khác). */
+export function forgetLocalUser(email) {
+  localStorage.setItem(USERS_KEY, JSON.stringify(getUsers().filter((user) => user.email !== email || user.email === DEMO_USER.email)));
 }
 
 /** Lưu nhật ký thao tác, luôn bỏ qua mật khẩu và giới hạn dung lượng ở 1.000 sự kiện. */
@@ -268,23 +294,6 @@ export function linkUserEmployee(email, employeeId) {
   return true;
 }
 
-/** Lưu thay đổi tên, công ty và số điện thoại của tài khoản hiện tại. */
-export function updateUserProfile(email, profile, actorEmail = email) {
-  if (email !== actorEmail) return false;
-  const users = getUsers();
-  const index = users.findIndex((user) => user.email === email);
-  if (index < 0) return false;
-  users[index] = {
-    ...users[index],
-    name: profile.name.trim(),
-    company: profile.company.trim(),
-    phone: profile.phone.trim(),
-    avatarData: profile.avatarData || '',
-  };
-  localStorage.setItem(USERS_KEY, JSON.stringify(users));
-  recordActivity('profile.update', `Cập nhật hồ sơ cá nhân (${email}).`, actorEmail);
-  return true;
-}
 
 /**
  * Cho phép admin chỉnh hồ sơ, ảnh đại diện và cấp bậc/phòng ban/chuyên môn của user.

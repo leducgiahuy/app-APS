@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
-import { ArchiveRestore, ArrowLeft, BriefcaseBusiness, Camera, KeyRound, LockKeyhole, LogOut, Trash2, UserRound, UserRoundPlus, UsersRound } from 'lucide-react';
-import { adminUpdateUserProfile, endAuthSession, recordActivity, getCurrentUser, getUsers, processAvatarFile, resetUserPassword, updateUserPassword, updateUserProfile } from './authSession';
-import { ACCOUNT_LEVELS, DEFAULT_LEVEL, DEPARTMENTS, SPECIALTIES, getLevelLabel } from './accountOptions';
+import { useEffect, useRef, useState } from 'react';
+import { ArchiveRestore, ArrowLeft, BriefcaseBusiness, Camera, ChevronDown, KeyRound, LockKeyhole, LogOut, Trash2, UserRound, UserRoundPlus, UsersRound, X } from 'lucide-react';
+import { ACCOUNT_EVENT, adminUpdateUserProfile, applyServerProfile, endAuthSession, recordActivity, getCurrentUser, getUsers, processAvatarFile, resetUserPassword, updateUserPassword } from './authSession';
+import { ACCOUNT_LEVELS, DEFAULT_LEVEL, getLevelLabel } from './accountOptions';
+import { deliveryApi } from '../gantt/deliveryApi';
+import { normalize } from './personalWork';
 import { changeBackendPassword, createUserWithEmployee, deleteUserWithEmployee, linkAccountsToEmployees, listDeletedAccounts, purgeDeletedAccounts, resetBackendPassword, restoreDeletedAccount, syncEmployeeForUser, syncManagedAccount } from './accountEmployeeSync';
 import './AccountPage.css';
 
@@ -18,15 +20,46 @@ export default function AccountPage() {
   const [deleting, setDeleting] = useState(false);
   const [deletedAccounts, setDeletedAccounts] = useState(null);
   const [restoringId, setRestoringId] = useState('');
+  const [catalog, setCatalog] = useState({ departments: [], specialties: [] });
+  const [, setAccountVersion] = useState(0);
   const userAccounts = isAdmin ? getUsers().filter((user) => user.role === 'user') : [];
   const managedUser = userAccounts.find((user) => user.email === managedEmail) || userAccounts[0] || null;
   // Quản trị viên khác (không gồm chính mình) — chỉ để xem và xóa, quyền quản trị không sửa ở đây.
   const otherAdmins = isAdmin ? getUsers().filter((user) => user.role === 'admin' && user.email !== currentUser.email) : [];
 
+  // Mở trang: tải hồ sơ mới nhất từ máy chủ (bản chuẩn) để form không hiện dữ liệu cũ trong trình duyệt.
+  useEffect(() => {
+    const refresh = () => {
+      setAccountVersion((version) => version + 1);
+      setProfileAvatar(getCurrentUser()?.avatarData || '');
+    };
+    window.addEventListener(ACCOUNT_EVENT, refresh);
+    deliveryApi.profile().then((result) => applyServerProfile(result.data)).catch(() => {});
+    return () => window.removeEventListener(ACCOUNT_EVENT, refresh);
+  }, []);
+
+  /** Danh mục phòng ban / chuyên môn đã từng nhập (lưu ở máy chủ) để chọn nhanh khi tạo / sửa user. */
+  function loadCatalog() {
+    deliveryApi.accountCatalog().then((result) => setCatalog(result.data)).catch(() => {});
+  }
+
+  /** Bỏ một phòng ban / chuyên môn khỏi danh sách chọn nhanh (user đang dùng giá trị đó không bị đổi). */
+  async function removeCatalogEntry(kind, value) {
+    try {
+      setCatalog((await deliveryApi.removeCatalogEntry(kind, value)).data);
+    } catch (error) {
+      setNotice({ type: 'error', text: `Chưa xóa được "${value}" khỏi danh sách (${error.message}).` });
+    }
+  }
+
+
   // Admin mở trang: đưa mọi tài khoản về khớp với hồ sơ nhân sự và vai trò backend trước khi thao tác.
   useEffect(() => {
     if (!isAdmin) return;
-    linkAccountsToEmployees().catch((error) => setNotice({ type: 'error', text: `Chưa đồng bộ được tài khoản với máy chủ (${error.message}).` }));
+    // Tải danh mục phòng ban / chuyên môn sau khi tài khoản cũ đã được đẩy lên máy chủ, để có đủ giá trị đã nhập trước đó.
+    linkAccountsToEmployees()
+      .catch((error) => setNotice({ type: 'error', text: `Chưa đồng bộ được tài khoản với máy chủ (${error.message}).` }))
+      .finally(loadCatalog);
   }, [isAdmin]);
 
   /** Đọc ảnh được chọn, thu nhỏ trước khi lưu và báo lỗi định dạng/dung lượng. */
@@ -73,6 +106,7 @@ export default function AccountPage() {
     setCreating(false);
     if (result.error) return setNotice({ type: 'error', text: result.error });
     formElement.reset();
+    loadCatalog();
     setNotice({ type: 'success', text: `Đã tạo user ${result.user.email} (${getLevelLabel(result.user.level)} · ${result.user.department}) và hồ sơ nhân sự ${result.employee.code || ''} trên trang Thành viên. Gửi thông tin đăng nhập ban đầu cho người dùng.` });
   }
 
@@ -96,18 +130,26 @@ export default function AccountPage() {
     setNotice({ type: 'success', text: 'Đã cấp mật khẩu mới. Hãy chuyển mật khẩu này cho user qua kênh riêng.' });
   }
 
-  /** User chỉ cập nhật hồ sơ của chính tài khoản đang đăng nhập. */
-  function handleUpdateProfile(event) {
+  /**
+   * User cập nhật hồ sơ của chính mình. Lưu lên máy chủ trước (máy chủ cũng cập nhật hồ sơ nhân sự liên kết),
+   * rồi mới ghi vào trình duyệt, nên đóng / mở lại hay đăng nhập máy khác vẫn thấy bản vừa lưu.
+   */
+  async function handleUpdateProfile(event) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const saved = updateUserProfile(currentUser.email, {
-      name: String(form.get('name')),
-      company: String(form.get('company')),
-      phone: String(form.get('phone')),
-      avatarData: profileAvatar,
-    }, currentUser.email);
-    if (!saved) return setNotice({ type: 'error', text: 'Không tìm thấy tài khoản. Vui lòng đăng nhập lại.' });
-    syncLinkedEmployee(currentUser.email, 'Thông tin cá nhân đã được cập nhật.');
+    try {
+      const result = await deliveryApi.updateProfile({
+        name: String(form.get('name')),
+        company: String(form.get('company')),
+        phone: String(form.get('phone')),
+        avatarData: profileAvatar,
+      });
+      applyServerProfile(result.data);
+    } catch (error) {
+      return setNotice({ type: 'error', text: `Chưa lưu được thông tin lên máy chủ (${error.message}). Hãy thử lại khi máy chủ hoạt động.` });
+    }
+    recordActivity('profile.update', `Cập nhật hồ sơ cá nhân (${currentUser.email}).`, currentUser.email);
+    setNotice({ type: 'success', text: 'Thông tin cá nhân đã được cập nhật.' });
   }
 
   /** Admin cập nhật hồ sơ user được chọn, gồm ảnh đại diện và cấp bậc/phòng ban/chuyên môn. */
@@ -123,7 +165,7 @@ export default function AccountPage() {
       ...readOrgFields(form),
     });
     if (!saved) return setNotice({ type: 'error', text: 'Không thể cập nhật hồ sơ user này.' });
-    syncLinkedEmployee(managedUser.email, `Đã lưu hồ sơ của ${managedUser.email}. Quyền mới áp dụng từ lần đăng nhập kế tiếp của user.`, syncManagedAccount);
+    syncLinkedEmployee(managedUser.email, `Đã lưu hồ sơ của ${managedUser.email}. Trang và mục user thấy đổi ngay theo cột cấp bậc trong ma trận phân quyền.`, syncManagedAccount).then(loadCatalog);
   }
 
   /** Admin xóa user đang chọn cùng hồ sơ nhân sự liên kết, sau khi xác nhận. */
@@ -236,7 +278,7 @@ export default function AccountPage() {
 
         {notice.text && <div className={`account-notice ${notice.type}`} role="status" aria-live="polite">{notice.text}</div>}
 
-        {activeSection === 'profile' && <form className="account-form" onSubmit={handleUpdateProfile}>
+        {activeSection === 'profile' && <form key={currentUser.profileSavedAt || 'local'} className="account-form" onSubmit={handleUpdateProfile}>
           <div className="account-photo-row"><AvatarPreview avatar={profileAvatar} name={currentUser.name} /><div className="account-photo-controls"><b>Ảnh đại diện</b><span>Ảnh vuông, tự căn giữa và thu nhỏ.</span><label className="account-photo-button"><Camera size={15} /> Chọn ảnh<input type="file" accept="image/*" onChange={(event) => handleAvatarFile(event, setProfileAvatar)} /></label>{profileAvatar && <button className="account-photo-remove" type="button" onClick={() => setProfileAvatar('')}>Xóa ảnh</button>}</div></div>
           <div className="account-form-grid">
             <label>Họ và tên<input name="name" autoComplete="name" defaultValue={currentUser.name} required /></label>
@@ -260,7 +302,7 @@ export default function AccountPage() {
             </select></label>
             <div className="account-photo-row"><AvatarPreview avatar={managedAvatar ?? managedUser.avatarData ?? ''} name={managedUser.name} /><div className="account-photo-controls"><b>Ảnh đại diện user</b><span>Admin có thể cập nhật ảnh thay user.</span><label className="account-photo-button"><Camera size={15} /> Chọn ảnh<input type="file" accept="image/*" onChange={(event) => handleAvatarFile(event, setManagedAvatar)} /></label>{(managedAvatar ?? managedUser.avatarData) && <button className="account-photo-remove" type="button" onClick={() => setManagedAvatar('')}>Xóa ảnh</button>}</div></div>
             <div className="account-form-grid"><label>Họ và tên<input name="name" defaultValue={managedUser.name} required /></label><label>Email đăng nhập<input value={managedUser.email} readOnly /></label><label>Công ty<input name="company" defaultValue={managedUser.company} required /></label><label>Số điện thoại<input name="phone" defaultValue={managedUser.phone || ''} /></label></div>
-            <OrgFields idPrefix="edit" user={managedUser} />
+            <OrgFields user={managedUser} catalog={catalog} onRemove={removeCatalogEntry} />
             <div className="account-admin-buttons">
               <button className="account-primary" type="submit">Lưu hồ sơ user</button>
               <button className="account-danger" type="button" disabled={deleting} onClick={() => handleDeleteUser()}><Trash2 size={16} /> {deleting ? 'Đang xóa…' : 'Xóa tài khoản'}</button>
@@ -284,14 +326,14 @@ export default function AccountPage() {
         </form>}
 
         {isAdmin && activeSection === 'create' && <form className="account-form" onSubmit={handleCreateUser}>
-          <div className="account-section-title"><UsersRound size={18} /><div><b>Tạo tài khoản user</b><span>Tài khoản mới mặc định có quyền user. Chọn cấp bậc, phòng ban và chuyên môn bên dưới.</span></div></div>
+          <div className="account-section-title"><UsersRound size={18} /><div><b>Tạo tài khoản user</b><span>Cấp bậc quyết định trang và mục user được thấy, theo đúng cột cùng tên trong ma trận phân quyền.</span></div></div>
           <div className="account-form-grid">
             <label>Họ và tên<input name="name" autoComplete="name" placeholder="Nguyễn Văn An" required /></label>
             <label>Email đăng nhập<input name="email" type="email" autoComplete="email" placeholder="ten@congty.com" required /></label>
             <label>Công ty<input name="company" autoComplete="organization" placeholder="Tên công ty" required /></label>
             <label>Số điện thoại<input name="phone" type="tel" autoComplete="tel" placeholder="090 123 4567" /></label>
           </div>
-          <OrgFields idPrefix="create" />
+          <OrgFields catalog={catalog} onRemove={removeCatalogEntry} />
           <div className="account-form-grid account-form-grid-spaced">
             <label>Mật khẩu ban đầu<input name="newPassword" type="password" autoComplete="new-password" minLength={8} required /></label>
             <label>Xác nhận mật khẩu<input name="confirmPassword" type="password" autoComplete="new-password" minLength={8} required /></label>
@@ -352,24 +394,49 @@ function readOrgFields(form) {
 
 /**
  * Khối "Cấp bậc & phòng ban" dùng chung cho form tạo user và form admin sửa user.
- * - Cấp bậc: chọn 1 trong 4 (Nhân viên, Leader, Quản lý, Giám đốc), bắt buộc.
- * - Phòng ban: bắt buộc; gõ tự do hoặc chọn từ danh sách gợi ý (datalist).
- * - Chuyên môn: không bắt buộc; gõ tự do hoặc chọn từ danh sách gợi ý.
- * `idPrefix` giúp id của datalist không trùng khi có nhiều form trên trang.
+ * - Cấp bậc: một trong 6 vai trò của ma trận phân quyền, bắt buộc.
+ * - Phòng ban (bắt buộc) / chuyên môn: gõ mới hoặc chọn nhanh từ danh sách đã từng nhập.
  */
-function OrgFields({ idPrefix, user }) {
+function OrgFields({ user, catalog, onRemove }) {
   return <fieldset className="account-org-fields">
     <legend><BriefcaseBusiness size={15} /> Cấp bậc &amp; phòng ban</legend>
     <div className="account-form-grid account-form-grid-3">
       <label>Cấp bậc<select name="level" defaultValue={user?.level || DEFAULT_LEVEL} required>
         {ACCOUNT_LEVELS.map((level) => <option key={level.value} value={level.value}>{level.label}</option>)}
       </select></label>
-      <label>Phòng ban<input name="department" list={`${idPrefix}-departments`} defaultValue={user?.department || ''} placeholder="Chọn hoặc nhập phòng ban" required /></label>
-      <label>Chuyên môn<input name="specialty" list={`${idPrefix}-specialties`} defaultValue={user?.specialty || ''} placeholder="VD: Kết cấu" /></label>
+      <CatalogInput name="department" label="Phòng ban" values={catalog.departments} defaultValue={user?.department} placeholder="Chọn hoặc nhập phòng ban" required onRemove={(value) => onRemove('departments', value)} />
+      <CatalogInput name="specialty" label="Chuyên môn" values={catalog.specialties} defaultValue={user?.specialty} placeholder="VD: Kết cấu" onRemove={(value) => onRemove('specialties', value)} />
     </div>
-    <datalist id={`${idPrefix}-departments`}>{DEPARTMENTS.map((name) => <option key={name} value={name} />)}</datalist>
-    <datalist id={`${idPrefix}-specialties`}>{SPECIALTIES.map((name) => <option key={name} value={name} />)}</datalist>
   </fieldset>;
+}
+
+/**
+ * Ô nhập có danh sách chọn nhanh. Giá trị gõ mới được máy chủ thêm vào danh sách khi lưu user;
+ * nút × bỏ một mục khỏi danh sách (VD: nhập sai chính tả).
+ */
+function CatalogInput({ name, label, values, defaultValue = '', placeholder, required = false, onRemove }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const inputRef = useRef(null);
+  const matches = values.filter((value) => normalize(value).includes(normalize(query)));
+  const choose = (value) => { inputRef.current.value = value; setOpen(false); };
+  return <label>{label}
+    <div className="account-catalog">
+      <input ref={inputRef} name={name} defaultValue={defaultValue} placeholder={placeholder} required={required} autoComplete="off"
+        onFocus={() => { setQuery(''); setOpen(true); }}
+        onChange={(event) => { setQuery(event.currentTarget.value); setOpen(true); }}
+        onBlur={() => setOpen(false)}
+        onKeyDown={(event) => { if (event.key === 'Escape') setOpen(false); }} />
+      <ChevronDown className="account-catalog-chevron" size={15} aria-hidden="true" />
+      {open && <ul className="account-catalog-menu">
+        {matches.map((value) => <li key={value}>
+          <button type="button" className="account-catalog-option" onMouseDown={(event) => { event.preventDefault(); choose(value); }}>{value}</button>
+          <button type="button" className="account-catalog-remove" title="Xóa khỏi danh sách chọn nhanh" aria-label={`Xóa "${value}" khỏi danh sách`} onMouseDown={(event) => { event.preventDefault(); onRemove(value); }}><X size={13} /></button>
+        </li>)}
+        {!matches.length && <li className="account-catalog-empty">{values.length ? 'Giá trị mới: sẽ được thêm vào danh sách khi lưu.' : 'Chưa có mục nào. Nhập mới, lần sau chọn nhanh ở đây.'}</li>}
+      </ul>}
+    </div>
+  </label>;
 }
 
 /** Hiển thị ảnh đã tải lên hoặc chữ cái đầu của tên nếu user chưa có ảnh. */

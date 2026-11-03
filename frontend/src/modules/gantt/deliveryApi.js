@@ -1,4 +1,4 @@
-import { getCurrentUser, recordActivity } from '../auth/authSession';
+import { SELF_PROFILE_FIELDS, applyServerProfile, getCurrentUser } from '../auth/authSession';
 
 // Đường dẫn tương đối: chạy được cả khi deploy (cùng tên miền) lẫn khi dev (Vite proxy /api).
 const BASE = '/api/delivery';
@@ -13,9 +13,18 @@ async function authenticate() {
     const response = await fetch(`${BASE}/session`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: user.email, password: user.password }) });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.message || 'Không kết nối được quyền Tiến độ.');
-    session = { ...result.data, email: user.email }; return session.token;
+    session = { ...result.data, email: user.email };
+    // Mỗi lần mở web: hồ sơ trong trình duyệt lấy theo máy chủ; hồ sơ cũ chỉ có ở trình duyệt thì đẩy lên một lần.
+    const cached = applyServerProfile(result.data?.user);
+    if (cached?.needsUpload) queueMicrotask(() => uploadLocalProfile(cached));
+    return session.token;
   })();
   try { return await loginPromise; } finally { loginPromise = null; }
+}
+/** Đẩy hồ sơ đang lưu trong trình duyệt lên máy chủ (tài khoản tạo trước khi máy chủ lưu hồ sơ). */
+function uploadLocalProfile(user) {
+  const body = { name: user.name, ...Object.fromEntries(SELF_PROFILE_FIELDS.map(key => [key, user[key] || ''])) };
+  request('/profile', 'PATCH', body).then(result => applyServerProfile(result.data)).catch(() => {});
 }
 export const deliveryToken = () => authenticate();
 /** Tài khoản Tiến độ của phiên hiện tại (gồm vai trò); máy chủ vẫn kiểm tra quyền ở mỗi thao tác. */
@@ -42,10 +51,15 @@ export const deliveryApi = {
   reporting: (year, month) => request(`/reporting?year=${encodeURIComponent(year)}&month=${encodeURIComponent(month)}`),
   updateReporting: body => request('/reporting', 'POST', body),
   get: projectId => request(`/${encodeURIComponent(projectId)}`),
-  update: async (projectId, body) => { const result = await request(`/${encodeURIComponent(projectId)}`, 'PATCH', body); recordActivity(`delivery.${body.action}`, `Cập nhật Tiến độ · dự án ${projectId}${body.taskId ? ` · task ${body.taskId}` : ''}.`); return result; },
+  // Nhật ký thay đổi do máy chủ ghi (kèm tên dự án / công việc), không ghi thêm ở đây để khỏi trùng.
+  update: (projectId, body) => request(`/${encodeURIComponent(projectId)}`, 'PATCH', body),
   users: () => request('/users'),
   saveUser: body => request('/users', 'POST', body),
   changePassword: body => request('/password', 'POST', body),
+  profile: () => request('/profile'),
+  updateProfile: body => request('/profile', 'PATCH', body),
+  accountCatalog: () => request('/account-catalog'),
+  removeCatalogEntry: (kind, value) => request('/account-catalog', 'DELETE', { kind, value }),
   deleteUser: body => request('/users', 'DELETE', body),
   deletedUsers: () => request('/users/deleted'),
   purgeDeletedUser: id => request(id ? `/users/deleted/${encodeURIComponent(id)}` : '/users/deleted', 'DELETE'),
