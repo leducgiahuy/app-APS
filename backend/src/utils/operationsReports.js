@@ -1,4 +1,5 @@
 import { DEFAULT_PROCEDURES } from '../../../frontend/src/utils/deliveryResources.js';
+import { buildCompanyQualityReport } from '../../../frontend/src/utils/companyQualityReport.js';
 import { hoursAnomalies, monthlyReviewSample } from './operationsAnomalies.js';
 import { cashflowReport } from './operationsCashflow.js';
 import { computeDelivery, projectDeliveryItems } from '../../../frontend/src/utils/deliveryMetrics.js';
@@ -92,7 +93,9 @@ export function operationsReport(db,user,query={}) {
  const visibleRecord=row=>{const a=projectActor(db,user,row.projectId);return a&&(row.employeeId===a.employeeId || companyAdmin(a.role)||['manager','accountant','chiefAccountant'].includes(a.role)||a.role==='leader'&&canReviewSheet(db,a,row));};
  const reviewMonth=week.slice(0,7);
  const balanceMonths=[monthShift(reviewMonth,-2),monthShift(reviewMonth,-1),reviewMonth].map(month=>({month,presence:sumBy(ops.attendance.filter(row=>!row.deletedAt&&row.date?.startsWith(month)&&(visibleEntries.some(entry=>entry.employeeId===row.employeeId)||row.employeeId===user.employeeId||companyFinance)),'hours')/8,assigned:assignedInMonth(tasks,month),declared:sumBy(visibleEntries.filter(row=>row.status==='approved'&&row.date?.startsWith(month)),'hours')/8}));
- return {revision:ops.revision,viewer:{email:actor.email,name:actor.name,role:actor.role,employeeId:actor.employeeId},companyRole:user.role,projectId,projects,week,end,tasks,
+ // Báo cáo chất lượng (Công ty → Báo cáo): chỉ tính trên các dự án người xem có vai trò.
+ const quality=buildCompanyQualityReport(db,projects.map(row=>row.id));
+ return {quality,revision:ops.revision,viewer:{email:actor.email,name:actor.name,role:actor.role,employeeId:actor.employeeId},companyRole:user.role,projectId,projects,week,end,tasks,
   employees:(db.employees || []).map(({id,name,code,title,team,grade})=>({id,name,code,title,team,grade})),
   users:companyAdmin(user.role)?(db.delivery?.users || []).map(({email,name,role,employeeId,disabled})=>({email,name,role,employeeId,disabled})):[],
   entries:visibleEntries.filter(row=>row.date>=week && row.date<=end).map(row=>({...row,flags:sheetFlags(db,row,all),canReview:canReviewSheet(db,projectActor(db,user,row.projectId),row)})),

@@ -208,9 +208,10 @@ export function applyDeliveryMutation(ctx, body) {
     const old = data.documents.find(entry => entry.id === id);
     assert(!id || old, 'Hồ sơ không tồn tại.');
     assert(!value.expectedAt || dateValid(value.expectedAt), 'Ngày dự kiến có kết quả không hợp lệ.');
+    assert(!value.validUntil || dateValid(value.validUntil), 'Ngày hết hiệu lực không hợp lệ.');
     assert(!value.order || Number.isInteger(Number(value.order)) && Number(value.order) > 0, 'Thứ tự thủ tục phải là số nguyên dương.');
     assert(value.fee == null || value.fee === '' || financial && Number.isFinite(Number(value.fee)) && Number(value.fee) >= 0, 'Phí hồ sơ không hợp lệ hoặc không có quyền tài chính.');
-    const document = { ...old, id: id || randomUUID(), title: text(value.title), taskId: value.taskId || '', authority: text(value.authority), status: value.status, dueAt: value.dueAt || '', reference: text(value.reference), evidenceId: value.evidenceId || '', procedureKey: text(value.procedureKey), order: Number(value.order || old?.order || data.documents.length + 1), expectedAt: value.expectedAt || '', processingTime: text(value.processingTime), fee: financial && Object.hasOwn(value, 'fee') ? money(value.fee) : old?.fee ?? null, updatedAt: new Date().toISOString() };
+    const document = { ...old, id: id || randomUUID(), title: text(value.title), taskId: value.taskId || '', authority: text(value.authority), status: value.status, dueAt: value.dueAt || '', reference: text(value.reference), evidenceId: value.evidenceId || '', procedureKey: text(value.procedureKey), order: Number(value.order || old?.order || data.documents.length + 1), expectedAt: value.expectedAt || '', processingTime: text(value.processingTime), validUntil: value.validUntil || '', fee: financial && Object.hasOwn(value, 'fee') ? money(value.fee) : old?.fee ?? null, updatedAt: new Date().toISOString() };
     assert(!document.evidenceId || data.evidence.some(file => file.id === document.evidenceId), 'Bằng chứng hồ sơ không tồn tại.');
     const index = data.documents.findIndex(entry => entry.id === id); if (index < 0) data.documents.push(document); else data.documents[index] = document;
   } else if (action === 'documentEvent' || action === 'documentComponent') {
@@ -223,7 +224,9 @@ export function applyDeliveryMutation(ctx, body) {
     document[key] ||= [];
     assert(!id || document[key].some(entry => entry.id === id), 'Nội dung hồ sơ không tồn tại.');
     const entry = { id: id || randomUUID(), title: text(value.title), employeeId: value.employeeId || '', evidenceId: value.evidenceId || '', actor: user.email };
-    if (key === 'events') { assert(value.at && timestampValid(value.at), 'Ngày giờ nhật ký không hợp lệ.'); Object.assign(entry, { at: value.at, reference: text(value.reference), type: ['work', 'submission', 'meeting', 'request', 'result'].includes(value.type) ? value.type : 'work' }); }
+    if (key === 'events') { assert(value.at && timestampValid(value.at), 'Ngày giờ nhật ký không hợp lệ.'); Object.assign(entry, { at: value.at, reference: text(value.reference), type: ['work', 'submission', 'meeting', 'request', 'result'].includes(value.type) ? value.type : 'work' });
+      // Nguyên nhân của góp ý / yêu cầu bổ sung: do lỗi công ty (hình, hồ sơ sai) hay do cơ quan / CĐT; dùng cho báo cáo chất lượng.
+      if (entry.type === 'request') entry.cause = ['company', 'external'].includes(value.cause) ? value.cause : ''; }
     else { assert(['Chưa làm', 'Đang làm', 'Xong', 'Chờ CĐT ký'].includes(value.status), 'Trạng thái thành phần không hợp lệ.'); entry.status = value.status; }
     const index = document[key].findIndex(row => row.id === id);
     if (index < 0) document[key].push(entry); else document[key][index] = entry;

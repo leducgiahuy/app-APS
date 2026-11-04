@@ -45,26 +45,6 @@ const guideRows = [
   ['Hỗ trợ', 'Báo mã dự án, màn hình và thao tác gây lỗi để truy vết nhanh.']
 ];
 
-const reportDepartments = [
-  ['KT · Kiến trúc', '23', '18', '78%', 'Bảng diện tích lệch thuyết minh'],
-  ['KC · Kết cấu', '10', '6', '60%', 'Bố trí thép dầm sàn, tải trọng đầu vào'],
-  ['MEP · Điện nước', '8', '4', '50%', 'Công suất lệch bảng tính phụ tải'],
-  ['PL · Pháp lý', '13', '11', '85%', 'Thiếu bản sao giấy tờ của CĐT']
-];
-
-const permitRows = [
-  ['Sở TN&MT Trà Vinh', 'ĐTM', '3', '27 / 30', '1', '0'],
-  ['Cảnh sát PCCC Bình Dương', 'Thẩm duyệt PCCC', '5', '19 / 15', '4', '2'],
-  ['Sở Xây dựng Bình Dương', 'Giấy phép xây dựng', '4', '18 / 20', '2', '1'],
-  ['BQL các KCN Bình Dương', 'Giấy phép xây dựng', '6', '12 / 15', '1', '1']
-];
-
-const archiveRows = [
-  ['Giấy phép xây dựng · Kho lạnh Bình Dương', '03/2026', 'Khởi công trong 12 tháng → hết 03/2027'],
-  ['QĐ phê duyệt ĐTM · KCN Tân Uyên', '08/2026', 'Theo dự án'],
-  ['Văn bản thẩm duyệt PCCC · KCN Tân Uyên', '10/2026', 'Theo hồ sơ thiết kế']
-];
-
 const importTypes = [
   ['personnel', 'Danh sách nhân sự', 'Thông tin nhân sự, vị trí, bộ môn và tài khoản'],
   ['quotation', 'Báo giá đã chốt', 'Hạng mục, công dự toán và mã việc mẫu'],
@@ -112,17 +92,39 @@ function PolicySection({ api }) {
   </>;
 }
 
-function ReportsSection() {
+const dayLabel = value => value ? new Date(value).toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }) : '—';
+const shown = (value, suffix = '') => value == null ? '—' : `${String(value).replace('.', ',')}${suffix}`;
+
+/**
+ * Báo cáo chất lượng thật, tính ở máy chủ từ các dự án người xem được thấy (utils/companyQualityReport.js):
+ * mức trạng thái + bằng chứng của task, hồ sơ pháp lý (nộp / yêu cầu bổ sung / kết quả) và văn bản chấp thuận đã tải lên.
+ */
+function ReportsSection({ api }) {
+  const report = api.data?.quality;
+  if (!report) return <p className="company-report-muted">Đang tải số liệu báo cáo…</p>;
+  const k = report.kpis;
   return <>
     <Kpis items={[
-      ['Đạt kiểm tra lần đầu', '72%', '39 / 54 lần phát hành · mục tiêu 85%', 'warning'],
-      ['Góp ý đo lỗi hình / hồ sơ', '1,6', '38% số góp ý', 'warning'],
-      ['Nộp → nghiệm thu', '24 ngày', 'mục tiêu ≤ 15', 'danger'],
-      ['Hồ sơ chờ nghiệm thu > 15 ngày', '3', 'nhắc QL mỗi sáng', 'danger']
+      ['Đạt kiểm tra lần đầu', shown(k.firstPassRate, '%'), k.decided ? `${k.firstPass} / ${k.decided} lần phát hành đã có kết quả · mục tiêu ${k.firstPassTarget}%` : 'Chưa có hồ sơ nào được duyệt hoặc phải sửa trong 6 tháng', k.firstPassRate != null && k.firstPassRate < k.firstPassTarget ? 'warning' : ''],
+      ['Góp ý / bổ sung mỗi hồ sơ', shown(k.feedbackPerIssue), k.legalFeedback ? `${shown(k.companyFaultShare, '%')} góp ý pháp lý do lỗi công ty` : `${k.feedbackCount} lượt góp ý / sửa trong ${k.issued} lần phát hành`, k.feedbackPerIssue >= 1 ? 'warning' : ''],
+      ['Nộp → nghiệm thu', k.submitToApprovalDays == null ? '—' : `${k.submitToApprovalDays} ngày`, `mục tiêu ≤ ${k.submitToApprovalTarget} ngày · ${k.approvalSamples} hồ sơ đã duyệt`, k.submitToApprovalDays > k.submitToApprovalTarget ? 'danger' : ''],
+      [`Hồ sơ chờ nghiệm thu > ${k.waitingLimitDays} ngày`, String(k.waitingOverLimit), 'đã gửi / đã nộp nhưng chưa được duyệt', k.waitingOverLimit ? 'danger' : ''],
     ]}/>
-    <Card title="Đạt kiểm tra lần đầu theo bộ môn" subtitle="6 tháng · lần phát hành không có lỗi nặng ở cấp 2"><Table head={['Bộ môn', 'Lần phát hành', 'Đạt lần đầu', 'Tỷ lệ', 'Lỗi hay gặp']} align={['left', 'center', 'center', 'center', 'left']}>{reportDepartments.map(row => <tr key={row[0]}>{row.map((cell, index) => <td key={index} className={index === 3 && Number.parseInt(cell) < 70 ? 'danger' : ''}>{index === 0 ? <b>{cell}</b> : cell}</td>)}</tr>)}</Table></Card>
-    <Card title="Xin phép theo cơ quan" subtitle="12 tháng · dùng để hứa tiến độ với khách và báo giá dịch vụ xin phép"><Table head={['Cơ quan', 'Thủ tục', 'Hồ sơ', 'Ngày gửi bình quân / thời hạn', 'Lần bị trả', 'Trong đó do lỗi công ty']} align={['left', 'left', 'center', 'center', 'center', 'center']}>{permitRows.map(row => <tr key={row[0]}>{row.map((cell, index) => <td key={index} className={index === 5 && cell !== '0' ? 'danger' : ''}>{index === 0 ? <b>{cell}</b> : cell}</td>)}</tr>)}</Table></Card>
-    <Card title="Kho giấy phép, văn bản chấp thuận" subtitle="Nhắc trước 60 ngày khi có hạn hiệu lực · dùng cho hồ sơ năng lực"><Table head={['Văn bản', 'Ngày', 'Hiệu lực']} align={['left', 'center', 'left']}>{archiveRows.map(row => <tr key={row[0]}><td><b>{row[0]}</b></td><td>{row[1]}</td><td>{row[2]}</td></tr>)}</Table></Card>
+    <Card title="Đạt kiểm tra lần đầu theo bộ môn" subtitle="6 tháng · đạt lần đầu = được phê duyệt mà không phải sửa theo góp ý (mức 80%) hay bị yêu cầu bổ sung">
+      <Table head={['Bộ môn', 'Lần phát hành', 'Đạt lần đầu', 'Tỷ lệ', 'Lỗi hay gặp (góp ý gần nhất)']} align={['left', 'center', 'center', 'center', 'left']} empty={!report.departments.length}>
+        {report.departments.map(row => <tr key={row.code}><td><b>{row.label}</b></td><td>{row.issued}</td><td>{row.firstPass}{row.decided < row.issued ? <small className="company-report-muted"> ({row.issued - row.decided} chờ kết quả)</small> : null}</td><td className={row.rate != null && row.rate < 70 ? 'danger' : ''}>{shown(row.rate, '%')}</td><td>{row.commonIssue || '—'}</td></tr>)}
+      </Table>
+    </Card>
+    <Card title="Xin phép theo cơ quan" subtitle="12 tháng · từ hồ sơ pháp lý ở tab Hồ sơ của dự án: ngày từ lúc nộp tới lúc nhận kết quả, so với thời hạn của thủ tục">
+      <Table head={['Cơ quan', 'Thủ tục', 'Hồ sơ', 'Ngày xử lý bình quân / thời hạn', 'Lần bị trả', 'Trong đó do lỗi công ty']} align={['left', 'left', 'center', 'center', 'center', 'center']} empty={!report.permits.length}>
+        {report.permits.map(row => <tr key={`${row.authority}|${row.procedure}`}><td><b>{row.authority}</b></td><td>{row.procedure}</td><td>{row.count}</td><td className={row.averageDays != null && row.limitDays != null && row.averageDays > row.limitDays ? 'danger' : ''}>{shown(row.averageDays)} / {shown(row.limitDays)}</td><td>{row.returns}</td><td className={row.companyFaults ? 'danger' : ''}>{row.companyFaults}</td></tr>)}
+      </Table>
+    </Card>
+    <Card title="Kho giấy phép, văn bản chấp thuận" subtitle={`Văn bản chấp thuận đã tải lên và hồ sơ pháp lý đã có kết quả · nhắc trước 60 ngày khi sắp hết hiệu lực`}>
+      <Table head={['Văn bản', 'Ngày', 'Hiệu lực']} align={['left', 'center', 'left']} empty={!report.archive.length}>
+        {report.archive.map((row, index) => <tr key={`${row.title}-${index}`}><td><b>{row.title}</b>{row.projectName ? <span className="company-report-project"> · {row.projectName}</span> : null}{row.authority ? <small className="company-report-muted"> · {row.authority}</small> : null}</td><td>{dayLabel(row.at)}</td><td className={row.expired || row.expiringSoon ? 'danger' : ''}>{row.validUntil ? `Đến ${dayLabel(row.validUntil)}${row.expired ? ' · đã hết hiệu lực' : row.expiringSoon ? ' · sắp hết hiệu lực' : ''}` : 'Không ghi hạn'}</td></tr>)}
+      </Table>
+    </Card>
   </>;
 }
 
@@ -193,7 +195,7 @@ export default function CompanyPage() {
   return <OperationsFrame className="company-operations-page" api={api} query={query} setQuery={setQuery} project={false} guide="Dữ liệu cấp công ty: quy định có phiên bản, báo cáo chất lượng, cấu hình nhập file, lịch, tham số, từ điển và phân quyền dùng chung." toolbar={<div className="company-main-tabs"><Tabs value={tab} onChange={setTab} items={mainTabs}/></div>}>
     <div className="company-page">
       {tab === 'policies' && <PolicySection api={api}/>}
-      {tab === 'reports' && <ReportsSection/>}
+      {tab === 'reports' && <ReportsSection api={api}/>}
       {tab === 'settings' && <SettingsSection api={api}/>} 
     </div>
   </OperationsFrame>;

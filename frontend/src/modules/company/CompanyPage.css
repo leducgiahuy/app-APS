@@ -55,3 +55,10 @@
 .dark .company-policy { border-color:#344456; background:#182330; }
 .dark .company-policy:nth-child(4n+2),.dark .company-policy:nth-child(4n+3) { background:#1b2734; }
 .dark .company-policy>header { color:#edf3f8; }
+
+/* Báo cáo chất lượng: chữ phụ trong ô bảng */
+.company-report-muted { color: #8a8178; font-size: 12px; font-weight: 500; }
+.dark .company-report-muted { color: #94a3b8; }
+/* Tên dự án đi kèm tên văn bản: khác màu để dễ phân biệt */
+.company-report-project { color: #861b36; font-weight: 600; }
+.dark .company-report-project { color: #fda4af; }

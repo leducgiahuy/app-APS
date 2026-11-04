@@ -26,7 +26,7 @@
 .delivery-heading-left { background:var(--delivery-surface); border-right:2px solid #cbd5e1; box-sizing:border-box; overflow:clip; }
 .delivery-panel-resize { width:8px; background:transparent; outline:none; }
 .delivery-panel-resize::after { content:''; position:absolute; top:0; bottom:0; right:0; width:2px; background:#a9b0ba; transition:background-color .15s,width .15s; }
-.delivery-panel-resize:hover::after,.delivery-panel-resize:focus-visible::after,.delivery-panel-resize:active::after { width:4px; background:#4b5563; }
+.delivery-panel-resize:hover::after,.delivery-panel-resize:focus-visible::after,.delivery-panel-resize:active::after { width:4px; background:#861b36; }
 .dark .delivery-panel-resize::after { background:#526071; }
 .dark .delivery-panel-resize:hover::after,.dark .delivery-panel-resize:focus-visible::after,.dark .delivery-panel-resize:active::after { background:#b8c1cc; }
 .delivery-cell.status { padding-right:14px; }
@@ -1191,3 +1191,9 @@
 /* Cảnh báo ngay dưới ô nhập (VD bằng chứng sai loại của mức trạng thái) */
 .delivery-error-text { display:block; margin-top:4px; color:#b91c1c; font-size:12px; font-weight:600; }
 .dark .delivery-error-text { color:#fca5a5; }
+
+
+/* Chỉ báo đang kéo thanh chia bảng / Gantt: vạch đỏ đô + tay cầm, chạy theo chuột bằng transform */
+.delivery-panel-drag-indicator { position:absolute; left:0; top:0; bottom:0; z-index:60; width:2px; background:#861b36; pointer-events:none; }
+.dark .delivery-panel-drag-indicator { background-color:#fda4af; }
+body.is-panel-resizing, body.is-panel-resizing * { cursor:col-resize !important; user-select:none; }

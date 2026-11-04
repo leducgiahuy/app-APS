@@ -2,7 +2,8 @@ import ProjectWizard from '../operations/ProjectWizard';
 import ProjectImportWorkspace from './ProjectImportWorkspace';
 import { deliveryView, ownsDeliveryTask } from '../../utils/deliveryView';
 import { personalTaskChain } from '../../utils/personalTaskChain';
-import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { restoreDeliveryColumns, saveDeliveryColumns } from '../../utils/deliveryColumnPrefs';
+import React, { useState, useMemo, useRef, useEffect, useLayoutEffect, useCallback, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { useProjectDelivery } from './useProjectDelivery';
 import DeliveryRow, { DELIVERY_COLUMNS, COMPACT_KEYS } from './DeliveryRow';
@@ -17,7 +18,7 @@ import GanttCalendarBackground from './GanttCalendarBackground';
 import { calendarColumns } from '../../utils/vietnamCalendar';
 import { assignmentCalendarConflicts, assignmentWorkingDates } from '../../utils/assignmentCalendar';
 import { allocateTaskHierarchyWeightPercent } from '../../utils/ganttEffort';
-import GanttExcludedDaysBar from './GanttExcludedDaysBar';
+import GanttTaskBar, { dependencyHandleX, hasStoredAssignmentState } from './GanttTaskBar';
 import AssignmentCalendarConfirmation from './AssignmentCalendarConfirmation';
 import AssignmentMachinePage from './AssignmentMachinePage';
 import { useApp } from '../../context/AppContext';
@@ -32,7 +33,7 @@ import {
   inferGanttGroupHierarchy,
   getGroupDescendantTasks
 } from './GanttWorkColumns';
-import { formatDateVi, inclusiveDays, elapsedScheduleProgress, isTaskOverdue, taskDelayHours, formatDelayHours, todayIsoDate } from '../../utils/date';
+import { formatDateVi, inclusiveDays, todayIsoDate } from '../../utils/date';
 import {
   CalendarRange,
   Plus,
@@ -47,15 +48,9 @@ import {
 
 // Danh sách 64 đơn vị cấp tỉnh theo yêu cầu (giai đoạn 2004–2008).
 
-const hasStoredAssignmentState = task => Boolean(task && (
-  Array.isArray(task.assignees) ||
-  Object.hasOwn(task, 'employeeId') ||
-  Object.hasOwn(task, 'employeeName')
-));
-
-const DEPENDENCY_HANDLE_OFFSET = 6;
+const NO_ITEMS = [];
+const NO_COORDINATES = {};
 const DEPENDENCY_ARROW_TARGET_OFFSET = 16;
-const dependencyHandleX = coord => Math.max(DEPENDENCY_HANDLE_OFFSET, coord.x - DEPENDENCY_HANDLE_OFFSET);
 
 const orderByDependencies = items => {
   const itemIds = new Set(items.map(item => item.id));
@@ -186,6 +181,26 @@ const DELIVERY_TABS = [['gantt', 'Tiến độ & Công'], ['legal', 'Hồ sơ'],
 const DELIVERY_TAB_ACCESS = { gantt: 'gantt.progress', legal: 'gantt.legal', changes: 'gantt.customer', close: 'gantt.close', 'new-project': 'gantt.new-project' };
 const PROGRESS_SECTIONS = [['table', 'Bảng tiến độ & công'], ['assignment', 'Phân công (máy gán)']];
 
+/**
+ * Một dòng của bảng tiến độ, chỉ vẽ lại khi dữ liệu của chính dòng đó đổi (task, số liệu, độ rộng cột, thu gọn…).
+ * Mở drawer / menu / gõ trong form không còn vẽ lại cả bảng. Các thao tác gọi qua actions.current (hàm mới nhất của trang).
+ */
+const GanttTableRow = memo(function GanttTableRow({ actions, ...props }) {
+  const { item } = props;
+  return (
+    <DeliveryRow
+      {...props}
+      onToggle={() => actions.current.toggle(item)}
+      onOpen={section => actions.current.openDetail(item, typeof section === 'string' ? section : '')}
+      onEdit={() => actions.current.edit(item)}
+      onAssign={() => actions.current.assign(item)}
+      onDelete={() => actions.current.remove(item)}
+      onSaveWork={(id, patch) => actions.current.saveWork(item, id, patch)}
+      onCreateTask={child => actions.current.createTask(item, child)}
+    />
+  );
+});
+
 export default function GanttPage() {
   const today = todayIsoDate();
   const {
@@ -214,30 +229,8 @@ export default function GanttPage() {
   const [progressSectionChoice, setProgressSection] = useState('table');
   const { canSee } = usePageAccess();
   const [tableMode] = useState('compact');
-  const [deliveryColumns, setDeliveryColumns] = useState(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem('aps_delivery_columns_v1'));
-      if (!Array.isArray(saved)) return COMPACT_KEYS;
-      const valid = saved.filter(key => DELIVERY_COLUMNS.some(column => column.key === key));
-      let restored = valid.includes('contractWork') && !valid.includes('duration')
-        ? valid.flatMap(key => key === 'contractWork' ? [key, 'duration'] : [key])
-        : valid;
-      if (!restored.includes('actualWork') && (restored.includes('weight') || restored.includes('output'))) {
-        const outputIndex = restored.indexOf('output');
-        restored = outputIndex >= 0
-          ? [...restored.slice(0, outputIndex), 'actualWork', ...restored.slice(outputIndex)]
-          : [...restored, 'actualWork'];
-      }
-      if (restored.includes('actualWork')) {
-        const comparisonKeys = ['remainingWork', 'varianceWork'];
-        const withoutComparison = restored.filter(key => !comparisonKeys.includes(key));
-        const actualIndex = withoutComparison.indexOf('actualWork');
-        restored = [...withoutComparison.slice(0, actualIndex + 1), ...comparisonKeys, ...withoutComparison.slice(actualIndex + 1)];
-      }
-      // Cột nào cũng ẩn / hiện được (kể cả 5 cột cơ bản); chỉ lưu rỗng thì quay về bộ cột mặc định.
-      return restored.length ? [...new Set(restored)] : COMPACT_KEYS;
-    } catch { return COMPACT_KEYS; }
-  });
+  // Cột hiện / ẩn của bảng tiến độ: lưu trên trình duyệt kèm danh sách cột đã biết lúc lưu (restoreDeliveryColumns).
+  const [deliveryColumns, setDeliveryColumns] = useState(() => restoreDeliveryColumns(localStorage, DELIVERY_COLUMNS.map(column => column.key), COMPACT_KEYS));
   const [detailItemId, setDetailItemId] = useState(null);
   const pendingDetail = useRef(reportLink?.taskId ? { id: reportLink.taskId, section: '' } : null);
   // Task được dẫn tới từ trang khác (vd. nút "Cập nhật trạng thái"): cuộn tới dòng + thanh Gantt và làm nổi bật.
@@ -309,7 +302,7 @@ export default function GanttPage() {
   const columnsTotalWidth = currentColumns.reduce((sum, column) => sum + column.width, 0);
   useEffect(() => { setLeftPanelWidth(columnsTotalWidth); }, [columnsTotalWidth]);
   const departments = [...new Set([...employees.map(employee => employee.team), ...Object.values(deliveryData?.records || {}).map(record => record.department)].filter(Boolean))];
-  useEffect(() => { localStorage.setItem('aps_delivery_columns_v1', JSON.stringify(deliveryColumns)); }, [deliveryColumns]);
+  useEffect(() => { saveDeliveryColumns(localStorage, deliveryColumns, DELIVERY_COLUMNS.map(column => column.key)); }, [deliveryColumns]);
   useEffect(() => { setDetailItemId(pendingDetail.current?.id || null); setDetailSection(pendingDetail.current?.section || ''); pendingDetail.current = null; setDepartment(''); }, [selectedProjectId]);
   useEffect(() => {
     if (!hasDeliveryData) return;
@@ -347,19 +340,83 @@ export default function GanttPage() {
     };
   }, [columnFilterOpen]);
 
+  // Kéo thanh chia bảng / Gantt, bảng co giãn ngay trong lúc kéo nhưng không làm trang tính lại bố cục mỗi bước
+  // (bảng rất lớn, đổi độ rộng thật tốn ~40ms mỗi lần):
+  // - bắt đầu kéo: mở khung bảng (tiêu đề + thân) ra độ rộng tối đa một lần, phần Gantt bên phải trượt ngược lại cho khỏi lệch;
+  // - trong lúc kéo: chỉ đổi clip-path của khung bảng và transform của phần Gantt (card đồ họa vẽ, không tính lại bố cục);
+  // - thả chuột: lưu độ rộng thật vào state; các kiểu tạm được gỡ ngay sau khi trang đã vẽ với độ rộng mới.
+  const applyPanelDrag = drag => {
+    const hidden = drag.max - drag.next;
+    drag.panels.forEach(({ left, right }) => {
+      left.style.clipPath = `inset(0 ${hidden}px 0 0)`;
+      if (right) right.style.transform = `translateX(${-hidden}px)`;
+    });
+  };
+  const clearPanelDrag = drag => {
+    drag.panels.forEach(({ left, right }) => {
+      ['width', 'minWidth', 'maxWidth', 'clipPath', 'willChange'].forEach(key => { left.style[key] = drag.saved.get(left)?.[key] ?? ''; });
+      if (right) { right.style.transform = ''; right.style.willChange = ''; }
+    });
+  };
+  // Kết thúc một lần kéo: gỡ chỉ báo, trả con trỏ và lưu độ rộng. Gọi khi thả chuột (ở bất cứ đâu), khi hủy,
+  // hoặc khi thanh chia mất quyền nhận chuột giữa chừng, để không bao giờ còn sót vạch đỏ đứng yên trên màn hình.
+  const finishPanelDrag = () => {
+    const drag = leftPanelResizeRef.current;
+    leftPanelResizeRef.current = null;
+    document.querySelectorAll('.delivery-panel-drag-indicator').forEach(element => element.remove());
+    document.querySelectorAll('[data-panel-drag-static]').forEach(element => { element.style.position = ''; delete element.dataset.panelDragStatic; });
+    document.body.classList.remove('is-panel-resizing');
+    if (!drag) return;
+    window.removeEventListener('pointerup', drag.onWindowUp, true);
+    window.removeEventListener('pointercancel', drag.onWindowUp, true);
+    if (drag.frame) cancelAnimationFrame(drag.frame);
+    applyPanelDrag(drag);
+    if (drag.next === drag.width) { clearPanelDrag(drag); return; }
+    pendingPanelCleanupRef.current = drag;
+    setLeftPanelWidth(drag.next);
+  };
   const startLeftPanelResize = event => {
     event.preventDefault();
+    // Lần kéo trước chưa kết thúc (hiếm): kết thúc nó trước, dọn mọi vạch chỉ báo còn sót.
+    if (leftPanelResizeRef.current) finishPanelDrag();
+    document.querySelectorAll('.delivery-panel-drag-indicator').forEach(element => element.remove());
     event.currentTarget.setPointerCapture(event.pointerId);
-    leftPanelResizeRef.current = { pointerX: event.clientX, width: leftPanelWidth };
+    const page = event.currentTarget.closest('.delivery-page') || document;
+    const lefts = [page.querySelector('.delivery-heading-left'), event.currentTarget.closest('.delivery-chart-scroll')?.querySelector('.delivery-panel-resize')?.parentElement || page.querySelector('.delivery-chart-scroll .delivery-panel-resize')?.parentElement].filter(Boolean);
+    const max = Math.min(maxLeftPanelWidth, Math.max(56, visibleTableWidth));
+    const saved = new Map(lefts.map(left => [left, { width: left.style.width, minWidth: left.style.minWidth, maxWidth: left.style.maxWidth, clipPath: left.style.clipPath, willChange: left.style.willChange }]));
+    const panels = lefts.map(left => ({ left, right: left.nextElementSibling }));
+    const drag = { pointerX: event.clientX, width: LEFT_PANEL_WIDTH, max, next: LEFT_PANEL_WIDTH, frame: 0, panels, saved };
+    panels.forEach(({ left, right }) => {
+      Object.assign(left.style, { width: `${max}px`, minWidth: `${max}px`, maxWidth: `${max}px`, willChange: 'clip-path' });
+      if (right) right.style.willChange = 'transform';
+    });
+    // Chỉ báo đang kéo: vạch đỏ gắn vào mép trái phần Gantt (tiêu đề + thân), trượt cùng phần Gantt nên luôn nằm đúng mép bảng;
+    // con trỏ kéo ngang toàn trang.
+    panels.forEach(({ right }) => {
+      if (!right) return;
+      if (getComputedStyle(right).position === 'static') { right.dataset.panelDragStatic = '1'; right.style.position = 'relative'; }
+      const edge = document.createElement('div');
+      edge.className = 'delivery-panel-drag-indicator';
+      right.appendChild(edge);
+    });
+    document.body.classList.add('is-panel-resizing');
+    applyPanelDrag(drag);
+    drag.onWindowUp = () => finishPanelDrag();
+    window.addEventListener('pointerup', drag.onWindowUp, true);
+    window.addEventListener('pointercancel', drag.onWindowUp, true);
+    leftPanelResizeRef.current = drag;
   };
   const resizeLeftPanel = event => {
-    const resizeStart = leftPanelResizeRef.current;
-    if (!resizeStart) return;
-    setLeftPanelWidth(Math.min(maxLeftPanelWidth, Math.max(GANTT_TABLE_MIN_WIDTH, resizeStart.width + event.clientX - resizeStart.pointerX)));
+    const drag = leftPanelResizeRef.current;
+    if (!drag) return;
+    drag.next = Math.round(Math.min(drag.max, Math.max(GANTT_TABLE_MIN_WIDTH, drag.width + event.clientX - drag.pointerX)));
+    if (drag.frame) return;
+    drag.frame = requestAnimationFrame(() => { drag.frame = 0; applyPanelDrag(drag); });
   };
   const stopLeftPanelResize = event => {
-    leftPanelResizeRef.current = null;
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    if (event.currentTarget?.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    finishPanelDrag();
   };
 
   const toggleProjectCollapsed = (projectId) => {
@@ -428,25 +485,22 @@ export default function GanttPage() {
     const heading = headingScrollRef.current;
     const scrollbar = horizontalScrollRef.current;
     if (!body || !heading || !scrollbar) return;
-    let frame = null;
     let mirroredScrollLeft = scrollbar.scrollLeft;
+    // Hàng tiêu đề (tháng / ngày, tên cột) cuộn ngang theo phần thân ngay trong cùng sự kiện cuộn, không đợi khung hình sau
+    // (trước đây đợi requestAnimationFrame nên tiêu đề luôn chậm 1 khung hình, kéo nhanh thì lệch tới hơn 100px).
     const sync = () => {
-      if (frame !== null) return;
-      frame = requestAnimationFrame(() => {
-        frame = null;
-        // Read the latest body position; programmatic scrollbar events do not feed back.
-        heading.scrollLeft = body.scrollLeft;
-        if (Math.abs(scrollbar.scrollLeft - body.scrollLeft) > 1) {
-          scrollbar.scrollLeft = body.scrollLeft;
-          mirroredScrollLeft = scrollbar.scrollLeft;
-        }
-      });
+      if (heading.scrollLeft !== body.scrollLeft) heading.scrollLeft = body.scrollLeft;
+      if (Math.abs(scrollbar.scrollLeft - body.scrollLeft) > 1) {
+        scrollbar.scrollLeft = body.scrollLeft;
+        mirroredScrollLeft = scrollbar.scrollLeft;
+      }
     };
     const dragScrollbar = () => {
       if (Math.abs(scrollbar.scrollLeft - mirroredScrollLeft) <= 1) return;
       mirroredScrollLeft = scrollbar.scrollLeft;
+      // Kéo thanh cuộn dưới cùng: đặt thân và tiêu đề cùng lúc để hai phần luôn khớp.
       if (Math.abs(body.scrollLeft - scrollbar.scrollLeft) > 1) body.scrollLeft = scrollbar.scrollLeft;
-      sync();
+      heading.scrollLeft = body.scrollLeft;
     };
     // Khi thu/mở menu, độ rộng đổi liên tục ~18 khung hình. Chỉ lưu kết quả có/không
     // "bảng trái rộng hơn khung nhìn" nên trang chỉ vẽ lại khi kết quả đó thật sự đổi.
@@ -459,14 +513,36 @@ export default function GanttPage() {
     const observer = new ResizeObserver(measure);
     observer.observe(body);
     if (body.firstElementChild) observer.observe(body.firstElementChild);
+    // Vuốt ngang bằng touchpad / Shift + lăn chuột: trình duyệt cuộn trên luồng đồ họa riêng nên thân bảng đi trước,
+    // sự kiện scroll tới sau một nhịp làm hàng tiêu đề bị tụt lại. Tự xử lý cú vuốt để thân và tiêu đề dịch cùng một khung hình.
+    // Vuốt dọc thuần để trình duyệt cuộn trang như cũ; Ctrl (phóng to bằng hai ngón) không đụng tới.
+    const page = pageScrollRef.current;
+    const wheel = event => {
+      if (event.ctrlKey) return;
+      const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? body.clientWidth : 1;
+      let dx = event.deltaX * unit, dy = event.deltaY * unit;
+      if (event.shiftKey && !dx) { dx = dy; dy = 0; }
+      if (!dx || Math.abs(dx) < Math.abs(dy) * 0.5) return;
+      const max = body.scrollWidth - body.clientWidth;
+      const left = Math.max(0, Math.min(max, body.scrollLeft + dx));
+      if (left === body.scrollLeft && !dy) return;
+      event.preventDefault();
+      body.scrollLeft = left;
+      heading.scrollLeft = left;
+      if (dy && page) page.scrollTop += dy;
+      sync();
+    };
+    body.addEventListener('wheel', wheel, { passive: false });
+    heading.addEventListener('wheel', wheel, { passive: false });
     body.addEventListener('scroll', sync, { passive: true });
     scrollbar.addEventListener('scroll', dragScrollbar, { passive: true });
     measure();
     return () => {
+      body.removeEventListener('wheel', wheel);
+      heading.removeEventListener('wheel', wheel);
       body.removeEventListener('scroll', sync);
       scrollbar.removeEventListener('scroll', dragScrollbar);
       observer.disconnect();
-      if (frame !== null) cancelAnimationFrame(frame);
     };
   }, [deliveryTab]);
   useEffect(() => {
@@ -551,8 +627,10 @@ export default function GanttPage() {
     ? hierarchyGanttItems
     : hierarchyGanttItems.filter(item => projectIdForItem(item) === selectedProjectId),
   [hierarchyGanttItems, projectIdForItem, selectedProjectId]);
+  const hierarchyGroupsById = useMemo(() => new Map(hierarchyGanttItems.filter(entry => entry.isGroup).map(entry => [entry.id, entry])), [hierarchyGanttItems]);
+  const hierarchyItemsById = useMemo(() => new Map(hierarchyGanttItems.map(entry => [entry.id, entry])), [hierarchyGanttItems]);
   const phaseColorForGroup = item => {
-    const groupsById = new Map(hierarchyGanttItems.filter(entry => entry.isGroup).map(entry => [entry.id, entry]));
+    const groupsById = hierarchyGroupsById;
     const seen = new Set();
     let current = groupsById.get(item.id) || item;
     while (current && !seen.has(current.id)) {
@@ -567,7 +645,7 @@ export default function GanttPage() {
     return phasePresetFor(phase)?.color || item.color || '#64748b';
   };
   const groupDepthForItem = item => {
-    const groupsById = new Map(hierarchyGanttItems.map(entry => [entry.id, entry]));
+    const groupsById = hierarchyItemsById;
     let parentGroupId = item.parentTaskId || item.parentGroupId;
     let depth = 0;
     const seen = new Set();
@@ -733,6 +811,34 @@ export default function GanttPage() {
 
   // Dùng đúng tổng bề rộng các cột tháng làm bề rộng timeline để tiêu đề,
   // lưới ngày/tuần và vùng vẽ task luôn kết thúc tại cùng một vị trí.
+  // Ô tháng / ngày trên đầu Gantt (khoảng 365 ô): chỉ dựng lại khi đổi tháng xem, Tuần/Tháng hoặc lịch nghỉ.
+  const timelineHeaderCells = useMemo(() => monthColumns.map((col, idx) => (
+                  <div
+                    key={idx}
+                    className={`border-r border-slate-200 dark:border-slate-700 flex flex-col items-center text-center select-none overflow-hidden shrink-0 ${zoomLevel === 'month' ? 'justify-start px-0' : 'justify-center px-1'}`}
+                    style={{ width: `${col.width}px` }}
+                  >
+                    <span className={`font-extrabold text-xs text-sky-600 dark:text-sky-400 ${zoomLevel === 'month' ? 'flex h-[22px] min-h-[22px] items-center' : ''}`}>
+                      {col.label}
+                    </span>
+                    {zoomLevel === 'month' ? (
+                      <div className="flex h-[24px] min-h-[24px] w-full border-t border-slate-200 dark:border-slate-700">
+                        {Array.from({ length: col.days }, (_, dayIndex) => (
+                          <div
+                            key={dayIndex + 1}
+                            className="flex h-full shrink-0 items-center justify-center border-r border-slate-200/80 text-[7px] font-medium leading-none text-slate-500 last:border-r-0 dark:border-slate-700 dark:text-slate-400"
+                            style={{ width: `${pxPerDay}px`, backgroundColor: calendarDays[Math.round(col.left / pxPerDay) + dayIndex]?.color }}
+                            title={`${dayIndex + 1}/${col.label.slice(1)}${calendarDays[Math.round(col.left / pxPerDay) + dayIndex]?.label ? ` — ${calendarDays[Math.round(col.left / pxPerDay) + dayIndex].label}` : ''}`}
+                          >
+                            {dayIndex + 1}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-[10px] text-slate-400 font-mono">Tuần 1-4</span>
+                    )}
+                  </div>
+                )), [monthColumns, zoomLevel, pxPerDay, calendarDays]);
   const ganttWidth = Math.max(1200, monthColumns.reduce((total, month) => total + month.width, 0));
 
   // Chiều cao mỗi dòng trong bảng & biểu đồ (khóa cứng pixel để không bao giờ bị lệch)
@@ -743,6 +849,18 @@ export default function GanttPage() {
   const visibleTableWidth = currentColumns.reduce((width, column) => width + column.width, 0);
   const LEFT_PANEL_WIDTH = tableMode === 'full' ? visibleTableWidth : Math.min(leftPanelWidth, Math.max(56, visibleTableWidth));
   leftPanelWidthRef.current = LEFT_PANEL_WIDTH;
+  const pendingPanelCleanupRef = useRef(null);
+  useLayoutEffect(() => {
+    const drag = pendingPanelCleanupRef.current;
+    if (!drag) return;
+    pendingPanelCleanupRef.current = null;
+    drag.panels.forEach(({ left, right }) => {
+      left.style.clipPath = ''; left.style.willChange = '';
+      // React đã ghi độ rộng mới cho các thuộc tính nó quản lý; thuộc tính tạm React không quản lý (VD min/max của khung tiêu đề) thì gỡ.
+      ['width', 'minWidth', 'maxWidth'].forEach(key => { if (!drag.saved.get(left)?.[key]) left.style[key] = ''; });
+      if (right) { right.style.transform = ''; right.style.willChange = ''; }
+    });
+  }, [LEFT_PANEL_WIDTH]);
   useEffect(() => {
     const viewport = chartViewportWidthRef.current;
     setLeftPanelOverflows(viewport > 0 && LEFT_PANEL_WIDTH >= viewport);
@@ -771,6 +889,11 @@ export default function GanttPage() {
     return offsets;
   }, [0]), [rowHeights]);
   const rowsHeight = rowHeights.reduce((sum, height) => sum + height, 0);
+  const tasksByGanttId = useMemo(() => {
+    const map = new Map();
+    tasks.forEach(task => { if (task.ganttId && !map.has(task.ganttId)) map.set(task.ganttId, task); });
+    return map;
+  }, [tasks]);
   // Không phụ thuộc trạng thái menu: thu/mở menu không được bắt trang này vẽ lại.
   const chartBodyHeight = Math.max(200, rowsHeight + 20, viewportHeight - 170);
 
@@ -1500,12 +1623,16 @@ export default function GanttPage() {
     const weightFor = item => deliveryData?.taskMetrics[item.id]?.weight ?? groupMetrics.get(item.id)?.weight ?? 0;
     return allocateTaskHierarchyWeightPercent(hierarchyGanttItems, weightFor);
   }, [hierarchyGanttItems, deliveryData, groupMetrics]);
+  const rowMetricCache = useMemo(() => new Map(), [deliveryData, groupMetrics, displayedWeightPercent]);
   const metricForRow = item => {
+    if (rowMetricCache.has(item.id)) return rowMetricCache.get(item.id);
     const metric = deliveryData?.taskMetrics[item.id] || groupMetrics.get(item.id);
     const displayWeightPercent = displayedWeightPercent.get(item.id);
-    return metric && displayWeightPercent != null ? { ...metric, displayWeightPercent } : metric;
+    const value = metric && displayWeightPercent != null ? { ...metric, displayWeightPercent } : metric;
+    rowMetricCache.set(item.id, value);
+    return value;
   };
-  const groupPercent = item => { if (item.isProjectHeader && item.projectId === selectedProjectId && deliveryData) return deliveryData.summary.completion; const metric = groupMetrics.get(item.id); return metric ? metric.planned ? metric.earned / metric.planned * 100 : 0 : null; };
+  const groupPercent = useCallback(item => { if (item.isProjectHeader && item.projectId === selectedProjectId && deliveryData) return deliveryData.summary.completion; const metric = groupMetrics.get(item.id); return metric ? metric.planned ? metric.earned / metric.planned * 100 : 0 : null; }, [selectedProjectId, deliveryData, groupMetrics]);
   const editDeliveryItem = item => { if (item.isProjectHeader) { setSelectedProjectId(item.projectId); setEditProjectForm({ name: item.title || '', startDate: item.startDate || '', endDate: item.endDate || '' }); setShowEditProjectModal(true); } else if (item.isGroup) openGroupEdit(item); else handleEditOpen(item); };
   const removeDeliveryItem = async item => { if (item.isProjectHeader) { if (await deleteProject(item.projectId)) setDetailItemId(null); } else if (await deleteGanttItem(item.id)) setDetailItemId(null); };
   const createDeliveryTask = (item, child = false) => {
@@ -1524,6 +1651,21 @@ export default function GanttPage() {
 
   const showIT = false;
   const refreshDeliveryMetrics = delivery.refresh;
+  // Dòng bảng và thanh Gantt được memo: thao tác của chúng đi qua ref, cập nhật sau mỗi lần vẽ, nên luôn gọi hàm mới nhất.
+  const rowActionsRef = useRef(null);
+  const chartActionsRef = useRef(null);
+  useLayoutEffect(() => {
+    rowActionsRef.current = {
+      toggle: item => item.isProjectHeader ? toggleProjectCollapsed(item.projectId) : item.isGroup ? toggleGroupCollapsed(item.id) : toggleTaskCollapsed(item.id),
+      openDetail,
+      edit: editDeliveryItem,
+      assign: handleAssignmentsOpen,
+      remove: removeDeliveryItem,
+      saveWork: (item, id, patch) => item.isProjectHeader ? updateProject(item.projectId, patch) : updateGanttItem(id, patch),
+      createTask: createDeliveryTask,
+    };
+    chartActionsRef.current = { openDetail, assign: handleAssignmentsOpen, startDependencyDrag };
+  });
   useEffect(() => { refreshDeliveryMetrics(); }, [ganttItems, tasks, refreshDeliveryMetrics]);
   const projectPicker = (
     <fieldset disabled={previewing} className="delivery-project-context">
@@ -1749,8 +1891,8 @@ export default function GanttPage() {
       {deliveryTab === 'gantt' && progressSection === 'assignment' && <AssignmentMachinePage key={selectedProjectId} projectId={selectedProjectId} items={selectedProjectItems} tasks={tasks} employees={employees} updateGanttItem={updateGanttItem} readOnly={previewing || !canManageAssignments} />}
 
       {deliveryTab === 'gantt' && progressSection === 'table' && <div className="delivery-chart-heading-scroll" ref={headingScrollRef}>
-        <div className="flex" style={{ width: LEFT_PANEL_WIDTH + (tableMode === 'full' ? 0 : ganttWidth), minWidth: '100%' }}>
-          <div className="delivery-heading-left sticky left-0 z-40 flex-none relative" style={{ width: LEFT_PANEL_WIDTH, position: leftPanelPosition }}>
+        <div className="flex" style={{ width: `${LEFT_PANEL_WIDTH + (tableMode === 'full' ? 0 : ganttWidth)}px`, minWidth: '100%' }}>
+          <div className="delivery-heading-left sticky left-0 z-40 flex-none relative" style={{ width: `${LEFT_PANEL_WIDTH}px`, position: leftPanelPosition }}>
               <div
                 role="separator"
                 aria-label="Thay đổi độ rộng bảng"
@@ -1764,6 +1906,7 @@ export default function GanttPage() {
                 onPointerMove={resizeLeftPanel}
                 onPointerUp={stopLeftPanelResize}
                 onPointerCancel={stopLeftPanelResize}
+                onLostPointerCapture={() => { if (leftPanelResizeRef.current) finishPanelDrag(); }}
                 onKeyDown={event => {
                   if (event.key === 'ArrowLeft') setLeftPanelWidth(width => Math.max(GANTT_TABLE_MIN_WIDTH, width - 16));
                   if (event.key === 'ArrowRight') setLeftPanelWidth(width => Math.min(maxLeftPanelWidth, width + 16));
@@ -1813,36 +1956,10 @@ export default function GanttPage() {
                 className="sticky top-0 z-30 bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex box-border"
                 style={{ width: `${ganttWidth}px`, height: `${HEADER_HEIGHT}px`, minHeight: `${HEADER_HEIGHT}px`, maxHeight: `${HEADER_HEIGHT}px` }}
               >
-                {monthColumns.map((col, idx) => (
-                  <div
-                    key={idx}
-                    className={`border-r border-slate-200 dark:border-slate-700 flex flex-col items-center text-center select-none overflow-hidden shrink-0 ${zoomLevel === 'month' ? 'justify-start px-0' : 'justify-center px-1'}`}
-                    style={{ width: `${col.width}px` }}
-                  >
-                    <span className={`font-extrabold text-xs text-sky-600 dark:text-sky-400 ${zoomLevel === 'month' ? 'flex h-[22px] min-h-[22px] items-center' : ''}`}>
-                      {col.label}
-                    </span>
-                    {zoomLevel === 'month' ? (
-                      <div className="flex h-[24px] min-h-[24px] w-full border-t border-slate-200 dark:border-slate-700">
-                        {Array.from({ length: col.days }, (_, dayIndex) => (
-                          <div
-                            key={dayIndex + 1}
-                            className="flex h-full shrink-0 items-center justify-center border-r border-slate-200/80 text-[7px] font-medium leading-none text-slate-500 last:border-r-0 dark:border-slate-700 dark:text-slate-400"
-                            style={{ width: `${pxPerDay}px`, backgroundColor: calendarDays[Math.round(col.left / pxPerDay) + dayIndex]?.color }}
-                            title={`${dayIndex + 1}/${col.label.slice(1)}${calendarDays[Math.round(col.left / pxPerDay) + dayIndex]?.label ? ` — ${calendarDays[Math.round(col.left / pxPerDay) + dayIndex].label}` : ''}`}
-                          >
-                            {dayIndex + 1}
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="text-[10px] text-slate-400 font-mono">Tuần 1-4</span>
-                    )}
-                  </div>
-                ))}
+                {timelineHeaderCells}
               </div>
 
-            {deliveryData?.permissions.financial && <svg width={ganttWidth} height={80}><DeliveryChartOverlay data={deliveryData} financial items={[]} coordinates={{}} rowOffsets={[]} timelineStart={timelineStart} pxPerDay={pxPerDay} width={ganttWidth} height={80} now={currentTime} groupPercent={groupPercent} /></svg>}
+            {deliveryData?.permissions.financial && <svg width={ganttWidth} height={80}><DeliveryChartOverlay data={deliveryData} financial items={NO_ITEMS} coordinates={NO_COORDINATES} rowOffsets={NO_ITEMS} timelineStart={timelineStart} pxPerDay={pxPerDay} width={ganttWidth} height={80} now={currentTime} groupPercent={groupPercent} /></svg>}
           </div>
         </div>
       </div>}
@@ -1877,6 +1994,7 @@ export default function GanttPage() {
                 onPointerMove={resizeLeftPanel}
                 onPointerUp={stopLeftPanelResize}
                 onPointerCancel={stopLeftPanelResize}
+                onLostPointerCapture={() => { if (leftPanelResizeRef.current) finishPanelDrag(); }}
                 onKeyDown={event => {
                   if (event.key === 'ArrowLeft') setLeftPanelWidth(width => Math.max(GANTT_TABLE_MIN_WIDTH, width - 16));
                   if (event.key === 'ArrowRight') setLeftPanelWidth(width => Math.min(maxLeftPanelWidth, width + 16));
@@ -1885,7 +2003,7 @@ export default function GanttPage() {
               
               {/* Danh Sách Các Hàng Công Việc (Khóa cứng 44px mỗi dòng) */}
               <div style={{ minHeight: `${chartBodyHeight}px` }}>
-                {filteredGanttItems.map((item, itemIndex) => <DeliveryRow key={item.id} item={item} columns={currentColumns} height={rowHeights[itemIndex]} depth={groupDepthForItem(item)} record={deliveryData?.records[item.id]} metric={metricForRow(item)} aggregate={groupPercent(item)} employees={employees} collapsed={item.isProjectHeader ? collapsedProjectIds.has(item.projectId) : item.isGroup ? collapsedGroupIds.has(item.id) : collapsedTaskIds.has(item.id)} onToggle={() => item.isProjectHeader ? toggleProjectCollapsed(item.projectId) : item.isGroup ? toggleGroupCollapsed(item.id) : toggleTaskCollapsed(item.id)} onOpen={section => openDetail(item, typeof section === 'string' ? section : '')} onEdit={() => editDeliveryItem(item)} onAssign={() => handleAssignmentsOpen(item)} onDelete={() => removeDeliveryItem(item)} onSaveWork={(id, patch) => item.isProjectHeader ? updateProject(item.projectId, patch) : updateGanttItem(id, patch)} color={item.isGroup ? phaseColorForGroup(item) : item.color} onCreateTask={child => createDeliveryTask(item, child)} readOnly={previewing || !canManageStructure} canAssign={!previewing && canManageAssignments} highlighted={item.id === linkTargetId} />)}
+                {filteredGanttItems.map((item, itemIndex) => <GanttTableRow key={item.id} actions={rowActionsRef} item={item} columns={currentColumns} height={rowHeights[itemIndex]} depth={groupDepthForItem(item)} record={deliveryData?.records[item.id]} metric={metricForRow(item)} aggregate={groupPercent(item)} employees={employees} collapsed={item.isProjectHeader ? collapsedProjectIds.has(item.projectId) : item.isGroup ? collapsedGroupIds.has(item.id) : collapsedTaskIds.has(item.id)} color={item.isGroup ? phaseColorForGroup(item) : item.color} readOnly={previewing || !canManageStructure} canAssign={!previewing && canManageAssignments} highlighted={item.id === linkTargetId} />)}
               </div>
 
             </div>
@@ -2040,343 +2158,28 @@ export default function GanttPage() {
                   const coord = taskCoordinates[item.id];
                   if (!coord) return null;
                   if (coord.isTaskAggregate && !collapsedTaskIds.has(item.id)) return null;
-
-                  if (item.isProjectHeader || item.isGroup || coord.isTaskAggregate) {
-                    if (!item.isProjectHeader && !coord.isAggregate) return null;
-                    const clipId = `aggregate-bar-clip-${String(item.id).replace(/[^a-zA-Z0-9_-]/g, '-')}`;
-                    const aggregateStart = new Date(`${coord.startDate}T00:00:00`);
-                    const aggregateEnd = new Date(`${coord.endDate}T00:00:00`);
-                    const aggregateStartOffset = (aggregateStart - timelineStart) / 86400000;
-                    const aggregateEndOffset = (aggregateEnd - timelineStart) / 86400000 + 1;
-                    return (
-                      <g key={`aggregate-${item.id}`} className="pointer-events-auto" data-aggregate-id={item.id}>
-                        <defs>
-                          <clipPath id={clipId}>
-                            <rect x={coord.x} y={coord.y} width={coord.width} height={coord.height} rx="6" ry="6" />
-                          </clipPath>
-                        </defs>
-                        <rect
-                          x={coord.x}
-                          y={coord.y}
-                          width={coord.width}
-                          height={coord.height}
-                          rx="6"
-                          ry="6"
-                          fill="url(#grad-slate)"
-                          opacity="0.88"
-                          filter="drop-shadow(0 2px 4px rgba(0,0,0,0.12))"
-                        >
-                          <title>{`${coord.aggregateTasks.length} công việc · ${formatDateVi(aggregateStart.toISOString().slice(0, 10))} – ${formatDateVi(aggregateEnd.toISOString().slice(0, 10))}`}</title>
-                        </rect>
-                        <g clipPath={`url(#${clipId})`}>
-                          {coord.aggregateTasks.map(child => {
-                            if (!child.startDate || !child.endDate) return null;
-                            const linkedChildTask = tasks.find(task => task.ganttId === child.id);
-                            const progressTask = linkedChildTask ? { ...child, ...linkedChildTask } : child;
-                            const progress = elapsedScheduleProgress(progressTask, currentTime);
-                            if (progress <= 0) return null;
-                            const childStart = new Date(`${child.startDate}T00:00:00`);
-                            const childEnd = new Date(`${child.endDate}T00:00:00`);
-                            if (!Number.isFinite(childStart.getTime()) || !Number.isFinite(childEnd.getTime())) return null;
-                            const childStartOffset = Math.max(aggregateStartOffset, (childStart - timelineStart) / 86400000, 0);
-                            const childEndOffset = Math.min(aggregateEndOffset, (childEnd - timelineStart) / 86400000 + 1, totalTimelineDays);
-                            const childX = childStartOffset * pxPerDay;
-                            const childWidth = Math.max(0, (childEndOffset - childStartOffset) * pxPerDay);
-                            if (!childWidth) return null;
-                            const overdue = isTaskOverdue(progressTask, currentTime);
-                            const completedLate = progressTask.status === 'completed' && (progressTask.speedStatus === 'delayed' || child.speed === 'delayed');
-                            const progressColor = progressTask.status === 'completed'
-                              ? (completedLate ? '#e6b83e' : '#10b981')
-                              : overdue ? '#ef4444' : '#861b36';
-                            return (
-                              <rect
-                                key={`progress-${child.id}`}
-                                x={childX}
-                                y={coord.y}
-                                width={Math.max(0, childWidth * progress / 100)}
-                                height={coord.height}
-                                fill={progressColor}
-                                opacity="0.98"
-                                className="pointer-events-none"
-                              >
-                                <title>{`${child.title}: ${progress}%`}</title>
-                              </rect>
-                            );
-                          })}
-                        </g>
-                      </g>
-                    );
-                  }
-
-                  const isGroup = item.isGroup;
-                  const isHoliday = item.status === 'holiday';
-                  const isDependencyHighlighted = hoveredDependency
-                    && (hoveredDependency.sourceId === item.id || hoveredDependency.targetId === item.id);
-                  const linkedTask = tasks.find(task => task.ganttId === item.id);
-                  const taskHasAssignmentState = hasStoredAssignmentState(linkedTask);
-                  const itemAssignees = taskHasAssignmentState
-                    ? (Array.isArray(linkedTask.assignees) && linkedTask.assignees.length
-                      ? linkedTask.assignees
-                      : linkedTask.employeeId || linkedTask.employeeName
-                        ? [{
-                          employeeId: linkedTask.employeeId || '',
-                          employeeName: linkedTask.employeeName || '',
-                          startDate: linkedTask.startDate || item.startDate,
-                          endDate: linkedTask.endDate || item.endDate
-                        }]
-                        : [])
-                    : item.assignees;
-                  // Merge the linked task with its Gantt row so completion timing survives
-                  // when one side has not yet received the latest synchronized fields.
-                  const progressTask = linkedTask ? { ...item, ...linkedTask } : item;
-                  const progress = elapsedScheduleProgress(progressTask, currentTime);
-                  const overdue = isTaskOverdue(progressTask, currentTime);
-                  const delayHours = Math.max(
-                    taskDelayHours(progressTask, currentTime),
-                    Number(linkedTask?.delayHours) || 0,
-                    Number(item.delayHours) || 0
-                  );
-                  const storedEarlyHours = Math.max(
-                    Number(progressTask.earlyHours) || 0,
-                    Number(linkedTask?.earlyHours) || 0,
-                    Number(item.earlyHours) || 0
-                  );
-                  const completionTime = Date.parse(progressTask.completedAt || linkedTask?.completedAt || item.completedAt || '');
-                  const [, endYear, endMonth, endDay] = String(progressTask.endDate || '').match(/^(\d{4})-(\d{2})-(\d{2})$/) || [];
-                  const scheduledEndStart = endYear ? new Date(Number(endYear), Number(endMonth) - 1, Number(endDay)).getTime() : NaN;
-                  const scheduledDeadline = endYear ? new Date(Number(endYear), Number(endMonth) - 1, Number(endDay) + 1).getTime() : NaN;
-                  const calendarEarlyHours = Number.isFinite(completionTime) && Number.isFinite(scheduledEndStart)
-                    ? Math.max(0, scheduledEndStart - completionTime) / 3600000
-                    : 0;
-                  const calendarLateHours = Number.isFinite(completionTime) && Number.isFinite(scheduledDeadline)
-                    ? Math.max(0, completionTime - scheduledDeadline) / 3600000
-                    : 0;
-                  const completedLate = progressTask.status === 'completed' && (
-                    progressTask.speedStatus === 'delayed' || item.speed === 'delayed' || delayHours > 0 || calendarLateHours > 0
-                  );
-                  const completedEarly = progressTask.status === 'completed' && !completedLate && (
-                    progressTask.speedStatus === 'early' || item.speed === 'early' || storedEarlyHours > 0 || calendarEarlyHours > 0
-                  );
-                  const earlyHours = Math.max(storedEarlyHours, calendarEarlyHours);
-                  const completionDelayHours = Math.max(delayHours, calendarLateHours);
-                  const timingLabel = progressTask.status === 'completed'
-                    ? completedEarly
-                      ? `Hoàn thành sớm${earlyHours > 0 ? ` · Sớm ${formatDelayHours(earlyHours)}` : ''}`
-                      : completedLate
-                        ? `Chậm trễ${completionDelayHours > 0 ? ` · Muộn ${formatDelayHours(completionDelayHours)}` : ''}`
-                        : 'Hoàn thành'
-                    : overdue
-                      ? `Quá hạn ${formatDelayHours(delayHours)}`
-                      : '';
-                  const timingColor = progressTask.status === 'completed'
-                    ? completedEarly ? '#059669' : completedLate || delayHours > 0 ? '#d97706' : '#059669'
-                    : overdue ? '#dc2626' : item.parentTaskId ? '#b45309' : '#64748b';
-
-                  // Keep the bar and progress fill aligned with the task status pill.
-                  const statusColor = isHoliday ? '#f59e0b'
-                    : progressTask.status === 'completed' ? (completedLate ? '#f59e0b' : '#10b981')
-                      : overdue ? '#ef4444'
-                        : '#861b36';
-                  const fillColor = isHoliday ? 'url(#grad-amber)' : 'url(#grad-slate)';
-                  const hasAssignments = Array.isArray(itemAssignees) && itemAssignees.length > 0;
-                  const hasLegacyAssignee = !taskHasAssignmentState && Boolean(item.assignee);
-                  const assignmentLabels = !isGroup && !isHoliday && (hasAssignments || hasLegacyAssignee)
-                    ? (hasAssignments
-                      ? itemAssignees
-                      : [{ employeeName: item.assignee, startDate: item.startDate, endDate: item.endDate }])
-                      .map((assignment, index) => {
-                        return {
-                          key: `${item.id}-assignment-${index}`,
-                          employeeName: assignment.employeeName || employees.find(employee => employee.id === assignment.employeeId)?.name || item.assignee || 'Chưa gán',
-                          startDate: assignment.startDate || item.startDate,
-                          endDate: assignment.endDate || item.endDate,
-                          days: assignmentWorkingDates(item, assignment).length,
-                          hoursPerDay: Number(assignment.estimatedHoursPerDay) || Number(item.estimatedHoursPerDay) || Number(item.estimatedHours) / (Number(item.days) || 1) || 8,
-                          y: coord.rowTop + 21 + index * 16
-                        };
-                      })
-                    : [];
-                  const overtimeContributions = item.overtimeContributions || [];
-                  const overtimeForAssignment = assignment => overtimeContributions.filter(contribution =>
-                    (contribution.employeeId && assignment.employeeId === contribution.employeeId) ||
-                    (contribution.employeeName || '').trim().toLocaleLowerCase('vi') ===
-                      (assignment.employeeName || '').trim().toLocaleLowerCase('vi')
-                  );
-                  const unassignedOvertime = overtimeContributions.filter(contribution =>
-                    !assignmentLabels.some(assignment =>
-                      (contribution.employeeId && assignment.employeeId === contribution.employeeId) ||
-                      (contribution.employeeName || '').trim().toLocaleLowerCase('vi') ===
-                        (assignment.employeeName || '').trim().toLocaleLowerCase('vi')
-                    )
-                  );
-                  const isDependencyDropTarget = dependencyDrag?.targetId === item.id;
-                  const taskTextColor = item.parentTaskId ? '#b45309' : '#64748b';
-
                   return (
-                    <g key={item.id} className="cursor-pointer group" onClick={event => { if (!event.target.closest('[role="button"]')) openDetail(item); }}>
-                      
-                      {/* Dải ruy băng mờ kéo ngang cho ngày lễ */}
-                      {isHoliday && (
-                        <rect
-                          x={coord.x}
-                          y={0}
-                          width={coord.width}
-                          height={rowsHeight}
-                          fill="#fef08a"
-                          fillOpacity="0.12"
-                        />
-                      )}
-
-                      {isHoliday && !isGroup && (
-                        <rect
-                          x={coord.x}
-                          y={coord.y}
-                          width={coord.width}
-                          height={coord.height}
-                          rx="6"
-                          ry="6"
-                          fill={fillColor}
-                          stroke={isDependencyHighlighted ? '#ef4444' : 'transparent'}
-                          strokeWidth={isDependencyHighlighted ? 2.4 : 0}
-                          className="transition-all hover:opacity-90 shadow-sm"
-                          filter="drop-shadow(0 2px 4px rgba(0,0,0,0.12))"
-                        />
-                      )}
-
-                      {!isGroup && !isHoliday && !itemAssignees?.some(a => a.excludeNonWorkingDays === true) && (
-                        <>
-                          <rect
-                            x={coord.x}
-                            y={coord.y}
-                            width={coord.width}
-                            height={coord.height}
-                            rx="6"
-                            ry="6"
-                            fill={fillColor}
-                            stroke={isDependencyHighlighted ? '#ef4444' : 'transparent'}
-                            strokeWidth={isDependencyHighlighted ? 2.4 : 0}
-                            className="transition-all hover:opacity-90 shadow-sm"
-                            filter="drop-shadow(0 2px 4px rgba(0,0,0,0.12))"
-                          />
-                          {progress > 0 && (
-                            <rect
-                              x={coord.x}
-                              y={coord.y}
-                              width={coord.width * progress / 100}
-                              height={coord.height}
-                              rx="6"
-                              ry="6"
-                              fill={statusColor}
-                              fillOpacity="1"
-                              stroke={isDependencyHighlighted ? '#ef4444' : 'transparent'}
-                              strokeWidth={isDependencyHighlighted ? 2.2 : 0}
-                              className="pointer-events-none transition-all duration-500"
-                            >
-                              <title>{`Tiến độ theo thời gian: ${progress}%${overdue ? ' · Quá hạn' : ''}`}</title>
-                            </rect>
-                          )}
-                        </>
-                      )}
-
-                      {!isGroup && !isHoliday && itemAssignees?.some(a => a.excludeNonWorkingDays === true) && <GanttExcludedDaysBar item={{ ...item, assignees: itemAssignees }} timelineStart={timelineStart} pxPerDay={pxPerDay} coord={coord} progress={progress} fillColor={fillColor} statusColor={statusColor} highlighted={isDependencyHighlighted} />}
-
-                      {/* Nhãn trên thanh hoặc cạnh thanh: Tên người đảm nhận, thời gian, tăng ca */}
-                      {!isGroup && !isHoliday && isDependencyDropTarget && (
-                        <rect
-                          x={Math.max(0, coord.x - 3)}
-                          y={coord.y - 4}
-                          width={coord.width + 6}
-                          height={coord.height + 8}
-                          rx="8"
-                          fill="none"
-                          stroke="#0284c7"
-                          strokeWidth="2.5"
-                          strokeDasharray="5 3"
-                          className="pointer-events-none"
-                        />
-                      )}
-
-                      {!isGroup && !isHoliday && canManageStructure && !previewing && (
-                        <g
-                          role="button"
-                          aria-label={`Kéo để nối ${item.title} với task tiếp theo`}
-                          style={{ cursor: dependencyDrag ? 'grabbing' : 'crosshair', touchAction: 'none' }}
-                          onPointerDown={event => startDependencyDrag(item, coord, event)}
-                          onClick={event => { event.preventDefault(); event.stopPropagation(); }}
-                        >
-                          <circle cx={dependencyHandleX(coord)} cy={coord.centerY} r="10" fill="transparent" />
-                          <title>Kéo chấm này và thả vào task cần nối phía sau</title>
-                        </g>
-                      )}
-
-                      {!isGroup && (
-                        <>
-                        {canManageAssignments && !previewing && assignmentLabels.length === 0 && (
-                          <g
-                            role="button"
-                            tabIndex={0}
-                            aria-label={`Giao công việc ${item.title}`}
-                            className="select-none"
-                            style={{ cursor: 'pointer', pointerEvents: 'auto' }}
-                            onClick={() => handleAssignmentsOpen(item)}
-                            onKeyDown={event => {
-                              if (event.key === 'Enter' || event.key === ' ') {
-                                event.preventDefault();
-                                handleAssignmentsOpen(item);
-                              }
-                            }}
-                          >
-                            <circle cx={coord.endX + 15} cy={coord.centerY} r="7" fill="none" stroke="#861b36" className="dark:stroke-rose-300" />
-                            <path d={`M ${coord.endX + 12} ${coord.centerY} h 6 M ${coord.endX + 15} ${coord.centerY - 3} v 6`} fill="none" stroke="#861b36" strokeWidth="1.5" strokeLinecap="round" className="dark:stroke-rose-300" />
-                            <text x={coord.endX + 27} y={coord.centerY + 4} fill={item.parentTaskId ? '#b45309' : '#861b36'} fontSize="11" fontWeight="700" className={item.parentTaskId ? undefined : 'dark:fill-rose-300'}>
-                              Giao cho
-                            </text>
-                            <title>Giao công việc cho nhân viên</title>
-                          </g>
-                        )}
-                        {assignmentLabels.map((bar, index) => (
-                        <text
-                          key={`label-${bar.key}`}
-                          x={coord.endX + 8}
-                          y={bar.y}
-                          fill={taskTextColor}
-                          fontSize="11"
-                          fontWeight="600"
-                          className={`${item.parentTaskId ? '' : 'dark:fill-white '}select-none pointer-events-none`}
-                        >
-                          <tspan fill={taskTextColor} className={item.parentTaskId ? undefined : 'dark:fill-white'}>
-                            {bar.employeeName} · {formatDateVi(bar.startDate).slice(0, 5)}–{formatDateVi(bar.endDate).slice(0, 5)} · {Number(bar.hoursPerDay).toLocaleString('vi-VN', { maximumFractionDigits: 2 })}h/ngày{deliveryData?.records[item.id]?.freeRework ? ' · CR' : ''}
-                          </tspan>
-                          {timingLabel && <tspan fill={timingColor} fontWeight="700"> · [{timingLabel}]</tspan>}
-                          <title>{`${bar.employeeName}: ${formatDateVi(bar.startDate)} đến ${formatDateVi(bar.endDate)} · ${Number(bar.hoursPerDay).toLocaleString('vi-VN', { maximumFractionDigits: 2 })} giờ/ngày${timingLabel ? ` · ${timingLabel}` : ''}`}</title>
-                          {overtimeForAssignment(bar).map(contribution => (
-                            <tspan key={contribution.employeeId || contribution.employeeName} fill="#d97706" fontWeight="bold">
-                              {' '}[+{contribution.hours}h OT]
-                            </tspan>
-                          ))}
-                          {index === 0 && !overtimeContributions.length && item.overtimeHours > 0 && (
-                            <tspan fill="#f59e0b" fontWeight="bold"> [+{item.overtimeHours}h OT]</tspan>
-                          )}
-
-                        </text>
-                        ))}
-                        {unassignedOvertime.map((contribution, contributionIndex) => (
-                          <text
-                            key={`overtime-${contribution.employeeId || contribution.employeeName}`}
-                            x={coord.endX + 8}
-                            y={coord.rowTop + 16 + assignmentLabels.length * 22 + contributionIndex * 18}
-                            fill="#d97706"
-                            fontSize="11"
-                            fontWeight="600"
-                            className="select-none pointer-events-none"
-                          >
-                            {contribution.employeeName} [+{contribution.hours}h OT]
-                          </text>
-                        ))}
-                        </>
-                      )}
-
-                    </g>
+                    <GanttTaskBar
+                      key={item.id}
+                      item={item}
+                      coord={coord}
+                      linkedTask={tasksByGanttId.get(item.id)}
+                      tasksByGanttId={tasksByGanttId}
+                      highlighted={Boolean(hoveredDependency && (hoveredDependency.sourceId === item.id || hoveredDependency.targetId === item.id))}
+                      dropTarget={dependencyDrag?.targetId === item.id}
+                      dragging={Boolean(dependencyDrag)}
+                      timelineStart={timelineStart}
+                      totalTimelineDays={totalTimelineDays}
+                      pxPerDay={pxPerDay}
+                      currentTime={currentTime}
+                      employees={employees}
+                      rowsHeight={rowsHeight}
+                      freeRework={Boolean(deliveryData?.records[item.id]?.freeRework)}
+                      canManageStructure={canManageStructure}
+                      canManageAssignments={canManageAssignments}
+                      previewing={previewing}
+                      actions={chartActionsRef}
+                    />
                   );
                 })}
 

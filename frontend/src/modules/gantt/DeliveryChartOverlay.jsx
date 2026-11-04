@@ -1,5 +1,8 @@
 import { formatCompactMoney } from '../../utils/deliveryMetrics';
-export default function DeliveryChartOverlay({ data, financial, items, coordinates, rowOffsets, timelineStart, pxPerDay, width, height, now, groupPercent }) {
+import { memo } from 'react';
+// memo: lớp hạn nộp / tiến độ nhóm / vạch hôm nay chỉ vẽ lại khi dữ liệu, toạ độ hoặc giờ hiện tại đổi.
+export default memo(DeliveryChartOverlay);
+function DeliveryChartOverlay({ data, financial, items, coordinates, rowOffsets, timelineStart, pxPerDay, width, height, now, groupPercent }) {
   const x = value => { const key = String(value).length > 10 && Number.isFinite(Date.parse(value)) ? new Date(Date.parse(value) + 7 * 3600000).toISOString().slice(0, 10) : String(value).slice(0, 10); return (Date.parse(`${key}T00:00:00Z`) - Date.UTC(timelineStart.getFullYear(), timelineStart.getMonth(), timelineStart.getDate())) / 86400000 * pxPerDay; };
   // x() tự đổi mốc thời gian (ISO) sang ngày giờ Việt Nam; truyền thẳng giờ hiện tại, không cộng +7 lần nữa (trước đây sau 17:00 đường hôm nay nhảy sang ngày mai).
   const todayX = x(now.toISOString());

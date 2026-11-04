@@ -12,7 +12,16 @@ export function useProjectDelivery(projectId, onSharedDataChange) {
   const dataRef = useRef(null);
   const sequence = useRef(0);
   const busy = useRef(false);
-  const accept = useCallback((id, value) => { if (id === currentProject.current) { dataRef.current = { projectId: id, value }; setSnapshot({ projectId: id, value }); setError(''); } }, []);
+  // Lần tải lại định kỳ (30 giây, khi quay lại cửa sổ) thường không có gì mới: dữ liệu y hệt thì giữ nguyên,
+  // không vẽ lại cả bảng + Gantt (trước đây gây khựng mỗi 30 giây và mỗi lần bấm lại vào cửa sổ trình duyệt).
+  const accept = useCallback((id, value) => {
+    if (id !== currentProject.current) return;
+    const text = JSON.stringify(value);
+    setError('');
+    if (dataRef.current?.projectId === id && dataRef.current.text === text) return;
+    dataRef.current = { projectId: id, value, text };
+    setSnapshot({ projectId: id, value });
+  }, []);
   const refresh = useCallback(async () => {
     if (!projectId || projectId === 'ALL' || busy.current) return;
     const request = ++sequence.current;
