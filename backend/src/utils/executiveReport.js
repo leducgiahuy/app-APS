@@ -1,6 +1,6 @@
 import { cashflowReport } from './operationsCashflow.js';
 import { financeReport } from './operationsReports.js';
-import { projectActor,operations } from './operationsStore.js';
+import { projectActor } from './operationsStore.js';
 import { moneyRole,roleAllows } from '../../../frontend/src/utils/operationsDefaults.js';
 import { computeDelivery, moneyAccess, projectDeliveryItems } from '../../../frontend/src/utils/deliveryMetrics.js';
 import { fiscalMonths, fiscalStart, monthSnapshot, vietnamMonth } from '../../../frontend/src/utils/deliveryResources.js';

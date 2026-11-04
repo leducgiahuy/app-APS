@@ -1,7 +1,6 @@
 import { DEFAULT_PROCEDURES } from '../../../frontend/src/utils/deliveryResources.js';
 import { logDeliveryActivity } from '../utils/activityLog.js';
 import { roleAllows } from '../../../frontend/src/utils/operationsDefaults.js';
-import { operations } from '../utils/operationsStore.js';
 import { allSheets, canReviewSheet, sheetFlags } from '../utils/operationsReports.js';
 import { assignmentWorkingDates } from '../../../frontend/src/utils/assignmentCalendar.js';
 import fs from 'node:fs';
@@ -10,7 +9,7 @@ import os from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { readDb, writeDb } from '../models/db.js';
 import { deliveryStore, canEditDeliveryTask, publicDelivery } from '../utils/deliveryAuth.js';
-import { computeDelivery, projectDeliveryItems, defaultDeliveryRecord, DELIVERY_LEVELS, managingRole, moneyAccess, reviewingRole, taskStatusWindow, taskStatusWindowMessage } from '../../../frontend/src/utils/deliveryMetrics.js';
+import { computeDelivery, projectDeliveryItems, defaultDeliveryRecord, DELIVERY_LEVELS, EVIDENCE_KIND_NAMES, requiredEvidenceKind, confirmBlockReason, managingRole, moneyAccess, reviewingRole, taskStatusWindow, taskStatusWindowMessage } from '../../../frontend/src/utils/deliveryMetrics.js';
 import { isTaskOverdue } from '../../../frontend/src/utils/date.js';
 import { reopenTaskFromDelivery, syncTaskCompletionFromDelivery } from './taskController.js';
 import { normalizePageAccess } from '../../../frontend/src/utils/pageAccess.js';
@@ -36,8 +35,17 @@ function context(req) {
   store.projects[req.params.projectId] = data;
   return { db, data, user: req.deliveryUser, projectId: req.params.projectId };
 }
+/** Vai trò tài khoản (đang hoạt động) của những người được giao task. */
+function assigneeRolesOf(db, item) {
+  const users = deliveryStore(db).users.filter(person => !person.disabled);
+  return (item.assignees || []).map(assignment => users.find(person => person.employeeId && person.employeeId === assignment.employeeId)?.role).filter(Boolean);
+}
+/** Lý do người đang xem chưa xác nhận được từng task (rỗng = xác nhận được), để giao diện hiện nút hoặc lời giải thích. */
+function confirmBlocks(ctx) {
+  return Object.fromEntries(projectDeliveryItems(ctx.db, ctx.projectId).filter(item => !item.isGroup).map(item => [item.id, canEditDeliveryTask(ctx.user, item, ctx.db) ? confirmBlockReason({ viewer: ctx.user, item, record: ctx.data.records?.[item.id] || {}, assigneeRoles: assigneeRolesOf(ctx.db, item) }) : 'Bạn không có quyền với task này.']));
+}
 function response(ctx) {
-  return { ...publicDelivery(ctx.data, computeDelivery(ctx.db, ctx.projectId, ctx.data), ctx.user, normalizePageAccess(ctx.db.operations?.pageAccess)), procedures:(ctx.db.operations?.procedures||DEFAULT_PROCEDURES).map(row=>moneyAccess(ctx.user.role)?row:Object.fromEntries(Object.entries(row).filter(([key])=>key!=='fee'))), revision: ctx.data.revision, history: moneyAccess(ctx.user.role)&&roleAllows('hdValue',ctx.user.role) ? ctx.data.history : [] };
+  return { confirmBlocks: confirmBlocks(ctx), ...publicDelivery(ctx.data, computeDelivery(ctx.db, ctx.projectId, ctx.data), ctx.user, normalizePageAccess(ctx.db.operations?.pageAccess)), procedures:(ctx.db.operations?.procedures||DEFAULT_PROCEDURES).map(row=>moneyAccess(ctx.user.role)?row:Object.fromEntries(Object.entries(row).filter(([key])=>key!=='fee'))), revision: ctx.data.revision, history: moneyAccess(ctx.user.role)&&roleAllows('hdValue',ctx.user.role) ? ctx.data.history : [] };
 }
 export function getDeliveryProject(req, res) {
   try {
@@ -85,6 +93,9 @@ export function applyDeliveryMutation(ctx, body) {
     if (!overdueTask && level === 20 && current.level !== 20) assert(approvedHours > 0, 'Mức 20% cần có giờ chấm công đã được duyệt vào việc.');
     if (!overdueTask && level === 0 && current.level !== 0) assert(approvedHours === 0, 'Đã có giờ công; không thể chuyển về Chưa bắt đầu.');
     if (record.evidenceId) assert(data.evidence.some(file => file.id === record.evidenceId && file.taskId === taskId && !file.deletedAt), 'Bằng chứng không thuộc task này.');
+    // Bằng chứng phải đúng loại của mức đang lưu, nếu không sẽ không bao giờ xác nhận được (VD 100% cần văn bản chấp thuận).
+    const neededKind = requiredEvidenceKind(record), chosen = data.evidence.find(file => file.id === record.evidenceId);
+    if (neededKind && chosen) assert(chosen.kind === neededKind, `Mức ${record.level}% cần bằng chứng loại "${EVIDENCE_KIND_NAMES[neededKind]}", tệp đang chọn là "${EVIDENCE_KIND_NAMES[chosen.kind] || chosen.kind}". Hãy tải tệp đúng loại rồi chọn lại.`);
     const changed = ['level', 'evidenceId', 'sentAt', 'kind', 'approvalOnly'].some(key => record[key] !== current[key]);
     record.submittedBy = changed ? user.email : current.submittedBy || '';
     if (changed) { record.confirmedBy = ''; record.confirmedAt = ''; record.levelChangedAt = new Date().toISOString(); }
@@ -93,13 +104,13 @@ export function applyDeliveryMutation(ctx, body) {
     if (canonical) canonical.ganttNote = record.notes;
     (db.tasks || []).filter(row => row.ganttId === taskId).forEach(row => { row.ganttNote = record.notes; });
   } else if (action === 'confirm') {
-    assert(['leader', 'manager', 'director', 'admin'].includes(user.role) && canEditDeliveryTask(user, item, db), 'Bạn không có quyền xác nhận task này.');
-    assert(user.email !== current.submittedBy && !item.assignees?.some(assignment => assignment.employeeId === user.employeeId && user.employeeId), 'Không được xác nhận việc do chính mình thực hiện hoặc tự báo cáo.');
-    assert(manager || !item.assignees?.some(assignment => deliveryStore(db).users.some(person => !person.disabled && person.role === 'leader' && person.employeeId === assignment.employeeId)), 'Việc của Leader cần quản lý xác nhận.');
+    assert(canEditDeliveryTask(user, item, db), 'Bạn không có quyền xác nhận task này.');
+    const blocked = confirmBlockReason({ viewer: user, item, record: current, assigneeRoles: assigneeRolesOf(db, item) });
+    assert(!blocked, blocked);
     const statusWindow = taskStatusWindow(item, (db.tasks || []).find(task => task.ganttId === item.id), vietnamToday());
     assert(statusWindow.open, taskStatusWindowMessage(statusWindow));
     assert(current.level >= 60 && current.evidenceId, 'Cần mức từ 60% và có bằng chứng trước khi xác nhận.');
-    const requiredKind = current.level === 60 ? (current.kind === 'legal' ? 'receipt' : 'handover') : current.level === 80 ? 'feedback' : 'approval';
+    const requiredKind = requiredEvidenceKind(current);
     const evidence = data.evidence.find(file => file.id === current.evidenceId && file.taskId === taskId);
     assert(evidence?.kind === requiredKind, `Mức này cần bằng chứng loại ${requiredKind === 'receipt' ? 'Biên nhận nộp hồ sơ' : requiredKind === 'handover' ? 'Email/biên bản giao' : requiredKind === 'feedback' ? 'Văn bản góp ý/bổ sung' : 'Văn bản/email chấp thuận'}.`);
     data.records[taskId] = { ...current, confirmedBy: user.email, confirmedAt: new Date().toISOString() };

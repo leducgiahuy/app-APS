@@ -153,6 +153,16 @@ export function forgetLocalUser(email) {
   localStorage.setItem(USERS_KEY, JSON.stringify(getUsers().filter((user) => user.email !== email || user.email === DEMO_USER.email)));
 }
 
+/**
+ * Gọi API nhật ký kèm mã đăng nhập (máy chủ yêu cầu đăng nhập cho mọi /api; thiếu mã sẽ bị từ chối 401).
+ * Nạp deliveryApi lúc gọi để tránh vòng import (deliveryApi cũng dùng file này).
+ */
+async function activityRequest(method, body) {
+  const { deliveryToken } = await import('../gantt/deliveryApi');
+  const token = await deliveryToken();
+  return fetch(ACTIVITY_API, { method, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, ...(body ? { body: JSON.stringify(body) } : {}) });
+}
+
 /** Lưu nhật ký thao tác, luôn bỏ qua mật khẩu và giới hạn dung lượng ở 1.000 sự kiện. */
 export function recordActivity(action, details = '', actorEmail = '') {
   try {
@@ -168,11 +178,7 @@ export function recordActivity(action, details = '', actorEmail = '') {
       details: String(details).slice(0, 300),
     };
     localStorage.setItem(ACTIVITY_KEY, JSON.stringify([entry, ...(Array.isArray(events) ? events : [])].slice(0, 1000)));
-    fetch(ACTIVITY_API, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(entry),
-    }).catch(() => {});
+    activityRequest('POST', entry).catch(() => {});
     return entry;
   } catch (error) {
     console.warn('Không thể ghi nhật ký hoạt động:', error.message);
@@ -193,7 +199,7 @@ export function getActivityLog() {
 /** Tải nhật ký dùng chung từ backend; trả null nếu backend chưa chạy để dùng bản cục bộ. */
 export async function fetchSharedActivityLog() {
   try {
-    const response = await fetch(ACTIVITY_API);
+    const response = await activityRequest('GET');
     if (!response.ok) return null;
     const result = await response.json();
     return Array.isArray(result.data) ? result.data : null;
@@ -205,7 +211,7 @@ export async function fetchSharedActivityLog() {
 /** Xóa nhật ký tập trung trên backend khi admin yêu cầu dọn lịch sử. */
 export async function clearSharedActivityLog() {
   try {
-    const response = await fetch(ACTIVITY_API, { method: 'DELETE' });
+    const response = await activityRequest('DELETE');
     return response.ok;
   } catch {
     return false;

@@ -30,12 +30,6 @@ export function inclusiveDays(startDate, endDate) {
   return Math.floor((end - start) / 86400000) + 1;
 }
 
-export function shiftIsoDate(isoDate, days) {
-  const date = new Date(`${isoDate}T00:00:00Z`);
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().slice(0, 10);
-}
-
 export function scheduledProgress(task, hoursPerDay = 8, now = new Date(), activeCheckInAt = null) {
   if (task?.status === 'completed') return 100;
   const days = inclusiveDays(task?.startDate, task?.endDate);

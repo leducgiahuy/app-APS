@@ -35,7 +35,6 @@
 
 ## Menu Gantt và ghi chú dài — 09/10/2026
 
-- Menu ba chấm của mục công việc dùng `components/ViewportMenu.jsx`, portal vào body, đo chiều cao thực để mở lên/xuống, giữ trong mép màn hình và cuộn nội bộ khi thiếu chỗ. Vị trí cập nhật khi cuộn/resize; click ngoài và Escape vẫn đóng menu, các thao tác giữ nguyên.
 - `GanttEditableWorkCell` dùng textarea cho `ganttNote`, không đặt maxlength, tự ngắt cả chuỗi dài và cuộn để đọc toàn bộ nội dung. Enter xuống dòng, Ctrl+Enter hoặc rời ô lưu. Nút mở rộng/nhấp đúp mở khung soạn lớn với bản nháp riêng, Hủy và Lưu ghi chú; lỗi lưu giữ khung và nội dung để thử lại. Dùng chung cho mục và task hiện tại/tạo mới; trường công hợp đồng giữ input số.
 
 ## Màu lịch Gantt — 09/10/2026
@@ -48,12 +47,10 @@
 
 ## Đồng bộ chi tiết dự án với Gantt — 09/10/2026
 
-- Bảng phòng ban có thẻ nhóm, biểu tượng, số nhân sự, nhãn task/OT/công và hàng nhân sự phân cấp; giữ nguyên phép tổng hợp và thao tác mở/đóng. Biểu đồ **Task lớn theo hạng mục** lấy tên giai đoạn hiện tại qua `utils/ganttPhase.js`, đi theo ID Gantt và chuỗi nhóm cha (kể cả task con), không dùng `task.phase` cũ nếu đã xác định được nhóm Gantt. Đổi tên giai đoạn hoặc tạo nhóm/task mới tự phản ánh khi state cập nhật. `utils/ganttHierarchy.js` là hàm phân cấp dùng chung với Gantt, giữ hỗ trợ WBS cũ và giới hạn trong đúng dự án.
+- `utils/ganttHierarchy.js` là hàm phân cấp dùng chung với Gantt, giữ hỗ trợ WBS cũ và giới hạn trong đúng dự án.
 
-- Bảng **Nhân sự & giờ công** dùng `ProjectDepartmentList.jsx` để nhóm theo trường `team` hiện tại của nhân sự, có nút mở/đóng từng phòng ban. Dòng phòng ban hiển thị số task duy nhất và tổng công phân công của các thành viên; dòng nhân sự hiển thị số task duy nhất, giờ OT đã duyệt và công phân công (= giờ phân công Gantt ÷ 8). Đây là chỉ số phân công nhân sự riêng, không phải cột **Công TT** của bảng tiến độ. Task giao cho nhiều người cùng phòng chỉ tính một lần trong tổng task của phòng, nhưng công của từng phân công vẫn được cộng đủ. Nhân sự chưa có `team` nằm trong nhóm **Chưa có phòng ban**. Thêm task, đổi phòng ban hoặc xóa nhân sự tự tính lại từ dữ liệu hiện có.
 
 - `utils/ganttEffort.js` chứa công thức công phân công dùng chung cho bảng nhân sự; `GanttWorkColumns.jsx` giữ nguyên cách tính và xuất lại hàm để các nơi gọi cũ tiếp tục hoạt động.
-- `utils/projectGanttSummary.js` tổng hợp từ các hàng task lá của đúng dự án trên Gantt, gồm cả hàng chưa có task trong danh sách Phân công. Nhóm, ngày nghỉ và task cha có task con không được cộng trùng. Nhân sự hiện có được đếm theo ID duy nhất; một người có nhiều khoảng phân công vẫn được cộng đủ giờ. ID đã xóa không được ghép sang người mới trùng tên; danh sách phân công trống không khôi phục tên cũ từ task.
 - Ở bảng tiến độ, cột **Công TT** nằm giữa **Tỷ trọng** và **Sản lượng**. Task chưa hoàn thành để trống; task đã hoàn thành hiển thị `actualWorkHours ÷ 8`. Dòng task cha, nhóm và dự án cộng Công TT của các task con đã hoàn thành. OT đã duyệt và các chỉ số giờ theo bảng công vẫn giữ nguồn dữ liệu riêng để không cộng trùng.
 - Task đã hoàn thành khóa thay đổi danh sách người đảm nhận và không cho tạo task con. `GanttPage.jsx` chặn thao tác và cảnh báo ngay trên giao diện; `projectController.js` kiểm tra lại `status` của cả Gantt item lẫn task liên kết trước khi cập nhật phân công hoặc tạo task con, nên dữ liệu cũ và mọi yêu cầu API sau này dùng cùng quy tắc.
 - `DeliveryDrawer.jsx` đối chiếu mức trạng thái nhập tay với trạng thái tiến độ: task đã hoàn thành (sớm, đúng hạn hoặc muộn) chỉ nhận mức 40–100% và cảnh báo ngay nếu chọn 0%/20%; task quá hạn nhưng chưa hoàn thành nhận đủ sáu mức. `deliveryController.js` dùng lại `isTaskOverdue` và kiểm tra cả task liên kết để cưỡng chế cùng quy tắc ở API.
@@ -67,7 +64,6 @@
 - `HRPage.jsx` dùng lại `EmployeeCard.jsx` để chọn task riêng cho ca chuẩn/OT. `regularClockInDateWarning` kiểm tra ngày bắt đầu theo phân công của nhân sự mỗi lần vào văn phòng, áp dụng cả task mới; cảnh báo chưa tới ngày và giữ khả năng chọn task khác hợp lệ hôm nay.
 
 - `LoginPage.jsx`: hai nhãn trên trang đăng nhập đổi thành **QUẢN LÝ VĂN PHÒNG** và **VĂN PHÒNG ĐANG HOẠT ĐỘNG**.
-- `DashboardPage.jsx`: ô **Tổng thời gian dự án** thay ô **Công dự kiến**, dùng `inclusiveDays(startDate, endDate)` như cột Ngày của dự án trên Gantt, tính cả hai ngày đầu/cuối. Ví dụ 26/10/2026–07/06/2027 là **225 ngày**; dưới ô hiển thị hai mốc ngày, thiếu mốc ngày thì hiển thị dấu gạch.
 - Ô **Công TT theo tiến độ** cộng `actualWorkHours ÷ 8` của các task đã hoàn thành. Task chưa hoàn thành không sinh Công TT; dòng cha và nhóm chỉ tổng hợp các task con để không cộng trùng. Công DT vẫn tính theo khoảng phân công × giờ/ngày ÷ 8 và tiếp tục là nguồn của tỷ trọng.
 - Xóa nhân sự đồng bộ phân công Task/Gantt qua `employeeAssignments.js` và `models/db.js`; tải lại dữ liệu chung sau khi xóa trong `AppContext.jsx`. Tham chiếu nhân sự đã mất trong dữ liệu cũ được dọn ở lần đọc tiếp theo, giữ task và người cùng đảm nhận. Chi tiết dữ liệu đang chạy nằm trong `DATA_STORAGE.md`.
 - Ca chuẩn/OT có kiểm tra mốc giờ Việt Nam, dừng/tiếp tục ghi giờ khi nghỉ, đồng bộ phiên task với Gantt và tự kết thúc ca theo giờ được phép. Bộ kiểm thử backend hiện bao gồm các tình huống ca làm và dọn phân công khi xóa nhân sự.
@@ -96,7 +92,6 @@ aps-project-manager/
 │   │   ├── models/
 │   │   │   └── db.js                     # -> Đọc và ghi file db.json an toàn
 │   │   ├── utils/
-│   │   │   └── workSessions.js           # -> Chia phiên làm việc theo từng ngày lịch
 │   │   ├── routes/
 │   │   │   └── api.js                    # -> Định tuyến toàn bộ API endpoints
 │   │   └── server.js                     # -> File khởi động máy chủ Express (Port 5000)
@@ -118,8 +113,6 @@ aps-project-manager/
 │   │   │   │   └── TasksPage.jsx         # -> TRANG 2: Phân công công việc & Đăng ký tăng ca (2 mục rõ rệt)
 │   │   │   ├── gantt/
 │   │   │   │   └── GanttPage.jsx         # -> TRANG 3: Biểu đồ Gantt thực tế (Cột đóng băng, mũi tên FS, dải nghỉ lễ)
-│   │   │   ├── dashboard/
-│   │   │   │   └── DashboardPage.jsx     # -> TRANG 4: Bảng thống kê chi tiết các công việc trong 1 dự án
 │   │   │   ├── workload/
 │   │   │   │   └── WorkloadPage.jsx      # -> Phân bổ giờ dự kiến/thực tế theo ngày, tháng, năm
 │   │   │   └── auth/
@@ -154,7 +147,6 @@ aps-project-manager/
 | **Trang Nhân sự:** Thẻ nhân viên, số task dưới tên, định mức 8h, nút vào/ra công trường | `frontend/src/modules/hr/HRPage.jsx` |
 | **Trang Phân công:** Form tạo task, mục tăng ca (OT), đánh giá sớm/chậm | `frontend/src/modules/tasks/TasksPage.jsx` |
 | **Trang Tiến độ & Gantt:** Mũi tên liên kết FS, các giai đoạn Thiết kế/Pháp lý/Nghỉ lễ/Đấu thầu | `frontend/src/modules/gantt/GanttPage.jsx` |
-| **Trang Thống kê:** Bảng liệt kê dự án, công việc, nhân viên, thời gian hoàn thành | `frontend/src/modules/dashboard/DashboardPage.jsx` |
 | **Trang Theo dõi giờ & công việc:** Phân bổ giờ dự kiến, giờ đã ghi và công suất còn trống | `frontend/src/modules/workload/WorkloadPage.jsx` |
 | **Đăng nhập, hồ sơ và quản lý tài khoản** | `frontend/src/modules/auth/LoginPage.jsx`, `AccountPage.jsx`, `authSession.js` |
 | **Nhật ký cập nhật dữ liệu quan trọng dành cho admin** | `frontend/src/modules/auth/AdminActivityPage.jsx`, `frontend/src/modules/auth/AdminActivityPage.css`, `frontend/src/context/AppContext.jsx`, `backend/src/controllers/activityController.js` |
@@ -264,7 +256,6 @@ flowchart TD
 | Tạo/sửa dự án, task Gantt và đồng bộ sang task được giao | `backend/src/controllers/projectController.js` |
 | Đọc/ghi dữ liệu JSON | `backend/src/models/db.js`, `backend/data/db.json` |
 | Endpoint API | `backend/src/routes/api.js`; client gọi API ở `frontend/src/api.js` |
-| Phiên làm việc theo ngày | `backend/src/utils/workSessions.js`; trang phân bổ đọc `workSessions` |
 
 ### Trạng thái trễ và thời lượng dự án trên Gantt
 
@@ -316,7 +307,6 @@ flowchart TD
 - `WorkloadPage.jsx` cho xem phân bổ theo ngày, tháng hoặc năm. Admin xem và tìm nhân viên; user xem phạm vi cá nhân sau khi được ghép với hồ sơ nhân sự.
 - Giờ dự kiến được tính từ task giao trong khoảng đã chọn và giờ/ngày của task. Công suất nhân viên lấy từ `standardHours`; Thứ 2–6 tính đủ ngày, Thứ 7 tính nửa ngày, Chủ nhật không tính. Giao diện thể hiện giờ đã lên lịch, giờ trống và phần vượt định mức.
 - Ở chế độ ngày, trang hiển thị task, giờ thực tế, các phiên đã ghi và phiên đang chạy. Ở chế độ tháng/năm, user có thêm tổng hợp công trình, số task hoàn thành, tiến độ và giờ dự kiến/thực tế.
-- `workSessions.js` chia phiên làm việc qua nửa đêm thành các đoạn theo ngày lịch; các đoạn này được dùng để báo cáo giờ thực tế theo ngày. Lịch sử cũ trước khi bật ghi phiên có thể không có chi tiết giờ theo ngày.
 
 ### Lưu ý triển khai và giới hạn bảo mật
 
@@ -353,7 +343,7 @@ flowchart TD
 
 ## Shared typography
 
-All UI uses self-hosted Be Vietnam Pro (Fontsource, SIL OFL 1.1), including Vietnamese glyphs and weights 400–900. `frontend/src/styles/typography.css`, imported by `index.css`, is the source of font and size tokens. Font assets are bundled by Vite and require no Google Fonts connection. The distributed license is in `frontend/public/fonts/BeVietnamPro-LICENSE.txt`.
+All UI uses self-hosted Inter (`@fontsource/inter`, SIL OFL 1.1), including Vietnamese glyphs and weights 400–900. `frontend/src/styles/typography.css`, imported by `index.css`, is the source of font and size tokens. Font assets are bundled by Vite and require no Google Fonts connection.
 
 New components inherit the font automatically, including native form controls. Use Tailwind `text-xs` for labels (13px), `text-sm` for body text (14px), and `text-base` for section headings (16px), or the shared `--text-*` CSS variables for dense tables. Use `--text-small` (12px) for compact data and `--text-caption` (11px) for secondary details. Avoid declaring a new font family or per-theme font sizes. Numeric/code fields use the same family; use `tabular-nums` when aligned digits are needed. Compact Gantt, its drawers and forms use these tokens rather than independent pixel scales.
 
@@ -376,7 +366,7 @@ Role-specific Gantt views use `deliveryView.js` and the server-issued `viewer.ro
 
 ### Executive dashboard and project report
 
-`DashboardPage` delegates to `ExecutiveDashboard`. The protected GET/PATCH `/api/delivery/executive` endpoint derives project completion, working-calendar plan deviation, approved-hour efficiency and submission deadlines from the same `computeDelivery` and immutable monthly snapshots used by Gantt. Each project occupies one report row; the search and clipboard Report action remain. All roles can read operational project rows; financial values are removed on the server for employees/leaders, and managers receive financial values only for projects they manage. Only director/admin receive the six executive KPIs, cash forecast and automatically prioritized action queue. Role preview never grants write permission.
+The **Tổng quan** page (`modules/director-overview/DirectorOverviewPage.jsx`) reads the protected GET/PATCH `/api/delivery/executive` endpoint derives project completion, working-calendar plan deviation, approved-hour efficiency and submission deadlines from the same `computeDelivery` and immutable monthly snapshots used by Gantt. Each project occupies one report row; the search and clipboard Report action remain. All roles can read operational project rows; financial values are removed on the server for employees/leaders, and managers receive financial values only for projects they manage. Only director/admin receive the six executive KPIs, cash forecast and automatically prioritized action queue. Role preview never grants write permission.
 
 Monthly production uses locked snapshots when available, fiscal cumulative production includes only closed October–September months, and monthly productivity divides monthly production by approved person-days in that month. On-time submissions include task submission deadlines and legal-document submission events, deduplicated by linked task. Alerts, debts and current gross-margin estimates describe the current state, while progress and monthly financial results follow the selected month. Gross margin is provisional production minus recorded labor and other approved costs, not a substitute for a full cost-to-complete budget.
 
@@ -388,7 +378,7 @@ CR rows preserve existing IDs and links and add scope, department, estimated hou
 
 ## 9. Các trang vận hành mới và đường đi dữ liệu
 
-`App.jsx` lazy-load bốn trang từ `frontend/src/modules/operations`: `TimesheetsPage`, `FinancePage`, `PermissionsPage`, `DictionaryPage`. `placeholderPages.js` hiện chỉ còn là metadata điều hướng dùng chung; nội dung các trang không còn là placeholder.
+`App.jsx` lazy-load các trang vận hành từ `frontend/src/modules/operations` (VD trang giờ công `PeopleTimesheetsPage`, `PermissionsPage`). `placeholderPages.js` hiện chỉ còn là metadata điều hướng dùng chung; nội dung các trang không còn là placeholder.
 
 `OperationsCommon.jsx` cung cấp khung trang, chọn dự án/kỳ, chế độ xem vai trò, modal, table/KPI và hook `useOperations`. Hook gọi `GET /api/delivery/operations`; mọi thao tác ghi đi qua `PATCH /api/delivery/operations` với một `action`. `operationsController.js` xác thực phiên delivery, giải quyết vai trò công ty/dự án, kiểm tra ma trận và validate toàn bộ payload trước khi gọi `writeDb()`.
 

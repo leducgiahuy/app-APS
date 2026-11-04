@@ -4,8 +4,9 @@ import ModalOverlay from '../../components/layout/ModalOverlay';
 import DateInput from '../../components/DateInput';
 import EmployeeCombobox from '../../components/EmployeeCombobox';
 import SearchableSelect from '../../components/SearchableSelect';
-import { formatDateVi, inclusiveDays, scheduledProgress, isTaskOverdue, isTaskActiveOnDate, taskDelayHours, formatDelayHours, todayIsoDate } from '../../utils/date';
+import { formatDateVi, inclusiveDays, isTaskOverdue, isTaskActiveOnDate, taskDelayHours, formatDelayHours, todayIsoDate } from '../../utils/date';
 import { getGanttTaskCode } from '../../utils/taskCode';
+import { taskWorkProgress } from '../../utils/taskWorkProgress';
 import { getCurrentUser } from '../auth/authSession';
 import { taskDeliveryStatus, taskStatusWindow, taskStatusWindowMessage } from '../../utils/deliveryMetrics';
 import {
@@ -339,14 +340,16 @@ export default function TasksPage() {
               // Tìm thông tin nhân sự đảm nhận
               const assignee = employees.find(e => e.id === task.employeeId);
               const standardHours = assignee?.standardHours || 8;
-              const progress = scheduledProgress(task, standardHours, currentTime);
+              // Thanh tiến độ = giờ đã làm / (số ngày làm của task × số giờ một ngày của người đó), chạy theo phiên đang tính giờ.
+              const progress = taskWorkProgress(task, { employees, viewerEmployeeId, now: currentTime });
+              const hoursProgress = progress;
               const isOverdue = isTaskOverdue(task, currentTime);
               const taskSpeedStatus = getTaskSpeedStatus(task);
               const delayHours = taskDelayHours(task, currentTime);
               const earlyHours = Number(task.earlyHours) || 0;
               // Cập nhật trạng thái chỉ mở từ ngày bắt đầu đến khi task hoàn thành.
               const statusWindow = taskStatusWindow(task, null, todayIsoDate(currentTime));
-              const isNearDeadline = progress >= 80 && task.status !== 'completed';
+              const isNearDeadline = hoursProgress >= 80 && task.status !== 'completed';
               const progressColor = task.status === 'completed'
                 ? 'bg-emerald-500'
                 : isOverdue
@@ -555,7 +558,7 @@ export default function TasksPage() {
                     
                     {/* Thanh tiến độ */}
                     <div className="w-full sm:w-1/2 flex items-center gap-3">
-                      <span className="text-xs font-semibold text-slate-500">Tiến độ:</span>
+                      <span className="text-xs font-semibold text-slate-500" title="Giờ đã làm / (số ngày của task × giờ một ngày của người làm)">Tiến độ:</span>
                       <div className="flex-1 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}>
                         <div className={`h-full rounded-full transition-all duration-500 ${progressColor}`} style={{ width: `${progress}%` }} />
                       </div>

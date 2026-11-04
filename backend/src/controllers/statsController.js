@@ -12,7 +12,6 @@ export function getStats(req, res) {
   const tasks = db.tasks || [];
   const overtimes = db.overtimes || [];
   const projects = db.projects || [];
-  const ganttItems = db.ganttItems || [];
 
   // Thống kê nhân sự on-site
   const totalEmployees = employees.length;

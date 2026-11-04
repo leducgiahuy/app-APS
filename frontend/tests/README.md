@@ -8,10 +8,6 @@ Checks cover opening the full list, Vietnamese search without accents, STT, phas
 
 When using a headless browser, keep its temporary user-data directory outside `frontend/` so Vite does not watch browser profile files.
 
-## Project department summary
-
-Open `/tests/project-departments.html` with the frontend dev server running. The automatic fixture checks department/member task counts and effort, approved OT, collapse/expand, department changes and employee deletion. It uses only fake data and makes no backend requests. The JSON result should have `passed: true`.
-
 ## Gantt grid
 
 Run the frontend dev server, then open `/tests/gantt-grid.html`.
@@ -33,12 +29,10 @@ it uses no backend data. The preview shows April 2027, including Hung Kings Day.
 Run `node --test backend/tests/vietnam-calendar.test.js` from the project root for
 lunar dates, leap years, 2026/2027 official schedules and holiday/weekend priority.
 
-## Gantt menus and long notes
+## Gantt long notes
 
-Open `/tests/gantt-menu-note.html`. Fourteen browser assertions cover portal escape
-from clipped containers, upward/downward placement, right edge constraints,
-clickable actions, oversized menu scrolling, and multiline notes over 10,000
-characters without maxlength or truncation, opening the large editor and saving
+Open `/tests/gantt-menu-note.html`. Seven browser assertions cover multiline notes over
+10,000 characters without maxlength or truncation, opening the large editor and saving
 the complete edited text through the callback. The fixture performs no backend writes.
 
 ## Holiday/Sunday assignment confirmation
@@ -55,14 +49,6 @@ progress; `hr-shifts.test.js` checks task selection on excluded days.
 Open `/tests/delivery.html?shell` to inspect the compact Gantt workflow with the application shell, or `/tests/delivery.html` for the isolated page. The fixture covers task rows, detail drawer, legal/CR/month tabs, persistent bottom horizontal scrollbar, column presets and role-sensitive controls. It uses a mocked delivery API and does not write live project data.
 
 Open `/tests/delivery-roles.html` to compare employee, leader, manager/accounting and director views. Checks verify that employee/leader responses hide financial fields, “Chỉ việc của tôi” follows the linked employee, role preview is read-only and management controls only appear for permitted roles.
-
-## Executive dashboard
-
-Open `/tests/executive.html`. The fixture checks the six director KPIs, prioritized actions, six-month cash display, project rows and role-based financial masking. Its records are isolated examples and are not imported into `db.json`.
-
-## Operations pages
-
-Open `/tests/operations.html`. The fixture renders Giờ công, Phân quyền and Từ điển with mock operations data. Use it to check tabs, tables, approval flows, the permission picker and editable matrix notes without changing the active database.
 
 ## Workforce planning
 

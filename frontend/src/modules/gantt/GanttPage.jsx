@@ -1,10 +1,11 @@
 import ProjectWizard from '../operations/ProjectWizard';
 import ProjectImportWorkspace from './ProjectImportWorkspace';
 import { deliveryView, ownsDeliveryTask } from '../../utils/deliveryView';
+import { personalTaskChain } from '../../utils/personalTaskChain';
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useProjectDelivery } from './useProjectDelivery';
-import DeliveryRow, { DELIVERY_COLUMNS, COMPACT_KEYS, DATE_KEYS } from './DeliveryRow';
+import DeliveryRow, { DELIVERY_COLUMNS, COMPACT_KEYS } from './DeliveryRow';
 import DeliveryDrawer from './DeliveryDrawer';
 import DeliveryResources from './DeliveryResources';
 import DeliveryChartOverlay from './DeliveryChartOverlay';
@@ -212,7 +213,7 @@ export default function GanttPage() {
   const [deliveryTabChoice, setDeliveryTab] = useState(['gantt', 'legal', 'changes', 'close'].includes(reportLink?.tab) ? reportLink.tab : 'gantt');
   const [progressSectionChoice, setProgressSection] = useState('table');
   const { canSee } = usePageAccess();
-  const [tableMode, setTableMode] = useState('compact');
+  const [tableMode] = useState('compact');
   const [deliveryColumns, setDeliveryColumns] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('aps_delivery_columns_v1'));
@@ -977,6 +978,24 @@ export default function GanttPage() {
     });
   }, [dependencyRows, hierarchyGanttItems, collapsedGroupIds, collapsedTaskIds, taskCoordinates]);
 
+  // "Chỉ việc của tôi": đường nối riêng theo thứ tự việc của người xem (không phải phụ thuộc của dự án, không lưu lại).
+  // Đi từ cuối thanh việc trước tới đầu thanh việc sau; việc sau bắt đầu sớm hơn thì vòng xuống mép trên dòng việc sau.
+  const personalLines = useMemo(() => {
+    if (!onlyMine) return [];
+    return personalTaskChain(filteredGanttItems, deliveryData?.viewer?.employeeId).map(([sourceId, targetId]) => {
+      const from = taskCoordinates[sourceId], to = taskCoordinates[targetId];
+      if (!from || !to || from.isTaskAggregate || to.isTaskAggregate) return null;
+      const startX = from.endX, startY = from.centerY, endX = Math.max(to.x - 3, 0), endY = to.centerY;
+      // Đi xuống ngay sau cuối thanh (trước nhãn tên người làm ở cuối thanh + 8px) để không cắt qua chữ.
+      const exitX = startX + 4;
+      const path = endX >= exitX + 6
+        ? `M ${startX} ${startY} H ${exitX} V ${endY} H ${endX}`
+        : `M ${startX} ${startY} H ${exitX} V ${to.rowTop + 3} H ${Math.max(endX - 12, 0)} V ${endY} H ${endX}`;
+      return { key: `personal-${sourceId}->${targetId}`, path, sourceId, targetId };
+    }).filter(Boolean);
+  }, [onlyMine, filteredGanttItems, deliveryData?.viewer?.employeeId, taskCoordinates]);
+  // Bật "Chỉ việc của tôi" thì chỉ vẽ đường riêng của người xem, ẩn đường phụ thuộc của dự án cho khỏi lẫn.
+  const visibleDependencyLines = onlyMine ? [] : dependencyLines;
   const hoveredDependency = dependencyLines.find(line => line.key === hoveredDependencyKey) || null;
   useEffect(() => {
     if (!dependencyMenu) return undefined;
@@ -1503,7 +1522,6 @@ export default function GanttPage() {
     if (detailItemId && !detailItem) { setDetailItemId(null); setDetailSection(''); }
   }, [detailItemId, detailItem]);
 
-  const summary = deliveryData?.summary;
   const showIT = false;
   const refreshDeliveryMetrics = delivery.refresh;
   useEffect(() => { refreshDeliveryMetrics(); }, [ganttItems, tasks, refreshDeliveryMetrics]);
@@ -1652,7 +1670,7 @@ export default function GanttPage() {
                 onChange={event => setOnlyMine(event.target.checked)}
                 className="h-3.5 w-3.5 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
               />
-              Chỉ việc của tôi
+              <span title="Chỉ hiện việc được giao cho bạn và nối chúng theo thứ tự ngày làm (đường nét đứt xanh, riêng của bạn, không đổi tiến độ dự án)">Chỉ việc của tôi</span>
             </label>
           </div>
           
@@ -1928,6 +1946,10 @@ export default function GanttPage() {
                   >
                     <polygon points="0 0, 10 5, 0 10" fill="#ef4444" className="dark:fill-white" />
                   </marker>
+                  {/* Mũi tên đường nối riêng "Chỉ việc của tôi" */}
+                  <marker id="arrowhead-personal" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+                    <polygon points="0 0, 8 4, 0 8" fill="#0d9488" className="dark:fill-teal-300" />
+                  </marker>
                   
                   {/* Gradient cho các thanh bar */}
                   <linearGradient id="grad-sky" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -1965,7 +1987,7 @@ export default function GanttPage() {
                 />
 
                 {/* 2. HIỂN THỊ MŨI TÊN KẺ XUỐNG CÔNG VIỆC TIẾP THEO TRONG DỰ ÁN (FS Dependency) */}
-                {dependencyLines.map(line => {
+                {visibleDependencyLines.map(line => {
                   return (
                     <path
                       key={line.key}
@@ -2360,7 +2382,21 @@ export default function GanttPage() {
 
                 <DeliveryChartOverlay data={deliveryData} financial={false} items={filteredGanttItems} coordinates={taskCoordinates} rowOffsets={rowOffsets} timelineStart={timelineStart} pxPerDay={pxPerDay} width={ganttWidth} height={chartBodyHeight} now={currentTime} groupPercent={groupPercent} />
                 <g pointerEvents="none" aria-hidden="true">
-                  {dependencyLines.map(line => {
+                  {personalLines.map(line => (
+                    <path
+                      key={line.key}
+                      d={line.path}
+                      fill="none"
+                      stroke="#0d9488"
+                      strokeWidth="2"
+                      strokeDasharray="6 4"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      markerEnd="url(#arrowhead-personal)"
+                      className="dark:stroke-teal-300"
+                    />
+                  ))}
+                  {visibleDependencyLines.map(line => {
                     const isActive = hoveredDependencyKey === line.key;
                     return <path
                       key={`visible-${line.key}`}

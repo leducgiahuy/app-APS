@@ -107,7 +107,30 @@ export function taskDeliveryStatus(task = {}) {
   const level = synced ? Number(task.deliveryStatusLevel) : task.status === 'completed' ? 100 : Number(task.actualWorkHours) > 0 ? 20 : 0;
   const recognized = task.deliveryRecognized != null ? Number(task.deliveryRecognized) : level;
   const kind = DELIVERY_LABELS[task.deliveryKind] ? task.deliveryKind : 'design';
-  return { level, label: deliveryLabel({ kind, level }), awaitingConfirmation: level >= 60 && recognized < level };
+  return { level, recognized, label: deliveryLabel({ kind, level }), awaitingConfirmation: level >= 60 && recognized < level };
+}
+/** Loại bằng chứng bắt buộc của mức đang chọn: 60% = biên bản giao (pháp lý: biên nhận), 80% = góp ý, 100% = chấp thuận. */
+export const EVIDENCE_KIND_NAMES = { handover: 'Email / biên bản giao', receipt: 'Biên nhận / mã hồ sơ', feedback: 'Văn bản góp ý / bổ sung', approval: 'Văn bản / email chấp thuận', other: 'Khác' };
+export function requiredEvidenceKind(record = {}) {
+  const level = Number(record.level) || 0;
+  if (level < 60) return null;
+  return level === 60 ? (record.kind === 'legal' ? 'receipt' : 'handover') : level === 80 ? 'feedback' : 'approval';
+}
+/**
+ * Ai được xác nhận mức trạng thái của một task (dùng chung cho máy chủ và giao diện, mọi task / dự án):
+ * - chỉ Leader, Quản lý, Giám đốc, Quản trị; không ai xác nhận việc mình được giao làm;
+ * - người tự báo cáo mức không tự xác nhận, trừ Giám đốc / Quản trị (họ hay nhập hộ, và luôn phải có người gỡ được);
+ * - việc giao cho Leader cần Quản lý trở lên; việc giao cho Quản lý cần Giám đốc / Quản trị.
+ * assigneeRoles: vai trò tài khoản của từng người được giao. Trả về '' nếu được xác nhận, ngược lại là lý do.
+ */
+export function confirmBlockReason({ viewer = {}, item = {}, record = {}, assigneeRoles = [] } = {}) {
+  const role = viewer.role;
+  if (!reviewingRole(role)) return 'Chỉ Leader, Quản lý, Giám đốc hoặc Quản trị được xác nhận.';
+  if (viewer.employeeId && (item.assignees || []).some(assignment => assignment.employeeId === viewer.employeeId)) return 'Không được xác nhận việc do chính mình thực hiện.';
+  if (viewer.email && viewer.email === record.submittedBy && !['director', 'admin'].includes(role)) return 'Bạn đã báo cáo mức này nên cần người khác xác nhận.';
+  if (assigneeRoles.includes('manager') && !['director', 'admin'].includes(role)) return 'Việc của Quản lý cần Giám đốc hoặc Quản trị xác nhận.';
+  if (assigneeRoles.includes('leader') && !managingRole(role)) return 'Việc của Leader cần Quản lý trở lên xác nhận.';
+  return '';
 }
 export function recognizedLevel(record = {}) {
   if (record.freeRework || record.isChangeWork) return 0;

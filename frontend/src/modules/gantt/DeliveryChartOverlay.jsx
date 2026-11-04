@@ -1,7 +1,8 @@
 import { formatCompactMoney } from '../../utils/deliveryMetrics';
 export default function DeliveryChartOverlay({ data, financial, items, coordinates, rowOffsets, timelineStart, pxPerDay, width, height, now, groupPercent }) {
   const x = value => { const key = String(value).length > 10 && Number.isFinite(Date.parse(value)) ? new Date(Date.parse(value) + 7 * 3600000).toISOString().slice(0, 10) : String(value).slice(0, 10); return (Date.parse(`${key}T00:00:00Z`) - Date.UTC(timelineStart.getFullYear(), timelineStart.getMonth(), timelineStart.getDate())) / 86400000 * pxPerDay; };
-  const todayX = x(new Date(now.getTime() + 7 * 3600000).toISOString());
+  // x() tự đổi mốc thời gian (ISO) sang ngày giờ Việt Nam; truyền thẳng giờ hiện tại, không cộng +7 lần nữa (trước đây sau 17:00 đường hôm nay nhảy sang ngày mai).
+  const todayX = x(now.toISOString());
   const series = financial ? [...(data?.history || [])].sort((a, b) => a.at.localeCompare(b.at)) : [];
   const sumByDay = rows => [...new Set(rows.map(row => row.date))].filter(Boolean).sort().map(date => ({ date, amount: rows.filter(row => row.date <= date).reduce((sum, row) => sum + row.amount, 0) }));
   const receipts = sumByDay(data?.receipts || []);

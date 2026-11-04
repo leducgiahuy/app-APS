@@ -23,7 +23,7 @@ const FILTERS = [
 ];
 
 export default function MyWorkPage() {
-  const { tasks, employees, projects, currentTime, setActiveTab, selectDate, goToToday, refreshAllData, loading, setActiveTask, showToast } = useApp();
+  const { tasks, employees, projects, currentTime, setActiveTab, selectDate, goToToday, refreshAllData, loading, setActiveTask, showToast, permissions } = useApp();
   const [filter, setFilter] = useState('all');
   const [user] = useState(() => getCurrentUser());
   const myEmployee = useMemo(() => resolveEmployee(user, employees), [user, employees]);
@@ -97,40 +97,49 @@ export default function MyWorkPage() {
     };
 
     const task = tasks.find(record => record.id === item.recordId);
-    // Quản trị viên theo dõi việc của người khác: chỉ mở chi tiết, không bắt đầu thay họ.
-    if (!task || !myEmployee || !isTaskAssignedTo(task, myEmployee)) {
-      openTaskDetail();
-      return;
-    }
+    if (!task) { openTaskDetail(); return; }
+    // Người làm: chính mình nếu được giao task; Quản trị / Quản lý (có quyền điểm danh hộ) bấm "Làm" cho việc của người khác
+    // thì xét người được giao: ưu tiên người đang ở văn phòng, nếu không thì người đầu tiên đã tới ngày làm.
+    const assigned = employees.filter(employee => isTaskAssignedTo(task, employee));
+    const self = myEmployee && assigned.some(employee => employee.id === myEmployee.id);
+    const startedToday = employee => { const key = assignmentStartFor(task, employee); return !key || todayKey >= key; };
+    const worker = self ? myEmployee : permissions.superviseAttendance
+      ? assigned.find(employee => employee.isOnSite && !employee.isOnBreak && startedToday(employee)) || assigned.find(startedToday) || assigned[0]
+      : null;
+    if (!worker) { openTaskDetail(); return; }
+    const who = self ? 'Bạn' : worker.name;
 
-    const startKey = assignmentStartFor(task, myEmployee);
+    const startKey = assignmentStartFor(task, worker);
     if (startKey && todayKey < startKey) {
-      showToast(`Task “${task.title}” bắt đầu từ ${formatDateVi(startKey)}. Chưa đến ngày thực hiện.`, 'info');
+      showToast(`Task “${task.title}” của ${self ? 'bạn' : worker.name} bắt đầu từ ${formatDateVi(startKey)}. Chưa đến ngày thực hiện.`, 'info');
       return;
     }
 
-    if (myEmployee.activeTaskId === task.id && myEmployee.isOnSite && !myEmployee.isOnBreak) {
+    // Đã ở văn phòng và đang làm đúng task này → sang trang Công việc (đồng hồ đang chạy).
+    if (worker.activeTaskId === task.id && worker.isOnSite && !worker.isOnBreak) {
       openTaskDetail();
       return;
     }
 
-    if (!myEmployee.isOnSite || myEmployee.isOnBreak) {
-      // Chọn sẵn task rồi chuyển sang Thành viên để người dùng vào ca/tiếp tục; đồng hồ chỉ chạy sau bước đó.
-      if (myEmployee.activeTaskId !== task.id && !(await setActiveTask(myEmployee.id, task.id, myEmployee.shiftType || 'regular'))) return;
-      sessionStorage.setItem('aps-focus-employee-id', myEmployee.id);
+    // Chưa vào văn phòng / đang tạm nghỉ → chọn sẵn task rồi sang Thành viên; vào ca xong tự quay về trang Công việc.
+    if (!worker.isOnSite || worker.isOnBreak) {
+      if (worker.activeTaskId !== task.id && !(await setActiveTask(worker.id, task.id, worker.shiftType || 'regular'))) return;
+      sessionStorage.setItem('aps-focus-employee-id', worker.id);
+      sessionStorage.setItem('aps-pending-start', JSON.stringify({ employeeId: worker.id, taskId: task.id, at: Date.now() }));
       goToToday();
       setActiveTab('hr');
-      showToast(myEmployee.isOnBreak
-        ? 'Đã chọn task. Bạn đang tạm nghỉ — nhấn “Tiếp tục” để bắt đầu tính giờ.'
-        : 'Đã chọn task. Nhấn “Vào văn phòng” để bắt đầu tính giờ.', 'info');
+      showToast(worker.isOnBreak
+        ? `Đã chọn task. ${who} đang tạm nghỉ — nhấn “Tiếp tục” để bắt đầu tính giờ.`
+        : `Đã chọn task. Nhấn “Vào văn phòng” cho ${self ? 'bạn' : worker.name} để bắt đầu tính giờ.`, 'info');
       return;
     }
 
-    if (myEmployee.activeTaskId && myEmployee.activeTaskId !== task.id) {
-      const currentTitle = myEmployee.activeTaskTitle || tasks.find(record => record.id === myEmployee.activeTaskId)?.title || 'task hiện tại';
-      if (!window.confirm(`Bạn đang làm “${currentTitle}”. Tạm dừng task này và chuyển sang “${task.title}”?`)) return;
+    // Đã ở văn phòng nhưng đang làm task khác → hỏi chuyển task, rồi sang trang Công việc.
+    if (worker.activeTaskId && worker.activeTaskId !== task.id) {
+      const currentTitle = worker.activeTaskTitle || tasks.find(record => record.id === worker.activeTaskId)?.title || 'task hiện tại';
+      if (!window.confirm(`${who} đang làm “${currentTitle}”. Tạm dừng task này và chuyển sang “${task.title}”?`)) return;
     }
-    if (await setActiveTask(myEmployee.id, task.id, myEmployee.shiftType || 'regular')) openTaskDetail();
+    if (await setActiveTask(worker.id, task.id, worker.shiftType || 'regular')) openTaskDetail();
   };
 
   return (
@@ -184,7 +193,7 @@ export default function MyWorkPage() {
                 <span role="cell" className="my-work-project">{item.projectName}</span>
                 <span role="cell">{notStarted
                   ? <span className="my-work-not-started" title={`Task bắt đầu từ ${formatDateVi(startKey)}`}>Bắt đầu {startKey.slice(8, 10)}/{startKey.slice(5, 7)}</span>
-                  : <button type="button" className="my-work-action" onClick={() => openItem(item)}>{isCurrent ? 'Mở' : 'Làm'} <ArrowRight size={14} /></button>}</span>
+                  : <button type="button" className="my-work-action" onClick={() => openItem(item)}>{isCurrent || item.type === 'workflow' ? 'Mở' : 'Làm'} <ArrowRight size={14} /></button>}</span>
               </div>
             );
           })}

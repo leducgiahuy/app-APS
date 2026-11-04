@@ -1,0 +1,7 @@
+/* Khung bảng: cuộn ngang bằng thanh dính phía dưới, ẩn thanh gốc ở đáy bảng để khỏi bị hai thanh. */
+.sticky-hscroll { position: relative; }
+.sticky-hscroll-content { overflow-x: auto; overflow-y: visible; scrollbar-width: none; }
+.sticky-hscroll-content::-webkit-scrollbar { display: none; }
+/* Dính ở đáy vùng cuộn của trang, chỉ trong phạm vi chiều cao của bảng. */
+.sticky-hscroll-bar { position: sticky; bottom: 0; z-index: 5; overflow-x: auto; overflow-y: hidden; height: 16px; background: var(--sticky-hscroll-bg, #fbfaf8); border-top: 1px solid #e8e1da; }
+.dark .sticky-hscroll-bar { --sticky-hscroll-bg: #0f172a; border-top-color: #334155; }

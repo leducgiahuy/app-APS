@@ -1187,3 +1187,7 @@
 .dark .delivery-resources.delivery-resources-upgraded .delivery-total-row :is(td,th) { background:#26364a; color:#f2f6fa; border-top-color:#6f89a5; }
 .dark .delivery-resources.delivery-resources-upgraded .delivery-resource-footnote { background:#1c2531; color:#9aa6b2; border-top-color:#39424e; }
 .dark .delivery-context-inline,.dark .delivery-context-bar { border-color:#39424e; }
+
+/* Cảnh báo ngay dưới ô nhập (VD bằng chứng sai loại của mức trạng thái) */
+.delivery-error-text { display:block; margin-top:4px; color:#b91c1c; font-size:12px; font-weight:600; }
+.dark .delivery-error-text { color:#fca5a5; }

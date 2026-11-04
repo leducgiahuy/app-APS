@@ -21,11 +21,6 @@ export function accessFor(req, projectId, db = readDb()) {
   return { actor, perms: permissionsFor(actor.role, normalizePageAccess(db.operations?.pageAccess)) };
 }
 
-/** Middleware cho thao tác không gắn dự án cụ thể. */
-export function requirePermission(flag, message) {
-  return (req, res, next) => accessFor(req)?.perms[flag] ? next() : deny(res, message);
-}
-
 /** Task/Gantt có được giao cho nhân sự gắn với tài khoản này không. */
 export function assignedToActor(item, actor) {
   const employeeId = actor?.employeeId;

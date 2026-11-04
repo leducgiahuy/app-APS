@@ -295,7 +295,6 @@ export function normalizeGanttGroupHierarchy(ganttItems, tasks = []) {
 export function getGanttItems(req, res) {
   const db = readDb();
   if (normalizeGanttGroupHierarchy(db.ganttItems || [], db.tasks || [])) writeDb(db);
-  const tasksByGanttId = new Map((db.tasks || []).filter(task => task.ganttId).map(task => [task.ganttId, task]));
   const approvedOvertimes = (db.overtimes || []).filter(overtime => !overtime.status || overtime.status === 'approved');
   const data = (db.ganttItems || []).map(item => {
       const linkedTasks = (db.tasks || []).filter(task => task.ganttId === item.id);

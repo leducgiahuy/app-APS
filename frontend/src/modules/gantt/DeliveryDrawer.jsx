@@ -1,8 +1,8 @@
-import { canEditProgressTask, deliveryView, ownsDeliveryTask } from '../../utils/deliveryView';
+import { canEditProgressTask, deliveryView } from '../../utils/deliveryView';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
-import { DELIVERY_LEVELS, DELIVERY_LABELS, deliveryLabel, formatMoney, formatCompactMoney, reviewingRole, taskStatusWindow, taskStatusWindowMessage } from '../../utils/deliveryMetrics';
+import { DELIVERY_LEVELS, DELIVERY_LABELS, EVIDENCE_KIND_NAMES, requiredEvidenceKind, deliveryLabel, formatMoney, formatCompactMoney, reviewingRole, taskStatusWindow, taskStatusWindowMessage } from '../../utils/deliveryMetrics';
 import { localDateKey } from '../../utils/shift';
 import { isTaskOverdue } from '../../utils/date';
 import { shortDateTime } from './DeliveryRow';
@@ -14,7 +14,7 @@ const inputTime = value => value ? new Date(Date.parse(value) + 7 * 3600000).toI
 const isoTime = value => value ? `${value}:00+07:00` : '';
 // Ô chọn gốc không căn cột được bằng CSS: đệm khoảng trắng rộng bằng một chữ số (U+2007) để "0%", "20%", "100%" thẳng hàng.
 const levelOptionPrefix = level => `${String(level).padStart(3, ' ')}%`;
-const evidenceNames = { handover: 'Email / biên bản giao', receipt: 'Biên nhận / mã hồ sơ', feedback: 'Văn bản góp ý / bổ sung', approval: 'Văn bản / email chấp thuận', other: 'Khác' };
+const evidenceNames = EVIDENCE_KIND_NAMES;
 
 export default function DeliveryDrawer({ item, data, projectId, delivery, employees, onClose, onEdit, onAssign, onDelete, onAddSibling, onAddChild, onAddGroup, onSaveNote, readOnly, initialSection, scrollbarWidth = 0 }) {
   const { showToast } = useApp();
@@ -22,7 +22,7 @@ export default function DeliveryDrawer({ item, data, projectId, delivery, employ
   const metric = data?.taskMetrics?.[item.id];
   const [draft, setDraft] = useState(record || {});
   const draftLoaded = useRef(Boolean(record));
-  useEffect(() => { if (!draftLoaded.current && record) { setDraft(record); draftLoaded.current = true; } }, [record]);
+  useEffect(() => { if (!draftLoaded.current && record) { setDraft(record); setEvidenceKind(requiredEvidenceKind(record) || 'handover'); draftLoaded.current = true; } }, [record]);
   const [error, setError] = useState('');
   const [comment, setComment] = useState('');
   const [groupNote, setGroupNote] = useState(item.ganttNote || '');
@@ -43,7 +43,9 @@ export default function DeliveryDrawer({ item, data, projectId, delivery, employ
   const canAssign = Boolean(data?.permissions.assign);
   const canEditHeader = Boolean(data?.permissions.editProject);
   const canDeleteHeader = Boolean(data?.permissions.deleteProject);
-  const canConfirm = roleView.confirm && canEdit && !ownsDeliveryTask(data?.viewer, item) && data?.viewer.email !== record?.submittedBy;
+  // Quy tắc xác nhận do máy chủ tính cho từng task (confirmBlockReason): rỗng = người đang xem xác nhận được.
+  const confirmBlock = data?.confirmBlocks?.[item.id] ?? 'Đang tải quyền xác nhận.';
+  const canConfirm = roleView.confirm && canEdit && !confirmBlock;
   // Chỉ cập nhật trạng thái từ ngày bắt đầu đến khi hoàn thành; máy chủ kiểm tra lại cùng quy tắc.
   const statusWindow = taskStatusWindow(item, metric?.completedCount > 0 ? { status: 'completed' } : null, localDateKey());
   const statusLocked = !statusWindow.open;
@@ -61,7 +63,10 @@ export default function DeliveryDrawer({ item, data, projectId, delivery, employ
       window.alert(`Chưa thể chọn 0% · ${label} vì task đã có ${approvedHours.toLocaleString('vi-VN', { maximumFractionDigits: 1 })} giờ công được duyệt.`);
       return;
     }
-    setDraft(previous => ({ ...previous, level }));
+    // Đổi mức: bằng chứng cũ khác loại của mức mới thì bỏ chọn, ô tải tệp chuyển sẵn sang đúng loại.
+    const neededKind = requiredEvidenceKind({ ...draft, level });
+    if (neededKind) setEvidenceKind(neededKind);
+    setDraft(previous => ({ ...previous, level, evidenceId: neededKind && data.evidence.find(file => file.id === previous.evidenceId)?.kind !== neededKind ? '' : previous.evidenceId }));
   };
   const saveTaskInformation = async () => {
     const level = Number(draft.level ?? 0);
@@ -69,6 +74,8 @@ export default function DeliveryDrawer({ item, data, projectId, delivery, employ
     await delivery.mutate('task', draft, item.id);
     showToast(`Đã cập nhật thông tin task · ${level}% · ${label}`);
   };
+  const neededEvidence = requiredEvidenceKind(draft || {});
+  const wrongEvidence = Boolean(neededEvidence && draft?.evidenceId && data?.evidence.find(file => file.id === draft.evidenceId)?.kind !== neededEvidence);
   const run = async action => { try { setError(''); await action(); } catch (error) { setError(error.message); } };
   useEffect(() => { const previousFocus = document.activeElement; closeRef.current?.focus(); const escape = event => { if (event.key === 'Escape' && !event.isComposing && event.keyCode !== 229) onCloseRef.current(); }; document.addEventListener('keydown', escape); if (initialSection === 'comments') panelRef.current?.querySelector('#delivery-comments')?.scrollIntoView({ block: 'center' }); return () => { document.removeEventListener('keydown', escape); if (previousFocus?.isConnected) previousFocus.focus({ preventScroll: true }); }; }, [initialSection]);
   return createPortal(<aside ref={panelRef} className="delivery-drawer" style={{ right: scrollbarWidth }} role="complementary" aria-label={`Chi tiết ${item.title}`}><header><div><small>{item.code || 'Dự án'} · {draft.kind === 'legal' ? 'Pháp lý' : 'Thiết kế'}</small><h2>{item.title}</h2></div><button ref={closeRef} onClick={onClose} aria-label="Đóng chi tiết"><X size={17} /></button></header>
@@ -83,10 +90,10 @@ export default function DeliveryDrawer({ item, data, projectId, delivery, employ
         <label>Mức trạng thái<select className="delivery-level-select" disabled={!canEdit || statusLocked} value={draft.level ?? 0} onChange={changeLevel}>{DELIVERY_LEVELS.filter(level => overdueTask || !draft.approvalOnly || level === 0 || level === 100).map(level => <option key={level} value={level}>{levelOptionPrefix(level)} · {DELIVERY_LABELS[draft.kind || 'design'][DELIVERY_LEVELS.indexOf(level)]}</option>)}</select>{overdueTask && <small className="delivery-muted">Task quá hạn chưa hoàn thành: có thể chọn tất cả mức trạng thái.</small>}</label>
         {data.permissions.manage && <><label>Bộ môn<input disabled={readOnly || statusLocked} value={draft.department || ''} onChange={event => setDraft({ ...draft, department: event.target.value })} placeholder="Kiến trúc, kết cấu, MEP, pháp lý..." /></label><label className="delivery-checkbox"><input type="checkbox" disabled={readOnly || statusLocked} checked={Boolean(draft.approvalOnly)} onChange={event => setDraft({ ...draft, approvalOnly: event.target.checked, level: event.target.checked && draft.level !== 100 ? 0 : draft.level })} />Việc CĐT phê duyệt (chỉ 0% / 100%)</label></>}
         <label>Hạn nộp (giờ Việt Nam)<input type="datetime-local" disabled={!canEdit || !canManage || statusLocked} value={inputTime(draft.dueAt)} onChange={event => setDraft({ ...draft, dueAt: isoTime(event.target.value) })} /></label><label>Nơi nhận (CĐT / cơ quan)<input disabled={!canEdit || !canManage || statusLocked} value={draft.recipient || ''} onChange={event => setDraft({ ...draft, recipient: event.target.value })} /></label><label>Nội dung nộp<textarea disabled={!canEdit || statusLocked} rows="2" value={draft.submissionContent || ''} onChange={event => { const submissionContent = event.target.value; setDraft(previous => ({ ...previous, submissionContent })); }} /></label><label>Thực tế đã nộp<input type="datetime-local" disabled={!canEdit || statusLocked} value={inputTime(draft.sentAt)} onChange={event => setDraft({ ...draft, sentAt: isoTime(event.target.value) })} /></label>
-        <label>Bằng chứng cho mức này<select disabled={!canEdit || statusLocked} value={draft.evidenceId || ''} onChange={event => setDraft({ ...draft, evidenceId: event.target.value })}><option value="">Chưa có bằng chứng</option>{data.evidence.filter(file => file.taskId === item.id).map(file => <option key={file.id} value={file.id}>{evidenceNames[file.kind]} · {file.name}</option>)}</select></label>
+        <label>Bằng chứng cho mức này<select disabled={!canEdit || statusLocked} value={draft.evidenceId || ''} onChange={event => setDraft({ ...draft, evidenceId: event.target.value })}><option value="">Chưa có bằng chứng</option>{data.evidence.filter(file => file.taskId === item.id && (!neededEvidence || file.kind === neededEvidence || file.id === draft.evidenceId)).map(file => <option key={file.id} value={file.id}>{evidenceNames[file.kind]} · {file.name}</option>)}</select>{neededEvidence && <small className={wrongEvidence ? 'delivery-error-text' : 'delivery-muted'}>{wrongEvidence ? `Tệp đang chọn sai loại. Mức ${draft.level}% cần "${evidenceNames[neededEvidence]}": tải tệp loại này ở mục Bằng chứng bên dưới rồi chọn lại.` : `Mức ${draft.level}% cần bằng chứng loại "${evidenceNames[neededEvidence]}".`}</small>}</label>
         <label>Ghi chú<textarea rows="3" disabled={!canEdit} value={draft.notes || ''} onChange={event => { const notes = event.target.value; setDraft(previous => ({ ...previous, notes })); }} /></label>
         <div className="delivery-action-strip"><button type="submit" disabled={!canEdit || disabled}>{statusLocked ? 'Lưu ghi chú' : 'Lưu thông tin'}</button>{canReopen && <button type="button" disabled={disabled} onClick={() => { const reason = window.prompt('Lý do mở lại task (task sẽ chuyển về Đang thực hiện, giữ nguyên giờ công)'); if (reason?.trim()) run(async () => { await delivery.mutate('reopenTask', { reason }, item.id); showToast('Đã mở lại task, có thể cập nhật trạng thái.'); }); }}>↺ Mở lại task</button>}{canConfirm && !statusLocked && <button type="button" disabled={disabled || record.level < 60} onClick={() => run(() => delivery.mutate('confirm', {}, item.id))}>✓ Xác nhận mức đã lưu</button>}</div>
-        {canConfirm&&record.confirmedBy&&<button type="button" disabled={disabled} onClick={()=>{const reason=window.prompt('Lý do hủy xác nhận');if(reason)run(()=>delivery.mutate('revokeConfirmation',{reason},item.id));}}>Hủy xác nhận</button>}<p className="delivery-muted">Từ 60%: đính kèm bằng chứng đúng loại rồi nhờ người có quyền xác nhận. Không được tự xác nhận. Đổi mức/bằng chứng/thời điểm nộp sẽ yêu cầu xác nhận lại.</p>
+        {canConfirm&&record.confirmedBy&&<button type="button" disabled={disabled} onClick={()=>{const reason=window.prompt('Lý do hủy xác nhận');if(reason)run(()=>delivery.mutate('revokeConfirmation',{reason},item.id));}}>Hủy xác nhận</button>}{record?.level >= 60 && !record?.confirmedBy && !canConfirm && roleView.confirm && <p className="delivery-muted">Chưa xác nhận được: {confirmBlock}</p>}<p className="delivery-muted">Từ 60%: đính kèm bằng chứng đúng loại rồi nhờ người có quyền xác nhận. Không được tự xác nhận. Đổi mức/bằng chứng/thời điểm nộp sẽ yêu cầu xác nhận lại.</p>
       </section></form>}
       {!group && <section><h3>Bằng chứng & tệp đính kèm</h3><label>Loại bằng chứng<select value={evidenceKind} onChange={event => setEvidenceKind(event.target.value)}>{Object.entries(evidenceNames).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label className="delivery-upload">Tải tệp (tối đa 10 MB)<input type="file" disabled={!canEdit || disabled} onChange={event => { const file = event.target.files[0]; if (file) run(async () => { const id = await delivery.upload(item.id, file, evidenceKind); setDraft(previous => ({ ...previous, evidenceId: id })); }); event.target.value = ''; }} /></label>{data?.evidence.filter(file => file.taskId === item.id).map(file => <div key={file.id}><button className="delivery-file" onClick={() => run(() => deliveryApi.download(projectId, file))}>📎 {file.name} · {evidenceNames[file.kind]}</button>{canEdit&&<button disabled={disabled} onClick={()=>{const reason=window.prompt('Lý do thu hồi bằng chứng');if(reason)run(async()=>{await delivery.mutate('revokeEvidence',{reason},item.id,file.id);if(draft.evidenceId===file.id)setDraft(previous=>({...previous,evidenceId:'',confirmedBy:'',confirmedAt:''}));});}}>Thu hồi</button>}</div>)}</section>}
       {!group && <section><h3>Phân công & giờ công</h3><table><thead><tr><th>Người</th><th>Vai trò</th><th>Giờ KH</th></tr></thead><tbody>{metric?.assignments?.map((assignment, index) => <tr key={index}><td>{employees.find(employee => employee.id === assignment.employeeId)?.name || assignment.employeeName}</td><td>{data?.permissions.manage && !disabled ? <select value={draft.assignmentRoles?.[assignment.employeeId] || 'Thực hiện'} onChange={event => setDraft(previous => ({ ...previous, assignmentRoles: { ...previous.assignmentRoles, [assignment.employeeId]: event.target.value } }))}>{['Thực hiện', 'Kiểm tra chéo (KCS)', 'Duyệt gửi (QL)'].map(role => <option key={role}>{role}</option>)}</select> : record?.assignmentRoles?.[assignment.employeeId] || 'Thực hiện'}</td><td>{number(assignment.plannedHours)}h</td></tr>)}</tbody></table><p>Tổng = Công DT × 8: <b>{number((metric?.planned || 0) * 8)}h</b></p>

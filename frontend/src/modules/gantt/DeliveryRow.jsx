@@ -25,7 +25,6 @@ export const DELIVERY_COLUMNS = [
   { key: 'actions', label: 'THAO TÁC', width: 100 },
 ];
 export const COMPACT_KEYS = ['code', 'title', 'people', 'submission', 'status'];
-export const DATE_KEYS = [...COMPACT_KEYS, 'startDate', 'endDate', 'days', 'contractWork', 'duration'];
 export const shortDateTime = value => value ? new Date(value).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : '—';
 const number = value => value == null ? '—' : Number(value).toLocaleString('vi-VN', { maximumFractionDigits: 1 });
 

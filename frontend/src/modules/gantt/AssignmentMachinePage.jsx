@@ -3,6 +3,7 @@ import { assignmentWorkingDates } from '../../utils/assignmentCalendar';
 import { calendarCapacity, employeePosition, positionKey } from '../../utils/workforceForecast';
 import { calculateAssignmentHours } from '../../utils/ganttEffort';
 import { EXTERNAL_DEPARTMENTS, employeeDepartment, employeeDepartments, taskDepartments } from '../../utils/departmentCodes';
+import StickyHorizontalScroll from '../../components/StickyHorizontalScroll';
 import './AssignmentMachinePage.css';
 
 const assignmentList = (item, linkedTask) => {
@@ -116,7 +117,7 @@ export default function AssignmentMachinePage({ projectId, items, tasks, employe
     <div className="machine-panel">
       <header><b>Phân công · {projectId === 'ALL' ? 'Tất cả dự án' : 'Dự án đang chọn'}</b><small> Chọn việc rồi gán hàng loạt, hoặc đổi người trực tiếp tại từng dòng</small></header>
       <div className="machine-bulk"><span>Gán các việc đã tích cho</span><select value={bulkEmployeeId} onChange={event => setBulkEmployeeId(event.target.value)} disabled={readOnly}><option value="">Chọn người</option>{employees.map(employee => <option key={employee.id} value={employee.id}>{employee.name} · {employeeDepartment(employee) || '—'}</option>)}</select><button onClick={assignBulk} disabled={readOnly || !bulkEmployeeId || !selectedIds.length}>Gán</button></div>
-      <div className="machine-table-wrap"><table><thead><tr><th></th><th>Việc</th><th>Bộ môn</th><th>Công DT</th><th>Người làm</th><th>Nguồn</th><th>Lý do · tải trước → sau</th></tr></thead><tbody>{rows.map(row => {
+      <StickyHorizontalScroll className="machine-table-wrap"><table><thead><tr><th></th><th>Việc</th><th>Bộ môn</th><th>Công DT</th><th>Người làm</th><th>Nguồn</th><th>Lý do · tải trước → sau</th></tr></thead><tbody>{rows.map(row => {
         const employee = employees.find(person => person.id === chosenEmployeeId(row));
         const locked = row.started || Boolean(row.currentEmployee) || row.linked?.status === 'completed' || row.item.status === 'completed';
         return <tr key={row.item.id} className={row.overloaded ? 'overloaded' : ''}>
@@ -126,7 +127,7 @@ export default function AssignmentMachinePage({ projectId, items, tasks, employe
           <td><span className={`source ${row.currentEmployee ? 'kept' : 'auto'}`}>{row.currentEmployee ? 'Đang làm · giữ nguyên' : 'Máy gán'}</span></td>
           <td>{row.currentEmployee ? (row.started ? 'Việc đã bắt đầu' : 'Phân công hiện có · giữ nguyên') : `${row.beforePercent}% → ${row.afterPercent}%`}{row.overloaded && <span className="overload-label">Quá tải do thiếu người</span>}</td>
         </tr>;
-      })}</tbody></table></div>
+      })}</tbody></table></StickyHorizontalScroll>
     </div>
     <div className="machine-panel machine-load"><header><b>Tải sau phân công</b><small> Tải cập nhật theo các việc của dự án đang chọn</small></header><table><thead><tr><th>Người</th><th>Bộ môn</th><th>Tải</th><th></th></tr></thead><tbody>{loadRows.map(({ employee, percent }) => <tr key={employee.id}><td><b>{employee.name}</b></td><td><DeptBadges codes={[employeeDepartment(employee)].filter(Boolean)} /></td><td className={percent > 100 ? 'load-high' : percent >= 90 ? 'load-warn' : 'load-ok'}>{percent}%</td><td><div className="load-track"><i style={{ width: `${Math.min(100, percent)}%` }} /></div></td></tr>)}</tbody></table></div>
   </section>;

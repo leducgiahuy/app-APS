@@ -1,5 +1,5 @@
 import { Fragment,useState } from 'react';
-import { useOperations,OperationsFrame,Tabs,Card,Table,Decision,num,vnd,dateLabel,numberField } from './OperationsCommon';
+import { useOperations,OperationsFrame,Tabs,Card,Table,Decision,vnd,dateLabel,numberField } from './OperationsCommon';
 import { ChevronDown,ChevronRight } from 'lucide-react';
 import { OP_ROLES,OP_ROLE_NAMES,companyAdmin } from '../../utils/operationsDefaults';
 import TemplateEditor from './TemplateEditor';

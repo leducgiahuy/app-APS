@@ -2,8 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { Maximize2, X } from 'lucide-react';
 import ModalOverlay from '../../components/layout/ModalOverlay';
 import './GanttWorkColumns.css';
-import { calculatePlannedPersonDays } from '../../utils/ganttEffort';
-export { calculatePlannedPersonDays } from '../../utils/ganttEffort';
 export { inferGanttGroupHierarchy } from '../../utils/ganttHierarchy';
 
 
@@ -25,10 +23,6 @@ export const getGroupDescendantTasks = (groupId, items) => {
   const taskContainerIds = new Set(items.filter(item => !item.isGroup && item.parentTaskId).map(item => item.parentTaskId));
   return items.filter(item => !item.isGroup && item.status !== 'holiday' && !taskContainerIds.has(item.id) && descendantGroupIds.has(item.parentGroupId));
 };
-
-export const calculateGroupPlannedPersonDays = (groupId, items) =>
-  getGroupDescendantTasks(groupId, items)
-    .reduce((total, item) => total + calculatePlannedPersonDays(item), 0);
 
 
 export function GanttEditableWorkCell({ item, field, onSave, type = 'text', placeholder = '' }) {

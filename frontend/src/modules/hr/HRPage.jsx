@@ -26,7 +26,8 @@ export default function HRPage() {
     refreshAllData,
     showToast,
     permissions,
-    viewerEmployeeId
+    viewerEmployeeId,
+    setActiveTab
   } = useApp();
 
   // Tài khoản tạo trước khi có liên kết: admin mở trang thì tự gắn/tạo nhân sự tương ứng (chạy 1 lần)
@@ -57,6 +58,19 @@ export default function HRPage() {
     }, 120);
     return () => window.clearTimeout(timer);
   }, [focusEmployeeId, employees]);
+
+  // Đến đây từ nút "Làm" khi chưa vào văn phòng: người đó vào ca (và không tạm nghỉ) thì chuyển sang trang Công việc, mở task đã chọn.
+  useEffect(() => {
+    let pending = null;
+    try { pending = JSON.parse(sessionStorage.getItem('aps-pending-start') || 'null'); } catch { pending = null; }
+    // Chỉ còn hiệu lực trong 2 giờ: vào ca muộn hơn nhiều thì không tự chuyển trang nữa.
+    if (!pending?.employeeId || Date.now() - (Number(pending.at) || 0) > 2 * 3600000) { sessionStorage.removeItem('aps-pending-start'); return; }
+    const employee = employees.find(row => row.id === pending.employeeId);
+    if (!employee?.isOnSite || employee.isOnBreak) return;
+    sessionStorage.removeItem('aps-pending-start');
+    if (pending.taskId) sessionStorage.setItem('aps-focus-task-id', pending.taskId);
+    setActiveTab('tasks');
+  }, [employees, setActiveTab]);
 
   // Tính toán KPI nhanh
   const totalEmployees = employees.length;

@@ -8,6 +8,7 @@ import { normalizeAssignmentSchedules } from '../../../frontend/src/utils/assign
 import { clearStaleTaskSelections, resetNeverStartedTasks } from '../utils/taskStatus.js';
 import { structureFlatWbs } from '../../../frontend/src/utils/wbsStructure.js';
 import { removeOrphanRecords } from '../utils/deletionCleanup.js';
+import { dropRetiredOperations } from '../utils/operationsStore.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -57,7 +58,9 @@ export function readDb() {
           const wbsChanged = structureFlatWbs(parsed);
           // Dữ liệu cũ / bản khôi phục còn dòng của dự án, nhân sự đã xóa thì gỡ luôn.
           const orphansChanged = removeOrphanRecords(parsed);
-          if (assignmentsChanged || codesChanged || schedulesChanged || statusesChanged || selectionsChanged || wbsChanged || orphansChanged) writeDb(parsed);
+          // Dữ liệu của các trang đã bỏ (danh sách trong operationsStore.js) không giữ lại trong db.
+          const retiredChanged = dropRetiredOperations(parsed);
+          if (assignmentsChanged || codesChanged || schedulesChanged || statusesChanged || selectionsChanged || wbsChanged || orphansChanged || retiredChanged) writeDb(parsed);
           cachedDb = parsed;
           return parsed;
         }
@@ -98,6 +101,7 @@ export function readDb() {
       clearStaleTaskSelections(seedObj);
       structureFlatWbs(seedObj);
       removeOrphanRecords(seedObj);
+      dropRetiredOperations(seedObj);
       cachedDb = seedObj;
       fs.mkdirSync(path.dirname(DB_FILE), { recursive: true });
       fs.writeFileSync(DB_FILE, JSON.stringify(seedObj, null, 2), 'utf-8');
@@ -122,6 +126,7 @@ export function writeDb(data) {
     clearStaleTaskSelections(data);
     structureFlatWbs(data);
     removeOrphanRecords(data);
+    dropRetiredOperations(data);
     cachedDb = data;
     fs.mkdirSync(path.dirname(DB_FILE), { recursive: true });
     const backupDir=path.join(path.dirname(DB_FILE),'backups'),day=new Date(Date.now()+7*3600000).toISOString().slice(0,10),backupFile=path.join(backupDir,`db-${day}.json`);
