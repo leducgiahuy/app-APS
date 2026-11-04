@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { usePageAccess } from '../../context/PageAccessContext';
+import AccessScope, { useCanEdit } from '../../components/AccessScope';
 import { deliveryApi } from './deliveryApi';
 import DeliveryResourceEditor from './DeliveryResourceEditor';
 import { fiscalMonths, fiscalStart, vietnamMonth } from '../../utils/deliveryResources';
@@ -50,6 +51,8 @@ export default function DeliveryReporting({ contextBar, data, projectId, readOnl
   const { canSee } = usePageAccess();
   const views = REPORT_VIEWS.filter(([key]) => canSee(`gantt.close.${key}`));
   const view = views.some(([key]) => key === viewChoice) ? viewChoice : views[0]?.[0];
+  const scopeItem = view ? `gantt.close.${view}` : 'gantt.close';
+  const editable = useCanEdit(scopeItem);
   // Tháng báo cáo = tháng trên ô tiêu đề; Năm tài chính chọn cũng ở ô tiêu đề (chế độ 'fiscal-year').
   const { ganttMonth, setGanttHeaderMode, fiscalYear, setFiscalYear } = useApp();
   const month = `${ganttMonth.getFullYear()}-${String(ganttMonth.getMonth() + 1).padStart(2, '0')}`;
@@ -82,7 +85,8 @@ export default function DeliveryReporting({ contextBar, data, projectId, readOnl
     finally { setBusy(false); }
   };
   const run = async action => { try { await action(); } catch { /* Keep the API message visible. */ } };
-  const disabled = readOnly || busy;
+  // Thao tác theo ô ma trận của Tháng / Năm tài chính: X thì nút thao tác bị khóa và ẩn (AccessScope).
+  const disabled = readOnly || busy || !editable;
   const months = fiscalMonths(year);
   const rows = report?.projects || [];
   const monthTotals = summarizeMonth(rows);
@@ -95,8 +99,8 @@ export default function DeliveryReporting({ contextBar, data, projectId, readOnl
   const elapsed = months.filter(key => key <= vietnamMonth()).length;
   const currentBudget = budget / 12 * elapsed;
   const openPlan = () => setEditor({ title: report.permissions.approve ? 'Duyệt kế hoạch năm' : 'Lập kế hoạch năm', action: report.permissions.approve ? 'approvePlan' : 'savePlan', value: Object.fromEntries(yearRows.map(row => [row.id, row.annualPlan ?? ''])), fields: yearRows.map(row => ({ key: row.id, label: `${row.name} · kế hoạch năm (đ)`, type: 'number', min: 0 })) });
-  return <>
-    {contextBar?.(<div className="delivery-report-controls"><div className="delivery-report-switch">{views.map(([key, label]) => <button key={key} className={view === key ? 'active' : ''} onClick={() => chooseView(key)}>{label}</button>)}</div><button disabled={busy} onClick={() => run(async () => { setReport(await load()); setError(''); })}>Tải lại</button></div>, 'is-report')}
+  return <AccessScope item={scopeItem}>
+    {contextBar?.(<div className="delivery-report-controls"><div className="delivery-report-switch">{views.map(([key, label]) => <button key={key} className={view === key ? 'active' : ''} onClick={() => chooseView(key)}>{label}</button>)}</div><button data-view disabled={busy} onClick={() => run(async () => { setReport(await load()); setError(''); })}>Tải lại</button></div>, 'is-report')}
     {error && <p role="alert" className="delivery-error">{error}</p>}
     {!report && !error && <p className="delivery-empty">Đang tải báo cáo. Chưa chốt số liệu mới.</p>}
     {report && view === 'month' && <section><div className="delivery-section-heading"><div><h2>Chốt sản lượng tháng {titleMonth(month)}</h2><small>Triệu đồng · Ngày 1–3: rà soát · Ngày 5: Giám đốc duyệt và khóa</small></div><button className="delivery-primary-action" disabled={disabled || !report.permissions.approve || !rows.length || rows.every(row => row.month.status === 'closed' || row.month.fee == null)} onClick={() => run(() => execute('approveMonth'))}>Duyệt & khóa tháng</button></div><div className="delivery-overflow"><table className="delivery-month-table"><thead><tr><th>Dự án</th><th>Phí HĐ</th><th>% đầu kỳ (đã khóa)</th><th>% cuối kỳ</th><th>Sản lượng tháng</th><th>Hiệu suất giờ</th><th>Trạng thái</th><th /></tr></thead><tbody>{rows.map(row => <tr key={row.id}><td><b>{row.name}</b></td><td>{data.permissions.manage ? <button disabled={disabled} onClick={() => setEditor({ title: `Phí hợp đồng · ${row.name}`, action: 'projectSettings', projectId: row.id, revision: row.revision, value: { contractFee: (row.id === projectId ? data.settings.contractFee : row.month.fee) ?? '' }, fields: [{ key: 'contractFee', label: 'Phí hợp đồng (đ)', type: 'number', min: 0, required: true }] })}>{million(row.month.fee)} ✎</button> : million(row.month.fee)}</td><td>{percent(row.month.startCompletion)}</td><td>{percent(row.month.completion)}</td><td><b>{million(row.month.output)}</b></td><td className={row.month.efficiency >= 1 ? 'delivery-efficiency-good' : 'delivery-scope'}>{number(row.month.efficiency)}</td><td><span className={`delivery-pill ${row.month.status === 'closed' ? 'success' : 'warning'}`}>{row.month.fee == null ? 'Chưa nhập phí HĐ' : row.month.status === 'closed' ? 'Đã khóa' : row.month.status === 'reviewed' ? 'Chờ GD duyệt' : 'Chưa chốt · chờ rà soát'}</span></td><td>{row.month.status === 'closed' ? report.permissions.approve && <button disabled={disabled} onClick={() => setEditor({ title: 'Mở lại tháng đã khóa', action: 'reopenMonth', value: { projectId: row.id }, fields: [{ key: 'reason', label: 'Lý do mở lại (lưu nhật ký)', required: true, type: 'textarea' }] })}>Mở lại</button> : <button disabled={disabled || !report.permissions.review || row.month.fee == null || row.month.output == null} onClick={() => run(() => execute('reviewMonth', { projectId: row.id }))}>Rà soát</button>}</td></tr>)}<tr className="delivery-total-row"><td>Cộng</td><td>{million(monthTotals.fee)}</td><td>{percent(monthTotals.startCompletion)}</td><td>{percent(monthTotals.completion)}</td><td><b>{million(monthTotals.output)}</b></td><td>{number(monthTotals.efficiency)}</td><td /><td /></tr></tbody></table></div><p className="delivery-resource-footnote">Sản lượng tháng = sản lượng lũy kế cuối kỳ − lũy kế kỳ trước. Số đã khóa được lưu cố định; Giám đốc mở lại phải ghi lý do.</p></section>}
@@ -106,5 +110,5 @@ export default function DeliveryReporting({ contextBar, data, projectId, readOnl
       <section><div className="delivery-section-heading"><div><h2>Theo dự án</h2><small>Số nháp / chưa khóa có dấu * · Đơn vị: tỷ đồng</small></div>{report.permissions.plan && <button className="delivery-primary-action" disabled={disabled} onClick={openPlan}>{report.permissions.approve ? 'Duyệt kế hoạch năm' : 'Lập kế hoạch năm'}</button>}</div><div className="delivery-overflow"><table className="delivery-fiscal-table"><thead><tr><th>Dự án</th>{months.map(key => <th key={key}>T{Number(key.slice(5))}</th>)}<th>Lũy kế</th><th>KH năm</th><th>% đạt</th></tr></thead><tbody>{yearRows.map(row => { const value = sum(row.months.filter(entry => entry.status === 'closed').map(entry => entry.output)); return <tr key={row.id}><td><b>{row.name}</b></td>{row.months.map(entry => <td key={entry.month} className={entry.status === 'closed' ? '' : 'delivery-draft-value'}>{entry.output == null || entry.month > vietnamMonth() ? '—' : `${number(entry.output / 1e9)}${entry.status === 'closed' ? '' : '*'}`}</td>)}<td><b>{number(value / 1e9)}</b></td><td>{row.annualPlan == null ? '—' : number(row.annualPlan / 1e9)}</td><td>{row.annualPlan > 0 ? percent(value / row.annualPlan * 100) : '—'}</td></tr>; })}<tr className="delivery-total-row"><td>Cộng {data.viewer.role === 'manager' ? 'dự án phụ trách' : 'toàn công ty'}</td>{totals.map((value, index) => <td key={months[index]}>{months[index] > vietnamMonth() ? '—' : `${number(value / 1e9)}${value !== lockedTotals[index] ? '*' : ''}`}</td>)}<td>{number(locked / 1e9)}</td><td>{number(budget / 1e9)}</td><td>{budget > 0 ? percent(locked / budget * 100) : '—'}</td></tr></tbody></table></div></section>
     </>}
     {editor && <DeliveryResourceEditor {...editor} saving={busy} onClose={() => setEditor(null)} onSave={async value => { if (editor.action === 'projectSettings') { setBusy(true); try { if (editor.projectId === projectId) await onSaveSettings(value); else await deliveryApi.update(editor.projectId, { action: 'settings', value, revision: editor.revision }); setReport(await load()); } catch (failure) { setError(failure.message); if (failure.status === 409) setReport(await load()); throw failure; } finally { setBusy(false); } return; } return execute(editor.action, editor.action.includes('Plan') ? { projects: value, revision: report.plan.revision } : value); }} />}
-  </>;
+  </AccessScope>;
 }

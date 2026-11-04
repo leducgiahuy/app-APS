@@ -2263,6 +2263,7 @@ export default function GanttPage() {
       </div>
 
       </>}
+      {deliveryTab === 'new-project' && !companyPermissions.createProject && <p className="delivery-empty">Vai trò của bạn chỉ được xem mục Dự án mới / nhập HĐ: không có thao tác tạo dự án hay nhập hợp đồng.</p>}
       {deliveryTab === 'new-project' && companyPermissions.createProject && <ProjectImportWorkspace onCreated={async id => { await refreshAllData(); setSelectedProjectId(id); setDeliveryTab('gantt'); }} />}
       {deliveryTab !== 'gantt' && deliveryTab !== 'new-project' && <DeliveryResources key={`${deliveryTab}:${selectedProjectId}`} onOpenTask={openDetail} showIT={showIT} tab={deliveryTab} contextBar={(extra, variant = '') => <div className={`delivery-context-inline ${variant}`.trim()}>{projectPicker}{extra}</div>} data={deliveryData} delivery={delivery} projectId={selectedProjectId} employees={employees} items={selectedProjectItems} refreshApp={refreshAllData} readOnly={previewing} users={deliveryUsers} setUsers={setDeliveryUsers} templates={projectTemplates} setTemplates={setProjectTemplates} currentTime={currentTime} />}
       </div></div>

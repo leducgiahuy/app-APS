@@ -3,6 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { getCurrentUser } from '../auth/authSession';
 import { linkAccountsToEmployees } from '../auth/accountEmployeeSync';
 import EmployeeCard from './EmployeeCard';
+import { useCanEdit } from '../../components/AccessScope';
 import {
   Users,
   UserCheck,
@@ -13,6 +14,8 @@ import {
 } from 'lucide-react';
 
 export default function HRPage() {
+  // Ma trận: X ở "Thành Viên" = chỉ xem trạng thái ca làm, ẩn nút vào ca / tạm nghỉ / tan ca.
+  const hrEditable = useCanEdit('work-hub.hr');
   const {
     employees,
     tasks: allTasks,
@@ -214,7 +217,7 @@ export default function HRPage() {
             toggleBreak={toggleBreak}
             setActiveTask={setActiveTask}
             highlighted={emp.id === focusEmployeeId}
-            canOperate={emp.id === viewerEmployeeId || permissions.superviseAttendance}
+            canOperate={hrEditable && (emp.id === viewerEmployeeId || permissions.superviseAttendance)}
           />
         ))}
       </div>

@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import AccessScope from '../../components/AccessScope';
 import { assignmentWorkingDates } from '../../utils/assignmentCalendar';
 import { calendarCapacity, employeePosition, positionKey } from '../../utils/workforceForecast';
 import { calculateAssignmentHours } from '../../utils/ganttEffort';
@@ -108,7 +109,8 @@ export default function AssignmentMachinePage({ projectId, items, tasks, employe
   const machineCount = rows.filter(row => !row.currentEmployee && row.recommended).length;
   const overloadedCount = rows.filter(row => row.overloaded).length;
 
-  return <section className="machine-assignment">
+  // Ô "Phân công (máy gán)" là X: chỉ xem kết quả, ẩn thanh gán hàng loạt và ô đổi người.
+  return <AccessScope as="section" item="gantt.progress.assignment" editable={!readOnly} className="machine-assignment">
     <div className="machine-kpis">
       <div><span>Máy gán</span><b>{machineCount}</b><small>Việc chưa bắt đầu và việc mới</small></div>
       <div><span>Leader đã đổi</span><b>{leaderChangedIds.length}</b><small>Điều chỉnh trực tiếp trong bảng</small></div>
@@ -116,19 +118,19 @@ export default function AssignmentMachinePage({ projectId, items, tasks, employe
     </div>
     <div className="machine-panel">
       <header><b>Phân công · {projectId === 'ALL' ? 'Tất cả dự án' : 'Dự án đang chọn'}</b><small> Chọn việc rồi gán hàng loạt, hoặc đổi người trực tiếp tại từng dòng</small></header>
-      <div className="machine-bulk"><span>Gán các việc đã tích cho</span><select value={bulkEmployeeId} onChange={event => setBulkEmployeeId(event.target.value)} disabled={readOnly}><option value="">Chọn người</option>{employees.map(employee => <option key={employee.id} value={employee.id}>{employee.name} · {employeeDepartment(employee) || '—'}</option>)}</select><button onClick={assignBulk} disabled={readOnly || !bulkEmployeeId || !selectedIds.length}>Gán</button></div>
+      <div className="machine-bulk" data-edit-only><span>Gán các việc đã tích cho</span><select value={bulkEmployeeId} onChange={event => setBulkEmployeeId(event.target.value)} disabled={readOnly}><option value="">Chọn người</option>{employees.map(employee => <option key={employee.id} value={employee.id}>{employee.name} · {employeeDepartment(employee) || '—'}</option>)}</select><button onClick={assignBulk} disabled={readOnly || !bulkEmployeeId || !selectedIds.length}>Gán</button></div>
       <StickyHorizontalScroll className="machine-table-wrap"><table><thead><tr><th></th><th>Việc</th><th>Bộ môn</th><th>Công DT</th><th>Người làm</th><th>Nguồn</th><th>Lý do · tải trước → sau</th></tr></thead><tbody>{rows.map(row => {
         const employee = employees.find(person => person.id === chosenEmployeeId(row));
         const locked = row.started || Boolean(row.currentEmployee) || row.linked?.status === 'completed' || row.item.status === 'completed';
         return <tr key={row.item.id} className={row.overloaded ? 'overloaded' : ''}>
           <td><input type="checkbox" aria-label={`Chọn ${row.item.title}`} disabled={readOnly || locked} checked={selectedIds.includes(row.item.id)} onChange={event => setSelectedIds(current => event.target.checked ? [...current, row.item.id] : current.filter(id => id !== row.item.id))} /></td>
           <td><b>{row.item.code}</b> {row.item.title}</td><td><span className="dept-list"><DeptBadges codes={row.departments.length ? row.departments : [employeeDepartment(employee)].filter(Boolean)} /></span></td><td>{(row.hours / 8).toLocaleString('vi-VN', { maximumFractionDigits: 1 })}</td>
-          <td>{locked || row.currentEmployee ? <span>{row.current.length > 1 ? row.current.map(assignment => assignment.employeeName).filter(Boolean).join(', ') : employee?.name || 'Chưa phân công'}</span> : <select aria-label={`Người làm ${row.item.title}`} disabled={readOnly || savingId === row.item.id} value={overrides[row.item.id] || ''} onChange={event => assign(row, event.target.value)}><option value="">Đề xuất: {row.recommended?.name || 'Chưa có người phù hợp'}</option>{employees.map(person => <option key={person.id} value={person.id}>{person.name}</option>)}</select>}</td>
+          <td>{locked || row.currentEmployee || readOnly ? <span>{row.current.length > 1 ? row.current.map(assignment => assignment.employeeName).filter(Boolean).join(', ') : employee?.name || 'Chưa phân công'}</span> : <select aria-label={`Người làm ${row.item.title}`} disabled={readOnly || savingId === row.item.id} value={overrides[row.item.id] || ''} onChange={event => assign(row, event.target.value)}><option value="">Đề xuất: {row.recommended?.name || 'Chưa có người phù hợp'}</option>{employees.map(person => <option key={person.id} value={person.id}>{person.name}</option>)}</select>}</td>
           <td><span className={`source ${row.currentEmployee ? 'kept' : 'auto'}`}>{row.currentEmployee ? 'Đang làm · giữ nguyên' : 'Máy gán'}</span></td>
           <td>{row.currentEmployee ? (row.started ? 'Việc đã bắt đầu' : 'Phân công hiện có · giữ nguyên') : `${row.beforePercent}% → ${row.afterPercent}%`}{row.overloaded && <span className="overload-label">Quá tải do thiếu người</span>}</td>
         </tr>;
       })}</tbody></table></StickyHorizontalScroll>
     </div>
     <div className="machine-panel machine-load"><header><b>Tải sau phân công</b><small> Tải cập nhật theo các việc của dự án đang chọn</small></header><table><thead><tr><th>Người</th><th>Bộ môn</th><th>Tải</th><th></th></tr></thead><tbody>{loadRows.map(({ employee, percent }) => <tr key={employee.id}><td><b>{employee.name}</b></td><td><DeptBadges codes={[employeeDepartment(employee)].filter(Boolean)} /></td><td className={percent > 100 ? 'load-high' : percent >= 90 ? 'load-warn' : 'load-ok'}>{percent}%</td><td><div className="load-track"><i style={{ width: `${Math.min(100, percent)}%` }} /></div></td></tr>)}</tbody></table></div>
-  </section>;
+  </AccessScope>;
 }

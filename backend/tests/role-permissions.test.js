@@ -85,12 +85,16 @@ test('tạo, xóa task và đổi kế hoạch theo ô S ở Phân công (máy g
   assert.equal(allowed(guard.guardUpdateTask, 'employee', { params: { id: 't-an' }, body: { endDate: '2026-02-01' } }), false, 'nhân viên không tự dời hạn');
 });
 
-test('nhân viên chỉ cập nhật task của mình; QL/GĐ chỉ xem %', () => {
+test('nhân viên chỉ cập nhật task của mình; QL / GĐ cập nhật % theo ô S ở Tiến độ & Công của ma trận', () => {
   const note = id => ({ params: { id }, body: { actualWorkloadNotes: 'đã làm 50%' } });
   assert.equal(allowed(guard.guardUpdateTask, 'employee', note('t-an')), true);
   assert.equal(allowed(guard.guardUpdateTask, 'employee', note('t-binh')), false);
   assert.equal(allowed(guard.guardUpdateTask, 'leader', note('t-binh')), true);
-  assert.equal(allowed(guard.guardUpdateTask, 'manager', note('t-binh')), false);
+  assert.equal(allowed(guard.guardUpdateTask, 'manager', note('t-binh')), true, 'ma trận mặc định: QL cấp trung có S');
+  assert.equal(allowed(guard.guardUpdateTask, 'director', note('t-binh')), true, 'ma trận mặc định: Giám đốc có S');
+  setPageAccess({ 'gantt.progress': { values: { manager: 'X' } } });
+  assert.equal(allowed(guard.guardUpdateTask, 'manager', note('t-binh')), false, 'đổi thành X là chỉ xem');
+  setPageAccess({});
 });
 
 test('xác nhận hoàn thành: không phải nhân viên, không tự xác nhận việc của mình', () => {
@@ -150,4 +154,21 @@ test('dự án, nhân sự, chấm công', () => {
   assert.equal(allowed(guard.guardAttendance, 'employee', { params: { id: 'e-binh' } }), false);
   assert.equal(allowed(guard.guardAttendance, 'manager', { params: { id: 'e-binh' } }), true);
   assert.equal(allowed(guard.guardEditWorkforce, 'leader'), false);
+});
+
+test('thao tác theo đúng ma trận Trang & mục: S làm được, X chỉ xem — cho mọi vai trò, kể cả Giám đốc', async () => {
+  const { ruleAllows } = await import('../../frontend/src/utils/rolePermissions.js');
+  const { normalizePageAccess } = await import('../../frontend/src/utils/pageAccess.js');
+  const access = normalizePageAccess({});
+  // Mặc định: Giám đốc có S ở Duyệt giờ → duyệt / trả lại giờ được (trước đây bị chặn theo bảng quy tắc cũ "X").
+  for (const key of ['tsApproveStaff', 'tsApproveLeader', 'tsApproveManager', 'unlock']) assert.equal(ruleAllows(key, 'director', access), true, key);
+  assert.equal(ruleAllows('editStatus', 'director', access), true, 'Giám đốc cập nhật % task (S ở Tiến độ & Công)');
+  assert.equal(ruleAllows('tsApproveStaff', 'employee', access), false, 'Nhân viên không thấy mục Duyệt giờ');
+  assert.equal(ruleAllows('confirmStatus', 'employee', access), false, 'Nhân viên chỉ xem Bảng tiến độ & công: không xác nhận');
+  // Đổi ô ma trận là quyền đổi theo ngay.
+  const changed = normalizePageAccess({ 'timesheets.review': { values: { director: 'X', chiefAccountant: 'S' } } });
+  assert.equal(ruleAllows('tsApproveStaff', 'director', changed), false, 'X = chỉ xem');
+  assert.equal(ruleAllows('tsApproveStaff', 'chiefAccountant', changed), true, 'cấp S cho Kế toán trưởng là duyệt được');
+  assert.equal(permissionsFor('director', access).confirmWork, true);
+  assert.equal(permissionsFor('employee', access).confirmWork, false);
 });

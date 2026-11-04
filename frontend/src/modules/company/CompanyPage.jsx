@@ -8,6 +8,7 @@ import { dictionaryMetrics } from '../operations/dictionaryData';
 import { currentVietnamCalendarYear, vietnamHolidaysForYear } from '../../utils/vietnamCalendar';
 import './CompanyPage.css';
 import { useAccessTabs } from '../../context/PageAccessContext';
+import AccessScope, { useCanEdit } from '../../components/AccessScope';
 
 const MAIN_TABS = [[ 'policies', 'Quy định & hướng dẫn' ], [ 'reports', 'Báo cáo' ], [ 'settings', 'Cài đặt & nhập file' ]];
 const POLICY_TABS = [[ 'policies', 'Quy định công ty' ], [ 'guide', 'Hướng dẫn sử dụng' ], [ 'reads', 'Xác nhận đã đọc' ]];
@@ -65,16 +66,18 @@ function PolicySection({ api }) {
   const [search, setSearch] = useState('');
   const filtered = policies.filter(item => `${item.code} ${item.title} ${item.owner}`.toLocaleLowerCase('vi').includes(search.toLocaleLowerCase('vi')));
   const readFor = policy => api.data.policyReads?.find(row => row.email === identity && row.code === policy.code && row.version === policy.version);
+  // "Xác nhận đã đọc" là thao tác của ô Xác nhận đã đọc: X thì nút ẩn.
+  const readsEditable = useCanEdit('company.policies.reads');
   const confirmRead = policy => api.run(() => api.mutate('policyRead', { code: policy.code, version: policy.version }));
   const readCount = policies.filter(readFor).length;
 
-  return <>
+  return <AccessScope item="company.policies.reads">
     <SubTabs value={subTab} onChange={setSubTab} items={policyTabs}/>
     {subTab === 'policies' && <Card title={`Quy định công ty · ${policies.length} quy định`} subtitle="Có phiên bản, ngày hiệu lực và yêu cầu đọc lại khi ban hành phiên bản mới" actions={<label className="company-search"><Search size={15}/><input type="search" placeholder="Tìm mã hoặc tên quy định" value={search} onChange={event => setSearch(event.target.value)}/></label>}>
       <div className="company-policy-list">{filtered.map(policy => {
         const readAt = readFor(policy)?.readAt;
         return <article className="company-policy" key={policy.code}>
-          <header><div><b>{policy.code} · {policy.title}</b><span>{policy.version} · hiệu lực {policy.effective} · phụ trách: {policy.owner}</span></div>{readAt ? <span className="company-read"><CheckCircle2 size={15}/> Đã đọc</span> : <button className="primary" disabled={api.disabled} onClick={() => confirmRead(policy)}>Xác nhận đã đọc</button>}</header>
+          <header><div><b>{policy.code} · {policy.title}</b><span>{policy.version} · hiệu lực {policy.effective} · phụ trách: {policy.owner}</span></div>{readAt ? <span className="company-read"><CheckCircle2 size={15}/> Đã đọc</span> : <button className="primary" disabled={api.disabled || !readsEditable} onClick={() => confirmRead(policy)}>Xác nhận đã đọc</button>}</header>
           <ol>{policy.articles.map(article => <li key={article}>{article}</li>)}</ol>
           {readAt && <small>Xác nhận lúc {new Date(readAt).toLocaleString('vi-VN')}</small>}
         </article>;
@@ -89,7 +92,7 @@ function PolicySection({ api }) {
       ['Cuối tháng/quý', 'Đối chiếu công, sản lượng, chất lượng và các chỉ số đánh giá.']
     ].map(row => <tr key={row[0]}><td><b>{row[0]}</b></td><td>{row[1]}</td></tr>)}</Table></Card></>}
     {subTab === 'reads' && <Card title="Xác nhận đã đọc" subtitle={`${user?.name || identity} · ${readCount}/${policies.length} quy định đã xác nhận`}><Table head={['Mã', 'Quy định', 'Phiên bản', 'Hiệu lực', 'Trạng thái', 'Thời điểm xác nhận']}>{policies.map(policy => { const at = readFor(policy)?.readAt; return <tr key={policy.code}><td><b>{policy.code}</b></td><td>{policy.title}</td><td>{policy.version}</td><td>{policy.effective}</td><td>{at ? <span className="company-status ok">Đã đọc</span> : <span className="company-status warn">Chưa đọc</span>}</td><td>{at ? new Date(at).toLocaleString('vi-VN') : '—'}</td></tr>; })}</Table></Card>}
-  </>;
+  </AccessScope>;
 }
 
 const dayLabel = value => value ? new Date(value).toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }) : '—';
@@ -141,7 +144,7 @@ function ImportPanel({ api }) {
     anchor.href = url; anchor.download = `APS_${type}_mau.csv`; anchor.click(); URL.revokeObjectURL(url);
   };
   return <Card title="Nhập file dùng chung" subtitle="Máy kiểm tra loại file và lưu dấu lần nhập gần nhất; dùng đúng mẫu trước khi nhập">
-    <div className="company-imports">{importTypes.map(([type, title, detail]) => { const current = imports[type]; return <article key={type}><FileSpreadsheet size={22}/><div><b>{title}</b><span>{detail}</span>{current && <small>Đã nhận: {current.name} · {new Date(current.updatedAt).toLocaleString('vi-VN')}</small>}</div><div className="company-import-actions"><button onClick={() => downloadTemplate(type)}><Download size={14}/> Tải mẫu</button><label><Upload size={14}/> Nhập file<input type="file" accept=".xlsx,.xls,.csv,.pdf" onChange={event => saveFile(type, event.target.files?.[0])}/></label></div></article>; })}</div>
+    <div className="company-imports">{importTypes.map(([type, title, detail]) => { const current = imports[type]; return <article key={type}><FileSpreadsheet size={22}/><div><b>{title}</b><span>{detail}</span>{current && <small>Đã nhận: {current.name} · {new Date(current.updatedAt).toLocaleString('vi-VN')}</small>}</div><div className="company-import-actions"><button onClick={() => downloadTemplate(type)}><Download size={14}/> Tải mẫu</button><label data-edit-only><Upload size={14}/> Nhập file<input type="file" disabled={api.disabled} accept=".xlsx,.xls,.csv,.pdf" onChange={event => saveFile(type, event.target.files?.[0])}/></label></div></article>; })}</div>
   </Card>;
 }
 
@@ -175,14 +178,20 @@ function DictionaryPanel() {
 function SettingsSection({ api }) {
   const [subTabChoice, setSubTab] = useState('imports');
   const [settingTabs, subTab] = useAccessTabs(SETTING_TABS, subTabChoice, key => `company.settings.${key}`);
+  // Ô ma trận của mục con đang xem: X thì nút thao tác bị khóa và ẩn; nội dung vẫn hiện để xem.
+  const scopeItem = subTab ? `company.settings.${subTab}` : 'company.settings';
+  const editable = useCanEdit(scopeItem);
+  const scopedApi = editable ? api : { ...api, disabled: true, data: api.data && { ...api.data, readOnly: true } };
   return <>
     <SubTabs value={subTab} onChange={setSubTab} items={settingTabs}/>
-    {subTab === 'imports' && <ImportPanel api={api}/>}
-    {subTab === 'matrix' && <Matrix api={api}/>} 
+    <AccessScope item={scopeItem}>
+    {subTab === 'imports' && <ImportPanel api={scopedApi}/>}
+    {subTab === 'matrix' && <Matrix api={scopedApi}/>} 
     {subTab === 'calendar' && <CalendarPanel/>}
-    {subTab === 'params' && <Params key={api.mutationVersion} api={api}/>} 
+    {subTab === 'params' && <Params key={api.mutationVersion} api={scopedApi}/>} 
     {subTab === 'dictionary' && <DictionaryPanel/>}
     {subTab === 'rules' && <Card title="Quy tắc chung áp dụng cho mọi màn hình"><Table head={['Quy tắc', 'Nội dung']}>{commonRules.map(([name, detail]) => <tr key={name}><td><b>{name}</b></td><td>{detail}</td></tr>)}</Table></Card>}
+    </AccessScope>
   </>;
 }
 

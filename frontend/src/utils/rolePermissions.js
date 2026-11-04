@@ -12,6 +12,38 @@ import { pageAccessAllows } from './pageAccess.js';
 export const LEVEL_ROLES = OP_ROLES;
 export const roleFromLevel = level => LEVEL_ROLES.includes(level) ? level : 'employee';
 
+/**
+ * Quy tắc nào do ô nào của ma trận "Trang & mục" quyết định. Có ma trận thì ô ma trận là nơi quyết định duy nhất:
+ * S = được thao tác, X = chỉ xem, — = ẩn (sửa ma trận là có hiệu lực ngay cho mọi vai trò, kể cả Giám đốc).
+ * Phần quy trình ma trận không thể hiện vẫn giữ ở chỗ khác: không tự duyệt / tự xác nhận việc của mình,
+ * nhân viên chỉ sửa việc của mình, Leader duyệt giờ nhóm mình, ai duyệt làm thêm giờ, các bước duyệt chi tiền.
+ */
+export const RULE_PAGE_ITEMS = {
+  progress: 'gantt.progress.table',
+  projectInfo: 'gantt.new-project',
+  scope: 'gantt.progress.table',
+  confirmStatus: 'gantt.progress.table',
+  assign: 'gantt.progress.assignment',
+  editStatus: 'gantt.progress',
+  newProject: 'gantt.new-project',
+  milestones: 'gantt.close',
+  payment: 'gantt.close',
+  tsSubmit: 'timesheets.mine',
+  tsApproveStaff: 'timesheets.review',
+  tsApproveLeader: 'timesheets.review',
+  tsApproveManager: 'timesheets.review',
+  unlock: 'timesheets.review',
+  otRegister: 'timesheets.ot',
+};
+
+/** Quy tắc vai trò có cho phép không: theo ma trận nếu quy tắc gắn với một mục và đã có ma trận, ngược lại theo quy tắc cố định. */
+export function ruleAllows(key, role, pageAccess = null, mode = 'write') {
+  if (role === 'admin') return true;
+  const item = RULE_PAGE_ITEMS[key];
+  if (item && pageAccess) return pageAccessAllows(pageAccess, item, role, mode);
+  return roleAllows(key, role, mode);
+}
+
 function cell(key, role) {
   return ROLE_RULES.find(row => row.key === key)?.values?.[role] || '—';
 }
@@ -35,7 +67,7 @@ export function canApprove(key, role) {
 export function permissionsFor(role, pageAccess = null) {
   const r = role === 'admin' || LEVEL_ROLES.includes(role) || ['accountant', 'chiefAccountant'].includes(role) ? role : 'employee';
   const read = key => roleAllows( key, r, 'read');
-  const write = key => roleAllows( key, r, 'write');
+  const write = key => ruleAllows(key, r, pageAccess, 'write');
   return {
     role: r,
     // A. Dự án
@@ -49,7 +81,7 @@ export function permissionsFor(role, pageAccess = null) {
     assignTasks: pageAccess ? pageAccessAllows(pageAccess, 'gantt.progress.assignment', r, 'write') : write('assign') && !ownOnly('assign', r),
     updateProgress: write('editStatus'),
     updateOwnProgressOnly: ownOnly('editStatus', r),
-    confirmWork: canApprove('confirmStatus', r),
+    confirmWork: pageAccess ? ruleAllows('confirmStatus', r, pageAccess) : canApprove('confirmStatus', r),
     // C. Giờ công
     registerOvertime: write('otRegister'),
     registerOwnOvertimeOnly: !canApprove('otRegister', r) && !/Đề xuất/.test(cell('otRegister', r)),

@@ -85,6 +85,9 @@ export function projectBlueprint(db,input,user){
   allocations.push({taskId:item.id,title:item.title,position,employeeId:parts.find(part=>part.employeeId)?.employeeId||'',employeeName,parts,hours:item.estimatedHours,dailyHours:item.assignees[0]?.estimatedHoursPerDay||0,load:loads.length?Math.max(...loads):null,overloaded:missing.length>0||loads.some(value=>value>100),missingHours:parts.reduce((sum,part)=>sum+part.missingHours,0)});
  }
  const totalHours=allocations.reduce((sum,a)=>sum+a.hours,0);project.contractWork=totalHours/8;
+ // Dự toán (công) của từng task = số công của hạng mục trong file hợp đồng / mẫu, chốt lúc sinh dữ liệu.
+ // Sau này dời lịch hay đổi giờ làm thì "Dự báo" đổi theo, còn "Dự toán" giữ đúng hợp đồng; cộng các task = dự toán dự án.
+ for(const allocation of allocations){const item=items.find(t=>t.id===allocation.taskId);if(item)item.contractWork=allocation.hours/8;}
  const rateCard=(db.operations?.params?.rateCard||[]).filter(r=>r.status==='approved'&&r.effectiveFrom<=input.startDate),rateFor=id=>rateCard.filter(r=>r.grade===db.employees?.find(e=>e.id===id)?.grade).sort((a,b)=>a.effectiveFrom.localeCompare(b.effectiveFrom)).at(-1)?.amount;
  const laborParts=allocations.flatMap(a=>a.parts),laborKnown=laborParts.every(p=>rateFor(p.employeeId)!=null),labor=laborKnown?laborParts.reduce((sum,p)=>sum+p.hours*rateFor(p.employeeId),0):null;
  const lines=Array.from({length:9},(_,i)=>({group:i+1,amount:input.budgetLines?.[i]?.amount!=null?nonnegative(input.budgetLines[i].amount):i===0?labor??0:fee*Number(template?.budgetPercents?.[i]||0)/100,hours:i===0?totalHours:0}));

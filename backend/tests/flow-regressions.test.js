@@ -74,8 +74,9 @@ test('uncompleted approved hours do not silently reduce project remaining work',
   const metric = computeDelivery(db, 'p', data, new Date('2026-10-03T00:00:00Z')).taskMetrics.active;
   assert.equal(metric.actual, 1);
   assert.equal(metric.completedActual, null);
-  assert.equal(metric.forecastWork, 2);
-  assert.equal(metric.remainingWork, 2);
+  // Dự báo = công đã dùng (1) + công kế hoạch (2) × (100% − 20% đang làm) = 2,6; Còn lại không bị trừ vì cột Thực tế còn trống.
+  assert.equal(metric.forecastWork, 2.6);
+  assert.equal(metric.remainingWork, 2.6);
 });
 
 test('displayed child weights add up exactly to the displayed parent weight', () => {

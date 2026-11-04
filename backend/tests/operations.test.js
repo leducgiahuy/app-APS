@@ -70,6 +70,9 @@ test('weekly hours, role approval, budget, payment and accounting imports persis
   let r=await mutate('saveWeek',{week,entries:[entry]},undefined,'employee');assert.equal(r.status,200);let entryId=r.data.entries[0].id;
   r=await mutate('submitWeek',{week,entries:[{...entry,id:entryId}]},undefined,'employee');assert.equal(r.data.entries[0].status,'submitted');
   assert.equal((await mutate('reviewHours',{status:'approved'},entryId,'employee')).status,403);assert.equal((await mutate('saveWeek',{week,entries:[entry]},undefined,'employee')).status,400);
+  // Giám đốc có toàn quyền: duyệt / trả lại được giờ nhân viên (trước đây bị chặn 'Vai trò trên dự án không được phép...').
+  assert.equal((await mutate('reviewHours',{status:'returned',reason:'Bổ sung mô tả'},entryId,'director')).status,200);
+  r=await mutate('submitWeek',{week,entries:[{...entry,id:entryId}]},undefined,'employee');assert.equal(r.data.entries[0].status,'submitted');
   assert.equal((await mutate('reviewHours',{status:'approved'},entryId,'leader')).status,200);
   assert.equal((await mutate('otRequest',{taskId:'t',date:day,hours:2,reason:'Hoàn thiện'},undefined,'employee')).status,200);r=await call(`/operations?week=${week}`,'GET',undefined,tokens.employee);const ot=r.data.otRequests[0];
   assert.equal((await mutate('otDecision',{status:'approved'},ot.id,'employee')).status,403);assert.equal((await mutate('otDecision',{status:'approved'},ot.id,'leader')).status,200);assert.equal((await mutate('otDecision',{status:'approved'},ot.id,'manager')).status,200);

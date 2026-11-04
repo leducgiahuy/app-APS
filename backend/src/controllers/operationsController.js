@@ -11,6 +11,7 @@ import { DEFAULT_PARAMS,OP_ROLES,companyAdmin,roleAllows } from '../../../fronte
 import { computeDelivery,projectDeliveryItems } from '../../../frontend/src/utils/deliveryMetrics.js';
 import { ownsDeliveryTask } from '../../../frontend/src/utils/deliveryView.js';
 import { PAGE_ACCESS_CODES,PAGE_ACCESS_ITEMS,normalizePageAccess } from '../../../frontend/src/utils/pageAccess.js';
+import { ruleAllows } from '../../../frontend/src/utils/rolePermissions.js';
 import { emptyDeliveryProject } from './deliveryController.js';
 
 const ensure=(condition,message,status=400)=>{if(!condition)throw Object.assign(new Error(message),{status});};
@@ -20,7 +21,7 @@ const number=(value,max=1e15)=>{ensure(value!=='' && value!=null && Number.isFin
 const money=value=>{const n=number(value);ensure(Number.isInteger(n),'Tiền phải là số nguyên đồng.');return n;};
 const self=(user,row)=>user.email===row.createdBy || Boolean(user.employeeId && row.employeeId===user.employeeId);
 const requireRole=(user,roles)=>ensure(companyAdmin(user.role)||roles.includes(user.role),'Bạn không có quyền thực hiện thao tác này.',403);
-const permission=(ops,actor,key)=>ensure(roleAllows(key,actor.role,'write'),'Vai trò trên dự án không được phép thực hiện chức năng này.',403);
+const permission=(ops,actor,key)=>ensure(ruleAllows(key,actor.role,normalizePageAccess(ops.pageAccess),'write'),'Vai trò trên dự án không được phép thực hiện chức năng này.',403);
 function dataFor(db,id){db.delivery ||= {projects:{}};db.delivery.projects ||= {};db.delivery.projects[id] ||= emptyDeliveryProject();return db.delivery.projects[id];}
 function recordProject(db,id){const data=dataFor(db,id);data.revision=(data.revision||0)+1;const metrics=computeDelivery(db,id,data);data.history ||= [];data.history.push({at:new Date().toISOString(),completion:metrics.summary.completion,output:metrics.summary.output,earned:metrics.summary.totalEarned,efficiency:metrics.summary.efficiency,fee:data.settings.contractFee,taskMetrics:metrics.taskMetrics});}
 function flowStep(role,label){return {role,label,status:'pending'};}
@@ -65,7 +66,8 @@ export function mutateOperations(req,res){
    const code=text(value.code),version=text(value.version);ensure(/^QD-\d{2}$/.test(code)&&version.length>0&&version.length<=30,'Quy định hoặc phiên bản không hợp lệ.');
    ops.policyReads ||= [];const old=ops.policyReads.find(row=>row.email===user.email&&row.code===code&&row.version===version);changed={id:old?.id||randomUUID(),email:user.email,code,version,readAt:at};if(old)Object.assign(old,changed);else ops.policyReads.push(changed);
   }else if(action==='companyImport'){
-   requireRole(user,[]);const type=text(value.type),name=text(value.name);ensure(['personnel','quotation','calendar','policies','procedures'].includes(type)&&name&&name.length<=255,'Thông tin file nhập không hợp lệ.');
+   // Ai được nhập file do ô S ở Công ty → Cài đặt → Nhập file quyết định (kiểm tra ở pageAccessGuard).
+   const type=text(value.type),name=text(value.name);ensure(['personnel','quotation','calendar','policies','procedures'].includes(type)&&name&&name.length<=255,'Thông tin file nhập không hợp lệ.');
    ops.companyImports ||= [];const old=ops.companyImports.find(row=>row.type===type);changed={id:old?.id||randomUUID(),type,name,size:number(value.size||0,100000000),status:'received',...stamp(user)};if(old)Object.assign(old,changed);else ops.companyImports.push(changed);
   }else if(action==='procedures'){
    requireRole(user,[]);ensure(Array.isArray(value.rows)&&value.rows.length<=100,'Danh mục thủ tục không hợp lệ.');const keys=new Set();ops.procedures=value.rows.map(row=>{ensure(text(row.procedureKey)&&!keys.has(row.procedureKey)&&text(row.title),'Mỗi thủ tục cần khóa duy nhất và tên.');keys.add(row.procedureKey);return {procedureKey:text(row.procedureKey),title:text(row.title),authority:text(row.authority),processingTime:text(row.processingTime),taskCodes:Array.isArray(row.taskCodes)?row.taskCodes.map(text):[],...(row.fee!=null?{fee:money(row.fee)}:{})};});
@@ -85,8 +87,8 @@ export function mutateOperations(req,res){
    requireRole(user,[]);ensure(text(value.name)&&Array.isArray(value.items)&&value.items.length<=1000,'Cần tên và danh sách công việc của mẫu.');const seen=new Set();const items=value.items.map(item=>{ensure(text(item.id)&&!seen.has(item.id)&&text(item.title),'Task cần ID duy nhất và tên.');seen.add(item.id);return {...item,startOffset:number(item.startOffset||0,3650),endOffset:number(item.endOffset||0,3650),estimatedHours:number(item.estimatedHours||0)};});for(const item of items)ensure(item.endOffset>=item.startOffset&&(!item.parentTaskId||seen.has(item.parentTaskId))&&(!item.parentGroupId||seen.has(item.parentGroupId)),'Lịch / nhóm cha của mẫu không hợp lệ.');
    const store=db.delivery;let old=store.templates.find(t=>t.id===id);if(id===DEFAULT_PROJECT_TEMPLATE.id&&!old){old=structuredClone(DEFAULT_PROJECT_TEMPLATE);store.templates.push(old);}ensure(!id||old,'Mẫu không tồn tại.');changed={...(old||{}),id:old?.id||randomUUID(),name:text(value.name),baseArea:number(value.baseArea||0),items,budgetPercents:value.budgetPercents||[],milestones:value.milestones||[],scopeOptions:value.scopeOptions||[],...stamp(user)};if(old)Object.assign(old,changed);else store.templates.push(changed);
   }else if(action==='pageAccess'){
-   // Ma trận "Trang & mục": chỉ Giám đốc / Admin sửa; mỗi ô là X, S hoặc —.
-   requireRole(user,[]);ensure(value.rows&&typeof value.rows==='object'&&!Array.isArray(value.rows),'Ma trận trang & mục không hợp lệ.');
+   // Ma trận "Trang & mục": ai sửa được do chính ô S ở Công ty → Cài đặt → Ma trận quyền (kiểm tra ở pageAccessGuard); mỗi ô là X, S hoặc —.
+   ensure(value.rows&&typeof value.rows==='object'&&!Array.isArray(value.rows),'Ma trận trang & mục không hợp lệ.');
    ensure(Object.keys(value.rows).every(key=>PAGE_ACCESS_ITEMS.some(entry=>entry.key===key)),'Có mục không thuộc web.');
    for(const row of Object.values(value.rows)){ensure(OP_ROLES.every(role=>row?.values?.[role]==null||PAGE_ACCESS_CODES.some(option=>option.code===row.values[role])),'Ô quyền chỉ nhận X, S hoặc —.');ensure(text(row?.note).length<=1000,'Ghi chú ma trận không được vượt quá 1.000 ký tự.');}
    const current=normalizePageAccess(ops.pageAccess);
@@ -127,7 +129,7 @@ export function mutateOperations(req,res){
     data.revision=(data.revision||0)+1;
    }
    if(action==='submitWeek'){
-    for(const project of db.projects){const data=db.delivery?.projects?.[project.id];if(!data)continue;const a=projectActor(db,user,project.id);if(!a||!roleAllows('tsSubmit',a.role,'write'))continue;data.timesheets.filter(row=>row.source==='weekly'&&row.employeeId===user.employeeId&&row.date>=week&&row.date<=end&&row.hours>0&&['draft','returned'].includes(row.status)).forEach(row=>Object.assign(row,{status:'submitted',submittedAt:at}));}
+    for(const project of db.projects){const data=db.delivery?.projects?.[project.id];if(!data)continue;const a=projectActor(db,user,project.id);if(!a||!ruleAllows('tsSubmit',a.role,normalizePageAccess(ops.pageAccess),'write'))continue;data.timesheets.filter(row=>row.source==='weekly'&&row.employeeId===user.employeeId&&row.date>=week&&row.date<=end&&row.hours>0&&['draft','returned'].includes(row.status)).forEach(row=>Object.assign(row,{status:'submitted',submittedAt:at}));}
    }
   }else if(action==='reviewHours'){
    const all=allSheets(db),entry=all.find(row=>row.id===id&&row.projectId===projectId);ensure(entry,'Dòng giờ không tồn tại.');

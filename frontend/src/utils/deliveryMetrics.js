@@ -35,6 +35,28 @@ export function forecastWork(budgetedWork, actualWork, level = 0) {
   if (progress >= 20) return Math.max(budgeted, actual * 2);
   return budgeted;
 }
+/**
+ * Dự báo khi xong của một task = công thực tế + công còn lại theo mức trạng thái (dùng chung cho bảng Gantt, Tổng quan, báo cáo):
+ * - đã hoàn thành: công thực tế đã ghi nhận lúc xong (không có giờ nào thì coi như đúng kế hoạch);
+ * - chưa hoàn thành: công đã dùng (giờ đã duyệt) + công kế hoạch × (100% − mức trạng thái).
+ * Công kế hoạch lấy theo lịch / phân công, nên task có lịch dài hơn dự toán báo vượt ngay từ khi chưa làm.
+ */
+export function taskForecastWork({ planned = 0, spent = 0, level = 0, completed = false, completedActual = null } = {}) {
+  const plan = Math.max(0, Number(planned) || 0);
+  const progress = Math.min(100, Math.max(0, Number(level) || 0));
+  if (completed || progress >= 100) { const actual = Math.max(0, Number(completed ? completedActual ?? spent : spent) || 0); return actual > 0 ? actual : plan; }
+  return Math.max(0, Number(spent) || 0) + plan * (100 - progress) / 100;
+}
+
+/** Màu của Chênh lệch theo %: xanh ≤ 5% (kể cả dưới dự toán), vàng 5–10%, đỏ > 10%. Chênh quá nhỏ (|chênh| < 0,05 công) để trung tính. */
+export function varianceTone(varianceWork, variancePercent) {
+  const variance = Number(varianceWork);
+  if (varianceWork == null || !Number.isFinite(variance) || Math.abs(variance) < 0.05) return '';
+  const percent = Number(variancePercent);
+  if (variancePercent == null || !Number.isFinite(percent)) return variance > 0 ? 'danger' : 'good';
+  return percent > 10 ? 'danger' : percent > 5 ? 'warning' : 'good';
+}
+
 export function workComparison(budgetedWork, actualWork, level = 0, forecastedWork = null) {
   const budgeted = Math.max(0, Number(budgetedWork) || 0);
   const actual = Math.max(0, Number(actualWork) || 0);
@@ -196,7 +218,9 @@ export function computeDelivery(db, projectId, data = {}, now = new Date()) {
     // Work-comparison columns use recognized actual work only. Approved hours
     // remain available in `actual` for timesheet efficiency, but must not
     // silently reduce Remaining while the Actual column is still empty.
-    const comparison = workComparison(budgetedWork, completedActual ?? 0, record.level, planned);
+    // Dự báo theo taskForecastWork; Còn lại = Dự báo − Thực tế (cột Thực tế chỉ tính task đã xong), nên Dự báo = Thực tế + Còn lại.
+    const forecast = taskForecastWork({ planned, spent: actualHours / 8, level: record.level, completed: item.status === 'completed', completedActual });
+    const comparison = workComparison(budgetedWork, completedActual ?? 0, record.level, forecast);
     const recognized = recognizedLevel(record);
     const earned = planned * recognized / 100;
     const weight = record.freeRework ? 0 : Number.isFinite(Number(data.lockedWeights?.[item.id])) && data.lockedWeights?.[item.id] != null ? Number(data.lockedWeights[item.id]) : data.settings?.contractLocked ? 0 : totalPlanned ? planned / totalPlanned : 0;

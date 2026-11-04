@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useCanEdit } from '../../components/AccessScope';
 import { useApp } from '../../context/AppContext';
 import ModalOverlay from '../../components/layout/ModalOverlay';
 import DateInput from '../../components/DateInput';
@@ -57,11 +58,15 @@ export default function TasksPage() {
     addOvertime,
     reviewOvertime,
     deleteOvertime,
-    canReviewWork,
-    permissions,
+    canReviewWork: appCanReviewWork,
+    permissions: appPermissions,
     viewerEmployeeId,
     setActiveTab
   } = useApp();
+  // Ma trận: X ở "Tiến độ" = chỉ xem; ẩn mọi nút cập nhật %, xác nhận, giao / xóa task, đăng ký và duyệt làm thêm giờ.
+  const tasksEditable = useCanEdit('work-hub.tasks');
+  const permissions = tasksEditable ? appPermissions : { ...appPermissions, updateProgress: false, assignTasks: false, registerOvertime: false, approveOvertime: false };
+  const canReviewWork = tasksEditable && appCanReviewWork;
   // Quyền theo ma trận: task "của mình" là task giao cho nhân sự gắn với tài khoản đang đăng nhập.
   const isOwnTask = task => Boolean(viewerEmployeeId) && (task.employeeId === viewerEmployeeId ||
     (Array.isArray(task.assignees) && task.assignees.some(row => row?.employeeId === viewerEmployeeId)));
@@ -732,7 +737,7 @@ export default function TasksPage() {
                           </button>
                         </>
                       )}
-                      {(permissions.approveOvertime || (ot.status === 'pending' && ot.employeeId === viewerEmployeeId)) && (
+                      {(permissions.approveOvertime || (tasksEditable && ot.status === 'pending' && ot.employeeId === viewerEmployeeId)) && (
                         <button
                           type="button"
                           onClick={() => deleteOvertime(ot.id)}

@@ -8,6 +8,7 @@ import { formatDateVi } from '../../utils/date';
 import { localDateKey, matchesEmployee } from '../../utils/shift';
 import { buildMyWorkItems, compareMyWorkItems, myWorkSummary } from './myWork';
 import './MyWorkPage.css';
+import { useCanEdit } from '../../components/AccessScope';
 
 // Ngày bắt đầu của chính người dùng: ưu tiên khoảng phân công riêng, sau đó mới tới ngày của task.
 function assignmentStartFor(task, employee) {
@@ -24,6 +25,8 @@ const FILTERS = [
 
 export default function MyWorkPage() {
   const { tasks, employees, projects, currentTime, setActiveTab, selectDate, goToToday, refreshAllData, loading, setActiveTask, showToast, permissions } = useApp();
+  // Ma trận: X ở "Việc của tôi" = chỉ xem; nút "Làm" (chọn việc, vào ca) thành "Mở" chỉ để xem chi tiết.
+  const myWorkEditable = useCanEdit('work-hub.my-work');
   const [filter, setFilter] = useState('all');
   const [user] = useState(() => getCurrentUser());
   const myEmployee = useMemo(() => resolveEmployee(user, employees), [user, employees]);
@@ -97,7 +100,7 @@ export default function MyWorkPage() {
     };
 
     const task = tasks.find(record => record.id === item.recordId);
-    if (!task) { openTaskDetail(); return; }
+    if (!task || !myWorkEditable) { openTaskDetail(); return; }
     // Người làm: chính mình nếu được giao task; Quản trị / Quản lý (có quyền điểm danh hộ) bấm "Làm" cho việc của người khác
     // thì xét người được giao: ưu tiên người đang ở văn phòng, nếu không thì người đầu tiên đã tới ngày làm.
     const assigned = employees.filter(employee => isTaskAssignedTo(task, employee));
@@ -193,7 +196,7 @@ export default function MyWorkPage() {
                 <span role="cell" className="my-work-project">{item.projectName}</span>
                 <span role="cell">{notStarted
                   ? <span className="my-work-not-started" title={`Task bắt đầu từ ${formatDateVi(startKey)}`}>Bắt đầu {startKey.slice(8, 10)}/{startKey.slice(5, 7)}</span>
-                  : <button type="button" className="my-work-action" onClick={() => openItem(item)}>{isCurrent || item.type === 'workflow' ? 'Mở' : 'Làm'} <ArrowRight size={14} /></button>}</span>
+                  : <button type="button" className="my-work-action" onClick={() => openItem(item)}>{isCurrent || item.type === 'workflow' || !myWorkEditable ? 'Mở' : 'Làm'} <ArrowRight size={14} /></button>}</span>
               </div>
             );
           })}

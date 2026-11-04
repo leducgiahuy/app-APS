@@ -4,7 +4,7 @@ import { ChevronDown,ChevronRight } from 'lucide-react';
 import { OP_ROLES,OP_ROLE_NAMES,companyAdmin } from '../../utils/operationsDefaults';
 import TemplateEditor from './TemplateEditor';
 import { PAGE_ACCESS_CODES,PAGE_ACCESS_TREE,normalizePageAccess } from '../../utils/pageAccess';
-import { notifyPageAccessChanged } from '../../context/PageAccessContext';
+import { notifyPageAccessChanged, usePageAccess } from '../../context/PageAccessContext';
 // Tiêu đề cột của ma trận quyền: tên ngắn, viết hoa (tên đầy đủ vẫn dùng ở các ô chọn vai trò).
 const MATRIX_ROLE_HEADERS=Object.fromEntries(OP_ROLES.map(key=>[key,(key==='accountant'?'Kế toán viên':OP_ROLE_NAMES[key]).toLocaleUpperCase('vi')]));
 
@@ -14,7 +14,8 @@ export function Matrix({api}){
  const [editing,setEditing]=useState(false),[draft,setDraft]=useState(saved),[collapsed,setCollapsed]=useState(()=>new Set());
  const role=api.data.viewer.role==='admin'?'director':api.data.viewer.role;
  const rows=editing?draft:saved;
- const canEdit=companyAdmin(api.data.companyRole)&&!api.data.readOnly;
+ // Nút "Sửa ma trận" theo chính ô Ma trận quyền: S mới sửa được, X chỉ xem.
+ const canEdit=usePageAccess().canEdit('company.settings.matrix')&&!api.data.readOnly;
  const sections=PAGE_ACCESS_TREE.flatMap(page=>page.children).filter(section=>section.children.length);
  const allOpen=collapsed.size===0;
  const toggle=key=>setCollapsed(current=>{const next=new Set(current);if(next.has(key))next.delete(key);else next.add(key);return next;});

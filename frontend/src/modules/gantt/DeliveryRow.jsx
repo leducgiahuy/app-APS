@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown, ChevronRight, MessageCircle, Paperclip, MoreHorizontal, Pencil, UsersRound, Trash2, Plus } from 'lucide-react';
-import { deliveryLabel, defaultDeliveryRecord, formatCompactMoney, workComparison } from '../../utils/deliveryMetrics';
+import { deliveryLabel, defaultDeliveryRecord, formatCompactMoney, taskForecastWork, varianceTone, workComparison } from '../../utils/deliveryMetrics';
 import { GanttEditableWorkCell } from './GanttWorkColumns';
 
 export const DELIVERY_COLUMNS = [
@@ -52,7 +52,7 @@ export default function DeliveryRow({ item, columns, height, depth = 0, record, 
     record.freeRework || record.isChangeWork ? 0 : hasContractWork ? Number(item.contractWork) : metric.planned,
     metric.completedActual ?? 0,
     record.level,
-    metric.planned
+    metric.forecastWork ?? taskForecastWork({ planned: metric.planned, spent: metric.actual, level: record.level, completed: item.status === 'completed', completedActual: metric.completedActual })
   ) : null;
   const remainingWork = metric?.remainingWork ?? comparisonFallback?.remainingWork;
   const varianceWork = metric?.varianceWork ?? comparisonFallback?.varianceWork;
@@ -71,20 +71,23 @@ export default function DeliveryRow({ item, columns, height, depth = 0, record, 
       if (column.key === 'status') content = group ? <strong className="delivery-group-percent">{aggregate == null ? '—' : `${number(aggregate)}%`}</strong> : <div className="delivery-status-cell"><span className={`delivery-status level-${record?.level || 0} ${record?.freeRework ? 'rework' : ''}`} title={`% ghi nhận: ${metric?.recognized ?? '—'}%`}>{record?.freeRework ? `Làm lại · ${record.changeId ? 'CR' : 'miễn phí'}` : `${record?.level ?? '—'}% · ${label}`}</span>{record?.level >= 60 && <Paperclip size={12} className={record.evidenceId ? 'has-proof' : 'missing-proof'} aria-label={record.evidenceId ? 'Có bằng chứng' : 'Thiếu bằng chứng'} />}{record?.level >= 60 && <small className={record.confirmedBy ? 'has-proof' : 'missing-proof'}>{record.confirmedBy ? '✓ XN' : '○ XN'}</small>}<button aria-label={`Thảo luận ${item.title}`} onClick={event => { event.stopPropagation(); onOpen('comments'); }}><MessageCircle size={13} /></button></div>;
       if (['startDate', 'endDate'].includes(column.key)) content = item[column.key]?.split('-').reverse().join('/') || '—';
       if (column.key === 'days') content = item.days ?? '—';
-      if (column.key === 'duration') content = number(metric?.planned);
+      // Dự báo khi xong (taskForecastWork, nhóm / dự án = tổng các task): luôn Dự báo = Thực tế + Còn lại, Chênh lệch = Dự báo − Dự toán.
+      if (column.key === 'duration') content = number(metric?.forecastWork ?? comparisonFallback?.forecastWork);
       if (column.key === 'weight') content = metric?.displayWeightPercent != null ? `${number(metric.displayWeightPercent)}%` : metric?.weight == null ? '—' : `${number(metric.weight * 100)}%`;
       if (column.key === 'actualWork') content = metric?.completedCount > 0 ? number(metric.completedActual) : '';
       if (column.key === 'remainingWork') content = number(remainingWork);
       if (column.key === 'varianceWork') {
         const variance = varianceWork;
         const percent = variancePercent;
-        const tone = variance == null || Math.abs(variance) < 1 ? '' : variance < 0 ? 'good' : Math.abs(percent || 0) > 10 ? 'danger' : Math.abs(percent || 0) > 5 ? 'warning' : 'good';
+        const tone = varianceTone(variance, percent);
         content = variance == null ? '—' : <span className={`delivery-work-variance ${tone}`} title="Chênh lệch = Dự báo - Dự toán">{variance > 0 ? '+' : ''}{number(variance)}{group && percent != null ? ` (${percent > 0 ? '+' : ''}${number(percent)}%)` : ''}</span>;
       }
       if (column.key === 'output') content = formatCompactMoney(metric?.output);
       if (column.key === 'createdAt') content = item.createdAt ? new Date(item.createdAt).toLocaleDateString('vi-VN') : '—';
       if (column.key === 'note') content = item.isProjectHeader ? item.description || '—' : <div className="delivery-inline-note" onClick={event => event.stopPropagation()}>{readOnly ? item.ganttNote || '—' : <GanttEditableWorkCell item={item} field="ganttNote" onSave={onSaveWork} placeholder="Ghi chú..." />}</div>;
-      if (column.key === 'contractWork') content = readOnly ? number(item.contractWork) : <div onClick={event => event.stopPropagation()}><GanttEditableWorkCell item={item} field="contractWork" type="number" onSave={onSaveWork} /></div>;
+      // Dự toán: task = công chốt theo hợp đồng (sửa được; chưa nhập thì hiện mờ số đang dùng = theo lịch);
+      // nhóm = tổng dự toán các task bên trong (chỉ đọc); dòng dự án = dự toán hợp đồng của dự án (sửa được).
+      if (column.key === 'contractWork') content = item.isGroup || (group && !item.isProjectHeader) ? number(metric?.budgetedWork) : readOnly ? number(item.contractWork ?? (item.isProjectHeader ? null : metric?.budgetedWork)) : <div onClick={event => event.stopPropagation()}><GanttEditableWorkCell item={item} field="contractWork" type="number" onSave={onSaveWork} placeholder={!item.isProjectHeader && metric?.budgetedWork != null ? number(metric.budgetedWork) : ''} /></div>;
       if (column.key === 'actions' && !readOnly) content = <div className="delivery-row-actions" onClick={event => event.stopPropagation()}><button onClick={onEdit} disabled={readOnly} title="Chỉnh sửa"><Pencil size={13} /></button>{!group && canAssign && <button onClick={onAssign} disabled={readOnly} title="Phân công"><UsersRound size={13} /></button>}<button onClick={onDelete} disabled={readOnly} title="Xóa"><Trash2 size={13} /></button></div>;
       return <div className={`delivery-cell delivery-column ${column.alignLeft ? 'delivery-column-left' : 'delivery-column-center'} ${column.key}`} key={column.key} style={{ width: column.width, minWidth: column.width }}>{content}{column.key === 'status' && group && <button onClick={event => { event.stopPropagation(); onOpen(); }} aria-label={`Tùy chọn ${item.title}`}><MoreHorizontal size={13} /></button>}</div>;
     })}

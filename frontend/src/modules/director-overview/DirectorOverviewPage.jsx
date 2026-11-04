@@ -4,7 +4,7 @@ import { useApp } from '../../context/AppContext';
 import { usePageAccess } from '../../context/PageAccessContext';
 import { deliveryApi } from '../gantt/deliveryApi';
 import { monthFillPercent } from '../../utils/monthCapacity';
-import { summarizePortfolioWork, summarizeProjectWork } from '../../utils/deliveryMetrics';
+import { summarizePortfolioWork, summarizeProjectWork, varianceTone } from '../../utils/deliveryMetrics';
 import './DirectorOverviewPage.css';
 
 const number = value => value == null || !Number.isFinite(Number(value))
@@ -42,9 +42,11 @@ function weightedPercents(rows) {
 }
 
 export default function DirectorOverviewPage() {
-  const { projects, tasks, ganttItems, employees, ganttMonth, setActiveTab } = useApp();
+  const { projects, tasks, ganttItems, employees, selectedDate, setActiveTab } = useApp();
   const { canSee } = usePageAccess();
-  const month = `${ganttMonth.getFullYear()}-${String(ganttMonth.getMonth() + 1).padStart(2, '0')}`;
+  // Tháng báo cáo = tháng của ngày đang hiện trên thanh tiêu đề (trước đây lấy tháng đang xem ở trang Dự án,
+  // nên tiêu đề ghi 04/11 mà số liệu lại là của tháng khác — ví dụ Lấp đầy công 0% của tháng 10).
+  const month = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}`;
   const [report, setReport] = useState(null);
   const [details, setDetails] = useState({});
   const [loading, setLoading] = useState(true);
@@ -108,7 +110,8 @@ export default function DirectorOverviewPage() {
     };
   }, [rows]);
   const capacity = useMemo(() => monthFillPercent(tasks, employees, month, ganttItems), [tasks, employees, month, ganttItems]);
-  const overBudget = rows.filter(row => row.variance > 0.05);
+  // Vượt công = Chênh vượt ngưỡng xanh (dự báo cao hơn dự toán trên 5%): vàng 5–10%, đỏ > 10%. Cùng quy tắc màu với bảng và bảng Gantt.
+  const overBudget = rows.filter(row => ['warning', 'danger'].includes(varianceTone(row.variance, row.variancePercent)));
   const urgentDocuments = (report?.projects || []).reduce((sum, row) => sum + (row.urgent?.length || 0), 0);
 
   const openProject = projectId => {
@@ -133,7 +136,7 @@ export default function DirectorOverviewPage() {
     {report && !mayView && <section className="director-overview-denied"><BarChart3 size={32} /><h2>Tổng quan</h2><p>Vai trò của bạn chưa được cấp quyền xem trang này (Công ty → Cài đặt → Ma trận quyền).</p></section>}
     {report && mayView && <>
       <section className="director-overview-kpis">
-        <article className="danger"><span>Dự án vượt công</span><strong>{overBudget.length} dự án</strong><small>{overBudget.length ? `Vượt ${number(overBudget.reduce((sum, row) => sum + row.variance, 0))} công · ${totals.red} việc đỏ` : 'Không có dự án vượt dự báo'}</small></article>
+        <article className="danger"><span>Dự án vượt công</span><strong>{overBudget.length} dự án</strong><small>{overBudget.length ? `Vượt ${number(overBudget.reduce((sum, row) => sum + row.variance, 0))} công · ${totals.red} việc đỏ` : 'Không có dự án nào dự báo vượt dự toán quá 5%'}</small></article>
         <article className="success"><span>Lấp đầy công</span><strong>{capacity == null ? '—' : `${number(capacity)}%`}</strong><small>Tỷ lệ giờ đã phân công trên năng lực tháng</small></article>
         <article className="danger"><span>Hồ sơ & chứng chỉ</span><strong>{urgentDocuments} việc</strong><small>Việc nộp hồ sơ sắp đến hạn hoặc quá hạn</small></article>
       </section>
@@ -154,13 +157,13 @@ export default function DirectorOverviewPage() {
             {rows.map(row => <tr key={row.id}>
               <td><button className="project-link" onClick={() => openProject(row.id)}>{row.name}</button></td>
               <td>{number(row.budgeted)}</td><td>{number(row.actual)}</td><td><b>{number(row.forecast)}</b></td>
-              <td><span className={`variance ${row.variance > 0.05 ? 'bad' : row.variance < -0.05 ? 'good' : ''}`}>{signed(row.variance)}{row.variancePercent != null && ` (${signed(row.variancePercent)}%)`}</span></td>
+              <td><span className={`variance ${varianceTone(row.variance, row.variancePercent)}`}>{signed(row.variance)}{row.variancePercent != null && ` (${signed(row.variancePercent)}%)`}</span></td>
               <td>{number(row.completion)}% / {number(row.planPercent)}%</td>
               <td>{row.red ? <span className="red-count">{row.red}</span> : '—'}</td>
             </tr>)}
             {!rows.length && <tr><td colSpan="7" className="empty">Chưa có dự án thuộc phạm vi xem.</td></tr>}
           </tbody>
-          {!!rows.length && <tfoot><tr><th>Tổng công ty</th><th>{number(totals.budgeted)}</th><th>{number(totals.actual)}</th><th>{number(totals.forecast)}</th><th><span className={`variance ${totals.variance > 0.05 ? 'bad' : totals.variance < -0.05 ? 'good' : ''}`}>{signed(totals.variance)}{totals.variancePercent != null ? ` (${signed(totals.variancePercent)}%)` : ''}</span></th><th>{number(totals.completion)}% / {number(totals.planPercent)}%</th><th>{totals.red}</th></tr></tfoot>}
+          {!!rows.length && <tfoot><tr><th>Tổng công ty</th><th>{number(totals.budgeted)}</th><th>{number(totals.actual)}</th><th>{number(totals.forecast)}</th><th><span className={`variance ${varianceTone(totals.variance, totals.variancePercent)}`}>{signed(totals.variance)}{totals.variancePercent != null ? ` (${signed(totals.variancePercent)}%)` : ''}</span></th><th>{number(totals.completion)}% / {number(totals.planPercent)}%</th><th>{totals.red}</th></tr></tfoot>}
         </table></div>
         <footer>Dự báo = công thực tế + công còn lại theo mức hoàn thành đã ghi nhận. Xanh ≤ 5%; vàng 5–10%; đỏ &gt; 10%. Bấm tên dự án để mở bảng việc.</footer>
       </section>

@@ -8,6 +8,7 @@ import { BUDGET_GROUPS, companyAdmin, moneyRole, roleAllows } from '../../../fro
 import { operations, projectActor } from './operationsStore.js';
 import { appAttendanceHours } from './appAttendance.js';
 import { normalizePageAccess } from '../../../frontend/src/utils/pageAccess.js';
+import { ruleAllows } from '../../../frontend/src/utils/rolePermissions.js';
 import { projectTemplates } from './defaultProjectTemplate.js';
 import { assignmentWorkingDates } from '../../../frontend/src/utils/assignmentCalendar.js';
 export const vietnamDay = (date=new Date()) => new Date(date.getTime()+7*3600000).toISOString().slice(0,10);
@@ -48,6 +49,8 @@ export function canReviewSheet(db,actor,entry) {
  const target=(db.operations?.members || []).find(row=>row.projectId===entry.projectId && row.employeeId===entry.employeeId && !row.deletedAt) || db.delivery?.users?.find(row=>row.employeeId===entry.employeeId && !row.disabled);
  const targetRole=target?.role || 'employee';
  if(actor.role==='manager')return targetRole==='leader';
+ // Vai trò khác Leader / QL cấp trung (Kế toán…): được duyệt khi ma trận cho S ở mục Duyệt giờ (kiểm tra ở thao tác), trừ giờ của chính mình.
+ if(actor.role!=='leader')return true;
  const team=db.employees?.find(row=>row.id===actor.employeeId)?.team;
  return actor.role==='leader' && targetRole==='employee' && team && db.employees?.find(row=>row.id===entry.employeeId)?.team===team;
 }
@@ -98,7 +101,7 @@ export function operationsReport(db,user,query={}) {
  return {quality,revision:ops.revision,viewer:{email:actor.email,name:actor.name,role:actor.role,employeeId:actor.employeeId},companyRole:user.role,projectId,projects,week,end,tasks,
   employees:(db.employees || []).map(({id,name,code,title,team,grade})=>({id,name,code,title,team,grade})),
   users:companyAdmin(user.role)?(db.delivery?.users || []).map(({email,name,role,employeeId,disabled})=>({email,name,role,employeeId,disabled})):[],
-  entries:visibleEntries.filter(row=>row.date>=week && row.date<=end).map(row=>({...row,flags:sheetFlags(db,row,all),canReview:canReviewSheet(db,projectActor(db,user,row.projectId),row)})),
+  entries:visibleEntries.filter(row=>row.date>=week && row.date<=end).map(row=>({...row,flags:sheetFlags(db,row,all),...(a=>{const reviewable=canReviewSheet(db,a,row);return {reviewable,canReview:reviewable&&ruleAllows('tsApproveStaff',a.role,normalizePageAccess(db.operations?.pageAccess))};})(projectActor(db,user,row.projectId))})),
   attendance:ops.attendance.filter(row=>!row.deletedAt && row.date>=week && row.date<=end && (visibleEntries.some(entry=>entry.employeeId===row.employeeId) || row.employeeId===user.employeeId || companyFinance)),
   otRequests:ops.otRequests.filter(row=>!row.deletedAt && visibleRecord(row)),
   unlocks:ops.unlocks.filter(row=>!row.deletedAt && visibleRecord(row)),checks:ops.checks.filter(row=>actor.role!=='employee'&&projects.some(p=>p.id===row.projectId)),

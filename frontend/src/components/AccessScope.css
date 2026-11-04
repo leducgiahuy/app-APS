@@ -1,0 +1,5 @@
+/* Mục chỉ được xem (X trong ma trận Trang & mục): ẩn nút thao tác, giữ thông tin để đọc. */
+.access-view-only button:disabled:not([data-view]),
+.access-view-only [data-edit-only] {
+  display: none !important;
+}

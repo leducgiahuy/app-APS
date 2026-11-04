@@ -1,6 +1,7 @@
 import { DEFAULT_PROCEDURES } from '../../../frontend/src/utils/deliveryResources.js';
 import { logDeliveryActivity } from '../utils/activityLog.js';
 import { roleAllows } from '../../../frontend/src/utils/operationsDefaults.js';
+import { ruleAllows } from '../../../frontend/src/utils/rolePermissions.js';
 import { allSheets, canReviewSheet, sheetFlags } from '../utils/operationsReports.js';
 import { assignmentWorkingDates } from '../../../frontend/src/utils/assignmentCalendar.js';
 import fs from 'node:fs';
@@ -12,7 +13,7 @@ import { deliveryStore, canEditDeliveryTask, publicDelivery } from '../utils/del
 import { computeDelivery, projectDeliveryItems, defaultDeliveryRecord, DELIVERY_LEVELS, EVIDENCE_KIND_NAMES, requiredEvidenceKind, confirmBlockReason, managingRole, moneyAccess, reviewingRole, taskStatusWindow, taskStatusWindowMessage } from '../../../frontend/src/utils/deliveryMetrics.js';
 import { isTaskOverdue } from '../../../frontend/src/utils/date.js';
 import { reopenTaskFromDelivery, syncTaskCompletionFromDelivery } from './taskController.js';
-import { normalizePageAccess } from '../../../frontend/src/utils/pageAccess.js';
+import { normalizePageAccess, pageAccessAllows } from '../../../frontend/src/utils/pageAccess.js';
 import { addDays, dateDifference } from '../../../frontend/src/utils/workforceForecast.js';
 
 export const emptyDeliveryProject = () => ({ revision: 0, settings: { contractFee: null, hourlyRate: null }, records: {}, timesheets: [], documents: [], customerRequests: [], meetingMinutes: [], changes: [], closes: [], receipts: [], expenses: [], milestones: [], evidence: [], comments: [], audit: [], history: [] });
@@ -71,8 +72,12 @@ export function applyDeliveryMutation(ctx, body) {
   const financial = moneyAccess(user.role);
   const before = computeDelivery(db, projectId, data);
   const current = item ? before.records[taskId] : null;
+  // Thao tác theo đúng ma trận Trang & mục: có S ở mục (một trong các mục) là được thao tác.
+  const pageAccess = normalizePageAccess(db.operations?.pageAccess);
+  const pageWrite = keys => [].concat(keys).some(key => pageAccessAllows(pageAccess, key, user.role, 'write'));
+  const LEGAL_ITEMS = ['gantt.legal.catalog', 'gantt.legal.feedback', 'gantt.legal.permits'];
   const ruleKey={task:'editStatus',confirm:'confirmStatus',reopenTask:'confirmStatus',timesheet:'tsSubmit',lockWeights:'scope',milestone:'milestones',reopenMonth:'payment'}[action];
-  if(ruleKey)assert(roleAllows(ruleKey,user.role,'write') || user.role==='admin','Vai trò của bạn không được thực hiện thao tác này.');
+  if(ruleKey)assert(ruleAllows(ruleKey,user.role,pageAccess,'write'),'Vai trò của bạn không được thực hiện thao tác này.');
   const auditBefore=structuredClone(data.records);
   if (['task', 'confirm', 'reopenTask', 'comment'].includes(action)) assert(item, 'Task không tồn tại hoặc không phải task lá của dự án.');
   if (action === 'task') {
@@ -140,7 +145,7 @@ export function applyDeliveryMutation(ctx, body) {
     data.settings.contractFee+=delta;Object.assign(cr,{appendix:text(value.appendix),signedAt:value.signedDate,signedBy:user.email,appendixAmount:delta,appendixTaskId:task.id,approvedEstimatedHours:hours,budgetWorkAdded:addedContractWork});
     if(data.settings.contractLocked){const m=computeDelivery(db,projectId,{...data,lockedWeights:{},settings:{...data.settings,contractLocked:false}});data.lockedWeights=Object.fromEntries(Object.entries(m.taskMetrics).map(([key,t])=>[key,m.summary.totalPlanned>0?t.planned/m.summary.totalPlanned:0]));}
   } else if (action === 'applyTemplate') {
-    assert(manager, 'Chỉ quản lý được áp dụng mẫu dự án.');
+    assert(pageWrite('gantt.progress.table'), 'Vai trò của bạn chỉ được xem, không được áp dụng mẫu ở mục Bảng tiến độ & công.');
     assert(!(db.ganttItems || []).some(item => item.projectId === projectId), 'Chỉ áp dụng mẫu cho dự án chưa có công việc.');
     const template = deliveryStore(db).templates.find(item => item.id === value.templateId);
     assert(template, 'Mẫu dự án không tồn tại.');
@@ -148,17 +153,20 @@ export function applyDeliveryMutation(ctx, body) {
     const idMap = new Map(template.items.map(item => [item.id, `G-${randomUUID()}`]));
     const created = template.items.map(item => ({ ...item, id: idMap.get(item.id), projectId, startDate: addDays(project.startDate, item.startOffset), endDate: addDays(project.startDate, item.endOffset), parentGroupId: idMap.get(item.parentGroupId) || '', parentTaskId: idMap.get(item.parentTaskId) || '', dependencies: (item.dependencies || []).map(id => idMap.get(id)).filter(Boolean), assignees: [], assignee: '', createdAt: new Date().toISOString(), status: 'not_started' }));
     assert(created.every(item => item.endDate <= project.endDate), 'Thời gian dự án ngắn hơn mẫu. Hãy kéo dài ngày kết thúc dự án trước.');
+    // Dự toán (công) từng task theo số giờ của mẫu, chốt lúc áp mẫu (giống sinh dự án từ hợp đồng).
+    const templateParents = new Set(created.map(item => item.parentTaskId).filter(Boolean));
+    created.filter(item => !item.isGroup && !templateParents.has(item.id) && Number(item.estimatedHours) > 0).forEach(item => { item.contractWork = Number(item.estimatedHours) / 8; });
     db.ganttItems.push(...created);
     db.tasks ||= [];
     created.filter(item => !item.isGroup).forEach(item => db.tasks.push({ ...item, id: `task-${randomUUID()}`, ganttId: item.id, projectName: project.name, title: item.title, employeeId: '', employeeName: '', progress: 0, actualWorkHours: 0, estimatedDays: item.days }));
   } else if (action === 'settings') {
-    assert(manager, 'Chỉ quản lý được cấu hình dự án.');
+    assert(pageWrite('gantt.close'), 'Vai trò của bạn chỉ được xem, không được cấu hình ở mục Chốt sản lượng tháng.');
     const settings = { ...data.settings };
     for (const key of ['contractFee', 'hourlyRate']) if (Object.hasOwn(value, key)) { const number = money(value[key]); assert(number == null || Number.isFinite(number) && number >= 0, 'Phí hợp đồng/đơn giá không hợp lệ.'); settings[key] = number; }
     if (value.rates) { assert(typeof value.rates === 'object' && !Array.isArray(value.rates), 'Bảng đơn giá không hợp lệ.'); settings.rates = {}; for (const [employeeId, rate] of Object.entries(value.rates)) { assert(Number.isFinite(Number(rate)) && Number(rate) >= 0, 'Đơn giá phải không âm.'); settings.rates[employeeId] = Number(rate); } }
     data.settings = settings;
   } else if (action === 'lockWeights') {
-    assert(manager, 'Chỉ quản lý được khóa tỷ trọng.');
+    assert(pageWrite('gantt.progress.table'), 'Vai trò của bạn chỉ được xem, không được khóa tỷ trọng ở mục Bảng tiến độ & công.');
     assert(!data.settings.contractLocked || text(value.reason), 'Điều chỉnh khóa cần ghi lý do/phụ lục hợp đồng.');
     const metrics = computeDelivery(db, projectId, { ...data, lockedWeights: {} });
     assert(metrics.summary.totalPlanned > 0, 'Cần có Công DT từ lịch hoặc phân công trước khi khóa tỷ trọng.');
@@ -176,6 +184,7 @@ export function applyDeliveryMutation(ctx, body) {
     const candidate = computeDelivery(db, projectId, data).timesheets.find(entry => entry.id === id);
     assert(['pending', 'submitted'].includes(candidate?.status) && !candidate?.locked, 'Phiếu giờ không ở trạng thái chờ duyệt hoặc đã bị khóa.');
     assert(candidate, 'Phiếu giờ công không tồn tại.');
+    assert(ruleAllows('tsApproveStaff',user.role,normalizePageAccess(db.operations?.pageAccess),'write'),'Vai trò của bạn chỉ được xem, không được thao tác ở mục Duyệt giờ.');
     assert(canReviewSheet(db,user,{...candidate,projectId}),'Không được tự duyệt hoặc duyệt sai cấp / nhóm.');
     assert(['approved', 'rejected'].includes(value.status), 'Trạng thái duyệt không hợp lệ.');
     if (value.status === 'rejected') assert(text(value.reason), 'Cần ghi lý do từ chối.');
@@ -200,7 +209,7 @@ export function applyDeliveryMutation(ctx, body) {
     assert(text(value.content), 'Nhập nội dung thảo luận.');
     data.comments.push({ id: randomUUID(), taskId, content: text(value.content), actor: user.email, at: new Date().toISOString() });
   } else if (action === 'document') {
-    assert(manager || user.role === 'leader', 'Chỉ quản lý/Leader cập nhật hồ sơ pháp lý.');
+    assert(pageWrite(LEGAL_ITEMS), 'Vai trò của bạn chỉ được xem mục Hồ sơ.');
     assert(text(value.title), 'Nhập tên hồ sơ pháp lý.');
     assert(['Chuẩn bị', 'Đã nộp', 'Bổ sung', 'Có kết quả'].includes(value.status), 'Trạng thái hồ sơ không hợp lệ.');
     assert(!value.taskId || items.some(item => item.id === value.taskId), 'Task hồ sơ không thuộc dự án.');
@@ -215,7 +224,7 @@ export function applyDeliveryMutation(ctx, body) {
     assert(!document.evidenceId || data.evidence.some(file => file.id === document.evidenceId), 'Bằng chứng hồ sơ không tồn tại.');
     const index = data.documents.findIndex(entry => entry.id === id); if (index < 0) data.documents.push(document); else data.documents[index] = document;
   } else if (action === 'documentEvent' || action === 'documentComponent') {
-    assert(manager || user.role === 'leader', 'Chỉ quản lý/Leader cập nhật hồ sơ pháp lý.');
+    assert(pageWrite(LEGAL_ITEMS), 'Vai trò của bạn chỉ được xem mục Hồ sơ.');
     const document = data.documents.find(entry => entry.id === value.documentId);
     assert(document && text(value.title), 'Chọn hồ sơ và nhập nội dung.');
     assert(!value.employeeId || db.employees.some(entry => entry.id === value.employeeId), 'Nhân sự không tồn tại.');
@@ -232,7 +241,7 @@ export function applyDeliveryMutation(ctx, body) {
     if (index < 0) document[key].push(entry); else document[key][index] = entry;
     document.updatedAt = new Date().toISOString();
   } else if (action === 'customerRequest') {
-    assert(manager || user.role === 'leader', 'Chỉ quản lý/Leader được cập nhật đề nghị cung cấp thông tin.');
+    assert(pageWrite('gantt.customer.rfi'), 'Vai trò của bạn chỉ được xem mục Đề nghị CĐT cung cấp thông tin.');
     assert(text(value.title), 'Nhập nội dung đề nghị CĐT cung cấp thông tin.');
     assert(!value.taskId || items.some(candidate => candidate.id === value.taskId), 'Task ảnh hưởng không thuộc dự án.');
     for (const key of ['sentAt', 'dueAt', 'receivedAt']) assert(!value[key] || dateValid(value[key]), 'Ngày của phiếu RFI không hợp lệ.');
@@ -242,7 +251,7 @@ export function applyDeliveryMutation(ctx, body) {
     const request = { ...old, id: id || randomUUID(), code: old?.code || `RFI-${String(data.customerRequests.length + 1).padStart(2, '0')}`, title: text(value.title), taskId: value.taskId || '', sentAt: value.sentAt || '', dueAt: value.dueAt || '', receivedAt: value.receivedAt || '', status: value.status || 'Đang chờ CĐT', notes: text(value.notes), createdBy: old?.createdBy || user.email, updatedAt: new Date().toISOString() };
     const index = data.customerRequests.findIndex(entry => entry.id === id); if (index < 0) data.customerRequests.push(request); else data.customerRequests[index] = request;
   } else if (action === 'meetingMinute') {
-    assert(manager || user.role === 'leader', 'Chỉ quản lý/Leader được cập nhật biên bản họp.');
+    assert(pageWrite('gantt.customer.meetings'), 'Vai trò của bạn chỉ được xem mục Biên bản họp.');
     assert(text(value.title), 'Nhập tiêu đề biên bản họp.');
     assert(value.at && timestampValid(value.at), 'Ngày giờ họp không hợp lệ.');
     assert(!value.confirmedAt || dateValid(value.confirmedAt), 'Ngày khách xác nhận không hợp lệ.');
@@ -253,6 +262,7 @@ export function applyDeliveryMutation(ctx, body) {
     const minute = { ...old, id: id || randomUUID(), code: old?.code || `BB-${String(data.meetingMinutes.length + 1).padStart(3, '0')}`, title: text(value.title), at: value.at, participants: text(value.participants), clientContact: text(value.clientContact), requests, scope: text(value.scope) || 'Trong hợp đồng', resolution: text(value.resolution), confirmedAt: value.confirmedAt || '', createdBy: old?.createdBy || user.email, updatedAt: new Date().toISOString() };
     const index = data.meetingMinutes.findIndex(entry => entry.id === id); if (index < 0) data.meetingMinutes.push(minute); else data.meetingMinutes[index] = minute;
   } else if (action === 'change') {
+    assert(pageWrite('gantt.customer.changes'), 'Vai trò của bạn chỉ được xem mục Yêu cầu thay đổi (CR).');
     assert(text(value.title), 'Nhập nội dung yêu cầu thay đổi.');
     const old = data.changes.find(entry => entry.id === id);
     assert(!old || manager || old.createdBy === user.email && old.status === 'Đề xuất', 'Chỉ được sửa yêu cầu do mình đề xuất và chưa được duyệt.');
