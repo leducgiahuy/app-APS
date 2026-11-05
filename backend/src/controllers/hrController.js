@@ -3,6 +3,7 @@ import { purgeEmployeeData } from '../utils/deletionCleanup.js';
 import { nextEmployeeCode } from '../utils/employeeCodes.js';
 import { recordAppAttendance } from '../utils/appAttendance.js';
 import { assignmentWorksOnDate } from '../../../frontend/src/utils/assignmentCalendar.js';
+import { breakStartCheck, earlyLeaveInfo, lunchWindowMs, regularClockInCheck, scheduledWorkHours, shiftEndMs, vnDateKey } from '../../../frontend/src/utils/workSchedule.js';
 import {
   employeeOtEntries,
   isOvertimeClockInAllowed,
@@ -59,7 +60,11 @@ function updateEmployeeTaskSessions(db, emp, startAt, endAt = null) {
   if (selectedItems.length === 0) return false;
   const dateKey = localDateKey(new Date(startAt));
   const timestamp = Date.parse(startAt);
-  const elapsedHours = endAt ? Math.max(0, (Date.parse(endAt) - timestamp) / 3600000) : 0;
+  // Ca thường: chỉ tính phần nằm trong giờ làm (8:00–12:00, 13:30–17:30; thứ Bảy 8:00–12:00), nghỉ trưa không tính.
+  // Ca tăng ca giữ cách tính theo thời gian thực như trước.
+  const elapsedHours = !endAt ? 0 : isOvertimeShift(emp.shiftType)
+    ? Math.max(0, (Date.parse(endAt) - timestamp) / 3600000)
+    : scheduledWorkHours(timestamp, Date.parse(endAt));
   selectedItems.forEach(item => {
     if (item.isGroup) return;
     // A closed segment remains valid even after an assignment or OT slip changes.
@@ -211,18 +216,40 @@ function closeExpiredShifts(db, now = new Date()) {
     if (!Number.isFinite(checkInTimestamp)) return;
     const checkInDate = new Date(checkInTimestamp);
     const dateKey = localDateKey(checkInDate);
-    const standardHours = Number(emp.standardHours) > 0 ? Number(emp.standardHours) : 8;
-    const overtimeHours = approvedOvertimeHours(db, emp, dateKey);
-    const requiredHours = isOvertimeShift(emp.shiftType) ? overtimeHours : standardHours;
-    if (requiredHours <= 0) return;
-    const requiredWorkMs = requiredHours * 60 * 60 * 1000;
-    const breakStartedTimestamp = emp.isOnBreak ? Date.parse(emp.breakStartedAt || '') : NaN;
-    const activeBreakMs = Number.isFinite(breakStartedTimestamp) ? Math.max(0, now.getTime() - breakStartedTimestamp) : 0;
-    const completedBreakMs = Number(emp.totalBreakMs) || 0;
-    const workedMs = Math.max(0, now.getTime() - checkInTimestamp - completedBreakMs - activeBreakMs);
-    if (workedMs < requiredWorkMs) return;
-
-    const shiftEnd = new Date(checkInTimestamp + requiredWorkMs + completedBreakMs);
+    const regular = !isOvertimeShift(emp.shiftType);
+    // Ca thường: hết giờ nghỉ trưa (13:30) mà vẫn đang tạm nghỉ → tự quay lại làm từ 13:30, đồng hồ task chạy tiếp.
+    if (regular && emp.isOnBreak) {
+      const lunch = lunchWindowMs(vnDateKey(now.getTime()));
+      const breakStart = Date.parse(emp.breakStartedAt || '');
+      if (lunch && now.getTime() >= lunch[1] && Number.isFinite(breakStart) && breakStart < lunch[1]) {
+        const resumeIso = new Date(lunch[1]).toISOString();
+        emp.totalBreakMs = (Number(emp.totalBreakMs) || 0) + Math.max(0, lunch[1] - breakStart);
+        emp.isOnBreak = false;
+        emp.breakStartedAt = null;
+        emp.workSessionStartedAt = emp.activeTaskId ? resumeIso : null;
+        if (emp.activeTaskId && !isSyntheticOvertimeTaskId(emp.activeTaskId)) updateEmployeeTaskSessions(db, emp, resumeIso);
+        changed = true;
+      }
+    }
+    // Ca thường tự rời văn phòng đúng giờ tan ca của ngày vào ca (17:30; thứ Bảy 12:00), dù vào đúng giờ hay đi trễ.
+    // Ca tăng ca (và ca thường cũ vào ngày không có lịch làm) tự rời khi đủ số giờ như trước.
+    const scheduledEnd = regular ? shiftEndMs(vnDateKey(checkInTimestamp)) : null;
+    let shiftEnd;
+    if (scheduledEnd != null) {
+      if (now.getTime() < scheduledEnd) return;
+      shiftEnd = new Date(Math.max(scheduledEnd, checkInTimestamp));
+    } else {
+      const standardHours = Number(emp.standardHours) > 0 ? Number(emp.standardHours) : 8;
+      const requiredHours = regular ? standardHours : approvedOvertimeHours(db, emp, dateKey);
+      if (requiredHours <= 0) return;
+      const requiredWorkMs = requiredHours * 60 * 60 * 1000;
+      const breakStartedTimestamp = emp.isOnBreak ? Date.parse(emp.breakStartedAt || '') : NaN;
+      const activeBreakMs = Number.isFinite(breakStartedTimestamp) ? Math.max(0, now.getTime() - breakStartedTimestamp) : 0;
+      const completedBreakMs = Number(emp.totalBreakMs) || 0;
+      const workedMs = Math.max(0, now.getTime() - checkInTimestamp - completedBreakMs - activeBreakMs);
+      if (workedMs < requiredWorkMs) return;
+      shiftEnd = new Date(checkInTimestamp + requiredWorkMs + completedBreakMs);
+    }
     if (emp.workSessionStartedAt) updateEmployeeTaskSessions(db, emp, emp.workSessionStartedAt, shiftEnd.toISOString());
     recordAppAttendance(db, emp, shiftEnd.toISOString(), { completedBreakOnly: true });
     emp.isOnSite = false;
@@ -397,6 +424,14 @@ export function toggleOnSite(req, res) {
   const goingOnSite = !emp.isOnSite;
   const shiftType = normalizeShiftType(req.body?.shiftType || emp.shiftType);
 
+  // Ca thường theo giờ làm của công ty (utils/workSchedule.js): vào từ 7:45, sau 8:00 là đi trễ; Chủ nhật / lễ không có ca thường.
+  let clockIn = null, earlyLeave = null;
+  if (goingOnSite && !isOvertimeShift(shiftType)) {
+    clockIn = regularClockInCheck(now.getTime());
+    if (!clockIn.ok) return res.status(400).json({ success: false, message: clockIn.message });
+  }
+  if (!goingOnSite && !isOvertimeShift(emp.shiftType)) earlyLeave = earlyLeaveInfo(emp.checkInAt, now.getTime());
+
   if (goingOnSite) {
     if (isOvertimeShift(shiftType)) {
       const gate = isOvertimeClockInAllowed(now);
@@ -417,6 +452,7 @@ export function toggleOnSite(req, res) {
     emp.isOnBreak = false;
     emp.breakStartedAt = null;
     emp.totalBreakMs = 0;
+    emp.lateMinutes = clockIn?.lateMinutes || 0;
     if (!validTask.ok || !emp.activeTaskId) {
       emp.activeTaskId = null;
       emp.activeTaskTitle = null;
@@ -433,7 +469,7 @@ export function toggleOnSite(req, res) {
     if (emp.workSessionStartedAt && !isSyntheticOvertimeTaskId(emp.activeTaskId)) {
       updateEmployeeTaskSessions(db, emp, emp.workSessionStartedAt, now.toISOString());
     }
-    recordAppAttendance(db, emp, now.toISOString());
+    recordAppAttendance(db, emp, now.toISOString(), { earlyLeaveMinutes: earlyLeave?.early ? Math.round(earlyLeave.remainingMs / 60000) : 0 });
     emp.activeTaskId = null;
     emp.checkInAt = null;
     emp.checkInTime = null;
@@ -451,10 +487,10 @@ export function toggleOnSite(req, res) {
 
   const onSiteMessage = isOvertimeShift(shiftType)
     ? `Đã bắt đầu tăng ca cho ${emp.name}`
-    : `Đã cập nhật trạng thái của ${emp.name}: Có mặt tại công trường`;
+    : `Đã cập nhật trạng thái của ${emp.name}: Có mặt tại công trường${clockIn?.lateMinutes ? `. ${clockIn.message}` : ''}`;
   const offSiteMessage = isOvertimeShift(emp.lastShiftType)
     ? `${emp.name} đã rời văn phòng`
-    : `Đã cập nhật trạng thái của ${emp.name}: Đã rời công trường`;
+    : `Đã cập nhật trạng thái của ${emp.name}: Đã rời công trường${earlyLeave?.early ? ` sớm, còn ${earlyLeave.label} mới hết ca (${earlyLeave.endLabel})` : ''}`;
 
   return res.json({
     success: true,
@@ -488,6 +524,11 @@ export function toggleBreak(req, res) {
     emp.workSessionStartedAt = emp.activeTaskId ? nowIso : null;
     if (emp.activeTaskId && !isSyntheticOvertimeTaskId(emp.activeTaskId)) updateEmployeeTaskSessions(db, emp, nowIso);
   } else {
+    // Ca thường chỉ tạm nghỉ trong giờ nghỉ trưa (12:00–13:30); ca tăng ca giữ như trước.
+    if (!isOvertimeShift(emp.shiftType)) {
+      const gate = breakStartCheck(now.getTime());
+      if (!gate.ok) return res.status(400).json({ success: false, message: gate.message });
+    }
     if (emp.activeTaskId && !isSyntheticOvertimeTaskId(emp.activeTaskId)) {
       const sessionStart = emp.workSessionStartedAt;
       if (sessionStart) updateEmployeeTaskSessions(db, emp, sessionStart, nowIso);

@@ -34,7 +34,7 @@ export default function Sidebar() {
   });
   const { activeTab, setActiveTab } = useApp();
   const { sidebarCollapsed, setSidebarCollapsed, mobileMenuOpen, setMobileMenuOpen } = useLayout();
-  const { pageVisible } = usePageAccess();
+  const { pageVisible, ready } = usePageAccess();
 
   const currentUser = getCurrentUser();
   const isAdmin = currentUser?.role === 'admin';
@@ -69,8 +69,8 @@ export default function Sidebar() {
     ...placeholderPages.filter(page => !['timesheets', 'permissions'].includes(page.id))
   ];
 
-  // Chỉ thêm trang nhật ký vào menu của phiên quản trị viên.
-  if (isAdmin) {
+  // Trang nhật ký theo ma trận Trang & mục (mục Nhật ký hoạt động); chờ tải xong quyền để không hiện thoáng qua với người không được xem.
+  if (isAdmin || ready) {
     menuItems.push({
       id: 'activity',
       label: 'Nhật Ký Hoạt Động',

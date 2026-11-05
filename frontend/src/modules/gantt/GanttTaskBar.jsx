@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import GanttExcludedDaysBar from './GanttExcludedDaysBar';
 import { assignmentWorkingDates } from '../../utils/assignmentCalendar';
+import { hoursLabel } from '../../utils/workSchedule';
 import { formatDateVi, elapsedScheduleProgress, isTaskOverdue, taskDelayHours, formatDelayHours } from '../../utils/date';
 
 export const hasStoredAssignmentState = task => Boolean(task && (
@@ -322,7 +323,7 @@ function GanttTaskBar({ item, coord, linkedTask, tasksByGanttId, highlighted: is
           className={`${item.parentTaskId ? '' : 'dark:fill-white '}select-none pointer-events-none`}
         >
           <tspan fill={taskTextColor} className={item.parentTaskId ? undefined : 'dark:fill-white'}>
-            {bar.employeeName} · {formatDateVi(bar.startDate).slice(0, 5)}–{formatDateVi(bar.endDate).slice(0, 5)} · {Number(bar.hoursPerDay).toLocaleString('vi-VN', { maximumFractionDigits: 2 })}h/ngày{freeRework ? ' · CR' : ''}
+            {bar.employeeName} · {formatDateVi(bar.startDate).slice(0, 5)}–{formatDateVi(bar.endDate).slice(0, 5)} · {hoursLabel(bar.hoursPerDay)}h/ngày{freeRework ? ' · CR' : ''}
           </tspan>
           {timingLabel && <tspan fill={timingColor} fontWeight="700"> · [{timingLabel}]</tspan>}
           <title>{`${bar.employeeName}: ${formatDateVi(bar.startDate)} đến ${formatDateVi(bar.endDate)} · ${Number(bar.hoursPerDay).toLocaleString('vi-VN', { maximumFractionDigits: 2 })} giờ/ngày${timingLabel ? ` · ${timingLabel}` : ''}`}</title>

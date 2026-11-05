@@ -12,7 +12,7 @@ process.env.APS_DB_PATH = path.join(directory, 'db.json');
 test.after(() => fs.rmSync(directory, { recursive: true, force: true }));
 
 test('page access tree: every page has sections, keys are unique and defaults are valid codes', () => {
-  assert.deepEqual(PAGE_ACCESS_TREE.map(page => page.label), ['Công việc', 'Tổng quan', 'Dự án', 'Con người', 'Công ty']);
+  assert.deepEqual(PAGE_ACCESS_TREE.map(page => page.label), ['Công việc', 'Tổng quan', 'Dự án', 'Con người', 'Công ty', 'Nhật Ký Hoạt Động']);
   const keys = PAGE_ACCESS_ITEMS.map(entry => entry.key);
   assert.equal(new Set(keys).size, keys.length, 'không trùng khóa');
   for (const entry of PAGE_ACCESS_ITEMS) {

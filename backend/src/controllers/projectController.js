@@ -3,6 +3,8 @@ import { calculateAssignmentHours } from '../../../frontend/src/utils/ganttEffor
 import { readDb, writeDb } from '../models/db.js';
 import { purgeProjectData } from '../utils/deletionCleanup.js';
 import { assignmentWorkingDates, normalizeAssignmentSchedules } from '../../../frontend/src/utils/assignmentCalendar.js';
+import { rescheduleGanttRange } from '../utils/ganttReschedule.js';
+import { parseWbsCode, compareWbsCodes as compareWbs } from '../../../frontend/src/utils/wbsStructure.js';
 
 /**
  * Controller Quản Lý Tiến Độ Dự Án & Biểu Đồ Gantt Công Trường
@@ -12,7 +14,6 @@ import { assignmentWorkingDates, normalizeAssignmentSchedules } from '../../../f
  */
 
 // Thứ tự ưu tiên của các khối giai đoạn lớn theo mẫu tiến độ công trình
-const MAJOR_PHASE_ORDER = ['A', 'L', 'B', 'C', 'D', 'E', 'F', 'G'];
 const hasStoredAssignmentState = task => Boolean(task && (
   Array.isArray(task.assignees) ||
   Object.hasOwn(task, 'employeeId') ||
@@ -61,65 +62,8 @@ const overlapAssignmentHours = (task, assignment, startDate, endDate) => {
   return start && end && start <= end ? calculateAssignmentHours({ ...task, startDate: start, endDate: end }, { ...assignment, startDate: start, endDate: end }) : 0;
 };
 
-/**
- * Phân tích mã WBS (VD: 'A1.3' -> { majorIdx: 0, segments: [1, 3] })
- */
-export function parseWbsCode(code) {
-  if (!code) return { majorIdx: 999, segments: [] };
-  const cleaned = String(code).trim();
-  const match = cleaned.match(/^([A-Za-z]+)(.*)$/);
-  if (!match) return { majorIdx: 999, segments: [cleaned] };
-
-  const letter = match[1].toUpperCase();
-  const rest = match[2];
-
-  let majorIdx = MAJOR_PHASE_ORDER.indexOf(letter);
-  if (majorIdx === -1) majorIdx = 100 + letter.charCodeAt(0);
-
-  const segments = rest
-    ? rest
-        .split('.')
-        .map(s => {
-          const num = parseInt(s, 10);
-          return isNaN(num) ? s : num;
-        })
-    : [];
-
-  return { majorIdx, segments };
-}
-
-/**
- * So sánh 2 mã WBS để sắp xếp đúng thứ tự cây phân tầng
- * Ví dụ: A1 < A1.1 < A1.2 < A1.3 < A2 < A2.1 < L < B
- */
-export function compareWbs(codeA, codeB) {
-  const pa = parseWbsCode(codeA);
-  const pb = parseWbsCode(codeB);
-
-  // So sánh nhóm giai đoạn lớn trước (A trước L, L trước B, B trước C)
-  if (pa.majorIdx !== pb.majorIdx) {
-    return pa.majorIdx - pb.majorIdx;
-  }
-
-  // So sánh từng cấp số con bên trong
-  const maxLen = Math.max(pa.segments.length, pb.segments.length);
-  for (let i = 0; i < maxLen; i++) {
-    const sa = pa.segments[i];
-    const sb = pb.segments[i];
-
-    if (sa === undefined) return -1; // Cấp cha ngắn hơn đứng trước (A1 đứng trước A1.1)
-    if (sb === undefined) return 1;
-
-    if (typeof sa === 'number' && typeof sb === 'number') {
-      if (sa !== sb) return sa - sb;
-    } else {
-      const cmp = String(sa).localeCompare(String(sb));
-      if (cmp !== 0) return cmp;
-    }
-  }
-
-  return 0;
-}
+// Thứ tự WBS dùng chung (frontend/src/utils/wbsStructure.js) — cùng thứ tự với bảng tiến độ và chuỗi Dự báo.
+export { parseWbsCode, compareWbs };
 
 // Lấy danh sách dự án
 export function getProjects(req, res) {
@@ -187,6 +131,17 @@ export function updateProject(req, res) {
   }
   if (!nextStartDate || !nextEndDate || !Number.isFinite(Date.parse(`${nextStartDate}T00:00:00Z`)) || !Number.isFinite(Date.parse(`${nextEndDate}T00:00:00Z`)) || nextEndDate < nextStartDate) {
     return res.status(400).json({ success: false, message: 'Khoảng ngày bắt đầu và kết thúc của dự án không hợp lệ' });
+  }
+
+  // Đổi ngày dự án → dời / co giãn toàn bộ giai đoạn, mục, task bên trong theo tỷ lệ, giữ nguyên giờ từng người
+  // (cùng cách như đổi ngày một giai đoạn — utils/ganttReschedule.js).
+  if (nextStartDate !== project.startDate || nextEndDate !== project.endDate) {
+    const linkedProjectId = ganttItem => ganttItem.projectId || (db.tasks || []).find(task => task.ganttId === ganttItem.id)?.projectId;
+    const items = (db.ganttItems || []).filter(ganttItem => linkedProjectId(ganttItem) === project.id);
+    if (items.length && project.startDate && project.endDate) {
+      const rescheduleError = rescheduleGanttRange(db, { items, oldStart: project.startDate, oldEnd: project.endDate, newStart: nextStartDate, newEnd: nextEndDate });
+      if (rescheduleError) return res.status(400).json({ success: false, message: rescheduleError });
+    }
   }
 
   const previousName = project.name;
@@ -717,18 +672,6 @@ export function updateGanttItem(req, res) {
     if (!Number.isFinite(oldStartTimestamp) || !Number.isFinite(oldEndTimestamp) || oldEndTimestamp < oldStartTimestamp) {
       return res.status(400).json({ success: false, message: 'Invalid current group date range' });
     }
-    const oldGroupDays = Math.floor((oldEndTimestamp - oldStartTimestamp) / 86400000) + 1;
-    const mapDate = dateValue => {
-      const timestamp = Date.parse(`${dateValue}T00:00:00Z`);
-      if (!Number.isFinite(timestamp)) return dateValue;
-      const oldOffset = Math.max(0, Math.min(oldGroupDays - 1, Math.round((timestamp - oldStartTimestamp) / 86400000)));
-      const newOffset = oldGroupDays <= 1 || calculatedDays <= 1
-        ? 0
-        : Math.round(oldOffset * (calculatedDays - 1) / (oldGroupDays - 1));
-      const mapped = new Date(startTimestamp);
-      mapped.setUTCDate(mapped.getUTCDate() + newOffset);
-      return mapped.toISOString().slice(0, 10);
-    };
     const descendantGroupIds = new Set([item.id]);
     let foundChildGroup = true;
     while (foundChildGroup) {
@@ -740,43 +683,18 @@ export function updateGanttItem(req, res) {
         }
       });
     }
-    const descendants = (db.ganttItems || []).filter(candidate => candidate.id !== item.id && descendantGroupIds.has(candidate.parentGroupId));
-    for (const descendant of descendants) {
-      const previousChildDays = Number(descendant.days) || Math.max(1, Math.floor((Date.parse(`${descendant.endDate}T00:00:00Z`) - Date.parse(`${descendant.startDate}T00:00:00Z`)) / 86400000) + 1);
-      const childStart = mapDate(descendant.startDate);
-      const mappedEnd = mapDate(descendant.endDate);
-      const childEnd = mappedEnd < childStart ? childStart : mappedEnd;
-      if (project && ((project.startDate && childStart < project.startDate) || (project.endDate && childEnd > project.endDate))) {
-        return res.status(400).json({ success: false, message: 'The updated group range would move a child outside the project dates' });
-      }
-      const childDays = Math.floor((Date.parse(`${childEnd}T00:00:00Z`) - Date.parse(`${childStart}T00:00:00Z`)) / 86400000) + 1;
-      descendant.startDate = childStart;
-      descendant.endDate = childEnd;
-      descendant.days = childDays;
-      const childHoursPerDay = Number(descendant.estimatedHoursPerDay) || Number(descendant.estimatedHours) / previousChildDays || 8;
-      descendant.estimatedHoursPerDay = childHoursPerDay;
-      descendant.estimatedHours = Math.round(childHoursPerDay * childDays * 100) / 100;
-      if (Array.isArray(descendant.assignees)) {
-        descendant.assignees = descendant.assignees.map(assignment => {
-          const mappedStart = mapDate(assignment.startDate || childStart);
-          const mappedAssignmentEnd = mapDate(assignment.endDate || childEnd);
-          const assignmentStart = mappedStart < childStart ? childStart : mappedStart > childEnd ? childEnd : mappedStart;
-          const assignmentEnd = mappedAssignmentEnd < assignmentStart ? assignmentStart : mappedAssignmentEnd > childEnd ? childEnd : mappedAssignmentEnd;
-          return { ...assignment, startDate: assignmentStart, endDate: assignmentEnd };
-        });
-      }
-      const childTask = (db.tasks || []).find(task => task.ganttId === descendant.id);
-      if (childTask) {
-        childTask.startDate = childStart;
-        childTask.endDate = childEnd;
-        childTask.estimatedDays = childDays;
-        if (Array.isArray(descendant.assignees)) childTask.assignees = descendant.assignees;
-        const standardHours = Number((db.employees || []).find(employee => employee.id === childTask.employeeId)?.standardHours) || 8;
-        const hoursPerDay = Number(descendant.estimatedHoursPerDay) || Number(childTask.estimatedHoursPerDay) || standardHours;
-        childTask.estimatedHoursPerDay = hoursPerDay;
-        childTask.estimatedHours = Math.round(hoursPerDay * childDays * 100) / 100;
-      }
-    }
+    // Task con (A1.1.1) gắn với task cha qua parentTaskId: thuộc nhóm nếu task cha thuộc nhóm.
+    const ganttById = new Map((db.ganttItems || []).map(candidate => [candidate.id, candidate]));
+    const isUnderGroup = (candidate, seen = new Set()) => {
+      const parent = ganttById.get(candidate.parentTaskId);
+      if (!parent || seen.has(parent.id)) return false;
+      seen.add(parent.id);
+      return descendantGroupIds.has(parent.parentGroupId) || isUnderGroup(parent, seen);
+    };
+    const descendants = (db.ganttItems || []).filter(candidate => candidate.id !== item.id && (descendantGroupIds.has(candidate.parentGroupId) || isUnderGroup(candidate)));
+    // Dời / co giãn mục con theo khung mới, giữ nguyên giờ của từng người (utils/ganttReschedule.js — dùng chung với đổi ngày dự án).
+    const rescheduleError = rescheduleGanttRange(db, { items: descendants, oldStart: item.startDate, oldEnd: item.endDate, newStart: nextStartDate, newEnd: nextEndDate });
+    if (rescheduleError) return res.status(400).json({ success: false, message: rescheduleError });
     item.startDate = nextStartDate;
     item.endDate = nextEndDate;
     item.days = calculatedDays;

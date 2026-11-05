@@ -23,6 +23,15 @@ export function assignmentWorkingDates(item, assignment) {
     .filter(key => assignmentWorksOnDate(assignment, item, key));
 }
 
+// Thứ 7 làm 8:00–12:00 = nửa ngày (workSchedule.js), các ngày làm việc khác = 1 ngày.
+export const workingDayWeight = key => new Date(`${key}T12:00:00Z`).getUTCDay() === 6 ? 0.5 : 1;
+
+// Số "ngày công" của một phân công (thứ 7 = 0,5). Chia giờ ra giờ/ngày phải dùng số này,
+// cùng cách calculateAssignmentHours cộng lại giờ, để tổng giờ không bị hụt ở tuần có thứ 7.
+export function assignmentWorkingDayUnits(item, assignment) {
+  return assignmentWorkingDates(item, assignment).reduce((sum, key) => sum + workingDayWeight(key), 0);
+}
+
 export function taskWorkingDates(item) {
   if (!item.assignees?.some(a => a.excludeNonWorkingDays === true)) return datesInRange(item.startDate, item.endDate);
   return [...new Set(item.assignees.flatMap(a => assignmentWorkingDates(item, a)))].sort();
@@ -53,7 +62,7 @@ export function normalizeAssignmentSchedules(db) {
     const excluded = item.assignees?.some(a => a.excludeNonWorkingDays === true) || false;
     if (!excluded && !item.calendarAdjusted) continue;
     const days = taskWorkingDates(item).length;
-    const hours = excluded ? item.assignees.reduce((sum, a) => sum + assignmentWorkingDates(item, a).reduce((assigned, key) => assigned + (new Date(`${key}T12:00:00Z`).getUTCDay() === 6 ? 0.5 : 1) * (Number(a.estimatedHoursPerDay) || Number(item.estimatedHoursPerDay) || 8), 0), 0)
+    const hours = excluded ? item.assignees.reduce((sum, a) => sum + assignmentWorkingDates(item, a).reduce((assigned, key) => assigned + workingDayWeight(key) *(Number(a.estimatedHoursPerDay) || Number(item.estimatedHoursPerDay) || 8), 0), 0)
       : days * (Number(item.estimatedHoursPerDay) || 8);
     const fields = { calendarAdjusted: excluded, estimatedHours: Math.round(hours * 100) / 100 };
     if ((db.ganttItems || []).includes(item)) fields.days = days;

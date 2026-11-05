@@ -15,6 +15,7 @@ import {
   regularClockInDateWarning,
   SHIFT_TYPE
 } from '../../utils/shift';
+import { breakStartCheck, earlyLeaveInfo, regularClockInCheck } from '../../utils/workSchedule';
 
 function assignedTasksOnDate(allTasks, emp, selectedDate) {
   return allTasks.filter(task => {
@@ -103,6 +104,13 @@ export default function EmployeeCard({
           window.alert('Chưa có đăng ký tăng ca được duyệt cho hôm nay.');
           return;
         }
+      } else {
+        // Ca thường theo giờ công ty (utils/workSchedule.js): chỉ vào từ 7:45, Chủ nhật / lễ không có ca. Máy chủ kiểm tra lại cùng quy tắc.
+        const gate = regularClockInCheck(Date.now());
+        if (!gate.ok) {
+          window.alert(gate.message);
+          return;
+        }
       }
       if (displayedTasks.some(task => task.status !== 'completed') && !selectedTaskId) {
         window.alert(overtimeView
@@ -115,7 +123,11 @@ export default function EmployeeCard({
     }
 
     const checkInTimestamp = Date.parse(emp.checkInAt || '');
-    if (Number.isFinite(checkInTimestamp)) {
+    // Ca thường: rời trước giờ tan ca (17:30, thứ Bảy 12:00) thì hỏi lại kèm số giờ còn lại; đồng ý thì vẫn rời.
+    if (!currentShiftIsOt && Number.isFinite(checkInTimestamp)) {
+      const early = earlyLeaveInfo(emp.checkInAt, Date.now());
+      if (early.early && !window.confirm(`Chưa tới giờ tan ca (${early.endLabel}). ${emp.name} còn ${early.label} làm việc mới hết ca. Bạn có chắc chắn muốn rời văn phòng và kết thúc ca không?`)) return;
+    } else if (Number.isFinite(checkInTimestamp)) {
       const now = new Date();
       const checkIn = new Date(checkInTimestamp);
       const shiftDateKey = localDateKey(checkIn);
@@ -320,6 +332,7 @@ export default function EmployeeCard({
             {emp.isOnSite && emp.checkInTime && (
               <span className="text-[10px] text-slate-400">
                 {currentShiftIsOt ? 'Vào ca OT' : 'Vào ca'}: {emp.checkInTime}{checkInDateLabel ? ` · ${checkInDateLabel}` : ''}
+                {!currentShiftIsOt && Number(emp.lateMinutes) > 0 && <span className="ml-1 font-semibold text-rose-600 dark:text-rose-400">· Trễ {emp.lateMinutes} phút</span>}
               </span>
             )}
           </div>
@@ -328,7 +341,12 @@ export default function EmployeeCard({
         {canOperate && <div className="flex items-center gap-2">
           {emp.isOnSite && (
             <button
-              onClick={() => runAction(() => toggleBreak(emp.id))}
+              onClick={() => {
+                // Ca thường chỉ tạm nghỉ trong giờ nghỉ trưa 12:00–13:30 (máy chủ kiểm tra lại); "Tiếp tục" bấm lúc nào cũng được.
+                const gate = !emp.isOnBreak && !currentShiftIsOt ? breakStartCheck(Date.now()) : { ok: true };
+                if (!gate.ok) { window.alert(gate.message); return; }
+                runAction(() => toggleBreak(emp.id));
+              }}
               disabled={pending}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
                 emp.isOnBreak

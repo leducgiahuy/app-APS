@@ -41,6 +41,15 @@ function cellValue(value) {
 }
 
 /** Đổi ô ngày sang yyyy-mm-dd cho input date: nhận ngày Excel, số serial Excel hoặc chữ dd/mm/yyyy. */
+const todayKey = () => new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10);
+const viDate = iso => iso.split('-').reverse().join('/');
+/** Ô ngày thật của Excel mà ngày và tháng đều ≤ 12 (VD 11/04 ↔ 04/11): trả về ngày đảo ngày/tháng, không đảo được thì ''. */
+function swappedDayMonth(iso) {
+  const [year, month, day] = iso.split('-').map(Number);
+  if (day > 12 || day === month) return '';
+  return `${year}-${pad(day)}-${pad(month)}`;
+}
+
 function toIsoDate(value) {
   if (value instanceof Date) return `${value.getUTCFullYear()}-${pad(value.getUTCMonth() + 1)}-${pad(value.getUTCDate())}`;
   if (typeof value === 'number') return toIsoDate(new Date(Math.round((value - 25569) * 86400000)));
@@ -151,6 +160,8 @@ export async function readQuoteInfo(file, { templates = [], managers = [] } = {}
     if (field === 'startDate' || field === 'endDate') {
       const date = toIsoDate(raw);
       if (date) patch[field] = date; else warnings.push(`Ngày "${text}" chưa đúng dạng dd/mm/yyyy`);
+      const swapped = date && (raw instanceof Date || typeof raw === 'number') ? swappedDayMonth(date) : '';
+      if (swapped && date < todayKey() && swapped >= todayKey()) warnings.push(`${key === 'NGAY_BAT_DAU' ? 'Ngày bắt đầu' : 'Ngày kết thúc'} trong file là ${viDate(date)} (đã qua). Nếu ý bạn là ${viDate(swapped)}, Excel đã hiểu ngược ngày/tháng: hãy sửa ô ngày trong file hoặc sửa ngay ở ô bên dưới`);
     } else if (field === 'area' || field === 'floors' || field === 'contractFee') {
       const number = toNumberText(raw, { integer: field === 'contractFee' });
       if (number) patch[field] = number; else warnings.push(`"${text}" ở ${key} không phải số`);

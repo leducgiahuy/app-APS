@@ -1,16 +1,11 @@
 import { readDb, writeDb } from '../models/db.js';
 import { appendActivity } from '../utils/activityLog.js';
 
-/** Xem / xóa nhật ký chỉ dành cho Quản trị (trang Nhật ký hoạt động chỉ hiện với Quản trị). */
-const adminOnly = (req, res) => {
-  if (req.deliveryCompanyUser?.role === 'admin') return false;
-  res.status(403).json({ success: false, message: 'Chỉ Quản trị viên được xem hoặc xóa nhật ký hoạt động.' });
-  return true;
-};
+// Ai xem / xóa được nhật ký do ma trận "Trang & mục" quyết định (mục Nhật ký hoạt động: X xem, S xem và xóa),
+// kiểm tra ở pageAccessGuard trước khi tới đây (Quản trị luôn được).
 
-/** Trả danh sách nhật ký dùng chung để admin xem hoạt động từ các trình duyệt khác nhau. */
+/** Trả danh sách nhật ký dùng chung để xem hoạt động từ các trình duyệt khác nhau. */
 export function getActivityLog(req, res) {
-  if (adminOnly(req, res)) return;
   const db = readDb();
   res.json({ success: true, data: Array.isArray(db.activityLog) ? db.activityLog : [] });
 }
@@ -29,9 +24,8 @@ export function createActivityLogEntry(req, res) {
   res.status(201).json({ success: true, data: event });
 }
 
-/** Xóa nhật ký tập trung; trang quản trị chỉ hiển thị thao tác này cho admin. */
+/** Xóa nhật ký tập trung (cần S ở mục Nhật ký hoạt động). */
 export function clearActivityLogEntries(req, res) {
-  if (adminOnly(req, res)) return;
   const db = readDb();
   db.activityLog = [];
   if (!writeDb(db)) return res.status(500).json({ success: false, message: 'Không thể xóa nhật ký hoạt động.' });

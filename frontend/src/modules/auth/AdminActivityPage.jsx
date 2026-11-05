@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Activity, Download, Search, Trash2 } from 'lucide-react';
 import { clearActivityLog, clearSharedActivityLog, fetchSharedActivityLog, getActivityLog, getCurrentUser, getUsers, recordActivity } from './authSession';
 import './AdminActivityPage.css';
+import { useCanEdit } from '../../components/AccessScope';
 
 // Thao tác ghi từ trình duyệt → [nhãn, nhóm]. Thao tác do máy chủ ghi (trang Dự án, Công ty, giờ công, tài chính…)
 // mang sẵn `label` + `category`. Đăng nhập / đăng xuất, điểm danh, đổi thứ tự… không phải thay đổi quan trọng nên không hiện.
@@ -51,8 +52,10 @@ function getCategory(event) {
 
 const actionLabel = (event) => event.label || ACTION_LABELS[event.action]?.[0] || event.action;
 
-/** Trang theo dõi hoạt động chỉ được render từ App khi phiên hiện tại là admin. */
+/** Trang theo dõi hoạt động: ai thấy do ma trận Trang & mục (mục Nhật ký hoạt động) quyết định. */
 export default function AdminActivityPage() {
+  // Ma trận: S ở "Nhật ký hoạt động" mới có nút Xóa nhật ký; X chỉ xem, lọc và xuất CSV.
+  const canClear = useCanEdit('activity.log');
   const pageSize = 50;
   const [events, setEvents] = useState(getActivityLog);
   const [query, setQuery] = useState('');
@@ -130,7 +133,7 @@ export default function AdminActivityPage() {
           <select aria-label="Lọc theo loại dữ liệu" value={category} onChange={(event) => { setCategory(event.target.value); setPage(1); }}><option value="all">Tất cả dữ liệu</option>{Object.entries(CATEGORY_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
           <select aria-label="Lọc theo user" value={userEmail} onChange={(event) => { setUserEmail(event.target.value); setPage(1); }}><option value="all">Tất cả user</option>{users.map((user) => <option key={user.email} value={user.email}>{user.name}</option>)}</select>
           <button className="activity-export" type="button" onClick={handleExport} disabled={!filteredEvents.length}><Download size={16} /> Xuất CSV</button>
-          <button className="activity-clear" type="button" onClick={handleClear} disabled={!events.length}><Trash2 size={16} /> Xóa nhật ký</button>
+          {canClear && <button className="activity-clear" type="button" onClick={handleClear} disabled={!events.length}><Trash2 size={16} /> Xóa nhật ký</button>}
         </div>
       </div>
 

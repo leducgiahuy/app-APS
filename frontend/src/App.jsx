@@ -67,7 +67,7 @@ function MainLayout() {
           {!pageBlocked && activeTab === 'director-overview' && <DirectorOverviewPage />}
           {!pageBlocked && activeTab === 'gantt' && <Suspense fallback={<p className="p-4 text-sm text-slate-500">Đang tải tiến độ…</p>}><GanttPage /></Suspense>}
           {!pageBlocked && activeTab === 'company' && <Suspense fallback={<p className="p-4">Đang tải trang Công ty…</p>}><CompanyPage /></Suspense>}
-          {activeTab === 'activity' && getCurrentUser()?.role === 'admin' && <AdminActivityPage />}
+          {activeTab === 'activity' && (ready || getCurrentUser()?.role === 'admin') && pageVisible('activity') && <AdminActivityPage />}
           {!pageBlocked && placeholderPage && <Suspense fallback={<p className="p-4">Đang tải…</p>}>{activeTab === 'timesheets' && <TimesheetsPage/>}{activeTab === 'permissions' && <PermissionsPage/>}</Suspense>}
         </main>
       </ContentColumn>

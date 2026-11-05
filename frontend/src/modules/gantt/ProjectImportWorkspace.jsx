@@ -4,6 +4,7 @@ import { positionLookup, quoteItemsToTemplateItems, readQuoteInfo } from './quot
 import { QUOTE_DEPARTMENTS, QUOTE_GROUPS, QUOTE_STANDARD_ITEMS } from './quoteStandardItems';
 import { useOperations } from '../operations/OperationsCommon';
 import { companyAdmin } from '../../utils/operationsDefaults';
+import DateInput from '../../components/DateInput';
 
 const vnToday = () => new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10);
 const validFile = (file, types) => file && types.some(extension => file.name.toLocaleLowerCase('vi').endsWith(extension));
@@ -139,6 +140,13 @@ export default function ProjectImportWorkspace({ onCreated }) {
   const api = useOperations({});
   const [draft, setDraft] = useState({ name: '', code: '', client: '', location: '', startDate: vnToday(), endDate: vnToday(), area: '', floors: '', contractFee: '', managerEmail: '', leaderEmails: [], templateId: '', scope: [] });
   const [quoteFile, setQuoteFile] = useState(null);
+  // Cảnh báo thời gian dự án ngay khi nhập / đọc file: ngày đã qua (thường do Excel hiểu ngược ngày/tháng) hoặc kết thúc trước bắt đầu.
+  const dateWarning = useMemo(() => {
+    const view = iso => iso.split('-').reverse().join('/');
+    if (draft.startDate && draft.endDate && draft.endDate < draft.startDate) return `Ngày kết thúc ${view(draft.endDate)} đang trước ngày bắt đầu ${view(draft.startDate)}.`;
+    if (draft.startDate && draft.startDate < vnToday()) return `Ngày bắt đầu ${view(draft.startDate)} đã qua (hôm nay ${view(vnToday())}). Dự án sẽ được xếp lịch trong quá khứ; kiểm tra lại ngày / tháng trước khi tạo.`;
+    return '';
+  }, [draft.startDate, draft.endDate]);
   const [contractFile, setContractFile] = useState(null);
   const [plan, setPlan] = useState(null);
   const [pending, setPending] = useState(false);
@@ -219,6 +227,9 @@ export default function ProjectImportWorkspace({ onCreated }) {
   };
   const create = async () => {
     if (!plan) return;
+    if (dateWarning && !window.confirm(`${dateWarning}
+
+Vẫn tạo dự án với thời gian này?`)) return;
     setPending(true); setError('');
     try {
       const result = await api.mutate('projectCreate', { ...payload(), quoteFileName: quoteFile?.name || '', contractFileName: contractFile?.name || '', budgetLines: plan.lines, milestones: plan.milestones.map(milestone => ({ ...milestone, conditions: (milestone.conditions || []).map(condition => ({ ...condition, taskId: plan.items.find(item => item.id === condition.taskId)?.templateItemId || condition.taskId })) })) });
@@ -243,7 +254,7 @@ export default function ProjectImportWorkspace({ onCreated }) {
     <section className="project-import-panel"><header><span className="step-number">2</span><div><b>Thông tin chung</b><small>Thông tin dùng để tạo dự án, lịch và người phụ trách</small></div></header><div className="project-info-grid">
       <label>Tên dự án<input required value={draft.name} onChange={event => set('name', event.target.value)} /></label><label>Mã dự án<input value={draft.code} onChange={event => set('code', event.target.value)} /></label><label>Chủ đầu tư<input value={draft.client} onChange={event => set('client', event.target.value)} /></label>
       <label>Dạng dự án → template<select required value={draft.templateId} onChange={event => { setDraft(current => ({ ...current, templateId: event.target.value, scope: [] })); setPlan(null); }}><option value="">Chọn template</option>{api.data?.templates?.map(row => <option key={row.id} value={row.id}>{row.name} · {row.count} việc</option>)}<option value={FROM_FILE_TEMPLATE} disabled={!quoteTaskCount}>Không dùng template · lấy {quoteTaskCount || ''} hạng mục từ file báo giá</option></select></label><label>Diện tích sàn (m²)<input type="number" min="0" value={draft.area} onChange={event => set('area', event.target.value)} /></label><label>Số tầng<input type="number" min="0" value={draft.floors} onChange={event => set('floors', event.target.value)} /></label>
-      <label>Bắt đầu<input type="date" required value={draft.startDate} onChange={event => set('startDate', event.target.value)} /></label><label>Kết thúc<input type="date" required min={draft.startDate} value={draft.endDate} onChange={event => set('endDate', event.target.value)} /></label><label>Giá trị HĐ trước VAT<input type="number" min="0" value={draft.contractFee} onChange={event => set('contractFee', event.target.value)} /></label>
+      <label>Bắt đầu<DateInput required value={draft.startDate} onChange={value => set('startDate', value)} /></label><label>Kết thúc<DateInput required min={draft.startDate} value={draft.endDate} onChange={value => set('endDate', value)} /></label>{dateWarning && <p className="project-import-date-warning" role="alert">{dateWarning}</p>}<label>Giá trị HĐ trước VAT<input type="number" min="0" value={draft.contractFee} onChange={event => set('contractFee', event.target.value)} /></label>
       <label>Địa điểm<input value={draft.location} onChange={event => set('location', event.target.value)} /></label><label>QL · Leader<select value={draft.managerEmail} onChange={event => set('managerEmail', event.target.value)}><option value="">Người lập</option>{managerAccounts.map(account => <option key={account.email} value={account.email}>{account.name || account.email}</option>)}</select></label>{template?.scopeOptions?.length > 0 && <div className="project-scope"><span>Phạm vi</span>{template.scopeOptions.map(option => <label key={option.key}><input type="checkbox" checked={draft.scope.includes(option.key)} onChange={event => set('scope', event.target.checked ? [...draft.scope, option.key] : draft.scope.filter(key => key !== option.key))} />{option.label}</label>)}</div>}
     </div><div className="project-import-actions">{fromFile && canSaveTemplate && <button disabled={pending || api.disabled} onClick={saveAsTemplate}>Lưu hạng mục thành template mới</button>}<button className="primary" disabled={pending || api.disabled} onClick={preview}>{pending ? 'Đang đọc…' : 'Đọc file & sinh dữ liệu'}</button></div></section>
 

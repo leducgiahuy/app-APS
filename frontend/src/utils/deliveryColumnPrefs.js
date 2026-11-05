@@ -1,5 +1,5 @@
 /**
- * Lựa chọn cột hiện / ẩn của bảng tiến độ (nút "Bố cục" → Hiển thị cột), lưu trên trình duyệt.
+ * Lựa chọn cột hiện / ẩn của bảng tiến độ (nút "Bố cục" → Hiển thị cột), lưu trong phiên làm việc (sessionStorage); mỗi lần mở web bắt đầu từ bộ cột chuẩn DEFAULT_VISIBLE_KEYS.
  * Bản lưu v2 = { keys: cột đang hiện, known: mọi cột web có lúc lưu }:
  * - mở lại trang / chuyển trang rồi quay lại: giữ đúng các cột đã chọn, không tự bật lại cột đã tắt;
  * - sau này web thêm cột mới (không có trong known): cột mới tự hiện, cột người dùng đã tắt vẫn tắt;

@@ -10,9 +10,13 @@ import './DirectorOverviewPage.css';
 const number = value => value == null || !Number.isFinite(Number(value))
   ? '—'
   : Number(value).toLocaleString('vi-VN', { maximumFractionDigits: 1 });
+// Cột công (Dự toán / Thực tế / Dự báo / Chênh lệch): 2 chữ số, cùng cách hiện với bảng Gantt.
+const work = value => value == null || !Number.isFinite(Number(value))
+  ? '—'
+  : Number(value).toLocaleString('vi-VN', { maximumFractionDigits: 2 });
 const signed = value => value == null || !Number.isFinite(Number(value))
   ? '—'
-  : `${Number(value) > 0 ? '+' : ''}${number(value)}`;
+  : `${Number(value) > 0 ? '+' : ''}${work(value)}`;
 
 function projectWork(project, details, executiveRow) {
   const comparison = summarizeProjectWork(project, details?.taskMetrics);
@@ -23,6 +27,7 @@ function projectWork(project, details, executiveRow) {
     budgeted: comparison.budgetedWork,
     actual: comparison.actualWork,
     forecast: comparison.forecastWork,
+    remaining: comparison.remainingWork,
     variance: comparison.varianceWork,
     variancePercent: comparison.variancePercent,
     completion: executiveRow?.completion ?? details?.summary?.completion ?? 0,
@@ -95,7 +100,7 @@ export default function DirectorOverviewPage() {
       budgetedWork: row.budgeted,
       actualWork: row.actual,
       forecastWork: row.forecast,
-      remainingWork: Math.max(0, row.forecast - row.actual),
+      remainingWork: row.remaining ?? Math.max(0, row.forecast - row.actual),
     })));
     return {
       budgeted: comparison.budgetedWork,
@@ -156,14 +161,14 @@ export default function DirectorOverviewPage() {
           <tbody>
             {rows.map(row => <tr key={row.id}>
               <td><button className="project-link" onClick={() => openProject(row.id)}>{row.name}</button></td>
-              <td>{number(row.budgeted)}</td><td>{number(row.actual)}</td><td><b>{number(row.forecast)}</b></td>
+              <td>{work(row.budgeted)}</td><td>{work(row.actual)}</td><td><b>{work(row.forecast)}</b></td>
               <td><span className={`variance ${varianceTone(row.variance, row.variancePercent)}`}>{signed(row.variance)}{row.variancePercent != null && ` (${signed(row.variancePercent)}%)`}</span></td>
               <td>{number(row.completion)}% / {number(row.planPercent)}%</td>
               <td>{row.red ? <span className="red-count">{row.red}</span> : '—'}</td>
             </tr>)}
             {!rows.length && <tr><td colSpan="7" className="empty">Chưa có dự án thuộc phạm vi xem.</td></tr>}
           </tbody>
-          {!!rows.length && <tfoot><tr><th>Tổng công ty</th><th>{number(totals.budgeted)}</th><th>{number(totals.actual)}</th><th>{number(totals.forecast)}</th><th><span className={`variance ${varianceTone(totals.variance, totals.variancePercent)}`}>{signed(totals.variance)}{totals.variancePercent != null ? ` (${signed(totals.variancePercent)}%)` : ''}</span></th><th>{number(totals.completion)}% / {number(totals.planPercent)}%</th><th>{totals.red}</th></tr></tfoot>}
+          {!!rows.length && <tfoot><tr><th>Tổng công ty</th><th>{work(totals.budgeted)}</th><th>{work(totals.actual)}</th><th>{work(totals.forecast)}</th><th><span className={`variance ${varianceTone(totals.variance, totals.variancePercent)}`}>{signed(totals.variance)}{totals.variancePercent != null ? ` (${signed(totals.variancePercent)}%)` : ''}</span></th><th>{number(totals.completion)}% / {number(totals.planPercent)}%</th><th>{totals.red}</th></tr></tfoot>}
         </table></div>
         <footer>Dự báo = công thực tế + công còn lại theo mức hoàn thành đã ghi nhận. Xanh ≤ 5%; vàng 5–10%; đỏ &gt; 10%. Bấm tên dự án để mở bảng việc.</footer>
       </section>

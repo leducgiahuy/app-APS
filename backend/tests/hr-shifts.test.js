@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 import * as backendShift from '../src/utils/shift.js';
 import * as frontendShift from '../../frontend/src/utils/shift.js';
 import * as assignmentCalendar from '../../frontend/src/utils/assignmentCalendar.js';
+import * as workSchedule from '../../frontend/src/utils/workSchedule.js';
 
 test('frontend and backend enforce Vietnam overtime boundaries', () => {
   const cases = [
@@ -63,13 +64,16 @@ async function harness() {
   const calendar = new vm.SyntheticModule(Object.keys(assignmentCalendar), function () {
     for (const [key, value] of Object.entries(assignmentCalendar)) this.setExport(key, value);
   }, { context });
+  const schedule = new vm.SyntheticModule(Object.keys(workSchedule), function () {
+    for (const [key, value] of Object.entries(workSchedule)) this.setExport(key, value);
+  }, { context });
   const cryptoModule = new vm.SyntheticModule(['randomUUID'], function () {
     this.setExport('randomUUID', randomUUID);
   }, { context });
   const attendance = new vm.SourceTextModule(await readFile(new URL('../src/utils/appAttendance.js', import.meta.url), 'utf8'), { context });
   const cleanup = new vm.SourceTextModule(await readFile(new URL('../src/utils/deletionCleanup.js', import.meta.url), 'utf8'), { context });
   const controller = new vm.SourceTextModule(await readFile(new URL('../src/controllers/hrController.js', import.meta.url), 'utf8'), { context });
-  await controller.link(specifier => specifier.includes('models/db') ? dbModule : specifier.includes('employeeCodes') ? codes : specifier.includes('assignmentCalendar') ? calendar : specifier.includes('appAttendance') ? attendance : specifier.includes('deletionCleanup') ? cleanup : specifier === 'node:crypto' ? cryptoModule : rules);
+  await controller.link(specifier => specifier.includes('models/db') ? dbModule : specifier.includes('employeeCodes') ? codes : specifier.includes('assignmentCalendar') ? calendar : specifier.includes('workSchedule') ? schedule : specifier.includes('appAttendance') ? attendance : specifier.includes('deletionCleanup') ? cleanup : specifier === 'node:crypto' ? cryptoModule : rules);
   await controller.evaluate();
   function call(name, body = {}) {
     let status = 200;
@@ -194,4 +198,56 @@ test('checkout polling after midnight still caps the original OT shift', async (
   call('getEmployees');
   assert.equal(db.tasks[0].actualWorkHours, 2);
   assert.equal(db.employees[0].isOnSite, false);
+});
+
+test('ca thường theo giờ công ty: vào từ 7:45, sau 8:00 báo đi trễ, Chủ nhật không có ca thường', async () => {
+  const { db, call, setTime } = await harness();
+  setTime('2026-11-04T07:30:00+07:00');
+  const early = call('toggleOnSite', { shiftType: 'regular' });
+  assert.equal(early.status, 400);
+  assert.match(early.message, /Chưa tới giờ vào ca.*từ 7:45/);
+  assert.equal(db.employees[0].isOnSite, false);
+  setTime('2026-11-04T08:25:00+07:00');
+  const late = call('toggleOnSite', { shiftType: 'regular' });
+  assert.equal(late.status, 200);
+  assert.match(late.message, /Đi trễ 25 phút/);
+  assert.equal(db.employees[0].lateMinutes, 25);
+  setTime('2026-11-08T09:00:00+07:00');
+  db.employees[0].isOnSite = false;
+  assert.match(call('toggleOnSite', { shiftType: 'regular' }).message, /Chủ nhật \/ ngày lễ/);
+});
+
+test('ca thường: tạm nghỉ chỉ trong 12:00–13:30, tự làm lại lúc 13:30, tự rời lúc 17:30 và chỉ tính giờ trong khung ca', async () => {
+  const { db, call, setTime } = await harness();
+  setTime('2026-11-04T07:50:00+07:00');
+  assert.equal(call('toggleOnSite', { shiftType: 'regular' }).status, 200);
+  setTime('2026-11-04T11:00:00+07:00');
+  assert.match(call('toggleBreak').message, /Chỉ được tạm nghỉ trong giờ nghỉ trưa 12:00–13:30/);
+  setTime('2026-11-04T12:05:00+07:00');
+  assert.equal(call('toggleBreak').status, 200);
+  assert.equal(db.employees[0].isOnBreak, true);
+  setTime('2026-11-04T13:40:00+07:00');
+  call('getEmployees');
+  assert.equal(db.employees[0].isOnBreak, false, 'hết giờ trưa tự quay lại làm');
+  setTime('2026-11-04T17:45:00+07:00');
+  call('getEmployees');
+  assert.equal(db.employees[0].isOnSite, false, 'tới 17:30 tự rời văn phòng');
+  assert.equal(new Date(db.employees[0].lastShiftCheckOutAt).toISOString(), new Date('2026-11-04T17:30:00+07:00').toISOString());
+  assert.equal(db.appAttendance.at(-1).hours, 8, '8:00–12:00 + 13:30–17:30 = 8h, không tính 7:50–8:00 và giờ trưa');
+});
+
+test('ca thường thứ Bảy 8:00–12:00 tự rời lúc 12:00; rời sớm ngày thường báo số giờ còn lại', async () => {
+  const { db, call, setTime } = await harness();
+  setTime('2026-11-07T08:00:00+07:00');
+  assert.equal(call('toggleOnSite', { shiftType: 'regular' }).status, 200);
+  setTime('2026-11-07T12:20:00+07:00');
+  call('getEmployees');
+  assert.equal(db.employees[0].isOnSite, false);
+  assert.equal(db.appAttendance.at(-1).hours, 4);
+  setTime('2026-11-09T09:00:00+07:00');
+  assert.equal(call('toggleOnSite', { shiftType: 'regular' }).status, 200);
+  setTime('2026-11-09T15:00:00+07:00');
+  const leave = call('toggleOnSite', { shiftType: 'regular' });
+  assert.match(leave.message, /sớm, còn 2 giờ 30 phút mới hết ca \(17:30\)/);
+  assert.deepEqual([db.appAttendance.at(-1).hours, db.appAttendance.at(-1).earlyLeaveMinutes], [4.5, 150]);
 });

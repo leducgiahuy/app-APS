@@ -1,8 +1,12 @@
-import test from 'node:test';
+import test, { mock } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+
+// Cố định giờ chạy test vào giữa giờ làm (thứ Tư 9:00 giờ Việt Nam): vào văn phòng chỉ được từ 7:45 đến 17:30
+// ngày làm việc (utils/workSchedule.js), nên kết quả không được phụ thuộc giờ thật lúc chạy test.
+mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-11-04T09:00:00+07:00') });
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aps-work-flow-'));
 process.env.APS_DB_PATH = path.join(dir, 'db.json');

@@ -49,6 +49,8 @@ export function requiredPageAccess(method, path, body = {}) {
   if (/^\/delivery\/[^/]+$/.test(path)) return reading ? read([...GANTT_SECTIONS, 'director-overview.kpis']) : write(DELIVERY_ACTIONS[body?.action] || GANTT_SECTIONS);
   // Kế hoạch nhân lực = mục Quản Lý Nhân Sự → 6 tháng tới; sửa còn theo quy tắc QL lập / Giám đốc duyệt.
   if (path === '/workforce-plan') return reading ? read(['work-hub.workload.forecast']) : write(['work-hub.workload.forecast']);
+  // Nhật ký hoạt động: xem cần X/S, xóa cần S ở mục Nhật ký hoạt động. Ghi nhật ký (POST) thì mọi tài khoản đều ghi được.
+  if (path === '/activity') return reading ? read(['activity.log']) : verb === 'DELETE' ? write(['activity.log']) : null;
   if (reading) return null;
   if (/^\/employees\/[^/]+\/(toggle-onsite|toggle-break|active-task)$/.test(path)) return write(['work-hub.hr', 'work-hub.my-work']);
   if (/^\/employees(\/[^/]+)?$/.test(path)) return write(['work-hub.hr']);

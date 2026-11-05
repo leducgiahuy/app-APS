@@ -77,6 +77,10 @@ export const PAGE_ACCESS_TREE = [
       item('company.settings.rules', 'Quy tắc chung', VIEW_ALL),
     ]),
   ] },
+  // Nhật ký hoạt động: X = xem nhật ký, S = xem và xóa nhật ký. Mặc định chỉ Giám đốc xem (Quản trị luôn thấy).
+  { key: 'activity', label: 'Nhật Ký Hoạt Động', children: [
+    item('activity.log', 'Nhật ký hoạt động', ['—', '—', '—', '—', '—', 'X']),
+  ] },
 ];
 
 /** Danh sách phẳng mọi mục / mục con kèm khóa của mục cha (trang không có ô quyền riêng). */

@@ -3,7 +3,7 @@ import { logDeliveryActivity } from '../utils/activityLog.js';
 import { roleAllows } from '../../../frontend/src/utils/operationsDefaults.js';
 import { ruleAllows } from '../../../frontend/src/utils/rolePermissions.js';
 import { allSheets, canReviewSheet, sheetFlags } from '../utils/operationsReports.js';
-import { assignmentWorkingDates } from '../../../frontend/src/utils/assignmentCalendar.js';
+import { assignmentWorkingDates, assignmentWorkingDayUnits } from '../../../frontend/src/utils/assignmentCalendar.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -140,7 +140,7 @@ export function applyDeliveryMutation(ctx, body) {
     const currentProjectBudget=project.contractWork !== '' && project.contractWork != null && Number.isFinite(Number(project.contractWork))
       ? Number(project.contractWork)
       : Object.values(before.taskMetrics || {}).reduce((sum,metric)=>sum+(Number(metric.budgetedWork)||0),0);
-    const task={id:`G-${randomUUID()}`,projectId,code:`${cr.code}.PL`,title:text(value.title)||cr.title,startDate:value.startDate,endDate:value.endDate,requiredPosition:employee.title||'',estimatedHours:hours,contractWork:addedContractWork,parentGroupId:db.ganttItems.find(t=>t.id===cr.taskId)?.parentGroupId||'',dependencies:[],isGroup:false,status:'not_started',createdAt:new Date().toISOString(),changeId:cr.id};const days=assignmentWorkingDates(task,{excludeNonWorkingDays:true}).length;assert(days>0,'Khoảng lịch không có ngày làm việc.');task.assignees=[{employeeId:employee.id,employeeName:employee.name,startDate:task.startDate,endDate:task.endDate,estimatedHoursPerDay:hours/days,excludeNonWorkingDays:true}];task.assignee=employee.name;db.ganttItems.push(task);db.tasks ||= [];db.tasks.push({...task,id:`task-${randomUUID()}`,ganttId:task.id,employeeId:employee.id,employeeName:employee.name,projectName:project.name,progress:0,actualWorkHours:0});
+    const task={id:`G-${randomUUID()}`,projectId,code:`${cr.code}.PL`,title:text(value.title)||cr.title,startDate:value.startDate,endDate:value.endDate,requiredPosition:employee.title||'',estimatedHours:hours,contractWork:addedContractWork,parentGroupId:db.ganttItems.find(t=>t.id===cr.taskId)?.parentGroupId||'',dependencies:[],isGroup:false,status:'not_started',createdAt:new Date().toISOString(),changeId:cr.id};const days=assignmentWorkingDayUnits(task,{excludeNonWorkingDays:true});assert(days>0,'Khoảng lịch không có ngày làm việc.');task.assignees=[{employeeId:employee.id,employeeName:employee.name,startDate:task.startDate,endDate:task.endDate,estimatedHoursPerDay:hours/days,excludeNonWorkingDays:true}];task.assignee=employee.name;db.ganttItems.push(task);db.tasks ||= [];db.tasks.push({...task,id:`task-${randomUUID()}`,ganttId:task.id,employeeId:employee.id,employeeName:employee.name,projectName:project.name,progress:0,actualWorkHours:0});
     project.contractWork=currentProjectBudget+addedContractWork;
     data.settings.contractFee+=delta;Object.assign(cr,{appendix:text(value.appendix),signedAt:value.signedDate,signedBy:user.email,appendixAmount:delta,appendixTaskId:task.id,approvedEstimatedHours:hours,budgetWorkAdded:addedContractWork});
     if(data.settings.contractLocked){const m=computeDelivery(db,projectId,{...data,lockedWeights:{},settings:{...data.settings,contractLocked:false}});data.lockedWeights=Object.fromEntries(Object.entries(m.taskMetrics).map(([key,t])=>[key,m.summary.totalPlanned>0?t.planned/m.summary.totalPlanned:0]));}

@@ -5,6 +5,8 @@ import { deliveryViewer } from '../modules/gantt/deliveryApi';
 import { permissionsFor } from '../utils/rolePermissions';
 import { accountForEmployee } from '../modules/auth/accountEmployeeSync';
 import { PageAccessProvider, usePageAccess } from './PageAccessContext';
+import { isLunchTime, vnDateKey } from '../utils/workSchedule';
+import { isOvertimeShift } from '../utils/shift';
 
 const AppContext = createContext();
 // Tách khỏi AppContext để mỗi tích tắc đồng hồ hay mỗi lần thu/mở menu không bắt mọi trang vẽ lại
@@ -226,6 +228,17 @@ function AppStateProvider({ children }) {
       .then(user => setViewer(user))
       .catch(() => setViewer(null));
   }, []);
+
+  // Nhắc nghỉ trưa: người đang đăng nhập đang trong ca thường thì tới 12:00 (giờ nghỉ trưa theo utils/workSchedule.js)
+  // hiện thông báo một lần mỗi ngày, ở bất kỳ trang nào. Giờ nghỉ trưa không tính giờ làm.
+  useEffect(() => {
+    const me = employees.find(employee => employee.id === viewer?.employeeId);
+    if (!me?.isOnSite || isOvertimeShift(me.shiftType) || !isLunchTime(currentTime.getTime())) return;
+    const key = `aps-lunch-reminder:${me.id}:${vnDateKey(currentTime.getTime())}`;
+    try { if (localStorage.getItem(key)) return; localStorage.setItem(key, '1'); } catch { /* không lưu được thì vẫn nhắc */ }
+    showToast('Tới giờ nghỉ trưa (12:00–13:30). Giờ nghỉ trưa không tính vào giờ làm; 13:30 đồng hồ task tự chạy lại.', 'info');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTime, employees, viewer?.employeeId]);
 
   // Poll the employee endpoint while shifts are active. The backend persists
   // automatic check-out as soon as each employee reaches their daily hours.

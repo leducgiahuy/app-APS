@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { calendarCapacity, positionKey, employeePosition } from '../../../frontend/src/utils/workforceForecast.js';
 import { calculateAssignmentHours } from '../../../frontend/src/utils/ganttEffort.js';
-import { assignmentWorkingDates } from '../../../frontend/src/utils/assignmentCalendar.js';
+import { assignmentWorkingDayUnits } from '../../../frontend/src/utils/assignmentCalendar.js';
 import { addDate } from './operationsReports.js';
 import { projectTemplates } from './defaultProjectTemplate.js';
 import { WBS_PHASE_PRESETS, cleanWbsCode, linkWbsItems, wbsLevel } from '../../../frontend/src/utils/wbsStructure.js';
@@ -63,7 +63,7 @@ export function projectBlueprint(db,input,user){
  const parentIds=new Set(items.map(t=>t.parentTaskId).filter(Boolean)),allocations=[];
  const employeeLoad=(employee,item)=>[...(db.ganttItems||[]),...items].filter(t=>!t.isGroup&&t.status!=='completed'&&t.endDate>=item.startDate&&t.startDate<=item.endDate).reduce((sum,t)=>sum+(t.assignees||[]).filter(a=>a.employeeId===employee.id).reduce((hours,a)=>hours+overlapHours(t,a,item.startDate,item.endDate),0),0);
  const activeEmployees=(db.employees||[]).filter(e=>e.status!=='inactive');
- const assignment=(employee,item,hours)=>({employeeId:employee.id,employeeName:employee.name,startDate:item.startDate,endDate:item.endDate,estimatedHoursPerDay:hours/Math.max(1,assignmentWorkingDates(item,{excludeNonWorkingDays:true}).length),excludeNonWorkingDays:true,excludedDates:[]});
+ const assignment=(employee,item,hours)=>({employeeId:employee.id,employeeName:employee.name,startDate:item.startDate,endDate:item.endDate,estimatedHoursPerDay:hours/(assignmentWorkingDayUnits(item,{excludeNonWorkingDays:true})||1),excludeNonWorkingDays:true,excludedDates:[]});
  for(const item of items.filter(t=>!t.isGroup&&!parentIds.has(t.id))){
   const position=item.requiredPosition||item.position||'',capacity=calendarCapacity(item.startDate,item.endDate),departments=taskDepartments(item);
   // Việc ghi theo bộ môn (VD "KC, HT"): mỗi bộ môn nội bộ 1 người ít tải nhất của bộ môn đó, công chia đều; CĐT không gán.

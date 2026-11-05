@@ -18,15 +18,20 @@ export const DELIVERY_COLUMNS = [
   { key: 'weight', label: 'TỶ TRỌNG', width: 80 },
   { key: 'actualWork', label: 'THỰC TẾ', width: 80 },
   { key: 'remainingWork', label: 'CÒN LẠI', width: 82 },
-  { key: 'varianceWork', label: 'CHÊNH LỆCH', width: 116 },
+  { key: 'varianceWork', label: 'CHÊNH LỆCH', width: 132 },
   { key: 'output', label: 'SẢN LƯỢNG', width: 100, financial: true },
   { key: 'createdAt', label: 'NGÀY TẠO', width: 95 },
   { key: 'note', label: 'GHI CHÚ', width: 180, alignLeft: true },
   { key: 'actions', label: 'THAO TÁC', width: 100 },
 ];
 export const COMPACT_KEYS = ['code', 'title', 'people', 'submission', 'status'];
+/** Bộ cột chuẩn mỗi lần mở trang Dự án (người dùng chọn 05/11/2026). Ngày, Tỷ trọng, Còn lại, Sản lượng, Ngày tạo, Ghi chú, Thao tác ẩn — bật được ở "Hiển thị cột". */
+export const DEFAULT_VISIBLE_KEYS = ['code', 'title', 'people', 'submission', 'status', 'startDate', 'endDate', 'contractWork', 'duration', 'actualWork', 'varianceWork'];
 export const shortDateTime = value => value ? new Date(value).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : '—';
 const number = value => value == null ? '—' : Number(value).toLocaleString('vi-VN', { maximumFractionDigits: 1 });
+// Các cột công (Dự toán, Dự báo, Thực tế, Còn lại, Chênh lệch) hiện tới 2 chữ số — đúng số dùng để tính, nên nhẩm trên bảng
+// (VD Dự báo = Dự toán × Thực tế task trên ÷ Dự toán task trên) ra khớp, và hai cột đổi số cùng lúc khi Thực tế chạy.
+const work = value => value == null || !Number.isFinite(Number(value)) ? '—' : Number(value).toLocaleString('vi-VN', { maximumFractionDigits: 2 });
 
 export default function DeliveryRow({ item, columns, height, depth = 0, record, metric, aggregate, employees, collapsed, onToggle, onOpen, onEdit, onAssign, onDelete, onSaveWork, onCreateTask, color, readOnly, canAssign = !readOnly, highlighted = false }) {
   const [createMenu, setCreateMenu] = useState(null);
@@ -50,7 +55,7 @@ export default function DeliveryRow({ item, columns, height, depth = 0, record, 
   const hasContractWork = item.contractWork !== '' && item.contractWork != null && Number.isFinite(Number(item.contractWork));
   const comparisonFallback = metric ? workComparison(
     record.freeRework || record.isChangeWork ? 0 : hasContractWork ? Number(item.contractWork) : metric.planned,
-    metric.completedActual ?? 0,
+    metric.actualWork ?? metric.completedActual ?? 0,
     record.level,
     metric.forecastWork ?? taskForecastWork({ planned: metric.planned, spent: metric.actual, level: record.level, completed: item.status === 'completed', completedActual: metric.completedActual })
   ) : null;
@@ -72,22 +77,31 @@ export default function DeliveryRow({ item, columns, height, depth = 0, record, 
       if (['startDate', 'endDate'].includes(column.key)) content = item[column.key]?.split('-').reverse().join('/') || '—';
       if (column.key === 'days') content = item.days ?? '—';
       // Dự báo khi xong (taskForecastWork, nhóm / dự án = tổng các task): luôn Dự báo = Thực tế + Còn lại, Chênh lệch = Dự báo − Dự toán.
-      if (column.key === 'duration') content = number(metric?.forecastWork ?? comparisonFallback?.forecastWork);
+      if (column.key === 'duration') content = work(metric?.forecastWork ?? comparisonFallback?.forecastWork);
       if (column.key === 'weight') content = metric?.displayWeightPercent != null ? `${number(metric.displayWeightPercent)}%` : metric?.weight == null ? '—' : `${number(metric.weight * 100)}%`;
-      if (column.key === 'actualWork') content = metric?.completedCount > 0 ? number(metric.completedActual) : '';
-      if (column.key === 'remainingWork') content = number(remainingWork);
+      // Thực tế = công đã làm, hiện ở mọi dòng (cả task đang làm): Thực tế + Còn lại = Dự báo.
+      if (column.key === 'actualWork') {
+        const actual = metric?.actualWork ?? (metric?.completedCount > 0 ? metric?.completedActual : 0);
+        // Đồng hồ giờ công ty đang chạy cho task này (trong khung 8:00–17:30, trừ nghỉ trưa): hiện 2 chữ số và chấm xanh.
+        const running = !group && metric?.clockRunning;
+        const totalMinutes = Math.round((Number(metric?.actualWorkHours) || 0) * 60);
+        content = !metric ? '' : running
+          ? <span className="delivery-actual-running" title={`Đang chạy theo giờ công ty · ${Math.floor(totalMinutes / 60)} giờ ${totalMinutes % 60} phút (tự cập nhật)`}><i aria-hidden="true" />{Number(actual).toLocaleString('vi-VN', { maximumFractionDigits: 2 })}</span>
+          : work(actual);
+      }
+      if (column.key === 'remainingWork') content = work(remainingWork);
       if (column.key === 'varianceWork') {
         const variance = varianceWork;
         const percent = variancePercent;
         const tone = varianceTone(variance, percent);
-        content = variance == null ? '—' : <span className={`delivery-work-variance ${tone}`} title="Chênh lệch = Dự báo - Dự toán">{variance > 0 ? '+' : ''}{number(variance)}{group && percent != null ? ` (${percent > 0 ? '+' : ''}${number(percent)}%)` : ''}</span>;
+        content = variance == null ? '—' : <span className={`delivery-work-variance ${tone}`} title="Chênh lệch = Dự báo - Dự toán">{variance > 0 ? '+' : ''}{work(variance)}{percent != null && Math.abs(variance) >= 0.05 ? ` (${percent > 0 ? '+' : ''}${number(percent)}%)` : ''}</span>;
       }
       if (column.key === 'output') content = formatCompactMoney(metric?.output);
       if (column.key === 'createdAt') content = item.createdAt ? new Date(item.createdAt).toLocaleDateString('vi-VN') : '—';
       if (column.key === 'note') content = item.isProjectHeader ? item.description || '—' : <div className="delivery-inline-note" onClick={event => event.stopPropagation()}>{readOnly ? item.ganttNote || '—' : <GanttEditableWorkCell item={item} field="ganttNote" onSave={onSaveWork} placeholder="Ghi chú..." />}</div>;
       // Dự toán: task = công chốt theo hợp đồng (sửa được; chưa nhập thì hiện mờ số đang dùng = theo lịch);
       // nhóm = tổng dự toán các task bên trong (chỉ đọc); dòng dự án = dự toán hợp đồng của dự án (sửa được).
-      if (column.key === 'contractWork') content = item.isGroup || (group && !item.isProjectHeader) ? number(metric?.budgetedWork) : readOnly ? number(item.contractWork ?? (item.isProjectHeader ? null : metric?.budgetedWork)) : <div onClick={event => event.stopPropagation()}><GanttEditableWorkCell item={item} field="contractWork" type="number" onSave={onSaveWork} placeholder={!item.isProjectHeader && metric?.budgetedWork != null ? number(metric.budgetedWork) : ''} /></div>;
+      if (column.key === 'contractWork') content = item.isGroup || (group && !item.isProjectHeader) ? work(metric?.budgetedWork) : readOnly ? work(item.contractWork ?? (item.isProjectHeader ? null : metric?.budgetedWork)) : <div onClick={event => event.stopPropagation()}><GanttEditableWorkCell item={item} field="contractWork" type="number" onSave={onSaveWork} placeholder={!item.isProjectHeader && metric?.budgetedWork != null ? number(metric.budgetedWork) : ''} /></div>;
       if (column.key === 'actions' && !readOnly) content = <div className="delivery-row-actions" onClick={event => event.stopPropagation()}><button onClick={onEdit} disabled={readOnly} title="Chỉnh sửa"><Pencil size={13} /></button>{!group && canAssign && <button onClick={onAssign} disabled={readOnly} title="Phân công"><UsersRound size={13} /></button>}<button onClick={onDelete} disabled={readOnly} title="Xóa"><Trash2 size={13} /></button></div>;
       return <div className={`delivery-cell delivery-column ${column.alignLeft ? 'delivery-column-left' : 'delivery-column-center'} ${column.key}`} key={column.key} style={{ width: column.width, minWidth: column.width }}>{content}{column.key === 'status' && group && <button onClick={event => { event.stopPropagation(); onOpen(); }} aria-label={`Tùy chọn ${item.title}`}><MoreHorizontal size={13} /></button>}</div>;
     })}

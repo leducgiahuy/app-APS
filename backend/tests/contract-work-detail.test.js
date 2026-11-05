@@ -30,6 +30,27 @@ test('sinh dự án từ file hợp đồng: Dự toán từng task = số công
   assert.equal(leafSum, plan.project.contractWork, 'tổng dự toán task = dự toán dự án');
 });
 
+test('task có thứ 7 (nửa ngày) vẫn giữ đủ giờ = công hợp đồng × 8 sau khi chia cho người làm', async () => {
+  const { normalizeAssignmentSchedules } = await import('../../frontend/src/utils/assignmentCalendar.js');
+  const employees = ['KT', 'KC', 'HT'].map((d, i) => ({ id: `e${i}`, name: `NV_${d}`, title: d, department: d, status: 'active' }));
+  const db = { projects: [], ganttItems: [], tasks: [], employees, operations: { params: {} } };
+  const rows = [
+    { code: 'A', title: 'KHẢO SÁT', isGroup: true }, { code: 'A1', title: 'Hiện trạng', isGroup: true },
+    { code: 'A1.1', title: 'Kick-off', department: 'KT', workDays: 1 },
+    { code: 'A1.2', title: 'Khảo sát', department: 'KT, KC, HT', workDays: 3 },
+    { code: 'A1.3', title: 'Yêu cầu', department: 'KT, KC, HT', workDays: 2 },
+    { code: 'A1.4', title: 'Tổng hợp', department: 'KT, KC', workDays: 1 },
+  ];
+  // 04/11–14/11/2026 có thứ 7 07/11 và 14/11 → lịch các task rơi vào thứ 7.
+  const plan = projectBlueprint(db, { name: 'P', startDate: '2026-11-04', endDate: '2026-11-14', quoteItems: rows }, { email: 'a@aps.com' });
+  normalizeAssignmentSchedules({ ganttItems: plan.items, tasks: [] });
+  for (const row of rows.filter(r => !r.isGroup)) {
+    const item = plan.items.find(i => i.code === row.code);
+    assert.equal(item.contractWork, row.workDays, `${row.code}: Dự toán = công hợp đồng`);
+    assert.equal(item.estimatedHours, row.workDays * 8, `${row.code}: giờ kế hoạch không bị hụt vì thứ 7`);
+  }
+});
+
 test('dự toán chốt theo hợp đồng: dời lịch / đổi giờ sau này chỉ đổi Dự báo, không đổi Dự toán', () => {
   const db = { projects: [], ganttItems: [], employees: [], tasks: [], operations: { params: {} } };
   const plan = projectBlueprint(db, { name: 'P', startDate: '2026-11-03', endDate: '2026-12-31', quoteItems }, { email: 'a@aps.com' });

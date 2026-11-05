@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import AccessScope from '../../components/AccessScope';
-import { assignmentWorkingDates } from '../../utils/assignmentCalendar';
+import { assignmentWorkingDates, assignmentWorkingDayUnits } from '../../utils/assignmentCalendar';
 import { calendarCapacity, employeePosition, positionKey } from '../../utils/workforceForecast';
 import { calculateAssignmentHours } from '../../utils/ganttEffort';
 import { EXTERNAL_DEPARTMENTS, employeeDepartment, employeeDepartments, taskDepartments } from '../../utils/departmentCodes';
@@ -72,7 +72,7 @@ export default function AssignmentMachinePage({ projectId, items, tasks, employe
       const rangeCapacity = recommended ? calendarCapacity(item.startDate, item.endDate, Number(recommended.standardHours) || 8) : 0;
       const beforePercent = rangeCapacity ? Math.round(before / rangeCapacity * 100) : 0;
       const afterPercent = rangeCapacity ? Math.round((before + (currentEmployee ? 0 : hours)) / rangeCapacity * 100) : 0;
-      if (recommended && !currentEmployee) recommendations.push({ employeeId: recommended.id, item, assignment: { startDate: item.startDate, endDate: item.endDate, estimatedHoursPerDay: hours / Math.max(1, assignmentWorkingDates(item, { startDate: item.startDate, endDate: item.endDate, excludeNonWorkingDays: true }).length), excludeNonWorkingDays: true } });
+      if (recommended && !currentEmployee) recommendations.push({ employeeId: recommended.id, item, assignment: { startDate: item.startDate, endDate: item.endDate, estimatedHoursPerDay: hours / (assignmentWorkingDayUnits(item, { startDate: item.startDate, endDate: item.endDate, excludeNonWorkingDays: true }) || 1), excludeNonWorkingDays: true } });
       return { item, linked, current, departments: taskDepartments(item), currentEmployee, recommended, hours, started, beforePercent, afterPercent, overloaded: !currentEmployee && (!recommended || afterPercent > 100) };
     });
   }, [employees, items, linkedByGantt, projectItems]);

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { localDateKey, normalizeShiftType } from './shift.js';
+import { isOvertimeShift, localDateKey, normalizeShiftType } from './shift.js';
+import { scheduledWorkMs } from '../../../frontend/src/utils/workSchedule.js';
 
 // Chấm công bằng nút Vào / Rời văn phòng trong app. Mỗi lần rời văn phòng (tự tay hoặc tự kết thúc ca)
 // lưu một dòng vào db.appAttendance để đối chiếu phiếu giờ về sau. Dữ liệu nhập từ máy chấm công
@@ -15,15 +16,18 @@ function breakMs(emp, endMs) {
 export function openShiftHours(emp, endMs = Date.now()) {
   const start = Date.parse(emp?.checkInAt || '');
   if (!emp?.isOnSite || !Number.isFinite(start)) return 0;
+  // Ca thường: chỉ giờ trong khung ca (nghỉ trưa luôn không tính); ca tăng ca: thời gian thực trừ giờ tạm nghỉ.
+  if (!isOvertimeShift(emp.shiftType)) return round2(scheduledWorkMs(start, endMs) / 3600000);
   return round2(Math.max(0, endMs - start - breakMs(emp, endMs)) / 3600000);
 }
 
 /** Gọi ngay trước khi xóa thông tin ca của nhân sự. completedBreakOnly: ca tự kết thúc không tính đoạn nghỉ đang dở. */
-export function recordAppAttendance(db, emp, endAt, { completedBreakOnly = false } = {}) {
+export function recordAppAttendance(db, emp, endAt, { completedBreakOnly = false, earlyLeaveMinutes = 0 } = {}) {
   const start = Date.parse(emp?.checkInAt || '');
   const end = Date.parse(endAt);
   if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return null;
   const pausedMs = completedBreakOnly ? Number(emp.totalBreakMs) || 0 : breakMs(emp, end);
+  const regular = !isOvertimeShift(emp.shiftType);
   const row = {
     id: randomUUID(),
     employeeId: emp.id,
@@ -31,7 +35,9 @@ export function recordAppAttendance(db, emp, endAt, { completedBreakOnly = false
     checkInAt: emp.checkInAt,
     checkOutAt: new Date(end).toISOString(),
     breakMinutes: Math.round(pausedMs / 60000),
-    hours: round2(Math.max(0, end - start - pausedMs) / 3600000),
+    // Ca thường: giờ trong khung ca (8:00–12:00, 13:30–17:30; thứ Bảy 8:00–12:00); tăng ca: thời gian thực trừ tạm nghỉ.
+    hours: round2((regular ? scheduledWorkMs(start, end) : Math.max(0, end - start - pausedMs)) / 3600000),
+    ...(regular ? { lateMinutes: Number(emp.lateMinutes) || 0, earlyLeaveMinutes: Math.max(0, Number(earlyLeaveMinutes) || 0) } : {}),
     shiftType: normalizeShiftType(emp.shiftType),
     source: 'app'
   };

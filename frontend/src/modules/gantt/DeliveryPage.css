@@ -1,3 +1,6 @@
+/* Form nhập dự án: cảnh báo thời gian (ngày đã qua / kết thúc trước bắt đầu). */
+.project-import-date-warning { grid-column: 1 / -1; margin: 0; padding: 8px 12px; border: 1px solid #f5c26b; border-radius: 8px; background: #fff8e6; color: #8a5300; font-size: 12px; font-weight: 600; }
+.dark .project-import-date-warning { border-color: #8a6420; background: #3a2c10; color: #fcd58a; }
 .delivery-page {
   --delivery-surface:#fff;
   display:flex;
@@ -252,8 +255,24 @@
 }
 .delivery-chart-scroll { scrollbar-width:none; }
 .delivery-chart-scroll::-webkit-scrollbar { display:none; }
-.delivery-horizontal-scroll { flex:0 0 18px; height:18px; min-width:0; overflow-x:scroll; overflow-y:hidden; margin-right:var(--delivery-scrollbar-width,0px); background:var(--delivery-surface); scroll-behavior:auto; overscroll-behavior-x:contain; }
-.delivery-horizontal-scroll>div { height:1px; }
+/* Thanh kéo ngang dưới cùng do trang tự vẽ (GanttPage): con trượt dịch cùng khung hình với bảng nên kéo không bị giật. */
+.delivery-horizontal-scroll { flex:0 0 18px; height:18px; min-width:0; display:flex; align-items:stretch; overflow:hidden; margin-right:var(--delivery-scrollbar-width,0px); background:var(--delivery-surface); user-select:none; touch-action:none; outline:none; }
+.delivery-horizontal-scroll:focus-visible { box-shadow:inset 0 0 0 2px #861b3655; }
+.delivery-hscroll-track { position:relative; flex:1 1 auto; min-width:0; }
+.delivery-hscroll-thumb { position:absolute; top:5px; bottom:5px; left:0; border-radius:999px; background:#c3c3c3; will-change:transform; }
+.delivery-hscroll-track:hover .delivery-hscroll-thumb { top:4px; bottom:4px; background:#a6a6a6; }
+.delivery-horizontal-scroll.is-dragging .delivery-hscroll-thumb { top:4px; bottom:4px; background:#7d7d7d; }
+.delivery-horizontal-scroll.is-idle .delivery-hscroll-thumb { display:none; }
+.delivery-hscroll-arrow { flex:0 0 16px; padding:0; border:0; background:transparent; cursor:default; position:relative; }
+.delivery-hscroll-arrow::before { content:""; position:absolute; top:50%; left:50%; border:4px solid transparent; transform:translate(-50%, -50%); }
+.delivery-hscroll-arrow.left::before { border-right-color:#8a8a8a; margin-left:-2px; }
+.delivery-hscroll-arrow.right::before { border-left-color:#8a8a8a; margin-left:2px; }
+.delivery-hscroll-arrow:hover { background:#0000000d; }
+.dark .delivery-hscroll-thumb { background:#4b5563; }
+.dark .delivery-hscroll-track:hover .delivery-hscroll-thumb { background:#6b7280; }
+.dark .delivery-horizontal-scroll.is-dragging .delivery-hscroll-thumb { background:#9ca3af; }
+.dark .delivery-hscroll-arrow.left::before { border-right-color:#9ca3af; }
+.dark .delivery-hscroll-arrow.right::before { border-left-color:#9ca3af; }
 @media(min-width:1101px) { .delivery-page.with-detail .delivery-horizontal-scroll { margin-right:calc(390px + var(--delivery-scrollbar-width,0px)); } }
 .delivery-chart-scroll>div>div:first-child>div:nth-child(2) {
   font-size:var(--text-caption);
@@ -318,6 +337,10 @@
   gap:3px
 }
 .delivery-cell.delivery-column-center { font-variant-numeric:tabular-nums; }
+.delivery-actual-running { display:inline-flex; align-items:center; gap:5px; color:#178261; font-weight:700; white-space:nowrap; }
+.delivery-actual-running i { width:6px; height:6px; border-radius:999px; background:#22a06b; box-shadow:0 0 0 0 rgba(34,160,107,.55); animation:delivery-running-pulse 1.6s ease-out infinite; }
+@keyframes delivery-running-pulse { 0% { box-shadow:0 0 0 0 rgba(34,160,107,.55); } 70% { box-shadow:0 0 0 6px rgba(34,160,107,0); } 100% { box-shadow:0 0 0 0 rgba(34,160,107,0); } }
+@media (prefers-reduced-motion: reduce) { .delivery-actual-running i { animation:none; } }
 .delivery-work-variance { white-space:nowrap; }
 .delivery-work-variance.good { color:#178261; font-weight:650; }
 .delivery-work-variance.warning { color:#a36312; font-weight:650; }

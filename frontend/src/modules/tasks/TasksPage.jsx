@@ -7,7 +7,9 @@ import EmployeeCombobox from '../../components/EmployeeCombobox';
 import SearchableSelect from '../../components/SearchableSelect';
 import { formatDateVi, inclusiveDays, isTaskOverdue, isTaskActiveOnDate, taskDelayHours, formatDelayHours, todayIsoDate } from '../../utils/date';
 import { getGanttTaskCode } from '../../utils/taskCode';
-import { taskWorkProgress } from '../../utils/taskWorkProgress';
+import { taskWorkPace } from '../../utils/taskWorkProgress';
+import { hoursLabel } from '../../utils/workSchedule';
+import { assignmentWorkingDates, workingDayWeight } from '../../utils/assignmentCalendar';
 import { getCurrentUser } from '../auth/authSession';
 import { taskDeliveryStatus, taskStatusWindow, taskStatusWindowMessage } from '../../utils/deliveryMetrics';
 import {
@@ -345,9 +347,21 @@ export default function TasksPage() {
               // Tìm thông tin nhân sự đảm nhận
               const assignee = employees.find(e => e.id === task.employeeId);
               const standardHours = assignee?.standardHours || 8;
-              // Thanh tiến độ = giờ đã làm / (số ngày làm của task × số giờ một ngày của người đó), chạy theo phiên đang tính giờ.
-              const progress = taskWorkProgress(task, { employees, viewerEmployeeId, now: currentTime });
-              const hoursProgress = progress;
+              // Thanh = giờ làm thật; vạch = kế hoạch theo giờ công ty; khoảng cách = chậm / vượt (taskWorkPace).
+              const pace = taskWorkPace(task, { employees, viewerEmployeeId, now: currentTime });
+              const progress = pace.progress;
+              const paceDone = task.status === 'completed';
+              const paceTone = paceDone ? '' : pace.tone;
+              const paceHours = value => `${Math.abs(value).toLocaleString('vi-VN', { maximumFractionDigits: 1 })}h`;
+              // Chưa tới giờ làm đầu tiên của task (kế hoạch và giờ thật đều 0) → "Bắt đầu dd/mm" thay vì "0% · đúng kế hoạch".
+              const paceNotStarted = !paceDone && pace.expectedHours <= 0 && pace.workedHours <= 0;
+              const paceLabel = paceDone ? 'Hoàn thành'
+                : !pace.plannedHours ? ''
+                  : paceNotStarted ? `Bắt đầu ${String(task.startDate || '').split('-').reverse().slice(0, 2).join('/')}`
+                    : paceTone === '' ? 'Đúng kế hoạch'
+                      : pace.behindHours > 0 ? `Chậm ${paceHours(pace.behindHours)}` : `Vượt ${paceHours(pace.behindHours)}`;
+              // "Sắp hết thời gian" theo kế hoạch (giờ công ty đã trôi qua), không theo giờ đã làm.
+              const hoursProgress = pace.planPercent;
               const isOverdue = isTaskOverdue(task, currentTime);
               const taskSpeedStatus = getTaskSpeedStatus(task);
               const delayHours = taskDelayHours(task, currentTime);
@@ -357,11 +371,28 @@ export default function TasksPage() {
               const isNearDeadline = hoursProgress >= 80 && task.status !== 'completed';
               const progressColor = task.status === 'completed'
                 ? 'bg-emerald-500'
-                : isOverdue
+                : isOverdue || paceTone === 'danger'
                   ? 'bg-rose-500'
-                  : isNearDeadline
+                  : paceTone === 'warning'
                     ? 'bg-amber-500'
                     : 'bg-sky-600';
+              const paceLevel = paceDone ? 'done' : isOverdue || paceTone === 'danger' ? 'danger' : paceTone === 'warning' ? 'warning' : paceNotStarted ? 'idle' : 'good';
+              const paceTextColor = {
+                done: 'text-emerald-600 dark:text-emerald-400',
+                danger: 'text-rose-600 dark:text-rose-400',
+                warning: 'text-amber-600 dark:text-amber-400',
+                good: 'text-sky-700 dark:text-sky-300',
+                idle: 'text-slate-500 dark:text-slate-400',
+              }[paceLevel];
+              const paceChip = {
+                done: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/30',
+                danger: 'bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-500/10 dark:text-rose-300 dark:ring-rose-500/30',
+                warning: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/30',
+                good: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/30',
+                idle: 'bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700',
+              }[paceLevel];
+              const paceDot = { done: 'bg-emerald-500', danger: 'bg-rose-500', warning: 'bg-amber-500', good: 'bg-emerald-500', idle: 'bg-slate-400' }[paceLevel];
+              const showPlan = !paceDone && pace.plannedHours > 0 && pace.planPercent > 0;
 
               // Định nghĩa màu trạng thái nhanh/chậm
               const speedStyles = {
@@ -455,8 +486,8 @@ export default function TasksPage() {
                           <span>Thời gian dự kiến:</span>
                           <span className="font-bold text-slate-900 dark:text-white">
                             {task.estimatedDays} ngày ({task.estimatedDays > 1
-                              ? `${Number(task.estimatedHoursPerDay) || (Number(task.estimatedHours) / task.estimatedDays) || standardHours}h/ngày, ${Number(task.estimatedHours) || task.estimatedDays * standardHours}h tổng`
-                              : `${Number(task.estimatedHours) || task.estimatedDays * standardHours}h`})
+                              ? `${hoursLabel(Number(task.estimatedHoursPerDay) || (Number(task.estimatedHours) / task.estimatedDays) || standardHours)}h/ngày, ${hoursLabel(Number(task.estimatedHours) || task.estimatedDays * standardHours)}h tổng`
+                              : `${hoursLabel(Number(task.estimatedHours) || task.estimatedDays * standardHours)}h`})
                           </span>
                         </div>
                         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-[11px] text-slate-400">
@@ -481,7 +512,10 @@ export default function TasksPage() {
                             const assignedEmployee = employees.find(employee => employee.id === assignment.employeeId);
                             const assignmentStart = assignment.startDate || task.startDate;
                             const assignmentEnd = assignment.endDate || task.endDate;
-                            const assignedDays = inclusiveDays(assignmentStart, assignmentEnd);
+                            // Số ngày làm thật của phân công (bỏ Chủ nhật / ngày lễ nếu phân công bỏ ngày nghỉ) — cùng lịch dùng để chia giờ/ngày.
+                            const assignedDates = assignmentWorkingDates(task, { ...assignment, startDate: assignmentStart, endDate: assignmentEnd });
+                            const assignedDays = assignedDates.length;
+                            const assignedHasSaturday = assignedDates.some(key => workingDayWeight(key) < 1);
                             const assignedHoursPerDay = Number(assignment.estimatedHoursPerDay) ||
                               Number(task.estimatedHoursPerDay) ||
                               (Number(task.estimatedHours) / (Number(task.estimatedDays) || 1)) ||
@@ -499,7 +533,7 @@ export default function TasksPage() {
                                     {assignedName}
                                   </p>
                                   <p className="text-[11px] leading-5 text-sky-600 dark:text-sky-400 break-words">
-                                    {assignedEmployee?.title || 'Kỹ sư công trình'} · {assignedDays} ngày, {assignedHoursPerDay}h/ngày · {formatDateVi(assignmentStart)} – {formatDateVi(assignmentEnd)}
+                                    {assignedEmployee?.title || 'Kỹ sư công trình'} · {assignedDays} ngày làm{assignedHasSaturday ? ' (T7 nửa ngày)' : ''}, {hoursLabel(assignedHoursPerDay)}h/ngày · {formatDateVi(assignmentStart)} – {formatDateVi(assignmentEnd)}
                                   </p>
                                 </div>
                               </div>
@@ -563,13 +597,33 @@ export default function TasksPage() {
                     
                     {/* Thanh tiến độ */}
                     <div className="w-full sm:w-1/2 flex items-center gap-3">
-                      <span className="text-xs font-semibold text-slate-500" title="Giờ đã làm / (số ngày của task × giờ một ngày của người làm)">Tiến độ:</span>
-                      <div className="flex-1 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}>
-                        <div className={`h-full rounded-full transition-all duration-500 ${progressColor}`} style={{ width: `${progress}%` }} />
+                      <span className="text-xs font-semibold text-slate-500" title="Thanh đậm = giờ làm thật / kế hoạch (ngày công × giờ/ngày được phân công). Dải mờ = kế hoạch đến giờ này theo giờ công ty.">Tiến độ</span>
+                      <div
+                        className="relative flex-1 h-2.5 rounded-full bg-slate-100 ring-1 ring-inset ring-slate-200/80 dark:bg-slate-800 dark:ring-slate-700"
+                        role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}
+                        aria-label={`Đã làm ${progress}%${paceDone ? '' : `, kế hoạch đến giờ này ${pace.planPercent}%`}`}
+                        title={paceDone ? 'Đã hoàn thành' : `Đã làm ${paceHours(pace.workedHours)} / ${paceHours(pace.plannedHours)} · kế hoạch đến giờ này ${paceHours(pace.expectedHours)} (${pace.planPercent}%)`}
+                      >
+                        {/* Dải mờ: kế hoạch đến giờ này (giờ công ty) */}
+                        {showPlan && <div className="absolute inset-y-0 left-0 rounded-full bg-slate-300/70 dark:bg-slate-600/70 transition-all duration-700" style={{ width: `${pace.planPercent}%` }} />}
+                        {/* Thanh đậm: giờ làm thật */}
+                        <div className={`absolute inset-y-0 left-0 rounded-full shadow-sm transition-all duration-500 ${progressColor}`} style={{ width: `${progress}%` }} />
+                        {/* Mép dải kế hoạch */}
+                        {showPlan && pace.planPercent < 100 && <span className="absolute -top-1 -bottom-1 w-[3px] -translate-x-1/2 rounded-full bg-white shadow ring-1 ring-slate-400 dark:bg-slate-900 dark:ring-slate-400 transition-all duration-700" style={{ left: `${pace.planPercent}%` }} />}
                       </div>
-                      <span className={`text-xs font-mono font-bold w-10 text-right ${isOverdue ? 'text-rose-600 dark:text-rose-400' : isNearDeadline ? 'text-amber-600 dark:text-amber-400' : 'text-sky-600 dark:text-sky-400'}`}>
+                      <span className={`text-sm font-bold tabular-nums w-11 text-right ${paceTextColor}`}>
                         {progress}%
                       </span>
+                      {/* Ô nhãn cố định bề rộng để các thanh của mọi task thẳng hàng */}
+                      <div className="w-40 shrink-0">
+                        {paceLabel && (
+                          <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${paceChip}`}>
+                            <span className={`h-1.5 w-1.5 rounded-full ${paceDot}`} />
+                            {paceLabel}
+                            {showPlan && <span className="font-medium opacity-70">· KH {pace.planPercent}%</span>}
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     <div className="flex items-center gap-1.5 w-full sm:w-auto justify-end">

@@ -6,7 +6,7 @@ import { restoreDeliveryColumns, saveDeliveryColumns } from '../../utils/deliver
 import React, { useState, useMemo, useRef, useEffect, useLayoutEffect, useCallback, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { useProjectDelivery } from './useProjectDelivery';
-import DeliveryRow, { DELIVERY_COLUMNS, COMPACT_KEYS } from './DeliveryRow';
+import DeliveryRow, { DELIVERY_COLUMNS, DEFAULT_VISIBLE_KEYS } from './DeliveryRow';
 import DeliveryDrawer from './DeliveryDrawer';
 import DeliveryResources from './DeliveryResources';
 import DeliveryChartOverlay from './DeliveryChartOverlay';
@@ -210,6 +210,7 @@ export default function GanttPage() {
     employees,
     currentTime,
     ganttMonth,
+    setGanttMonth,
     addGanttItem,
     deleteGanttItem,
     updateProject,
@@ -223,14 +224,15 @@ export default function GanttPage() {
   const [reportLink] = useState(() => { try { const link = JSON.parse(sessionStorage.getItem('aps_report_link') || 'null'); return projects.some(project => project.id === link?.projectId) ? link : null; } catch { return null; } });
   useEffect(() => { sessionStorage.removeItem('aps_report_link'); }, []);
   const [selectedProjectId, setSelectedProjectId] = useState(reportLink?.projectId || projects[0]?.id || 'proj-1');
-  const [leftPanelWidth, setLeftPanelWidth] = useState(() => DELIVERY_COLUMNS.filter(column => COMPACT_KEYS.includes(column.key)).reduce((sum, column) => sum + column.width, 0));
+  const [leftPanelWidth, setLeftPanelWidth] = useState(() => DELIVERY_COLUMNS.filter(column => DEFAULT_VISIBLE_KEYS.includes(column.key)).reduce((sum, column) => sum + column.width, 0));
   const delivery = useProjectDelivery(selectedProjectId, refreshAllData);
   const [deliveryTabChoice, setDeliveryTab] = useState(['gantt', 'legal', 'changes', 'close'].includes(reportLink?.tab) ? reportLink.tab : 'gantt');
   const [progressSectionChoice, setProgressSection] = useState('table');
   const { canSee } = usePageAccess();
   const [tableMode] = useState('compact');
-  // Cột hiện / ẩn của bảng tiến độ: lưu trên trình duyệt kèm danh sách cột đã biết lúc lưu (restoreDeliveryColumns).
-  const [deliveryColumns, setDeliveryColumns] = useState(() => restoreDeliveryColumns(localStorage, DELIVERY_COLUMNS.map(column => column.key), COMPACT_KEYS));
+  // Cột hiện / ẩn: mỗi lần mở web luôn bắt đầu từ bộ cột chuẩn DEFAULT_VISIBLE_KEYS; bật / tắt trong lúc làm
+  // chỉ nhớ trong phiên (sessionStorage — giữ khi chuyển trang rồi quay lại, mất khi đóng tab / mở lại web).
+  const [deliveryColumns, setDeliveryColumns] = useState(() => restoreDeliveryColumns(sessionStorage, DELIVERY_COLUMNS.map(column => column.key), DEFAULT_VISIBLE_KEYS));
   const [detailItemId, setDetailItemId] = useState(null);
   const pendingDetail = useRef(reportLink?.taskId ? { id: reportLink.taskId, section: '' } : null);
   // Task được dẫn tới từ trang khác (vd. nút "Cập nhật trạng thái"): cuộn tới dòng + thanh Gantt và làm nổi bật.
@@ -302,7 +304,9 @@ export default function GanttPage() {
   const columnsTotalWidth = currentColumns.reduce((sum, column) => sum + column.width, 0);
   useEffect(() => { setLeftPanelWidth(columnsTotalWidth); }, [columnsTotalWidth]);
   const departments = [...new Set([...employees.map(employee => employee.team), ...Object.values(deliveryData?.records || {}).map(record => record.department)].filter(Boolean))];
-  useEffect(() => { saveDeliveryColumns(localStorage, deliveryColumns, DELIVERY_COLUMNS.map(column => column.key)); }, [deliveryColumns]);
+  useEffect(() => { saveDeliveryColumns(sessionStorage, deliveryColumns, DELIVERY_COLUMNS.map(column => column.key)); }, [deliveryColumns]);
+  // Bản lưu lâu dài kiểu cũ (localStorage) không còn dùng: xoá để không còn ghi đè bộ cột chuẩn.
+  useEffect(() => { try { localStorage.removeItem('aps_delivery_columns_v2'); localStorage.removeItem('aps_delivery_columns_v1'); } catch { /* trình duyệt chặn lưu */ } }, []);
   useEffect(() => { setDetailItemId(pendingDetail.current?.id || null); setDetailSection(pendingDetail.current?.section || ''); pendingDetail.current = null; setDepartment(''); }, [selectedProjectId]);
   useEffect(() => {
     if (!hasDeliveryData) return;
@@ -484,28 +488,93 @@ export default function GanttPage() {
     const body = timelineScrollRef.current;
     const heading = headingScrollRef.current;
     const scrollbar = horizontalScrollRef.current;
-    if (!body || !heading || !scrollbar) return;
-    let mirroredScrollLeft = scrollbar.scrollLeft;
+    const track = scrollbar?.querySelector('.delivery-hscroll-track');
+    const thumb = track?.firstElementChild;
+    if (!body || !heading || !scrollbar || !track || !thumb) return;
+    // Thanh kéo ngang dưới cùng do trang tự vẽ (không dùng thanh cuộn riêng của trình duyệt): thanh cuộn riêng được trình duyệt
+    // dịch trên luồng đồ họa trước, bảng chỉ chạy theo sau sự kiện scroll nên luôn trễ 1–2 khung hình → kéo con trượt thấy bảng giật.
+    // Ở đây con trượt, thân bảng và hàng tiêu đề được dịch trong cùng một lần xử lý nên luôn đi cùng nhau.
+    let travel = 0;
+    const maxScroll = () => Math.max(0, body.scrollWidth - body.clientWidth);
+    const paintThumb = () => {
+      const max = maxScroll();
+      thumb.style.transform = `translateX(${max && travel ? Math.min(1, body.scrollLeft / max) * travel : 0}px)`;
+      scrollbar.setAttribute('aria-valuenow', String(Math.round(body.scrollLeft)));
+    };
+    const layoutThumb = () => {
+      const max = maxScroll(), width = track.clientWidth;
+      const thumbWidth = max ? Math.min(width, Math.max(32, width * body.clientWidth / body.scrollWidth)) : width;
+      thumb.style.width = `${thumbWidth}px`;
+      travel = Math.max(0, width - thumbWidth);
+      scrollbar.classList.toggle('is-idle', max <= 0);
+      scrollbar.setAttribute('aria-valuemax', String(Math.round(max)));
+      paintThumb();
+    };
     // Hàng tiêu đề (tháng / ngày, tên cột) cuộn ngang theo phần thân ngay trong cùng sự kiện cuộn, không đợi khung hình sau
     // (trước đây đợi requestAnimationFrame nên tiêu đề luôn chậm 1 khung hình, kéo nhanh thì lệch tới hơn 100px).
     const sync = () => {
       if (heading.scrollLeft !== body.scrollLeft) heading.scrollLeft = body.scrollLeft;
-      if (Math.abs(scrollbar.scrollLeft - body.scrollLeft) > 1) {
-        scrollbar.scrollLeft = body.scrollLeft;
-        mirroredScrollLeft = scrollbar.scrollLeft;
-      }
+      paintThumb();
     };
-    const dragScrollbar = () => {
-      if (Math.abs(scrollbar.scrollLeft - mirroredScrollLeft) <= 1) return;
-      mirroredScrollLeft = scrollbar.scrollLeft;
-      // Kéo thanh cuộn dưới cùng: đặt thân và tiêu đề cùng lúc để hai phần luôn khớp.
-      if (Math.abs(body.scrollLeft - scrollbar.scrollLeft) > 1) body.scrollLeft = scrollbar.scrollLeft;
+    const scrollToLeft = left => {
+      body.scrollLeft = Math.max(0, Math.min(maxScroll(), left));
       heading.scrollLeft = body.scrollLeft;
+      paintThumb();
+    };
+    // Cầm con trượt kéo: mỗi lần di chuột đặt thân + tiêu đề + con trượt cùng lúc (tỉ lệ = quãng cuộn ÷ quãng con trượt đi được).
+    let drag = null;
+    const startThumbDrag = event => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      event.stopPropagation();
+      thumb.setPointerCapture(event.pointerId);
+      drag = { x: event.clientX, left: body.scrollLeft };
+      scrollbar.classList.add('is-dragging');
+    };
+    const moveThumbDrag = event => {
+      if (!drag) return;
+      scrollToLeft(drag.left + (event.clientX - drag.x) * (travel ? maxScroll() / travel : 0));
+    };
+    const endThumbDrag = () => {
+      drag = null;
+      scrollbar.classList.remove('is-dragging');
+    };
+    // Bấm vào khoảng trống trên thanh: nhảy một trang về phía chỗ bấm (giống thanh cuộn của trình duyệt).
+    const pageJump = event => {
+      if (event.button !== 0 || event.target === thumb) return;
+      const rect = thumb.getBoundingClientRect();
+      scrollToLeft(body.scrollLeft + (event.clientX < rect.left ? -1 : 1) * body.clientWidth * 0.9);
+    };
+    // Nút mũi tên hai đầu: bấm cuộn một nấc, giữ chuột thì cuộn liên tục.
+    let repeat = null;
+    const stopArrow = () => { clearTimeout(repeat?.delay); clearInterval(repeat?.timer); repeat = null; };
+    const startArrow = event => {
+      const button = event.target.closest('[data-hscroll-step]');
+      if (!button || event.button !== 0) return;
+      event.preventDefault();
+      const step = Number(button.dataset.hscrollStep) * 80;
+      stopArrow();
+      scrollToLeft(body.scrollLeft + step);
+      repeat = { delay: setTimeout(() => { repeat.timer = setInterval(() => scrollToLeft(body.scrollLeft + step / 2), 30); }, 350) };
+    };
+    const keyScroll = event => {
+      const steps = { ArrowLeft: -80, ArrowRight: 80, PageUp: -body.clientWidth * 0.9, PageDown: body.clientWidth * 0.9 };
+      if (event.key === 'Home') scrollToLeft(0);
+      else if (event.key === 'End') scrollToLeft(maxScroll());
+      else if (steps[event.key] != null) scrollToLeft(body.scrollLeft + steps[event.key]);
+      else return;
+      event.preventDefault();
+    };
+    const barWheel = event => {
+      const delta = (event.deltaX || event.deltaY) * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? body.clientWidth : 1);
+      if (!delta) return;
+      event.preventDefault();
+      scrollToLeft(body.scrollLeft + delta);
     };
     // Khi thu/mở menu, độ rộng đổi liên tục ~18 khung hình. Chỉ lưu kết quả có/không
     // "bảng trái rộng hơn khung nhìn" nên trang chỉ vẽ lại khi kết quả đó thật sự đổi.
     const measure = () => {
-      scrollbar.firstElementChild.style.width = `${body.scrollWidth}px`;
+      layoutThumb();
       sync();
       chartViewportWidthRef.current = body.clientWidth;
       setLeftPanelOverflows(body.clientWidth > 0 && leftPanelWidthRef.current >= body.clientWidth);
@@ -513,6 +582,7 @@ export default function GanttPage() {
     const observer = new ResizeObserver(measure);
     observer.observe(body);
     if (body.firstElementChild) observer.observe(body.firstElementChild);
+    observer.observe(track);
     // Vuốt ngang bằng touchpad / Shift + lăn chuột: trình duyệt cuộn trên luồng đồ họa riêng nên thân bảng đi trước,
     // sự kiện scroll tới sau một nhịp làm hàng tiêu đề bị tụt lại. Tự xử lý cú vuốt để thân và tiêu đề dịch cùng một khung hình.
     // Vuốt dọc thuần để trình duyệt cuộn trang như cũ; Ctrl (phóng to bằng hai ngón) không đụng tới.
@@ -535,13 +605,34 @@ export default function GanttPage() {
     body.addEventListener('wheel', wheel, { passive: false });
     heading.addEventListener('wheel', wheel, { passive: false });
     body.addEventListener('scroll', sync, { passive: true });
-    scrollbar.addEventListener('scroll', dragScrollbar, { passive: true });
+    thumb.addEventListener('pointerdown', startThumbDrag);
+    thumb.addEventListener('pointermove', moveThumbDrag);
+    thumb.addEventListener('pointerup', endThumbDrag);
+    thumb.addEventListener('pointercancel', endThumbDrag);
+    thumb.addEventListener('lostpointercapture', endThumbDrag);
+    track.addEventListener('pointerdown', pageJump);
+    scrollbar.addEventListener('pointerdown', startArrow);
+    window.addEventListener('pointerup', stopArrow);
+    window.addEventListener('blur', stopArrow);
+    scrollbar.addEventListener('keydown', keyScroll);
+    scrollbar.addEventListener('wheel', barWheel, { passive: false });
     measure();
     return () => {
       body.removeEventListener('wheel', wheel);
       heading.removeEventListener('wheel', wheel);
       body.removeEventListener('scroll', sync);
-      scrollbar.removeEventListener('scroll', dragScrollbar);
+      thumb.removeEventListener('pointerdown', startThumbDrag);
+      thumb.removeEventListener('pointermove', moveThumbDrag);
+      thumb.removeEventListener('pointerup', endThumbDrag);
+      thumb.removeEventListener('pointercancel', endThumbDrag);
+      thumb.removeEventListener('lostpointercapture', endThumbDrag);
+      track.removeEventListener('pointerdown', pageJump);
+      scrollbar.removeEventListener('pointerdown', startArrow);
+      window.removeEventListener('pointerup', stopArrow);
+      window.removeEventListener('blur', stopArrow);
+      scrollbar.removeEventListener('keydown', keyScroll);
+      scrollbar.removeEventListener('wheel', barWheel);
+      stopArrow();
       observer.disconnect();
     };
   }, [deliveryTab]);
@@ -758,6 +849,24 @@ export default function GanttPage() {
   const timelineStart = useMemo(() => {
     return new Date(ganttMonth.getFullYear(), ganttMonth.getMonth(), 1);
   }, [ganttMonth]);
+
+  // Dự án đang chọn không có ngày nào trong 12 tháng đang xem (VD dự án đã qua hoặc ở năm sau) thì tự chuyển tới tháng
+  // bắt đầu của dự án, để không bao giờ mở ra một biểu đồ trống. Chỉ chạy khi đổi dự án / đổi ngày dự án, người dùng vẫn tự lùi / tới tháng khác được.
+  const ganttMonthRef = useRef(ganttMonth);
+  ganttMonthRef.current = ganttMonth;
+  const selectedProjectRange = useMemo(() => {
+    const project = projects.find(item => item.id === selectedProjectId);
+    return project?.startDate && project?.endDate ? `${project.startDate}|${project.endDate}` : '';
+  }, [projects, selectedProjectId]);
+  useEffect(() => {
+    if (!selectedProjectRange) return;
+    const [start, end] = selectedProjectRange.split('|');
+    const month = ganttMonthRef.current;
+    const windowStart = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}-01`;
+    const last = new Date(month.getFullYear(), month.getMonth() + 12, 0);
+    const windowEnd = `${last.getFullYear()}-${String(last.getMonth() + 1).padStart(2, '0')}-${String(last.getDate()).padStart(2, '0')}`;
+    if (end < windowStart || start > windowEnd) setGanttMonth(new Date(`${start}T12:00:00`));
+  }, [selectedProjectRange, setGanttMonth]);
 
   const timelineEnd = useMemo(() => {
     return new Date(timelineStart.getFullYear(), timelineStart.getMonth() + 12, 0);
@@ -1606,7 +1715,7 @@ export default function GanttPage() {
 
   const groupMetrics = useMemo(() => {
     const result = new Map(); const byId = new Map(hierarchyGanttItems.map(item => [item.id, item]));
-    const add = (id, item, metric, free) => { const sum = result.get(id) || { planned: 0, earned: 0, actual: 0, actualHours: 0, completedActual: 0, completedActualHours: 0, completedCount: 0, budgetedWork: 0, forecastWork: 0, remainingWork: 0, varianceWork: 0, variancePercent: null, laborCost: 0, output: 0, weight: 0 }; const hasContractWork = item.contractWork !== '' && item.contractWork != null && Number.isFinite(Number(item.contractWork)); const budgetedWork = metric.budgetedWork ?? (free ? 0 : hasContractWork ? Number(item.contractWork) : Number(metric.planned) || 0); const forecastWork = metric.forecastWork ?? (Number(metric.planned) || 0); const actualWork = metric.completedActual ?? 0; const remainingWork = metric.remainingWork ?? Math.max(0, forecastWork - actualWork); const varianceWork = metric.varianceWork ?? forecastWork - budgetedWork; sum.planned += free ? 0 : metric.planned; sum.earned += metric.earned; sum.actual += metric.actual; sum.actualHours += metric.actualHours; sum.budgetedWork += budgetedWork; sum.forecastWork += forecastWork; sum.remainingWork += remainingWork; sum.varianceWork += varianceWork; sum.variancePercent = sum.budgetedWork > 0 ? sum.varianceWork / sum.budgetedWork * 100 : null; if (metric.completedCount > 0) { sum.completedActual += Number(metric.completedActual) || 0; sum.completedActualHours += Number(metric.completedActualHours) || 0; sum.completedCount += metric.completedCount; } sum.weight += free ? 0 : Number(metric.weight) || 0; sum.laborCost = sum.laborCost == null || metric.laborCost == null ? null : sum.laborCost + metric.laborCost; sum.output = sum.output == null || metric.output == null ? null : sum.output + metric.output; result.set(id, sum); };
+    const add = (id, item, metric, free) => { const sum = result.get(id) || { planned: 0, earned: 0, actual: 0, actualHours: 0, completedActual: 0, completedActualHours: 0, completedCount: 0, actualWork: 0, budgetedWork: 0, forecastWork: 0, remainingWork: 0, varianceWork: 0, variancePercent: null, laborCost: 0, output: 0, weight: 0 }; const hasContractWork = item.contractWork !== '' && item.contractWork != null && Number.isFinite(Number(item.contractWork)); const budgetedWork = metric.budgetedWork ?? (free ? 0 : hasContractWork ? Number(item.contractWork) : Number(metric.planned) || 0); const forecastWork = metric.forecastWork ?? (Number(metric.planned) || 0); const actualWork = metric.actualWork ?? metric.completedActual ?? 0; const remainingWork = metric.remainingWork ?? Math.max(0, forecastWork - actualWork); const varianceWork = metric.varianceWork ?? forecastWork - budgetedWork; sum.planned += free ? 0 : metric.planned; sum.earned += metric.earned; sum.actual += metric.actual; sum.actualHours += metric.actualHours; sum.actualWork += actualWork; sum.budgetedWork += budgetedWork; sum.forecastWork += forecastWork; sum.remainingWork += remainingWork; sum.varianceWork += varianceWork; sum.variancePercent = sum.budgetedWork > 0 ? sum.varianceWork / sum.budgetedWork * 100 : null; if (metric.completedCount > 0) { sum.completedActual += Number(metric.completedActual) || 0; sum.completedActualHours += Number(metric.completedActualHours) || 0; sum.completedCount += metric.completedCount; } sum.weight += free ? 0 : Number(metric.weight) || 0; sum.laborCost = sum.laborCost == null || metric.laborCost == null ? null : sum.laborCost + metric.laborCost; sum.output = sum.output == null || metric.output == null ? null : sum.output + metric.output; result.set(id, sum); };
     hierarchyGanttItems.forEach(item => { const metric = deliveryData?.taskMetrics[item.id]; if (!metric) return; const free = deliveryData.records[item.id]?.freeRework; add(`project-heading-${projectIdForItem(item)}`, item, metric, free); const seen = new Set([item.id]); let parent = byId.get(item.parentTaskId || item.parentGroupId); while (parent && !seen.has(parent.id)) { seen.add(parent.id); add(parent.id, item, metric, free); parent = byId.get(parent.parentTaskId || parent.parentGroupId); } });
     projects.forEach(project => {
       const projectMetric = result.get(`project-heading-${project.id}`);
@@ -1615,6 +1724,7 @@ export default function GanttPage() {
       Object.assign(projectMetric, comparison, {
         actual: comparison.actualWork,
         completedActual: comparison.actualWork,
+        actualWork: comparison.actualWork,
       });
     });
     return result;
@@ -2267,7 +2377,7 @@ export default function GanttPage() {
       {deliveryTab === 'new-project' && companyPermissions.createProject && <ProjectImportWorkspace onCreated={async id => { await refreshAllData(); setSelectedProjectId(id); setDeliveryTab('gantt'); }} />}
       {deliveryTab !== 'gantt' && deliveryTab !== 'new-project' && <DeliveryResources key={`${deliveryTab}:${selectedProjectId}`} onOpenTask={openDetail} showIT={showIT} tab={deliveryTab} contextBar={(extra, variant = '') => <div className={`delivery-context-inline ${variant}`.trim()}>{projectPicker}{extra}</div>} data={deliveryData} delivery={delivery} projectId={selectedProjectId} employees={employees} items={selectedProjectItems} refreshApp={refreshAllData} readOnly={previewing} users={deliveryUsers} setUsers={setDeliveryUsers} templates={projectTemplates} setTemplates={setProjectTemplates} currentTime={currentTime} />}
       </div></div>
-      {deliveryTab === 'gantt' && progressSection === 'table' && <div ref={horizontalScrollRef} className="delivery-horizontal-scroll" role="region" aria-label="Cuộn ngang bảng và biểu đồ Gantt" tabIndex={0}><div /></div>}
+      {deliveryTab === 'gantt' && progressSection === 'table' && <div ref={horizontalScrollRef} className="delivery-horizontal-scroll" role="scrollbar" aria-orientation="horizontal" aria-valuemin={0} aria-label="Cuộn ngang bảng và biểu đồ Gantt" tabIndex={0}><button type="button" className="delivery-hscroll-arrow left" data-hscroll-step="-1" tabIndex={-1} aria-label="Cuộn sang trái" /><div className="delivery-hscroll-track"><div className="delivery-hscroll-thumb" /></div><button type="button" className="delivery-hscroll-arrow right" data-hscroll-step="1" tabIndex={-1} aria-label="Cuộn sang phải" /></div>}
       {detailItem && !detailItem.deliveryBand && <DeliveryDrawer scrollbarWidth={scrollbarWidth} key={`${detailItem.id}:${detailSection}:${deliveryData?.viewer.email || 'loading'}`} item={detailItem} data={deliveryData ? { ...deliveryData, taskMetrics: { ...deliveryData.taskMetrics, ...(groupMetrics.has(detailItem.id) ? { [detailItem.id]: groupMetrics.get(detailItem.id) } : {}) } } : null} projectId={projectIdForItem(detailItem) || selectedProjectId} delivery={delivery} employees={employees} onClose={() => setDetailItemId(null)} onEdit={() => editDeliveryItem(detailItem)} onAssign={() => handleAssignmentsOpen(detailItem)} onDelete={() => removeDeliveryItem(detailItem)} onAddSibling={() => createDeliveryTask(detailItem)} onAddChild={() => createDeliveryTask(detailItem, true)} onAddGroup={() => openInlineGroupCreation(detailItem)} onSaveNote={async note => { if (!await updateGanttItem(detailItem.id, { ganttNote: note })) throw new Error('Không lưu được ghi chú.'); }} readOnly={previewing} initialSection={detailSection} />}
       {showEditProjectModal && (
         <ModalOverlay>

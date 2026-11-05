@@ -86,7 +86,9 @@ test('future data: several new projects follow start-date lock, attendance, comp
     const metricA = state.taskMetrics[a.gantt.id];
     assert.equal(metricA.planned, 3, '3 ngày × 8h = 3 công dự báo');
     assert.equal(metricA.budgetedWork, 2);
-    assert.equal(metricA.varianceWork, 1, 'vượt 1 công so với dự toán');
+    // Task đầu tiên của chuỗi Dự báo (applyChainForecast): Dự báo = 0 → Chênh lệch = 0 − 2.
+    assert.equal(metricA.forecastWork, 0);
+    assert.equal(metricA.varianceWork, -2, 'Chênh lệch = Dự báo − Dự toán');
 
     // ── Tua tới 03/03 08:30: đúng ngày bắt đầu task A ──
     mock.timers.setTime(at('2027-03-03', '08:30'));
@@ -97,32 +99,37 @@ test('future data: several new projects follow start-date lock, attendance, comp
     assert.equal((await api('PATCH', `/employees/${duy.id}/toggle-onsite`, { shiftType: 'regular' }, worker)).status, 200, 'vào văn phòng');
     assert.equal(readCopy().tasks.find(item => item.id === a.task.id).status, 'in_progress', 'vào ca → task Đang thực hiện');
 
-    // 2h làm → nghỉ 30 phút → 1,5h làm → rời văn phòng: giờ công = 3,5h, không tính giờ nghỉ.
+    // Giờ làm công ty (utils/workSchedule.js): vào 8:30 (trễ 30 phút) → tạm nghỉ chỉ trong 12:00–13:30 → rời sớm 15:00.
+    // Giờ công = 8:30–12:00 (3,5h) + 13:30–15:00 (1,5h) = 5h; nghỉ trưa không tính dù quay lại làm sớm lúc 13:00.
     mock.timers.setTime(at('2027-03-03', '10:30'));
-    assert.equal((await api('PATCH', `/employees/${duy.id}/toggle-break`, {}, worker)).status, 200, 'tạm nghỉ');
-    mock.timers.setTime(at('2027-03-03', '11:00'));
+    assert.match((await api('PATCH', `/employees/${duy.id}/toggle-break`, {}, worker)).message, /Chỉ được tạm nghỉ trong giờ nghỉ trưa 12:00–13:30/, 'ngoài giờ trưa không tạm nghỉ');
+    mock.timers.setTime(at('2027-03-03', '12:10'));
+    assert.equal((await api('PATCH', `/employees/${duy.id}/toggle-break`, {}, worker)).status, 200, 'tạm nghỉ trưa');
+    mock.timers.setTime(at('2027-03-03', '13:00'));
     assert.equal((await api('PATCH', `/employees/${duy.id}/toggle-break`, {}, worker)).status, 200, 'hết nghỉ');
-    mock.timers.setTime(at('2027-03-03', '12:30'));
-    assert.equal((await api('PATCH', `/employees/${duy.id}/toggle-onsite`, { shiftType: 'regular' }, worker)).status, 200, 'rời văn phòng');
+    mock.timers.setTime(at('2027-03-03', '15:00'));
+    const leave = await api('PATCH', `/employees/${duy.id}/toggle-onsite`, { shiftType: 'regular' }, worker);
+    assert.equal(leave.status, 200, 'rời văn phòng');
+    assert.match(leave.message, /sớm, còn 2 giờ 30 phút mới hết ca \(17:30\)/);
     let db = readCopy();
     assert.equal(db.employees.find(item => item.id === duy.id).isOnSite, false);
-    assert.ok(Math.abs(Number(db.tasks.find(item => item.id === a.task.id).actualWorkHours) - 3.5) < 0.02, `giờ công ${db.tasks.find(item => item.id === a.task.id).actualWorkHours} ≠ 3,5h`);
+    assert.ok(Math.abs(Number(db.tasks.find(item => item.id === a.task.id).actualWorkHours) - 5) < 0.02, `giờ công ${db.tasks.find(item => item.id === a.task.id).actualWorkHours} ≠ 5h`);
 
     // Phiếu giờ được duyệt → 20% → 40% → 100% có bằng chứng → người khác xác nhận → tự hoàn thành.
     // Rời văn phòng lưu lại giờ có mặt của ngày (đã trừ 30 phút nghỉ) để đối chiếu phiếu giờ về sau.
     const presence = db.appAttendance.filter(row => row.employeeId === duy.id && row.date === '2027-03-03');
-    assert.deepEqual(presence.map(row => [row.hours, row.breakMinutes, row.source]), [[3.5, 30, 'app']], 'lưu chấm công trong app: 3,5h, nghỉ 30 phút');
+    assert.deepEqual(presence.map(row => [row.hours, row.breakMinutes, row.lateMinutes, row.earlyLeaveMinutes, row.source]), [[5, 50, 30, 150, 'app']], 'chấm công: 5h, nghỉ 50 phút, trễ 30 phút, về sớm 2h30');
     // Ca làm tự sinh phiếu giờ: mỗi đoạn làm (trước / sau giờ nghỉ) một phiếu, duyệt được ngay không cần lý do.
     await refresh(projects[0]);
     const sheets = delivery[projects[0].id].timesheets.filter(entry => entry.taskId === a.gantt.id && entry.source === 'session');
-    assert.deepEqual(sheets.map(entry => Math.round(entry.hours * 100) / 100), [2, 1.5]);
+    assert.deepEqual(sheets.map(entry => Math.round(entry.hours * 100) / 100), [3.5, 1.5]);
     for (const sheet of sheets) assert.equal((result = await mutate(projects[0], 'approveTimesheet', { status: 'approved' }, null, admin, sheet.id)).status, 200, result.message);
     // Khai thêm giờ vượt giờ có mặt thì bị chặn.
     assert.equal((await mutate(projects[0], 'timesheet', { taskId: a.gantt.id, employeeId: duy.id, date: '2027-03-03', hours: 2, shiftType: 'regular' }, null, worker)).status, 200);
     const padded = delivery[projects[0].id].timesheets.find(entry => entry.taskId === a.gantt.id && entry.source === 'manual');
     assert.match((await mutate(projects[0], 'approveTimesheet', { status: 'approved' }, null, admin, padded.id)).message, /Khai vượt giờ có mặt/);
     assert.equal((await mutate(projects[0], 'approveTimesheet', { status: 'rejected', reason: 'Khai trùng' }, null, admin, padded.id)).status, 200);
-    assert.ok(Math.abs(delivery[projects[0].id].taskMetrics[a.gantt.id].actualHours - 3.5) < 0.02, 'giờ đã duyệt = 3,5h');
+    assert.ok(Math.abs(delivery[projects[0].id].taskMetrics[a.gantt.id].actualHours - 5) < 0.02, 'giờ đã duyệt = 5h');
     for (const level of [20, 40]) assert.equal((result = await mutate(projects[0], 'task', { level }, a.gantt.id, worker)).status, 200, `mức ${level}%: ${result.message || ''}`);
     const evidence = await api('POST', `/delivery/${projects[0].id}/evidence`, { taskId: a.gantt.id, name: 'chap-thuan.txt', kind: 'approval', base64: Buffer.from('Đồng ý').toString('base64') }, worker);
     assert.ok(evidence.evidenceId, 'tải bằng chứng chấp thuận');
@@ -217,24 +224,23 @@ test('month fill rate counts only hours assigned to people, never unassigned or 
   assert.equal(monthFillPercent(tasks, [], '2026-11', ganttItems), null);
 });
 
-test('app attendance keeps each closed shift, deducts breaks and covers the shift still open', async () => {
+test('app attendance keeps each closed shift, counts only company work hours and covers the shift still open', async () => {
   const { appAttendanceHours, recordAppAttendance } = await import('../src/utils/appAttendance.js');
   const { attendanceHours } = await import('../src/utils/operationsReports.js');
   const at = time => `2027-03-03T${time}:00+07:00`;
-  const db = { employees: [{ id: 'e', isOnSite: true, checkInAt: new Date(at('08:00')).toISOString(), isOnBreak: true, breakStartedAt: new Date(at('11:30')).toISOString(), totalBreakMs: 15 * 60000 }] };
-  // Đang ở văn phòng lúc 12:00: 4h có mặt − 15 phút nghỉ xong − 30 phút đang nghỉ = 3,25h.
-  assert.equal(appAttendanceHours(db, 'e', '2027-03-03', Date.parse(at('12:00'))), 3.25);
-  // Rời văn phòng 12:00 khi đang nghỉ: lưu 3,25h, nghỉ 45 phút.
-  const row = recordAppAttendance(db, db.employees[0], new Date(at('12:00')).toISOString());
-  assert.deepEqual([row.date, row.hours, row.breakMinutes], ['2027-03-03', 3.25, 45]);
-  // Ca tăng ca buổi tối cùng ngày cộng dồn.
-  Object.assign(db.employees[0], { checkInAt: new Date(at('18:00')).toISOString(), isOnBreak: false, breakStartedAt: null, totalBreakMs: 0 });
+  // Ca thường vào 7:50, tạm nghỉ trưa từ 12:10: chỉ tính 8:00–12:00 = 4h (trước 8:00 và giờ trưa không tính).
+  const db = { employees: [{ id: 'e', isOnSite: true, shiftType: 'regular', lateMinutes: 0, checkInAt: new Date(at('07:50')).toISOString(), isOnBreak: true, breakStartedAt: new Date(at('12:10')).toISOString(), totalBreakMs: 0 }] };
+  assert.equal(appAttendanceHours(db, 'e', '2027-03-03', Date.parse(at('12:45'))), 4);
+  const row = recordAppAttendance(db, db.employees[0], new Date(at('12:45')).toISOString(), { earlyLeaveMinutes: 240 });
+  assert.deepEqual([row.date, row.hours, row.breakMinutes, row.lateMinutes, row.earlyLeaveMinutes], ['2027-03-03', 4, 35, 0, 240]);
+  // Ca tăng ca buổi tối cùng ngày cộng dồn, tính theo thời gian thực trừ tạm nghỉ (như trước).
+  Object.assign(db.employees[0], { shiftType: 'overtime', checkInAt: new Date(at('18:00')).toISOString(), isOnBreak: false, breakStartedAt: null, totalBreakMs: 15 * 60000 });
   recordAppAttendance(db, db.employees[0], new Date(at('20:00')).toISOString());
   db.employees[0].isOnSite = false;
-  assert.equal(appAttendanceHours(db, 'e', '2027-03-03'), 5.25);
+  assert.equal(appAttendanceHours(db, 'e', '2027-03-03'), 5.75);
   assert.equal(appAttendanceHours(db, 'e', '2027-03-04'), null, 'ngày không vào văn phòng');
   // Dữ liệu máy chấm công được ưu tiên khi có.
-  assert.equal(attendanceHours(db, 'e', '2027-03-03'), 5.25);
+  assert.equal(attendanceHours(db, 'e', '2027-03-03'), 5.75);
   db.operations = { attendance: [{ employeeId: 'e', date: '2027-03-03', hours: 6 }] };
   assert.equal(attendanceHours(db, 'e', '2027-03-03'), 6);
 });

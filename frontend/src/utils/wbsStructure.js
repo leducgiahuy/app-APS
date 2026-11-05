@@ -137,3 +137,66 @@ export function structureFlatWbs(db) {
   }
   return changed;
 }
+
+// Thứ tự giai đoạn lớn trên bảng tiến độ: A trước L, L trước B, B trước C…
+export const WBS_MAJOR_ORDER = ['A', 'L', 'B', 'C', 'D', 'E', 'F', 'G'];
+
+/**
+ * Phân tích mã WBS (VD: 'A1.3' -> { majorIdx: 0, segments: [1, 3] })
+ */
+export function parseWbsCode(code) {
+  if (!code) return { majorIdx: 999, segments: [] };
+  const cleaned = String(code).trim();
+  const match = cleaned.match(/^([A-Za-z]+)(.*)$/);
+  if (!match) return { majorIdx: 999, segments: [cleaned] };
+
+  const letter = match[1].toUpperCase();
+  const rest = match[2];
+
+  let majorIdx = WBS_MAJOR_ORDER.indexOf(letter);
+  if (majorIdx === -1) majorIdx = 100 + letter.charCodeAt(0);
+
+  const segments = rest
+    ? rest
+        .split('.')
+        .map(s => {
+          const num = parseInt(s, 10);
+          return isNaN(num) ? s : num;
+        })
+    : [];
+
+  return { majorIdx, segments };
+}
+
+/**
+ * So sánh 2 mã WBS để sắp xếp đúng thứ tự cây phân tầng
+ * Ví dụ: A1 < A1.1 < A1.2 < A1.3 < A2 < A2.1 < L < B
+ */
+export function compareWbsCodes(codeA, codeB) {
+  const pa = parseWbsCode(codeA);
+  const pb = parseWbsCode(codeB);
+
+  // So sánh nhóm giai đoạn lớn trước (A trước L, L trước B, B trước C)
+  if (pa.majorIdx !== pb.majorIdx) {
+    return pa.majorIdx - pb.majorIdx;
+  }
+
+  // So sánh từng cấp số con bên trong
+  const maxLen = Math.max(pa.segments.length, pb.segments.length);
+  for (let i = 0; i < maxLen; i++) {
+    const sa = pa.segments[i];
+    const sb = pb.segments[i];
+
+    if (sa === undefined) return -1; // Cấp cha ngắn hơn đứng trước (A1 đứng trước A1.1)
+    if (sb === undefined) return 1;
+
+    if (typeof sa === 'number' && typeof sb === 'number') {
+      if (sa !== sb) return sa - sb;
+    } else {
+      const cmp = String(sa).localeCompare(String(sb));
+      if (cmp !== 0) return cmp;
+    }
+  }
+
+  return 0;
+}

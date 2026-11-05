@@ -1,6 +1,8 @@
 import { calculateAssignmentHours, calculatePlannedPersonDays, calculateUnassignedPlannedPersonDays } from './ganttEffort.js';
 import { datesInRange } from './assignmentCalendar.js';
 import { capacityWeight } from './workforceForecast.js';
+import { companyClockWorkHours } from './companyClockWork.js';
+import { compareWbsCodes } from './wbsStructure.js';
 
 export const DELIVERY_LEVELS = [0, 20, 40, 60, 80, 100];
 export const DELIVERY_LABELS = {
@@ -81,17 +83,21 @@ export function summarizeProjectWork(project = {}, taskMetrics = {}) {
   const taskBudget = metrics.reduce((sum, metric) => sum + Math.max(0, Number(metric?.budgetedWork) || 0), 0);
   const hasProjectBudget = project.contractWork !== '' && project.contractWork != null && Number.isFinite(Number(project.contractWork));
   const budgeted = hasProjectBudget ? Math.max(0, Number(project.contractWork)) : taskBudget;
+  // Thực tế = công đã làm của mọi task (actualWork, cả task đang làm); dữ liệu cũ chưa có actualWork dùng cách cũ.
   const hasRecognizedActual = metrics.some(metric => Object.prototype.hasOwnProperty.call(metric || {}, 'completedActual'));
   const actual = metrics.reduce((sum, metric) => sum + Math.max(0, Number(
-    hasRecognizedActual ? metric?.completedActual : metric?.actual
+    metric?.actualWork ?? (hasRecognizedActual ? metric?.completedActual : metric?.actual)
   ) || 0), 0);
   const forecast = metrics.reduce((sum, metric) => sum + Math.max(0, Number(metric?.forecastWork) || 0), 0);
   const variance = forecast - budgeted;
+  // Còn lại của dự án = tổng Còn lại của các task (taskRemainingWork theo trạng thái); dữ liệu chưa có thì Dự báo − Thực tế.
+  const hasRemaining = metrics.length > 0 && metrics.every(metric => Number.isFinite(Number(metric?.remainingWork)));
+  const remainingTotal = hasRemaining ? metrics.reduce((sum, metric) => sum + Math.max(0, Number(metric.remainingWork)), 0) : Math.max(0, forecast - actual);
   return {
     budgetedWork: budgeted,
     actualWork: actual,
     forecastWork: forecast,
-    remainingWork: Math.max(0, forecast - actual),
+    remainingWork: remainingTotal,
     varianceWork: variance,
     variancePercent: budgeted > 0 ? variance / budgeted * 100 : null,
   };
@@ -183,6 +189,53 @@ export function sessionCandidates(db, items) {
     return sessions.map((entry, index) => ({ id: `session:${item.id}:${entry.id || entry.startAt || index}`, taskId: item.id, employeeId: entry.employeeId, employeeName: entry.employeeName || (db.employees || []).find(employee => employee.id === entry.employeeId)?.name || 'Nhân sự đã xóa', date: entry.date || (entry.startAt ? new Date(Date.parse(entry.startAt) + 7 * 3600000).toISOString().slice(0, 10) : ''), hours: Number(entry.hours) || 0, shiftType: entry.shiftType || 'regular', source: 'session', status: 'pending' }));
   });
 }
+/**
+ * Công còn lại của một task (Từ điển chỉ tiêu G1 "Công còn lại" — máy tự tính, không ai nhập / sửa), theo trạng thái có bằng chứng:
+ * - xong (100% / task hoàn thành) → 0;
+ * - đã nộp (60% Đã gửi, 80% Đã sửa — có bằng chứng và đã xác nhận) → 10% Dự toán (phần chỉnh sửa);
+ * - đang làm (20%, 40%, hoặc 60–80% chưa đủ bằng chứng / xác nhận, hoặc còn 0% nhưng đã có giờ Thực tế)
+ *   → max(Dự toán, 2 × Thực tế) − Thực tế;
+ * - chưa làm (0% và chưa có giờ) → Dự toán.
+ * Không tự đổi mức trạng thái đã lưu.
+ */
+export function taskRemainingWork({ budget = 0, actual = 0, record = {}, completed = false } = {}) {
+  const plan = Math.max(0, Number(budget) || 0), spent = Math.max(0, Number(actual) || 0);
+  const outside = record.freeRework || record.isChangeWork;
+  // Task làm lại / phát sinh không có Dự toán riêng nên recognizedLevel = 0: dùng mức đã chọn.
+  const level = outside ? Number(record.level) || 0 : recognizedLevel(record);
+  if (completed || level >= 100) return 0;
+  if (level >= 60) return plan * 0.1;
+  if (level > 0 || spent > 0) return Math.max(plan, 2 * spent) - spent;
+  return plan;
+}
+/**
+ * Dự báo theo chuỗi task (người dùng chọn 05/11/2026), một nguồn duy nhất cho bảng Gantt, Tổng quan và báo cáo:
+ * - xếp các task lá của dự án theo thứ tự STT trên bảng (compareWbsCodes; nối liền cả dự án, qua cả mục / giai đoạn);
+ * - task đầu tiên: Dự báo = 0 (chưa có task trên để áp công thức);
+ * - task sau: Dự báo = Dự toán (task này) × Thực tế (task ngay trên) ÷ Dự toán (task ngay trên); task trên có Dự toán 0 → 0;
+ * - Thực tế chạy liên tục theo giờ công ty nên Dự báo cũng chạy theo; task trên xong thì Thực tế của nó đứng yên → Dự báo đứng yên;
+ * - Chênh lệch = Dự báo − Dự toán; Còn lại theo trạng thái (taskRemainingWork); nhóm / dự án = tổng các task;
+ * - task làm lại miễn phí / phát sinh (không có Dự toán riêng) đứng ngoài chuỗi: Dự báo = Thực tế của chính nó.
+ */
+export function applyChainForecast(items, records, taskMetrics) {
+  const outside = item => records[item.id]?.freeRework || records[item.id]?.isChangeWork;
+  const chain = items.map((item, index) => ({ item, index })).filter(({ item }) => !outside(item))
+    .sort((a, b) => compareWbsCodes(a.item.code, b.item.code) || String(a.item.startDate || '').localeCompare(String(b.item.startDate || '')) || a.index - b.index);
+  const remaining = (item, metric) => { metric.remainingWork = taskRemainingWork({ budget: metric.budgetedWork, actual: metric.actualWork, record: records[item.id], completed: item.status === 'completed' }); };
+  let previous = null;
+  for (const { item } of chain) {
+    const metric = taskMetrics[item.id];
+    const forecast = previous && previous.budgetedWork > 0 ? metric.budgetedWork * previous.actualWork / previous.budgetedWork : 0;
+    Object.assign(metric, workComparison(metric.budgetedWork, metric.actualWork, records[item.id]?.level, forecast));
+    remaining(item, metric);
+    previous = metric;
+  }
+  for (const item of items.filter(outside)) {
+    const metric = taskMetrics[item.id];
+    Object.assign(metric, workComparison(metric.budgetedWork, metric.actualWork, records[item.id]?.level, metric.actualWork));
+    remaining(item, metric);
+  }
+}
 export function computeDelivery(db, projectId, data = {}, now = new Date()) {
   const items = projectDeliveryItems(db, projectId);
   const overrides = new Map((data.timesheets || []).map(entry => [entry.id, entry]));
@@ -212,25 +265,34 @@ export function computeDelivery(db, projectId, data = {}, now = new Date()) {
       ? (trackedCompletionHours > 0 ? trackedCompletionHours : actualHours)
       : null;
     const completedActual = completedActualHours == null ? null : completedActualHours / 8;
+    // Công đã làm (cột Thực tế) cho mọi task: xong → công chốt lúc xong; đang làm → giờ đã ghi nhận
+    // (giờ tự ghi khi làm task, không có thì giờ công đã duyệt). Dùng chung cho Dự báo nên luôn
+    // Dự báo = Thực tế + Còn lại ở mọi dòng.
+    // Cột Thực tế chạy theo giờ công ty × giờ/ngày phân công (companyClockWork.js), không cần ai vào ca;
+    // task đã xong dừng ở lúc hoàn thành. Giờ chấm công thật vẫn giữ ở `actual` / `completedActual` cho duyệt giờ, hiệu suất.
+    const clock = companyClockWorkHours(item, { linkedTask: (db.tasks || []).find(task => task.ganttId === item.id), now });
+    const clockRunning = clock.running;
+    const actualWorkHours = clock.hours;
+    const actualWork = actualWorkHours / 8;
     if (!data.records?.[item.id] && record.level === 0 && actualHours > 0) record.level = 20;
     const hasContractWork = item.contractWork !== '' && item.contractWork != null && Number.isFinite(Number(item.contractWork));
     const budgetedWork = record.freeRework || record.isChangeWork ? 0 : hasContractWork ? Number(item.contractWork) : planned;
-    // Work-comparison columns use recognized actual work only. Approved hours
-    // remain available in `actual` for timesheet efficiency, but must not
-    // silently reduce Remaining while the Actual column is still empty.
-    // Dự báo theo taskForecastWork; Còn lại = Dự báo − Thực tế (cột Thực tế chỉ tính task đã xong), nên Dự báo = Thực tế + Còn lại.
-    const forecast = taskForecastWork({ planned, spent: actualHours / 8, level: record.level, completed: item.status === 'completed', completedActual });
-    const comparison = workComparison(budgetedWork, completedActual ?? 0, record.level, forecast);
+    // Dự báo theo taskForecastWork; Còn lại = Dự báo − Thực tế (actualWork, hiện ở cả task đang làm),
+    // nên Dự báo = Thực tế + Còn lại. `actual` (giờ công đã duyệt) vẫn giữ cho hiệu suất chấm công.
+    const forecast = taskForecastWork({ planned, spent: actualWork, level: record.level, completed: item.status === 'completed', completedActual: item.status === 'completed' ? actualWork : completedActual });
+    const comparison = workComparison(budgetedWork, actualWork, record.level, forecast);
     const recognized = recognizedLevel(record);
     const earned = planned * recognized / 100;
     const weight = record.freeRework ? 0 : Number.isFinite(Number(data.lockedWeights?.[item.id])) && data.lockedWeights?.[item.id] != null ? Number(data.lockedWeights[item.id]) : data.settings?.contractLocked ? 0 : totalPlanned ? planned / totalPlanned : 0;
     const output = data.settings?.contractFee == null ? null : Number(data.settings.contractFee) * weight * recognized / 100;
     const laborCost = entries.every(entry => rateForEntry(entry) != null) ? entries.reduce((sum, entry) => sum + entry.hours * rateForEntry(entry), 0) : null;
-    return [item.id, { planned, actual: actualHours / 8, actualHours, completedActual, completedActualHours, completedCount: item.status === 'completed' ? 1 : 0, ...comparison, recognized, earned, weight, output, laborCost, alert: submissionAlert(record, now), assignments: (item.assignees || []).map(assignment => ({ ...assignment, plannedHours: calculateAssignmentHours(item, assignment) })) }];
+    return [item.id, { planned, actual: actualHours / 8, actualHours, completedActual, completedActualHours, actualWork, actualWorkHours, clockRunning, completedCount: item.status === 'completed' ? 1 : 0, ...comparison, recognized, earned, weight, output, laborCost, alert: submissionAlert(record, now), assignments: (item.assignees || []).map(assignment => ({ ...assignment, plannedHours: calculateAssignmentHours(item, assignment) })) }];
   }));
+  applyChainForecast(items, records, taskMetrics);
   const totalEarned = Object.values(taskMetrics).reduce((sum, item) => sum + item.earned, 0);
   const totalActual = Object.values(taskMetrics).reduce((sum, item) => sum + item.actual, 0);
   const totalCompletedActual = Object.values(taskMetrics).reduce((sum, item) => sum + (item.completedActual ?? 0), 0);
+  const totalActualWork = Object.values(taskMetrics).reduce((sum, item) => sum + item.actualWork, 0);
   const usefulActual = items.filter(item => !records[item.id].freeRework).reduce((sum, item) => sum + taskMetrics[item.id].actual, 0);
   const project = (db.projects || []).find(item => item.id === projectId);
   const projectDays = datesInRange(project?.startDate, project?.endDate);
@@ -262,5 +324,5 @@ export function computeDelivery(db, projectId, data = {}, now = new Date()) {
   });
   const eligiblePayment = milestones.filter(entry => entry.met && !entry.requestedAt).reduce((sum, entry) => sum + Number(entry.amount), 0);
   const warnings = Object.values(taskMetrics).filter(item => item.alert.warning).length;
-  return { records, taskMetrics, timesheets, milestones, summary: { progressThisMonth, totalPlanned, totalEarned, totalActual, totalCompletedActual, completion, planPercent, deviation: completion - planPercent, efficiency: totalActual ? totalEarned / totalActual : null, efficiencyWithoutRework: usefulActual ? totalEarned / usefulActual : null, warnings, soon: Object.values(taskMetrics).filter(item => item.alert.soon).length, overdue: Object.values(taskMetrics).filter(item => item.alert.overdue).length, stuck: Object.values(taskMetrics).filter(item => item.alert.stuck).length, output, monthlyOutput, laborCost, expenseCost, cost: laborCost == null ? null : laborCost + expenseCost, collected, eligiblePayment } };
+  return { records, taskMetrics, timesheets, milestones, summary: { progressThisMonth, totalPlanned, totalEarned, totalActual, totalCompletedActual, totalActualWork, completion, planPercent, deviation: completion - planPercent, efficiency: totalActual ? totalEarned / totalActual : null, efficiencyWithoutRework: usefulActual ? totalEarned / usefulActual : null, warnings, soon: Object.values(taskMetrics).filter(item => item.alert.soon).length, overdue: Object.values(taskMetrics).filter(item => item.alert.overdue).length, stuck: Object.values(taskMetrics).filter(item => item.alert.stuck).length, output, monthlyOutput, laborCost, expenseCost, cost: laborCost == null ? null : laborCost + expenseCost, collected, eligiblePayment } };
 }

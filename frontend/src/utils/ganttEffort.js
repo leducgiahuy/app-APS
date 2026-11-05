@@ -1,4 +1,4 @@
-import { assignmentWorkingDates } from './assignmentCalendar.js';
+import { assignmentWorkingDayUnits } from './assignmentCalendar.js';
 
 const countInclusiveDays = (startDate, endDate) => {
   if (!startDate || !endDate || endDate < startDate) return 0;
@@ -13,10 +13,7 @@ export const calculateAssignmentHours = (item, assignment) => {
   const hoursPerDay = Number(assignment.estimatedHoursPerDay) ||
     Number(item.estimatedHoursPerDay) || Number(item.estimatedHours) / (Number(item.days) || 1) || 8;
   if (assignment.excludeNonWorkingDays === true) {
-    return assignmentWorkingDates(item, assignment).reduce((sum, key) => {
-      const saturday = new Date(`${key}T12:00:00Z`).getUTCDay() === 6;
-      return sum + hoursPerDay * (saturday ? 0.5 : 1);
-    }, 0);
+    return assignmentWorkingDayUnits(item, assignment) * hoursPerDay;
   }
   return countInclusiveDays(assignment.startDate || item.startDate, assignment.endDate || item.endDate) * hoursPerDay;
 };
