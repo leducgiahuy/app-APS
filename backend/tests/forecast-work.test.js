@@ -134,3 +134,13 @@ test('Còn lại trên bảng: task theo trạng thái, nhóm / dự án = tổn
   assert.equal(result.taskMetrics.t2.remainingWork, 5);
   assert.equal(summarizeProjectWork(db.projects[0], result.taskMetrics).remainingWork, 7);
 });
+
+test('chọn 20% · Đang làm: chỉ cần task đã giao người, không cần giờ chấm công duyệt; về 0% luôn được', async () => {
+  const { levelChangeBlockReason } = await import('../../frontend/src/utils/deliveryMetrics.js');
+  const assigned = { assignees: [{ employeeId: 'e', employeeName: 'Duy_QL' }] };
+  assert.equal(levelChangeBlockReason(assigned, null, 20), '', 'đã giao người → chọn được 20%');
+  assert.equal(levelChangeBlockReason({ assignees: [] }, { employeeId: 'e' }, 20), '', 'giao người ở task Công việc (dữ liệu cũ) cũng được');
+  assert.match(levelChangeBlockReason({ assignees: [] }, null, 20), /chưa giao người/);
+  assert.equal(levelChangeBlockReason({ assignees: [] }, null, 0), '', 'quay về 0% luôn được');
+  assert.equal(levelChangeBlockReason({ assignees: [] }, null, 40), '', 'các mức khác do bằng chứng / xác nhận kiểm tra');
+});

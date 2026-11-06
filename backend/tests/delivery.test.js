@@ -66,12 +66,18 @@ test('protected delivery API persists, enforces roles/confirmation/OT/revisions 
     const hidden = (await call('/p', 'GET', null, worker)).data;
     assert.equal(hidden.settings.contractFee, undefined); assert.equal(hidden.summary.output, undefined); assert.equal(hidden.taskMetrics.a.output, undefined); assert.equal(hidden.taskMetrics.a.laborCost, undefined);
     let statusDb = JSON.parse(fs.readFileSync(process.env.APS_DB_PATH, 'utf8'));
+    // Quy tắc 20% (levelChangeBlockReason): chỉ chặn khi task chưa giao người — tạm bỏ người được giao để kiểm tra.
     statusDb.ganttItems.find(item => item.id === 'a').endDate = '2999-01-01';
+    const savedAssignees = statusDb.ganttItems.find(item => item.id === 'a').assignees;
+    statusDb.ganttItems.find(item => item.id === 'a').assignees = [];
     fs.writeFileSync(process.env.APS_DB_PATH, JSON.stringify(statusDb));
     state = (await call('/p', 'GET', null, worker)).data;
-    assert.equal((await mutate('task', { level: 20 }, 'a', null, worker)).status, 400);
+    const unassigned = await mutate('task', { level: 20 }, 'a');
+    assert.equal(unassigned.status, 400);
+    assert.match(unassigned.message, /chưa giao người/);
     statusDb = JSON.parse(fs.readFileSync(process.env.APS_DB_PATH, 'utf8'));
     statusDb.ganttItems.find(item => item.id === 'a').endDate = '2026-10-13';
+    statusDb.ganttItems.find(item => item.id === 'a').assignees = savedAssignees;
     fs.writeFileSync(process.env.APS_DB_PATH, JSON.stringify(statusDb));
     state = (await call('/p', 'GET', null, worker)).data;
     assert.equal((await mutate('timesheet', { taskId: 'a', employeeId: 'e', date: '2026-10-10', hours: 8 },null,null,worker)).status, 200);

@@ -3,7 +3,7 @@ import AccessScope, { useCanEdit } from '../../components/AccessScope';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
-import { DELIVERY_LEVELS, DELIVERY_LABELS, EVIDENCE_KIND_NAMES, requiredEvidenceKind, deliveryLabel, formatMoney, formatCompactMoney, reviewingRole, taskStatusWindow, taskStatusWindowMessage } from '../../utils/deliveryMetrics';
+import { DELIVERY_LEVELS, DELIVERY_LABELS, EVIDENCE_KIND_NAMES, requiredEvidenceKind, deliveryLabel, formatMoney, formatCompactMoney, reviewingRole, taskStatusWindow, taskStatusWindowMessage, levelChangeBlockReason } from '../../utils/deliveryMetrics';
 import { localDateKey } from '../../utils/shift';
 import { isTaskOverdue } from '../../utils/date';
 import { shortDateTime } from './DeliveryRow';
@@ -57,14 +57,10 @@ export default function DeliveryDrawer({ item, data, projectId, delivery, employ
   const overdueTask = !statusLocked && isTaskOverdue(item);
   const changeLevel = event => {
     const level = Number(event.target.value);
-    const label = DELIVERY_LABELS[draft.kind || 'design'][DELIVERY_LEVELS.indexOf(level)];
-    const approvedHours = Number(metric?.actualHours) || 0;
-    if (!overdueTask && level === 20 && approvedHours <= 0) {
-      window.alert('Chưa thể chọn 20% · Đang làm vì task chưa có giờ công được duyệt. Nguyên nhân thường là task chưa giao người, chưa tới ngày làm hoặc phiếu giờ chưa được duyệt.');
-      return;
-    }
-    if (!overdueTask && level === 0 && approvedHours > 0) {
-      window.alert(`Chưa thể chọn 0% · ${label} vì task đã có ${approvedHours.toLocaleString('vi-VN', { maximumFractionDigits: 1 })} giờ công được duyệt.`);
+    // Cùng điều kiện với máy chủ (levelChangeBlockReason): 20% chỉ cần task đã giao người; về 0% luôn được.
+    const blocked = level !== draft.level ? levelChangeBlockReason(item, null, level) : '';
+    if (blocked) {
+      window.alert(blocked);
       return;
     }
     // Đổi mức: bằng chứng cũ khác loại của mức mới thì bỏ chọn, ô tải tệp chuyển sẵn sang đúng loại.

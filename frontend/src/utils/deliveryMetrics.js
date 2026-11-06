@@ -160,6 +160,19 @@ export function confirmBlockReason({ viewer = {}, item = {}, record = {}, assign
   if (assigneeRoles.includes('leader') && !managingRole(role)) return 'Việc của Leader cần Quản lý trở lên xác nhận.';
   return '';
 }
+/**
+ * Điều kiện chọn mức trạng thái (dùng chung giao diện + máy chủ, người dùng chọn 06/11/2026):
+ * - 20% · Đang làm: task đã giao người (ngày bắt đầu đã được taskStatusWindow kiểm tra); không cần giờ chấm công được duyệt —
+ *   cột Thực tế chạy theo giờ công ty, kiểm chứng làm thật nằm ở 60%+ (bằng chứng + xác nhận) và Duyệt giờ;
+ * - quay về 0%: luôn được (sửa khi chọn nhầm); Còn lại vẫn tính đúng theo Thực tế.
+ * Trả về lý do chặn (chuỗi) hoặc '' nếu được chọn.
+ */
+export function levelChangeBlockReason(item, linkedTask, level) {
+  if (Number(level) !== 20) return '';
+  const people = [...(item?.assignees || []), ...(linkedTask?.assignees || [])].filter(assignment => assignment?.employeeId || assignment?.employeeName);
+  const legacy = item?.employeeId || item?.employeeName || linkedTask?.employeeId || linkedTask?.employeeName;
+  return people.length || legacy ? '' : 'Chưa thể chọn 20% · Đang làm vì task chưa giao người. Hãy bấm "Phân công" để giao người làm trước.';
+}
 export function recognizedLevel(record = {}) {
   if (record.freeRework || record.isChangeWork) return 0;
   if (record.approvalOnly) return record.level === 100 && record.evidenceId && record.confirmedBy ? 100 : 0;

@@ -10,7 +10,7 @@ import os from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { readDb, writeDb } from '../models/db.js';
 import { deliveryStore, canEditDeliveryTask, publicDelivery } from '../utils/deliveryAuth.js';
-import { computeDelivery, projectDeliveryItems, defaultDeliveryRecord, DELIVERY_LEVELS, EVIDENCE_KIND_NAMES, requiredEvidenceKind, confirmBlockReason, managingRole, moneyAccess, reviewingRole, taskStatusWindow, taskStatusWindowMessage } from '../../../frontend/src/utils/deliveryMetrics.js';
+import { computeDelivery, projectDeliveryItems, defaultDeliveryRecord, DELIVERY_LEVELS, EVIDENCE_KIND_NAMES, requiredEvidenceKind, confirmBlockReason, managingRole, moneyAccess, reviewingRole, taskStatusWindow, taskStatusWindowMessage, levelChangeBlockReason } from '../../../frontend/src/utils/deliveryMetrics.js';
 import { isTaskOverdue } from '../../../frontend/src/utils/date.js';
 import { reopenTaskFromDelivery, syncTaskCompletionFromDelivery } from './taskController.js';
 import { normalizePageAccess, pageAccessAllows } from '../../../frontend/src/utils/pageAccess.js';
@@ -94,9 +94,8 @@ export function applyDeliveryMutation(ctx, body) {
     // Ngoài khoảng từ ngày bắt đầu đến khi hoàn thành: chỉ được sửa ghi chú, phân vai; trạng thái/hồ sơ giữ nguyên.
     if (!statusWindow.open) assert(STATUS_FIELDS.every(key => sameField(record[key], current[key])), taskStatusWindowMessage(statusWindow));
     if (record.approvalOnly && statusWindow.open && !overdueTask) assert(level === 0 || level === 100, 'Việc CĐT phê duyệt chỉ có mức 0% hoặc 100%.');
-    const approvedHours = computeDelivery(db, projectId, data).taskMetrics[taskId]?.actualHours || 0;
-    if (!overdueTask && level === 20 && current.level !== 20) assert(approvedHours > 0, 'Mức 20% cần có giờ chấm công đã được duyệt vào việc.');
-    if (!overdueTask && level === 0 && current.level !== 0) assert(approvedHours === 0, 'Đã có giờ công; không thể chuyển về Chưa bắt đầu.');
+    // 20% chỉ cần task đã giao người (ngày bắt đầu đã kiểm tra ở statusWindow); về 0% luôn được — levelChangeBlockReason dùng chung với giao diện.
+    if (level !== current.level) { const blocked = levelChangeBlockReason(item, linkedTask, level); assert(!blocked, blocked); }
     if (record.evidenceId) assert(data.evidence.some(file => file.id === record.evidenceId && file.taskId === taskId && !file.deletedAt), 'Bằng chứng không thuộc task này.');
     // Bằng chứng phải đúng loại của mức đang lưu, nếu không sẽ không bao giờ xác nhận được (VD 100% cần văn bản chấp thuận).
     const neededKind = requiredEvidenceKind(record), chosen = data.evidence.find(file => file.id === record.evidenceId);
