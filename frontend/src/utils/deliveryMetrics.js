@@ -81,8 +81,9 @@ export function workComparison(budgetedWork, actualWork, level = 0, forecastedWo
 export function summarizeProjectWork(project = {}, taskMetrics = {}) {
   const metrics = Object.values(taskMetrics || {});
   const taskBudget = metrics.reduce((sum, metric) => sum + Math.max(0, Number(metric?.budgetedWork) || 0), 0);
-  const hasProjectBudget = project.contractWork !== '' && project.contractWork != null && Number.isFinite(Number(project.contractWork));
-  const budgeted = hasProjectBudget ? Math.max(0, Number(project.contractWork)) : taskBudget;
+  // Dự toán dự án = tổng Dự toán mọi task (người dùng chọn 06/11/2026): thêm / xóa task hay sửa Dự toán một task thì dòng dự án
+  // cộng lại ngay, cùng cách với dòng giai đoạn / mục. project.contractWork (công hợp đồng lúc tạo, + CR đã duyệt) chỉ còn để tham chiếu.
+  const budgeted = metrics.length ? taskBudget : Math.max(0, Number(project.contractWork) || 0);
   // Thực tế = công đã làm của mọi task (actualWork, cả task đang làm); dữ liệu cũ chưa có actualWork dùng cách cũ.
   const hasRecognizedActual = metrics.some(metric => Object.prototype.hasOwnProperty.call(metric || {}, 'completedActual'));
   const actual = metrics.reduce((sum, metric) => sum + Math.max(0, Number(

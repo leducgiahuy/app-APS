@@ -40,18 +40,19 @@ test('delivery weights recalculate from planned effort and ignore manual contrac
   assert.equal(weights().b.weight,.2);
 });
 
-test('project and director work comparison share the approved project budget', () => {
+test('dòng dự án và Tổng quan: Dự toán = tổng Dự toán các task (thêm / sửa task thì cộng lại ngay)', () => {
   const project = { id: 'p', contractWork: 500 };
   const summary = summarizeProjectWork(project, {
     a: { budgetedWork: 200, forecastWork: 180, completedActual: 20 },
     b: { budgetedWork: 241, forecastWork: 261, completedActual: 10 },
   });
-  assert.equal(summary.budgetedWork, 500);
+  assert.equal(summary.budgetedWork, 441, 'tổng 200 + 241, không lấy công hợp đồng gốc 500');
   assert.equal(summary.actualWork, 30);
   assert.equal(summary.forecastWork, 441);
   assert.equal(summary.remainingWork, 411);
-  assert.equal(summary.varianceWork, -59);
-  assert.equal(Math.round(summary.variancePercent * 10) / 10, -11.8);
+  assert.equal(summary.varianceWork, 0);
+  // Thêm một task 9 công → dòng dự án cộng lên 450 ngay.
+  assert.equal(summarizeProjectWork(project, { a: { budgetedWork: 200 }, b: { budgetedWork: 241 }, c: { budgetedWork: 9 } }).budgetedWork, 450);
 });
 
 test('portfolio comparison keeps projects isolated and derives company totals', () => {
