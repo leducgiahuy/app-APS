@@ -96,7 +96,9 @@ npm run dev
 - Có màn hình đăng nhập, ghi nhớ phiên đăng nhập, đăng xuất, trang hồ sơ, đổi mật khẩu và cập nhật ảnh đại diện.
 - Admin có thể tạo tài khoản user, chỉnh hồ sơ/ảnh và cấp lại mật khẩu. User không tự cấp quyền admin.
 - Admin có trang nhật ký thay đổi dữ liệu quan trọng như thêm/xóa nhân sự, công việc, tăng ca, dự án và cập nhật hạng mục tiến độ; hỗ trợ tìm kiếm, lọc theo loại dữ liệu/người dùng, phân trang và xuất CSV. Sự kiện chuyển trang, đăng nhập, hồ sơ và thao tác không trọng yếu không hiển thị trong danh sách này. Nhật ký dùng backend để chia sẻ giữa trình duyệt, tối đa 1.000 sự kiện gần nhất; backend tắt thì dùng bản cục bộ.
-- Tài khoản demo trên màn hình đăng nhập: `demo@aps.vn` / `APS@2026`.
+- Tài khoản admin đầu tiên (chỉ khi server chưa có tài khoản nào): đặt biến môi trường `APS_ADMIN_EMAIL` và `APS_ADMIN_PASSWORD` (tối thiểu 8 ký tự, tùy chọn `APS_ADMIN_NAME`) trước khi chạy backend, rồi đăng nhập bằng đúng thông tin đó. Sau khi đã có tài khoản, các biến này không còn tác dụng; đổi mật khẩu trong trang Tài khoản.
+- CORS: mặc định API chỉ nhận yêu cầu từ chính tên miền đang phục vụ web. Nếu cần cho tên miền khác gọi API, đặt `APS_CORS_ORIGINS="https://ten-mien-a.vn,https://ten-mien-b.vn"`.
+- `backend/data/seed.json` để trống: server mới cài bắt đầu không có dữ liệu. Muốn mang dữ liệu thật lên server thì chép `db.json` (và thư mục `delivery-files/`) sang, không đưa qua GitHub.
 - Phiên đăng nhập giao diện cũ vẫn được dùng để vào ứng dụng. Riêng các API nghiệp vụ mới dưới `/api/delivery/*` dùng phiên phía server, mật khẩu băm `scrypt`, phiên mặc định 8 giờ (có thể cấu hình) và kiểm tra lại vai trò ở mỗi request. Dữ liệu tiền được lọc ở backend trước khi trả về.
 - **Giới hạn cần biết:** các API cũ ngoài `/api/delivery/*` chưa được đưa hết vào cùng cơ chế xác thực mới. Không công khai backend ra Internet hoặc dùng dữ liệu nhạy cảm thực tế trước khi hoàn tất xác thực/ủy quyền cho toàn bộ API.
 

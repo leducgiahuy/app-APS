@@ -68,16 +68,18 @@ test('portfolio comparison keeps projects isolated and derives company totals', 
   assert.equal(Math.round(totals.variancePercent * 1000) / 1000, -3.625);
 });
 
-test('giờ công đã duyệt vẫn giữ ở actual; Thực tế chạy theo giờ công ty, task chưa giao người không chạy', () => {
+test('Thực tế = giờ đã duyệt ÷ 8; có giờ đầu tiên thì tự chuyển Đang làm', () => {
   const item = { id: 'active', projectId: 'p', startDate: '2026-10-01', endDate: '2026-10-02', estimatedHours: 16, status: 'in_progress' };
   const db = { projects: [{ id: 'p', startDate: '2026-10-01', endDate: '2026-10-31' }], employees: [{ id: 'e' }], tasks: [], ganttItems: [item] };
   const data = { settings: {}, timesheets: [{ id: 'approved', taskId: 'active', employeeId: 'e', date: '2026-10-01', hours: 8, shiftType: 'regular', source: 'weekly', status: 'approved' }] };
   const metric = computeDelivery(db, 'p', data, new Date('2026-10-03T00:00:00Z')).taskMetrics.active;
-  assert.equal(metric.actual, 1, 'giờ đã duyệt (hiệu suất chấm công) vẫn giữ');
+  assert.equal(metric.actual, 1);
   assert.equal(metric.completedActual, null);
-  assert.equal(metric.actualWork, 0, 'chưa giao người → đồng hồ không chạy');
-  assert.equal(metric.forecastWork, 0, 'task duy nhất = task đầu chuỗi → Dự báo 0');
-  assert.equal(metric.varianceWork, -2, 'Chênh lệch = 0 − Dự toán 2');
+  assert.equal(metric.actualWork, 1, '8 giờ đã duyệt = 1 công');
+  assert.equal(metric.level, 50, 'có giờ đầu tiên → đang làm');
+  assert.equal(metric.forecastWork, 2, 'đang làm: max(2, 2 × 1)');
+  assert.equal(metric.remainingWork, 1);
+  assert.equal(metric.varianceWork, 0, 'Chênh = Dự báo − Dự toán');
 });
 
 test('displayed child weights add up exactly to the displayed parent weight', () => {
@@ -93,17 +95,18 @@ test('completed actual work appears only after completion and converts hours to 
   const completed = { id: 'done', projectId: 'p', startDate: '2026-10-01', endDate: '2026-10-03', estimatedHours: 24, actualWorkHours: 12, status: 'completed', assignees: [{ employeeId: 'e', startDate: '2026-10-01', endDate: '2026-10-03', estimatedHoursPerDay: 8 }] };
   const active = { id: 'active', projectId: 'p', startDate: '2026-10-04', endDate: '2026-10-06', estimatedHours: 24, actualWorkHours: 16, status: 'in_progress', assignees: [{ employeeId: 'e', startDate: '2026-10-04', endDate: '2026-10-06', estimatedHoursPerDay: 8 }] };
   const db = { projects: [{ id: 'p', startDate: '2026-10-01', endDate: '2026-10-31' }], employees: [{ id: 'e' }], tasks: [], ganttItems: [completed, active] };
-  const metrics = computeDelivery(db, 'p', { settings: {} }, new Date('2026-10-07T00:00:00Z'));
-  // Giờ chấm công lúc xong vẫn lưu riêng (completedActual) cho báo cáo.
+  const approved = (taskId, hours, date) => ({ id: `${taskId}-${date}`, taskId, employeeId: 'e', date, hours, shiftType: 'regular', source: 'weekly', status: 'approved' });
+  const metrics = computeDelivery(db, 'p', { settings: {}, timesheets: [approved('done', 12, '2026-10-01'), approved('active', 16, '2026-10-05')] }, new Date('2026-10-07T00:00:00Z'));
+  // Công thực tế (G1) chỉ từ phiếu giờ đã duyệt; giờ đồng hồ cũ (actualWorkHours) không còn tính.
   assert.equal(metrics.taskMetrics.done.completedActualHours, 12);
   assert.equal(metrics.taskMetrics.done.completedActual, 1.5);
   assert.equal(metrics.taskMetrics.active.completedActual, null);
   assert.equal(metrics.summary.totalCompletedActual, 1.5);
-  // Cột Thực tế theo giờ công ty: done T5 01/10 + T6 + T7 nửa ngày = 20h = 2,5 công (dữ liệu cũ không có lúc xong → cuối ngày kết thúc);
-  // active CN 04/10 không chạy, T2 + T3 = 16h = 2 công.
-  assert.equal(metrics.taskMetrics.done.actualWork, 2.5);
+  assert.equal(metrics.taskMetrics.done.actualWork, 1.5);
+  assert.equal(metrics.taskMetrics.done.forecastWork, 1.5, 'xong: dự báo = thực tế');
   assert.equal(metrics.taskMetrics.active.actualWork, 2);
-  assert.equal(metrics.summary.totalActualWork, 4.5);
+  assert.equal(metrics.taskMetrics.active.forecastWork, 4, 'đang làm: max(3, 2 × 2)');
+  assert.equal(metrics.summary.totalActualWork, 3.5);
 });
 
 test('renaming a project synchronizes stored project-name copies by stable project id', () => {

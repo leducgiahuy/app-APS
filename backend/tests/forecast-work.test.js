@@ -1,146 +1,139 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { computeDelivery, summarizeProjectWork, taskForecastWork, varianceTone } from '../../frontend/src/utils/deliveryMetrics.js';
+import { computeDelivery, elapsedShare, forecastWork, specLevel, summarizeProjectWork, taskRemainingWork, varianceTone } from '../../frontend/src/utils/deliveryMetrics.js';
 
-test('dự báo khi xong = công thực tế + công còn lại theo mức trạng thái', () => {
-  // Chưa làm: đúng kế hoạch.
-  assert.equal(taskForecastWork({ planned: 10, level: 0 }), 10);
-  // Đang làm 20%, đã dùng 3 công: 3 + 10 × 80% = 11 → vượt kế hoạch 1 công.
-  assert.equal(taskForecastWork({ planned: 10, spent: 3, level: 20 }), 11);
-  // Đã gửi 60%, đã dùng 4 công: 4 + 10 × 40% = 8.
-  assert.equal(taskForecastWork({ planned: 10, spent: 4, level: 60 }), 8);
-  // Đã xong: lấy công thực tế ghi nhận lúc xong (tốn ít hơn hay nhiều hơn kế hoạch đều phản ánh đúng).
-  assert.equal(taskForecastWork({ planned: 10, spent: 12, level: 100, completed: true, completedActual: 12 }), 12);
-  assert.equal(taskForecastWork({ planned: 10, completed: true, completedActual: 6 }), 6);
-  // Đã xong / 100% mà không có giờ nào: coi như đúng kế hoạch, không báo tiết kiệm giả.
-  assert.equal(taskForecastWork({ planned: 10, completed: true, completedActual: 0 }), 10);
-  assert.equal(taskForecastWork({ planned: 10, level: 100 }), 10);
+// Bảng chỉ tiêu G1 của Giám đốc (người dùng chốt 11/11/2026).
+const proof = { evidenceId: 'ev', confirmedBy: 'leader@aps.vn' };
+const sheet = (taskId, hours, status = 'approved', date = '2026-11-05') => ({ id: `${taskId}-${hours}-${status}`, taskId, employeeId: 'e', date, hours, shiftType: 'regular', source: 'weekly', status });
+const assign = (start, end) => [{ employeeId: 'e', startDate: start, endDate: end, estimatedHoursPerDay: 8, excludeNonWorkingDays: true }];
+
+test('dự báo theo mức G1: 0 → dt · 50 → max(dt, 2×tt) · 90 → tt + 10% dt · 100 → tt', () => {
+  assert.equal(forecastWork(10, 0, 0), 10);
+  assert.equal(forecastWork(5, 3.2, 50), 6.4, 'A3.2b: đang làm, đã dùng 3,2 / 5 công → 6,4');
+  assert.equal(forecastWork(10, 3, 50), 10, 'đang làm, tốn ít → giữ dự toán');
+  assert.equal(forecastWork(10, 4, 90), 5, 'đã nộp → tt + 10% dt');
+  assert.equal(forecastWork(10, 12, 100), 12, 'xong → tt');
+  assert.equal(forecastWork(10, 0.88, 100), 0.88, 'xong sớm thì dự báo đúng bằng công đã dùng, không kéo task khác');
 });
 
-test('màu chênh lệch theo %: xanh ≤ 5%, vàng 5–10%, đỏ > 10%', () => {
-  assert.equal(varianceTone(-17.2, -4.4), 'good');
-  assert.equal(varianceTone(10, 2.5), 'good');
+test('quy đổi 6 mức của app sang 4 mức G1', () => {
+  assert.equal(specLevel({ level: 0 }), 0);
+  assert.equal(specLevel({ level: 0 }, { actualWork: 0.5 }), 50, 'có giờ đầu tiên → đang làm');
+  assert.equal(specLevel({ level: 20 }), 50);
+  assert.equal(specLevel({ level: 40 }), 50);
+  assert.equal(specLevel({ level: 60, ...proof }), 90, '60% có bằng chứng → đã nộp');
+  assert.equal(specLevel({ level: 60, evidenceId: 'ev' }), 90, 'G1 chỉ cần file bằng chứng, không cần xác nhận');
+  assert.equal(specLevel({ level: 100, evidenceId: 'ev' }), 100);
+  assert.equal(specLevel({ level: 80, ...proof }), 90);
+  assert.equal(specLevel({ level: 60 }), 50, 'chưa có file bằng chứng → vẫn là đang làm');
+  assert.equal(specLevel({ level: 100 }), 50);
+  assert.equal(specLevel({ level: 100, ...proof }), 100);
+  assert.equal(specLevel({ level: 20 }, { completed: true }), 100, 'task hoàn thành → xong');
+});
+
+test('còn lại = dự báo − thực tế', () => {
+  const r = (level, actual, extra = {}) => taskRemainingWork({ budget: 5, actual, record: { level, ...extra } });
+  assert.equal(r(0, 0), 5, 'chưa làm → dự toán');
+  assert.equal(Math.round(r(20, 3.2) * 10) / 10, 3.2, 'A3.2b: 6,4 − 3,2');
+  assert.equal(r(60, 4, proof), 0.5, 'đã nộp → 10% dự toán');
+  assert.equal(r(100, 4, proof), 0, 'xong → 0');
+  assert.equal(taskRemainingWork({ budget: 5, actual: 2, record: { level: 20 }, completed: true }), 0);
+});
+
+test('màu chênh: |chênh| < 1 công không màu; > 10% đỏ; > 5% vàng; còn lại xanh', () => {
+  assert.equal(varianceTone(1.4, 28), 'danger', 'A3.2b: +1,4 công (+28%) → đỏ');
+  assert.equal(varianceTone(0.9, 45), '', 'chênh dưới 1 công không tô màu dù % lớn');
+  assert.equal(varianceTone(-0.5, -25), '');
   assert.equal(varianceTone(20, 5.1), 'warning');
-  assert.equal(varianceTone(39, 10), 'warning');
-  assert.equal(varianceTone(40, 10.3), 'danger');
-  assert.equal(varianceTone(0.01, 0.01), '', 'chênh quá nhỏ để trung tính');
+  assert.equal(varianceTone(40, 10), 'warning');
+  assert.equal(varianceTone(41, 10.3), 'danger');
+  assert.equal(varianceTone(-17.2, -4.4), 'good');
   assert.equal(varianceTone(2, null), 'danger', 'không có dự toán mà vẫn tốn công');
   assert.equal(varianceTone(null, null), '');
 });
 
-test('Dự báo theo chuỗi task: Dự toán task dưới × Thực tế task trên ÷ Dự toán task trên (nối liền cả dự án)', () => {
-  const now = new Date('2026-11-10T10:00:00+07:00'); // thứ Ba 10:00
-  const a = (start, end) => [{ employeeId: 'e', startDate: start, endDate: end, estimatedHoursPerDay: 8, excludeNonWorkingDays: true }];
-  // Ghi theo thứ tự lộn xộn để chắc chuỗi đi theo STT, không theo thứ tự lưu.
-  const db = {
-    projects: [{ id: 'p', startDate: '2026-11-02', endDate: '2026-11-30' }], employees: [{ id: 'e' }], tasks: [],
-    ganttItems: [
-      { id: 't3', code: 'A2.1', projectId: 'p', startDate: '2026-11-20', endDate: '2026-11-20', contractWork: 4, status: 'not_started', assignees: a('2026-11-20', '2026-11-20') },
-      { id: 't1', code: 'A1.1', projectId: 'p', startDate: '2026-11-02', endDate: '2026-11-03', contractWork: 1, status: 'completed', completedAt: '2026-11-02T17:30:00+07:00', assignees: a('2026-11-02', '2026-11-03') },
-      { id: 't2', code: 'A1.2', projectId: 'p', startDate: '2026-11-09', endDate: '2026-11-10', contractWork: 3, status: 'in_progress', assignees: a('2026-11-09', '2026-11-10') },
-    ],
-  };
-  const metrics = computeDelivery(db, 'p', { settings: {} }, now).taskMetrics;
-  // A1.1 (task đầu): Thực tế 1 công (xong cuối ngày T2), Dự báo 0.
-  assert.equal(metrics.t1.actualWork, 1);
-  assert.equal(metrics.t1.forecastWork, 0, 'task đầu tiên không áp được công thức');
-  assert.equal(metrics.t1.varianceWork, -1, 'Chênh lệch = Dự báo − Dự toán');
-  // A1.2: 3 × 1 ÷ 1 = 3. Thực tế của nó (T2 8h + T3 2h = 1,25) không ảnh hưởng Dự báo của chính nó.
-  assert.equal(metrics.t2.actualWork, 1.25);
-  assert.equal(metrics.t2.forecastWork, 3);
-  assert.equal(metrics.t2.remainingWork, 1.75, 'Còn lại = Dự báo − Thực tế');
-  // A2.1 (qua mục khác vẫn nối với A1.2): 4 × 1,25 ÷ 3.
-  assert.equal(Math.round(metrics.t3.forecastWork * 1000), Math.round(4 * 1.25 / 3 * 1000));
-  assert.equal(Math.round(metrics.t3.varianceWork * 1000), Math.round((4 * 1.25 / 3 - 4) * 1000));
+test('thực tế = Σ giờ phiếu giờ ĐÃ DUYỆT ÷ 8; giờ chưa duyệt không tính', () => {
+  const now = new Date('2026-11-10T10:00:00+07:00');
+  const db = { projects: [{ id: 'p', startDate: '2026-11-02', endDate: '2026-11-30' }], employees: [{ id: 'e' }], tasks: [], ganttItems: [
+    { id: 'a31', code: 'A3.1', projectId: 'p', startDate: '2026-11-02', endDate: '2026-11-12', contractWork: 10, status: 'in_progress', assignees: assign('2026-11-02', '2026-11-12') },
+  ] };
+  const data = { settings: {}, records: { a31: { level: 20 } }, timesheets: [sheet('a31', 70.4), sheet('a31', 16, 'pending', '2026-11-06')] };
+  const metric = computeDelivery(db, 'p', data, now).taskMetrics.a31;
+  assert.equal(metric.actualWork, 8.8, 'A3.1: 70,4 giờ ÷ 8 = 8,8 công');
+  assert.equal(metric.forecastWork, 17.6, 'đang làm: max(10, 2 × 8,8)');
+  assert.equal(Math.round(metric.remainingWork * 10) / 10, 8.8);
 });
 
-test('Dự báo chạy theo Thực tế của task trên và đứng yên khi task trên xong', () => {
-  const a = (start, end) => [{ employeeId: 'e', startDate: start, endDate: end, estimatedHoursPerDay: 8, excludeNonWorkingDays: true }];
-  const above = { id: 'up', code: 'A1.1', projectId: 'p', startDate: '2026-11-09', endDate: '2026-11-10', contractWork: 2, status: 'in_progress', assignees: a('2026-11-09', '2026-11-10') };
-  const below = { id: 'down', code: 'A1.2', projectId: 'p', startDate: '2026-11-11', endDate: '2026-11-12', contractWork: 4, status: 'not_started', assignees: a('2026-11-11', '2026-11-12') };
-  const db = { projects: [{ id: 'p', startDate: '2026-11-01', endDate: '2026-11-30' }], employees: [{ id: 'e' }], tasks: [], ganttItems: [above, below] };
-  const forecast = when => computeDelivery(db, 'p', { settings: {} }, new Date(when)).taskMetrics.down.forecastWork;
-  assert.equal(forecast('2026-11-09T10:00:00+07:00'), 0.5, 'task trên chạy 2h = 0,25 công → 4 × 0,25 ÷ 2');
-  assert.equal(forecast('2026-11-09T17:30:00+07:00'), 2, 'task trên 1 công → 4 × 1 ÷ 2');
-  // Task trên xong lúc 12:00 T3 (1,5 công) → Dự báo task dưới đứng yên 3, xem lại hôm sau vẫn vậy.
-  Object.assign(above, { status: 'completed', completedAt: '2026-11-10T12:00:00+07:00' });
-  assert.equal(forecast('2026-11-10T15:00:00+07:00'), 3);
-  assert.equal(forecast('2026-11-12T17:30:00+07:00'), 3);
+test('task xong sớm không kéo dự báo các task khác (mỗi task tự tính theo trạng thái của nó)', () => {
+  const now = new Date('2026-11-10T10:00:00+07:00');
+  const db = { projects: [{ id: 'p', startDate: '2026-11-02', endDate: '2026-11-30' }], employees: [{ id: 'e' }], tasks: [], ganttItems: [
+    { id: 't1', code: 'A1.1', projectId: 'p', startDate: '2026-11-02', endDate: '2026-11-03', contractWork: 2, status: 'completed', completedAt: '2026-11-02T17:30:00+07:00', assignees: assign('2026-11-02', '2026-11-03') },
+    { id: 't2', code: 'A1.2', projectId: 'p', startDate: '2026-11-09', endDate: '2026-11-10', contractWork: 3, status: 'in_progress', assignees: assign('2026-11-09', '2026-11-10') },
+    { id: 't3', code: 'A2.1', projectId: 'p', startDate: '2026-11-20', endDate: '2026-11-20', contractWork: 4, status: 'not_started', assignees: assign('2026-11-20', '2026-11-20') },
+  ] };
+  const data = { settings: {}, timesheets: [sheet('t1', 8), sheet('t2', 4, 'approved', '2026-11-09')] };
+  const metrics = computeDelivery(db, 'p', data, now).taskMetrics;
+  assert.equal(metrics.t1.forecastWork, 1, 'xong: dự báo = thực tế 1 công');
+  assert.equal(metrics.t1.varianceWork, -1);
+  assert.equal(metrics.t2.forecastWork, 3, 'có giờ đầu tiên → đang làm: max(3, 2 × 0,5)');
+  assert.equal(metrics.t3.forecastWork, 4, 'chưa làm → dự toán');
+  const summary = summarizeProjectWork(db.projects[0], metrics);
+  assert.ok(summary.forecastWork >= summary.actualWork, 'dự báo dự án không bao giờ nhỏ hơn thực tế');
 });
 
-test('tổng dự án: Thực tế cộng cả task đang làm, vẫn Dự báo = Thực tế + Còn lại', async () => {
-  const { summarizeProjectWork } = await import('../../frontend/src/utils/deliveryMetrics.js');
+test('% hoàn thành = Σ(dt × mức) ÷ Σ dt; % kế hoạch = Σ(dt × % thời gian đã qua của việc) ÷ Σ dt', () => {
+  const now = new Date('2026-11-10T10:00:00+07:00');
+  const db = { projects: [{ id: 'p', startDate: '2026-11-01', endDate: '2026-11-30' }], employees: [{ id: 'e' }], tasks: [], ganttItems: [
+    { id: 'x', projectId: 'p', startDate: '2026-11-01', endDate: '2026-11-05', contractWork: 4, status: 'in_progress', assignees: assign('2026-11-01', '2026-11-05') },
+    { id: 'y', projectId: 'p', startDate: '2026-11-06', endDate: '2026-11-14', contractWork: 6, status: 'in_progress', assignees: assign('2026-11-06', '2026-11-14') },
+  ] };
+  const result = computeDelivery(db, 'p', { settings: {}, records: { x: { level: 60, ...proof }, y: { level: 20 } } }, now);
+  // x đã nộp (90), y đang làm (50): (4 × 90 + 6 × 50) ÷ 10 = 66%.
+  assert.equal(Math.round(result.summary.completion * 1e6) / 1e6, 66);
+  // x đã qua hết (1), y: (10 − 6) ÷ (14 − 6) = 0,5 → (4 × 1 + 6 × 0,5) ÷ 10 = 70%.
+  assert.equal(Math.round(result.summary.planPercent * 1e6) / 1e6, 70);
+  assert.equal(elapsedShare('2026-11-06', '2026-11-14', '2026-11-01'), 0);
+  assert.equal(elapsedShare('2026-11-06', '2026-11-14', '2026-12-01'), 1);
+});
+
+test('cảnh báo sớm: tt > dt chưa xong; tt ≥ 80% dt mà chưa nộp; quá hạn nộp', () => {
+  const now = new Date('2026-11-10T10:00:00+07:00');
+  const item = (id, contractWork) => ({ id, projectId: 'p', startDate: '2026-11-02', endDate: '2026-11-20', contractWork, status: 'in_progress', assignees: assign('2026-11-02', '2026-11-20') });
+  const db = { projects: [{ id: 'p', startDate: '2026-11-01', endDate: '2026-11-30' }], employees: [{ id: 'e' }], tasks: [], ganttItems: [item('over', 4), item('near', 5), item('ok', 10), item('late', 10)] };
+  const data = { settings: {}, records: { over: { level: 20 }, near: { level: 40 }, ok: { level: 20 }, late: { level: 20, dueAt: '2026-11-08T17:00:00+07:00' } },
+    timesheets: [sheet('over', 40), sheet('near', 33), sheet('ok', 16)] };
+  const metrics = computeDelivery(db, 'p', data, now).taskMetrics;
+  assert.equal(metrics.over.alert.overBudget, true, '5 công > dự toán 4');
+  assert.equal(metrics.near.alert.nearBudget, true, '4,125 công ≥ 80% của 5, mức < 90');
+  assert.equal(metrics.near.alert.overBudget, false);
+  assert.equal(metrics.ok.alert.early, false);
+  assert.equal(metrics.late.alert.overdue, true);
+  assert.equal(metrics.late.alert.early, true);
+  // Chênh đỏ thì cần lý do: "over" dự báo max(4, 10) = 10 → +6 (+150%).
+  assert.equal(metrics.over.varianceRed, true);
+  assert.equal(metrics.over.varianceReasonMissing, true);
+  data.records.over.varianceReason = 'Định mức thấp';
+  assert.equal(computeDelivery(db, 'p', data, now).taskMetrics.over.varianceReasonMissing, false);
+});
+
+test('tổng dự án: dự toán, thực tế, dự báo, còn lại = tổng các task', () => {
   const total = summarizeProjectWork({ contractWork: 10 }, {
     a: { budgetedWork: 4, actualWork: 3, forecastWork: 3, remainingWork: 0 },
-    b: { budgetedWork: 6, actualWork: 2, forecastWork: 5, remainingWork: 3, completedActual: null },
+    b: { budgetedWork: 6, actualWork: 2, forecastWork: 6, remainingWork: 4 },
   });
+  assert.equal(total.budgetedWork, 10);
   assert.equal(total.actualWork, 5);
-  assert.equal(total.forecastWork, 8);
-  assert.equal(total.remainingWork, 3);
-  assert.equal(total.varianceWork, -2);
+  assert.equal(total.forecastWork, 9);
+  assert.equal(total.remainingWork, 4);
+  assert.equal(total.varianceWork, -1);
 });
 
-test('Thực tế chạy theo giờ công ty × giờ/ngày phân công, không cần vào ca; đứng yên ngoài giờ làm', () => {
-  // Như A1.2: 8h/người trải T5 05/11 – T2 09/11 = 3,5 ngày công → 8 / 3,5 ≈ 2,29h/ngày.
-  const daily = 8 / 3.5;
-  const item = { id: 'g1', projectId: 'p', startDate: '2026-11-05', endDate: '2026-11-09', estimatedHours: 8, status: 'in_progress', assignees: [{ employeeId: 'e', startDate: '2026-11-05', endDate: '2026-11-09', estimatedHoursPerDay: daily, excludeNonWorkingDays: true }] };
-  // Nhân sự không vào ca — không ảnh hưởng cột Thực tế.
-  const db = { projects: [{ id: 'p', startDate: '2026-11-01', endDate: '2026-11-30' }], employees: [{ id: 'e', isOnSite: false }], tasks: [], ganttItems: [item] };
-  const hours = when => computeDelivery(db, 'p', { settings: {} }, new Date(when)).taskMetrics.g1.actualWorkHours;
-  const running = when => computeDelivery(db, 'p', { settings: {} }, new Date(when)).taskMetrics.g1.clockRunning;
-  const near = (value, expected) => assert.equal(Math.round(value * 1000), Math.round(expected * 1000));
-  near(hours('2026-11-05T07:30:00+07:00'), 0); // trước 8:00 chưa chạy
-  near(hours('2026-11-05T10:00:00+07:00'), daily * 2 / 8); // 2/8 giờ công ty
-  assert.equal(running('2026-11-05T10:00:00+07:00'), true);
-  near(hours('2026-11-05T12:45:00+07:00'), daily * 4 / 8); // nghỉ trưa đứng yên ở mức 12:00
-  near(hours('2026-11-05T13:30:00+07:00'), daily * 4 / 8);
-  assert.equal(running('2026-11-05T12:45:00+07:00'), false);
-  near(hours('2026-11-05T19:00:00+07:00'), daily); // sau 17:30 đứng yên = đủ 1 ngày
-  assert.equal(running('2026-11-05T19:00:00+07:00'), false);
-  near(hours('2026-11-08T10:00:00+07:00'), daily * 2.5); // CN không chạy: T5 + T6 + T7 nửa ngày
-  near(hours('2026-11-09T17:30:00+07:00'), 8); // hết lịch = đúng kế hoạch 1 công
-  near(hours('2026-11-10T17:30:00+07:00'), 8 + daily); // chưa xong mà quá hạn: vẫn chạy tiếp
-  // Xong lúc 12:00 T6 → dừng: T5 đủ + T6 nửa = 1,5 ngày × 2,29h, xem lại hôm sau vẫn vậy.
-  Object.assign(item, { status: 'completed', completedAt: '2026-11-06T12:00:00+07:00' });
-  near(hours('2026-11-09T17:30:00+07:00'), daily * 1.5);
-});
-
-test('Công còn lại theo trạng thái (Từ điển chỉ tiêu G1): chưa làm = Dự toán · đang làm = max(Dự toán, 2×Thực tế) − Thực tế · đã nộp = 10% · xong = 0', async () => {
-  const { taskRemainingWork } = await import('../../frontend/src/utils/deliveryMetrics.js');
-  const proof = { evidenceId: 'ev', confirmedBy: 'leader@aps.vn' };
-  const r = (level, actual, extra = {}) => taskRemainingWork({ budget: 10, actual, record: { level, ...extra } });
-  assert.equal(r(0, 0), 10, 'chưa làm → Dự toán');
-  assert.equal(r(0, 3), 7, '0% nhưng đã có giờ → tính như đang làm: max(10, 6) − 3');
-  assert.equal(r(20, 3), 7, 'đang làm, tốn ít: 10 − 3');
-  assert.equal(r(40, 7), 7, 'chờ kiểm tra vẫn là đang làm, tốn nhiều: max(10, 14) − 7');
-  assert.equal(r(60, 4, proof), 1, 'đã gửi có bằng chứng + xác nhận → 10% Dự toán');
-  assert.equal(r(80, 12, proof), 1, 'đã sửa → 10% Dự toán');
-  assert.equal(r(60, 4), 6, 'đã gửi nhưng chưa có bằng chứng / xác nhận → coi như đang làm');
-  assert.equal(r(100, 9, proof), 0, 'phê duyệt → 0');
-  assert.equal(taskRemainingWork({ budget: 10, actual: 2, record: { level: 20 }, completed: true }), 0, 'task hoàn thành → 0');
-});
-
-test('Còn lại trên bảng: task theo trạng thái, nhóm / dự án = tổng các task', () => {
-  const now = new Date('2026-11-10T17:30:00+07:00');
-  const a = (start, end) => [{ employeeId: 'e', startDate: start, endDate: end, estimatedHoursPerDay: 8, excludeNonWorkingDays: true }];
-  const db = { projects: [{ id: 'p', startDate: '2026-11-02', endDate: '2026-11-30', contractWork: 6 }], employees: [{ id: 'e' }], tasks: [], ganttItems: [
-    { id: 't1', code: 'A1.1', projectId: 'p', startDate: '2026-11-09', endDate: '2026-11-10', contractWork: 1, status: 'in_progress', assignees: a('2026-11-09', '2026-11-10') },
-    { id: 't2', code: 'A1.2', projectId: 'p', startDate: '2026-11-20', endDate: '2026-11-21', contractWork: 5, status: 'not_started', assignees: a('2026-11-20', '2026-11-21') },
-  ] };
-  const result = computeDelivery(db, 'p', { settings: {}, records: { t1: { level: 20 } } }, now);
-  // t1 đang làm, Thực tế 2 công > Dự toán 1 → max(1, 4) − 2 = 2; t2 chưa làm → 5.
-  assert.equal(result.taskMetrics.t1.actualWork, 2);
-  assert.equal(result.taskMetrics.t1.remainingWork, 2);
-  assert.equal(result.taskMetrics.t2.remainingWork, 5);
-  assert.equal(summarizeProjectWork(db.projects[0], result.taskMetrics).remainingWork, 7);
-});
-
-test('chọn 20% · Đang làm: chỉ cần task đã giao người, không cần giờ chấm công duyệt; về 0% luôn được', async () => {
+test('chọn 20% · Đang làm: chỉ cần task đã giao người; về 0% luôn được', async () => {
   const { levelChangeBlockReason } = await import('../../frontend/src/utils/deliveryMetrics.js');
   const assigned = { assignees: [{ employeeId: 'e', employeeName: 'Duy_QL' }] };
-  assert.equal(levelChangeBlockReason(assigned, null, 20), '', 'đã giao người → chọn được 20%');
-  assert.equal(levelChangeBlockReason({ assignees: [] }, { employeeId: 'e' }, 20), '', 'giao người ở task Công việc (dữ liệu cũ) cũng được');
+  assert.equal(levelChangeBlockReason(assigned, null, 20), '');
+  assert.equal(levelChangeBlockReason({ assignees: [] }, { employeeId: 'e' }, 20), '');
   assert.match(levelChangeBlockReason({ assignees: [] }, null, 20), /chưa giao người/);
-  assert.equal(levelChangeBlockReason({ assignees: [] }, null, 0), '', 'quay về 0% luôn được');
-  assert.equal(levelChangeBlockReason({ assignees: [] }, null, 40), '', 'các mức khác do bằng chứng / xác nhận kiểm tra');
+  assert.equal(levelChangeBlockReason({ assignees: [] }, null, 0), '');
+  assert.equal(levelChangeBlockReason({ assignees: [] }, null, 40), '');
 });

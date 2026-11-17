@@ -62,3 +62,11 @@
 /* Tên dự án đi kèm tên văn bản: khác màu để dễ phân biệt */
 .company-report-project { color: #861b36; font-weight: 600; }
 .dark .company-report-project { color: #fda4af; }
+
+/* Ô chọn phạm vi báo cáo chất lượng: tổng công ty hoặc từng dự án. */
+.company-report-scope { display:flex; align-items:center; padding:10px 14px; border-bottom:1px solid #e2e8f0; background:#fff; }
+.company-report-scope label { display:flex; align-items:center; gap:10px; font-size:13px; font-weight:600; color:#475569; }
+.company-report-scope select { min-width:320px; padding:7px 10px; border:1px solid #cbd5e1; border-radius:8px; background:#fff; color:#0f172a; font-size:13px; }
+.dark .company-report-scope { background:#0f172a; border-color:#334155; }
+.dark .company-report-scope label { color:#cbd5e1; }
+.dark .company-report-scope select { background:#1e293b; border-color:#475569; color:#f1f5f9; }

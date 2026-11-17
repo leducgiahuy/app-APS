@@ -17,10 +17,10 @@ test('recognition distinguishes six stages, evidence/confirmation, approval task
   assert.equal(submissionAlert({ level: 20, dueAt: '2026-10-13T00:00:00Z' }, new Date('2026-10-12T00:00:00Z')).soon, true);
   assert.equal(submissionAlert({ level: 20, dueAt: '2026-10-11T00:00:00Z', sentAt: '2026-10-10' }, new Date('2026-10-12T00:00:00Z')).warning, false);
 });
-test('forecast, remaining work and variance follow all six current progress levels', () => {
+test('forecast, remaining work and variance follow the four G1 levels (0 / 50 / 90 / 100)', () => {
   assert.deepEqual(workComparison(10, 0, 0), { budgetedWork: 10, forecastWork: 10, remainingWork: 10, varianceWork: 0, variancePercent: 0 });
-  for (const level of [20, 40]) assert.deepEqual(workComparison(10, 6, level), { budgetedWork: 10, forecastWork: 12, remainingWork: 6, varianceWork: 2, variancePercent: 20 });
-  for (const level of [60, 80]) assert.deepEqual(workComparison(10, 6, level), { budgetedWork: 10, forecastWork: 7, remainingWork: 1, varianceWork: -3, variancePercent: -30 });
+  assert.deepEqual(workComparison(10, 6, 50), { budgetedWork: 10, forecastWork: 12, remainingWork: 6, varianceWork: 2, variancePercent: 20 });
+  assert.deepEqual(workComparison(10, 6, 90), { budgetedWork: 10, forecastWork: 7, remainingWork: 1, varianceWork: -3, variancePercent: -30 });
   assert.deepEqual(workComparison(10, 8, 100), { budgetedWork: 10, forecastWork: 8, remainingWork: 0, varianceWork: -2, variancePercent: -20 });
 });
 test('planned/approved actual, individual labor rates, weighted group totals and rework remain independent', () => {
@@ -28,18 +28,20 @@ test('planned/approved actual, individual labor rates, weighted group totals and
   const data = { settings: { contractFee: 3200000000, hourlyRate: 100000, rates: { e: 350000 } }, records: { a: { level: 60, evidenceId: 'f', confirmedBy: 'l' }, b: { level: 20 } }, timesheets: [{ id: 't', taskId: 'a', employeeId: 'e', hours: 8, source: 'manual', status: 'approved' }, { id: 'pending', taskId: 'a', employeeId: 'e', hours: 4, source: 'manual', status: 'pending' }] };
   let result = computeDelivery(db, 'p', data);
   assert.equal(result.summary.totalPlanned, 4);
-  assert.equal(result.summary.completion, 40);
+  // % hoàn thành G1 = Σ(dt × mức) ÷ Σ dt: a 60% có bằng chứng + xác nhận → 90, b 20% → 50: (2 × 90 + 2 × 50) ÷ 4.
+  assert.equal(result.summary.completion, 70);
   assert.equal(result.summary.totalActual, 1);
   assert.equal(result.taskMetrics.a.laborCost, 2800000);
   assert.equal(result.summary.output, 1280000000);
   data.records.b.freeRework = true;
   result = computeDelivery(db, 'p', data);
   assert.equal(result.taskMetrics.b.output, 0);
-  assert.equal(result.summary.completion, 60);
+  assert.equal(result.summary.completion, 90, 'task làm lại không có dự toán nên không vào trọng số');
   data.settings.contractLocked = true; data.lockedWeights = { a: .4, b: .6 };
   result = computeDelivery(db, 'p', data);
   assert.equal(result.summary.output, result.taskMetrics.a.output + result.taskMetrics.b.output);
-  assert.equal(result.summary.output, data.settings.contractFee * result.summary.completion / 100);
+  // Sản lượng (tiền) vẫn theo % ghi nhận × trọng số khóa, tách khỏi % hoàn thành G1.
+  assert.equal(result.summary.output, data.settings.contractFee * (0.4 * result.taskMetrics.a.recognized + 0.6 * result.taskMetrics.b.recognized) / 100);
 });
 test('protected delivery API persists, enforces roles/confirmation/OT/revisions and isolates money', async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'aps-delivery-'));
@@ -162,8 +164,10 @@ test('protected delivery API persists, enforces roles/confirmation/OT/revisions 
     assert.equal((await mutate('timesheet', { taskId: 'a', employeeId: 'e', date: '2026-10-10', hours: 2, shiftType: 'overtime' })).status, 200);
     assert.equal((await mutate('approveTimesheet', { status: 'approved' }, null, state.timesheets.at(-1).id)).status, 400);
     assert.equal((await mutate('lockWeights', { reason: 'HĐ-01' })).status, 200);
-    assert.equal((await mutate('closeMonth', { month: '2026-10' })).status, 200);
-    assert.equal((await mutate('closeMonth', { month: '2026-10' })).status, 400);
+    // Ảnh chụp sản lượng ghi theo thời điểm chạy test, nên chốt tháng hiện tại (giờ VN) thay vì một tháng cố định.
+    const closeMonth = new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 7);
+    assert.equal((await mutate('closeMonth', { month: closeMonth })).status, 200);
+    assert.equal((await mutate('closeMonth', { month: closeMonth })).status, 400);
     const persisted = JSON.parse(fs.readFileSync(process.env.APS_DB_PATH, 'utf8'));
     assert.equal(persisted.ganttItems.find(row => row.id === 'a').ganttNote, 'Ghi chú đồng bộ');
     assert.equal(persisted.delivery.projects.p.closes.length, 1);

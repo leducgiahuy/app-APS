@@ -9,11 +9,18 @@ export function dropRetiredOperations(db) {
   return changed;
 }
 export const operations = db => { dropRetiredOperations(db); return {...emptyOperations(),...db.operations,params:{...DEFAULT_PARAMS,...db.operations?.params}}; };
+function assignedInProject(db,employeeId,projectId) {
+ const taskProject=new Map((db.tasks||[]).filter(task=>task.ganttId).map(task=>[task.ganttId,task.projectId]));
+ return (db.ganttItems||[]).some(item=>(item.projectId||taskProject.get(item.id))===projectId && (item.assignees||[]).some(row=>row?.employeeId===employeeId))
+  || (db.tasks||[]).some(task=>task.projectId===projectId && (task.employeeId===employeeId || (task.assignees||[]).some(row=>row?.employeeId===employeeId)));
+}
 export function projectActor(db,user,projectId) {
  if(!projectId || companyAdmin(user.role))return user;
  const members=(db.operations?.members || []).filter(row=>row.projectId===projectId && !row.deletedAt);
  const member=members.find(row=>row.email===user.email);
  if(member)return {...user,role:member.role,employeeId:member.employeeId || user.employeeId,companyRole:user.role};
+ // Người được giao task trong dự án luôn vào được dự án (để cập nhật trạng thái, nộp bằng chứng) với vai trò của tài khoản.
+ if(members.length && user.employeeId && assignedInProject(db,user.employeeId,projectId))return user;
  if(members.length && !['accountant','chiefAccountant'].includes(user.role))return null;
  return user; // Existing projects keep their existing access until memberships are configured.
 }

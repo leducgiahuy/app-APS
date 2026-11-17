@@ -32,7 +32,8 @@ function projectWork(project, details, executiveRow) {
     variancePercent: comparison.variancePercent,
     completion: executiveRow?.completion ?? details?.summary?.completion ?? 0,
     planPercent: executiveRow?.planPercent ?? details?.summary?.planPercent ?? 0,
-    red: Number(details?.summary?.warnings || 0),
+    // Việc đỏ (G1) = số việc có Chênh đỏ (> 10%).
+    red: Number(details?.summary?.redTasks || 0),
   };
 }
 
@@ -115,19 +116,38 @@ export default function DirectorOverviewPage() {
     };
   }, [rows]);
   const capacity = useMemo(() => monthFillPercent(tasks, employees, month, ganttItems), [tasks, employees, month, ganttItems]);
-  // Vượt công = Chênh vượt ngưỡng xanh (dự báo cao hơn dự toán trên 5%): vàng 5–10%, đỏ > 10%. Cùng quy tắc màu với bảng và bảng Gantt.
-  const overBudget = rows.filter(row => ['warning', 'danger'].includes(varianceTone(row.variance, row.variancePercent)));
+  // Dự án vượt (G1): (Σ Dự báo − Σ Dự toán) ÷ Σ Dự toán > 10%.
+  const overBudget = rows.filter(row => Number(row.variancePercent) > 10);
   const urgentDocuments = (report?.projects || []).reduce((sum, row) => sum + (row.urgent?.length || 0), 0);
+  const [review, setReview] = useState(null);
+  const [reviewReason, setReviewReason] = useState('');
+  const [reviewError, setReviewError] = useState('');
+  const [reviewSaving, setReviewSaving] = useState(false);
+  const decide = async status => {
+    if (status === 'rejected' && !reviewReason.trim()) { setReviewError('Cần ghi lý do từ chối.'); return; }
+    setReviewSaving(true); setReviewError('');
+    try {
+      // Luồng duyệt dùng revision của dữ liệu vận hành: đọc bản mới nhất rồi gửi quyết định (có nhật ký người duyệt).
+      const current = await deliveryApi.operations({ projectId: review.projectId });
+      const action = review.operationType === 'budget' ? 'budgetDecision' : review.operationType === 'expense' ? 'expenseDecision' : 'projectDecision';
+      await deliveryApi.mutateOperations({ revision: current.data.revision, action, value: { status, reason: reviewReason.trim() }, id: review.recordId, projectId: review.projectId, query: { projectId: review.projectId } });
+      setReview(null); setReviewReason('');
+      await load(true);
+    } catch (failure) { setReviewError(failure.message); }
+    finally { setReviewSaving(false); }
+  };
 
   const openProject = projectId => {
     sessionStorage.setItem('aps_report_link', JSON.stringify({ projectId, tab: 'gantt' }));
     setActiveTab('gantt');
   };
+  // Loại việc chưa có màn hình xử lý (công nợ, hợp đồng, thanh toán) thì không hiện nút Mở.
+  const canOpen = action => !['debt', 'contract', 'payment'].includes(action.kind) && (action.kind !== 'operation' || Boolean(action.recordId));
   const openAction = action => {
     if (action.kind === 'capacity') return setActiveTab('workload');
-    if (['debt', 'contract', 'payment', 'operation'].includes(action.kind)) {
-      return setActiveTab('director-overview');
-    }
+    // Đề nghị chờ Giám đốc (dự án mới / ngân sách / đề nghị chi): mở khung duyệt ngay trên trang này.
+    if (action.kind === 'operation') { setReview(action); setReviewReason(''); setReviewError(''); return undefined; }
+    if (!canOpen(action)) return undefined;
     sessionStorage.setItem('aps_report_link', JSON.stringify({ projectId: action.projectId, taskId: action.taskId, tab: action.kind === 'document' ? 'legal' : action.kind === 'change' ? 'changes' : 'gantt' }));
     return setActiveTab('gantt');
   };
@@ -141,7 +161,7 @@ export default function DirectorOverviewPage() {
     {report && !mayView && <section className="director-overview-denied"><BarChart3 size={32} /><h2>Tổng quan</h2><p>Vai trò của bạn chưa được cấp quyền xem trang này (Công ty → Cài đặt → Ma trận quyền).</p></section>}
     {report && mayView && <>
       <section className="director-overview-kpis">
-        <article className="danger"><span>Dự án vượt công</span><strong>{overBudget.length} dự án</strong><small>{overBudget.length ? `Vượt ${number(overBudget.reduce((sum, row) => sum + row.variance, 0))} công · ${totals.red} việc đỏ` : 'Không có dự án nào dự báo vượt dự toán quá 5%'}</small></article>
+        <article className="danger"><span>Dự án vượt công</span><strong>{overBudget.length} dự án</strong><small>{overBudget.length ? `Vượt ${number(overBudget.reduce((sum, row) => sum + row.variance, 0))} công · ${overBudget.reduce((sum, row) => sum + row.red, 0)} việc đỏ` : 'Không có dự án nào dự báo vượt dự toán quá 10%'}</small></article>
         <article className="success"><span>Lấp đầy công</span><strong>{capacity == null ? '—' : `${number(capacity)}%`}</strong><small>Tỷ lệ giờ đã phân công trên năng lực tháng</small></article>
         <article className="danger"><span>Hồ sơ & chứng chỉ</span><strong>{urgentDocuments} việc</strong><small>Việc nộp hồ sơ sắp đến hạn hoặc quá hạn</small></article>
       </section>
@@ -168,17 +188,42 @@ export default function DirectorOverviewPage() {
             </tr>)}
             {!rows.length && <tr><td colSpan="7" className="empty">Chưa có dự án thuộc phạm vi xem.</td></tr>}
           </tbody>
-          {!!rows.length && <tfoot><tr><th>Tổng công ty</th><th>{work(totals.budgeted)}</th><th>{work(totals.actual)}</th><th>{work(totals.forecast)}</th><th><span className={`variance ${varianceTone(totals.variance, totals.variancePercent)}`}>{signed(totals.variance)}{totals.variancePercent != null ? ` (${signed(totals.variancePercent)}%)` : ''}</span></th><th>{number(totals.completion)}% / {number(totals.planPercent)}%</th><th>{totals.red}</th></tr></tfoot>}
+          {!!rows.length && <tfoot><tr><th>Toàn công ty</th><th>{work(totals.budgeted)}</th><th>{work(totals.actual)}</th><th>{work(totals.forecast)}</th><th><span className={`variance ${varianceTone(totals.variance, totals.variancePercent)}`}>{signed(totals.variance)}{totals.variancePercent != null ? ` (${signed(totals.variancePercent)}%)` : ''}</span></th><th>{number(totals.completion)}% / {number(totals.planPercent)}%</th><th>{totals.red}</th></tr></tfoot>}
         </table></div>
-        <footer>Dự báo = công thực tế + công còn lại theo mức hoàn thành đã ghi nhận. Xanh ≤ 5%; vàng 5–10%; đỏ &gt; 10%. Bấm tên dự án để mở bảng việc.</footer>
+        <footer>Thực tế = giờ đã duyệt ÷ 8. Dự báo theo mức: chưa làm = dự toán · đang làm = max(dự toán, 2 × thực tế) · đã nộp = thực tế + 10% dự toán · xong = thực tế. Chênh dưới 1 công không tô màu; vàng &gt; 5%; đỏ &gt; 10%. Bấm tên dự án để mở bảng việc.</footer>
       </section>
 
       <section className="director-overview-card director-actions">
         <header><h2>Việc cần Giám đốc xử lý</h2><span>tự sinh từ quy tắc · xếp theo mức gấp</span></header>
         <div>{report.executive?.actions?.length ? report.executive.actions.map(action => <article key={action.id}>
-          <strong>{action.code || 'Dự án'}</strong><span>{action.title}</span><button onClick={() => openAction(action)}>Mở</button>
+          <strong>{action.code || 'Dự án'}</strong><span>{action.title}</span>{canOpen(action) ? <button onClick={() => openAction(action)}>Mở</button> : <i />}
         </article>) : <p className="empty">Không có việc cần xử lý theo dữ liệu hiện tại.</p>}</div>
       </section>
     </>}
+    {review && <div className="director-review-backdrop" role="presentation" onClick={() => !reviewSaving && setReview(null)}>
+      <div className="director-review" role="dialog" aria-modal="true" aria-label={review.title} onClick={event => event.stopPropagation()}>
+        <header><h3>{review.title}</h3><button type="button" aria-label="Đóng" disabled={reviewSaving} onClick={() => setReview(null)}>×</button></header>
+        <dl>
+          {review.project && <>
+            <dt>Dự án</dt><dd>{review.project.name}{review.project.code ? ` · ${review.project.code}` : ''}</dd>
+            <dt>Quản lý</dt><dd>{review.project.manager || '—'}</dd>
+            <dt>Thời gian</dt><dd>{[review.project.startDate, review.project.endDate].map(value => value ? value.split('-').reverse().join('/') : '—').join(' → ')}</dd>
+            <dt>Công dự toán</dt><dd>{review.project.contractWork != null && review.project.contractWork !== '' ? `${work(review.project.contractWork)} công` : '—'}</dd>
+          </>}
+          {review.amount != null && <><dt>Số tiền</dt><dd>{Number(review.amount).toLocaleString('vi-VN')} đ</dd></>}
+          <dt>Bước chờ duyệt</dt><dd>{review.step || 'Giám đốc duyệt'}</dd>
+          <dt>Người lập</dt><dd>{review.createdBy || '—'}{review.createdAt ? ` · ${new Date(review.createdAt).toLocaleString('vi-VN')}` : ''}</dd>
+        </dl>
+        {review.createdBy && review.createdBy === report?.viewer?.email && <p className="director-review-warning">Bạn là người lập đề nghị này nên không tự duyệt được. Cần tài khoản Giám đốc (hoặc một Quản trị khác) duyệt.</p>}
+        <label>Lý do / ghi chú (bắt buộc khi từ chối)<textarea rows={3} value={reviewReason} onChange={event => setReviewReason(event.target.value)} disabled={reviewSaving} /></label>
+        {reviewError && <p className="director-review-error" role="alert">{reviewError}</p>}
+        <footer>
+          {review.projectId && <button type="button" disabled={reviewSaving} onClick={() => { setReview(null); openProject(review.projectId); }}>Xem bảng việc</button>}
+          <span />
+          <button type="button" className="reject" disabled={reviewSaving} onClick={() => decide('rejected')}>Từ chối</button>
+          <button type="button" className="approve" disabled={reviewSaving} onClick={() => decide('approved')}>{reviewSaving ? 'Đang lưu…' : 'Duyệt'}</button>
+        </footer>
+      </div>
+    </div>}
   </div>;
 }

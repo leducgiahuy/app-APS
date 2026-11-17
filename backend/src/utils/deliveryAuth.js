@@ -27,7 +27,9 @@ export function deliveryLogin(req, res) {
   const { email, password } = req.body || {};
   if (typeof email !== 'string' || typeof password !== 'string' || password.length > 512) return res.status(400).json({ message: 'Thông tin đăng nhập không hợp lệ.' });
   const db = readDb(); const store = deliveryStore(db);
-  if (!store.users.length && email.toLowerCase() === 'demo@aps.vn' && password === 'APS@2026') store.users.push({ email: 'demo@aps.vn', name: 'Nguyễn Minh Anh', role: 'admin', employeeId: '', ...passwordHash(password) });
+  // Server mới chưa có tài khoản nào: tạo admin đầu tiên từ biến môi trường APS_ADMIN_EMAIL / APS_ADMIN_PASSWORD (không để mật khẩu trong code).
+  const bootEmail = String(process.env.APS_ADMIN_EMAIL || '').trim().toLowerCase(), bootPassword = String(process.env.APS_ADMIN_PASSWORD || '');
+  if (!store.users.length && bootEmail && bootPassword.length >= 8 && email.trim().toLowerCase() === bootEmail && password === bootPassword) store.users.push({ email: bootEmail, name: process.env.APS_ADMIN_NAME || 'Quản trị viên', role: 'admin', employeeId: '', ...passwordHash(password) });
   const user = store.users.find(item => item.email === email.trim().toLowerCase() && !item.disabled);
   store.loginAttempts ||= {};
   const loginKey=email.trim().toLowerCase(),attempt=store.loginAttempts[loginKey];

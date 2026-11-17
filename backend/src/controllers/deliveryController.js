@@ -79,7 +79,7 @@ export function applyDeliveryMutation(ctx, body) {
   const ruleKey={task:'editStatus',confirm:'confirmStatus',reopenTask:'confirmStatus',timesheet:'tsSubmit',lockWeights:'scope',milestone:'milestones',reopenMonth:'payment'}[action];
   if(ruleKey)assert(ruleAllows(ruleKey,user.role,pageAccess,'write'),'Vai trò của bạn không được thực hiện thao tác này.');
   const auditBefore=structuredClone(data.records);
-  if (['task', 'confirm', 'reopenTask', 'comment'].includes(action)) assert(item, 'Task không tồn tại hoặc không phải task lá của dự án.');
+  if (['task', 'confirm', 'reopenTask', 'comment', 'varianceReason'].includes(action)) assert(item, 'Task không tồn tại hoặc không phải task lá của dự án.');
   if (action === 'task') {
     assert(canEditDeliveryTask(user, item, db), 'Bạn chỉ được cập nhật việc của mình hoặc việc thuộc nhóm phụ trách.');
     const level = Number(value.level ?? current.level);
@@ -118,6 +118,12 @@ export function applyDeliveryMutation(ctx, body) {
     const evidence = data.evidence.find(file => file.id === current.evidenceId && file.taskId === taskId);
     assert(evidence?.kind === requiredKind, `Mức này cần bằng chứng loại ${requiredKind === 'receipt' ? 'Biên nhận nộp hồ sơ' : requiredKind === 'handover' ? 'Email/biên bản giao' : requiredKind === 'feedback' ? 'Văn bản góp ý/bổ sung' : 'Văn bản/email chấp thuận'}.`);
     data.records[taskId] = { ...current, confirmedBy: user.email, confirmedAt: new Date().toISOString() };
+  } else if (action === 'varianceReason') {
+    // Chênh đỏ (> 10%) thì Leader chọn lý do (bảng chỉ tiêu G1). Chỉ cấp duyệt (Leader trở lên) của task được ghi.
+    assert(reviewingRole(user.role) && canEditDeliveryTask(user, item, db), 'Chỉ Leader / Quản lý / Giám đốc / Quản trị được ghi lý do chênh.');
+    const reason = text(value.reason);
+    assert(reason, 'Cần chọn hoặc ghi lý do chênh.');
+    data.records[taskId] = { ...current, varianceReason: reason, varianceReasonBy: user.email, varianceReasonAt: new Date().toISOString() };
   } else if (action === 'reopenTask') {
     // Lối duy nhất để sửa trạng thái task đã hoàn thành (kể cả task hoàn thành theo cách cũ, chưa có xác nhận).
     assert(reviewingRole(user.role) && canEditDeliveryTask(user, item, db), 'Chỉ Leader / Quản lý / Giám đốc / Admin được mở lại task.');

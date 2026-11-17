@@ -5,7 +5,7 @@
   "main": "src/server.js",
   "type": "module",
   "scripts": {
-    "test": "node --experimental-vm-modules --test tests/*.test.js",
+    "test": "node --experimental-vm-modules --import ./tests/test-env.js --test tests/*.test.js",
     "start": "node src/server.js",
     "dev": "node --watch src/server.js"
   },

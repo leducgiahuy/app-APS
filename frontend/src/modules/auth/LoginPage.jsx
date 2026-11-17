@@ -3,9 +3,6 @@ import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail, ShieldCheck } from 'lucide-
 import { authenticateWithServer, recordActivity, startAuthSession } from './authSession';
 import '../../App.css';
 
-const DEMO_EMAIL = 'demo@aps.vn';
-const DEMO_PASSWORD = 'APS@2026';
-
 function Brand() {
   return <a className="brand" href="/" aria-label="APS Việt Nam"><img className="aps-full-logo" src="/aps-logo.svg" alt="APS Việt Nam · Project Management | QS" /></a>;
 }
@@ -44,7 +41,6 @@ export default function LoginPage() {
           <div className="eyebrow"><span /> QUẢN LÝ VĂN PHÒNG</div>
           <h1>Chào mừng<br />bạn trở lại.</h1>
           <p className="form-intro">Đăng nhập để tiếp tục quản lý dự án và đội ngũ của bạn.</p>
-          <div className="demo-credentials"><div><span>TÀI KHOẢN DEMO</span><button type="button" onClick={() => { setEmail(DEMO_EMAIL); setPassword(DEMO_PASSWORD); }}>Điền nhanh</button></div><p><b>Email</b><code>{DEMO_EMAIL}</code></p><p><b>Mật khẩu</b><code>{DEMO_PASSWORD}</code></p><small>Đăng nhập bản xem trước · tài khoản được xác thực trên máy chủ</small></div>
           <form onSubmit={handleSubmit}>
             <label className="field-label" htmlFor="email">Email công việc</label>
             <div className="input-wrap"><Mail size={18} aria-hidden="true" /><input id="email" name="email" type="email" placeholder="ten@congty.com" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} required /></div>

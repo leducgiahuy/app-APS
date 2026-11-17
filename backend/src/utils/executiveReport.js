@@ -94,7 +94,14 @@ export function buildExecutiveReport(db, user, month, now = new Date()) {
     }
     if (!cash.length) monthsFrom(month).forEach(key => cash.push({ month: key, balance: null, inflow: null, outflow: null }));
     if(db.operations?.cashForecasts?.length||db.operations?.paymentRequests?.length){const forecastCash=cashflowReport(db,month);cash.splice(0,cash.length,...forecastCash.rows.map(r=>({...r,inflow:r.incoming,outflow:r.outgoing,spendingMore:r.outgoing>r.incoming})));}
-    for(const request of [...(db.operations?.expenseRequests||[]),...(db.operations?.projectApprovals||[]),...(db.operations?.budgets||[])].filter(r=>r.status==='pending'&&r.steps?.find(step=>step.status==='pending')?.role==='director'))actions.push({id:`operation:${request.id}`,kind:'operation',projectId:request.projectId,code:request.code||'Duyệt',title:request.title||'Duyệt dự án / ngân sách',amount:request.amount,priority:2});
+    // Đề nghị đang chờ bước của Giám đốc: ghi rõ loại + tên dự án; kèm thông tin để duyệt ngay trên trang Tổng quan.
+    const pendingStep=row=>row.steps?.find(step=>step.status==='pending');
+    const projectName=id=>(db.projects||[]).find(row=>row.id===id)?.name||'';
+    const requests=[...(db.operations?.expenseRequests||[]).map(row=>({row,type:'expense',label:'Duyệt đề nghị chi'})),...(db.operations?.projectApprovals||[]).map(row=>({row,type:'project',label:'Duyệt dự án mới'})),...(db.operations?.budgets||[]).map(row=>({row,type:'budget',label:'Duyệt ngân sách'}))];
+    for(const {row:request,type,label} of requests.filter(({row})=>row.status==='pending'&&pendingStep(row)?.role==='director')){
+      const project=(db.projects||[]).find(row=>row.id===request.projectId);
+      actions.push({id:`operation:${request.id}`,kind:'operation',operationType:type,recordId:request.id,projectId:request.projectId,code:type==='project'?'Duyệt dự án':type==='budget'?'Ngân sách':request.code||'Đề nghị chi',title:`${request.title||label}${projectName(request.projectId)?`: ${projectName(request.projectId)}`:''}`,amount:request.amount,createdBy:request.createdBy||'',createdAt:request.createdAt||'',step:pendingStep(request)?.label||'',project:project?{name:project.name,code:project.code||'',manager:project.manager||'',startDate:project.startDate||'',endDate:project.endDate||'',contractWork:project.contractWork??null}:null,priority:2});
+    }
     const known = cash.filter(row => row.balance != null);
     const productionKnown = portfolio.filter(row => row._snapshot.output != null);
     const monthOutput = productionKnown.length ? productionKnown.reduce((total, row) => total + row._snapshot.output, 0) : null;

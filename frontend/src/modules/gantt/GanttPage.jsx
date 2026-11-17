@@ -11,14 +11,15 @@ import DeliveryDrawer from './DeliveryDrawer';
 import DeliveryResources from './DeliveryResources';
 import DeliveryChartOverlay from './DeliveryChartOverlay';
 import { deliveryApi } from './deliveryApi';
-import { summarizeProjectWork } from '../../utils/deliveryMetrics';
+import { reviewingRole, summarizeProjectWork } from '../../utils/deliveryMetrics';
 import './DeliveryPage.css';
 import GanttRowGrid from './GanttRowGrid';
 import GanttCalendarBackground from './GanttCalendarBackground';
 import { calendarColumns } from '../../utils/vietnamCalendar';
-import { assignmentCalendarConflicts, assignmentWorkingDates } from '../../utils/assignmentCalendar';
+import { assignmentCalendarConflicts, assignmentWorkingDates, taskWorkingDates } from '../../utils/assignmentCalendar';
 import { allocateTaskHierarchyWeightPercent } from '../../utils/ganttEffort';
 import GanttTaskBar, { dependencyHandleX, hasStoredAssignmentState } from './GanttTaskBar';
+import BudgetSourceBanner from './BudgetSourceBanner';
 import AssignmentCalendarConfirmation from './AssignmentCalendarConfirmation';
 import AssignmentMachinePage from './AssignmentMachinePage';
 import { useApp } from '../../context/AppContext';
@@ -197,6 +198,7 @@ const GanttTableRow = memo(function GanttTableRow({ actions, ...props }) {
       onDelete={() => actions.current.remove(item)}
       onSaveWork={(id, patch) => actions.current.saveWork(item, id, patch)}
       onCreateTask={child => actions.current.createTask(item, child)}
+      onVarianceReason={props.canExplainVariance ? () => actions.current.varianceReason(item) : undefined}
     />
   );
 });
@@ -879,7 +881,7 @@ export default function GanttPage() {
   // Tính tỷ lệ pixel theo ngày dựa trên zoom level
   const pxPerDay = useMemo(() => {
     if (zoomLevel === 'week') return 4.5;
-    return 10;
+    return 30; // Tháng: ô ngày 30px (gấp 1,5 lần 20px) cho dễ xem.
   }, [zoomLevel]);
 
   // Tổng số ngày trong timeline
@@ -935,7 +937,7 @@ export default function GanttPage() {
                         {Array.from({ length: col.days }, (_, dayIndex) => (
                           <div
                             key={dayIndex + 1}
-                            className="flex h-full shrink-0 items-center justify-center border-r border-slate-200/80 text-[7px] font-medium leading-none text-slate-500 last:border-r-0 dark:border-slate-700 dark:text-slate-400"
+                            className="flex h-full shrink-0 items-center justify-center border-r border-slate-200/80 text-[12px] font-medium leading-none text-slate-500 last:border-r-0 dark:border-slate-700 dark:text-slate-400"
                             style={{ width: `${pxPerDay}px`, backgroundColor: calendarDays[Math.round(col.left / pxPerDay) + dayIndex]?.color }}
                             title={`${dayIndex + 1}/${col.label.slice(1)}${calendarDays[Math.round(col.left / pxPerDay) + dayIndex]?.label ? ` — ${calendarDays[Math.round(col.left / pxPerDay) + dayIndex].label}` : ''}`}
                           >
@@ -1043,6 +1045,22 @@ export default function GanttPage() {
       const rowHeight = rowHeights[index];
       const y = rowTop + (rowHeight - BAR_HEIGHT) / 2;
       const centerY = rowTop + rowHeight / 2;
+      // Thanh bỏ ngày nghỉ (GanttExcludedDaysBar) chỉ vẽ ngày làm thật: barX / barEndX là mép đầu / cuối phần thanh
+      // nhìn thấy, để chấm nối, đường nối và nhãn người làm bám đúng ngày bắt đầu / kết thúc thật.
+      let barX = x, barEndX = x + width;
+      if (!dateTasks) {
+        const linked = tasks.find(task => task.ganttId === item.id);
+        const assignees = hasStoredAssignmentState(linked) && Array.isArray(linked.assignees) && linked.assignees.length ? linked.assignees : item.assignees;
+        if (assignees?.some(assignment => assignment.excludeNonWorkingDays === true)) {
+          const working = taskWorkingDates({ ...item, assignees });
+          if (working.length) {
+            const dayOffset = key => (new Date(`${key}T00:00:00`) - timelineStart) / 86400000;
+            barX = Math.max(0, dayOffset(working[0])) * pxPerDay;
+            barEndX = Math.min(totalTimelineDays, dayOffset(working.at(-1)) + 1) * pxPerDay;
+            if (barEndX <= barX) { barX = x; barEndX = x + width; }
+          }
+        }
+      }
 
       coords[item.id] = {
         x,
@@ -1050,6 +1068,8 @@ export default function GanttPage() {
         width,
         height: BAR_HEIGHT,
         endX: x + width,
+        barX,
+        barEndX,
         centerY,
         rowTop,
         rowHeight,
@@ -1062,7 +1082,7 @@ export default function GanttPage() {
       };
     });
     return coords;
-  }, [filteredGanttItems, timelineStart, totalTimelineDays, pxPerDay, rowHeights, rowOffsets, hierarchyGanttItems, collapsedGroupIds, collapsedProjectIds, projectIdForItem]);
+  }, [filteredGanttItems, timelineStart, totalTimelineDays, pxPerDay, rowHeights, rowOffsets, hierarchyGanttItems, collapsedGroupIds, collapsedProjectIds, projectIdForItem, tasks]);
 
   // Cuộn một lần khi dòng và thanh của task đích đã được dựng: dọc tới giữa màn hình, ngang tới đầu thanh Gantt.
   useEffect(() => {
@@ -1190,13 +1210,24 @@ export default function GanttPage() {
     });
 
     return [...edges.values()].map(({ key, from, to, sourceId, targetId, dependencySourceId, dependencyTargetId }) => {
-      const startX = from.x + 6;
-      const startY = from.centerY;
-      const endX = Math.max(to.x - DEPENDENCY_ARROW_TARGET_OFFSET, 0);
+      // Đường nối kiểu Finish-to-Start: từ cuối thanh task trước đi thẳng xuống (hoặc lên) tới dòng task sau,
+      // rồi rẽ phải vào đầu thanh task sau. Task sau bắt đầu sớm hơn cuối task trước thì vòng qua mép trên
+      // dòng task sau, lùi ra trước đầu thanh rồi mới rẽ vào, để mũi tên luôn chỉ sang phải vào đầu thanh.
+      // Bắt đầu từ chấm nối ở cuối thanh task trước (dependencyHandleX, bán kính 3).
+      const startX = dependencyHandleX(from);
+      const goingDown = to.centerY >= from.centerY;
+      const startY = goingDown ? from.centerY + 3 : from.centerY - 3;
+      const targetX = to.barX ?? to.x;
+      const endX = Math.max(targetX - 1, 0);
       const endY = to.centerY;
-      const laneX = Math.min(startX, endX) - 32;
-      // Orthogonal connector: left into the lane, straight down/up, then right into the target.
-      const path = `M ${startX} ${startY} H ${laneX} V ${endY} H ${endX}`;
+      let path;
+      if (endX - startX >= 8) {
+        path = `M ${startX} ${startY} V ${endY} H ${endX}`;
+      } else {
+        const laneY = goingDown ? to.y - 4 : to.y + to.height + 4;
+        const laneX = Math.max(targetX - DEPENDENCY_ARROW_TARGET_OFFSET, 0);
+        path = `M ${startX} ${startY} V ${laneY} H ${laneX} V ${endY} H ${endX}`;
+      }
 
       return {
         key,
@@ -1217,7 +1248,7 @@ export default function GanttPage() {
     return personalTaskChain(filteredGanttItems, deliveryData?.viewer?.employeeId).map(([sourceId, targetId]) => {
       const from = taskCoordinates[sourceId], to = taskCoordinates[targetId];
       if (!from || !to || from.isTaskAggregate || to.isTaskAggregate) return null;
-      const startX = from.endX, startY = from.centerY, endX = Math.max(to.x - 3, 0), endY = to.centerY;
+      const startX = from.barEndX ?? from.endX, startY = from.centerY, endX = Math.max((to.barX ?? to.x) - 3, 0), endY = to.centerY;
       // Đi xuống ngay sau cuối thanh (trước nhãn tên người làm ở cuối thanh + 8px) để không cắt qua chữ.
       const exitX = startX + 4;
       const path = endX >= exitX + 6
@@ -1715,7 +1746,7 @@ export default function GanttPage() {
 
   const groupMetrics = useMemo(() => {
     const result = new Map(); const byId = new Map(hierarchyGanttItems.map(item => [item.id, item]));
-    const add = (id, item, metric, free) => { const sum = result.get(id) || { planned: 0, earned: 0, actual: 0, actualHours: 0, completedActual: 0, completedActualHours: 0, completedCount: 0, actualWork: 0, budgetedWork: 0, forecastWork: 0, remainingWork: 0, varianceWork: 0, variancePercent: null, laborCost: 0, output: 0, weight: 0 }; const hasContractWork = item.contractWork !== '' && item.contractWork != null && Number.isFinite(Number(item.contractWork)); const budgetedWork = metric.budgetedWork ?? (free ? 0 : hasContractWork ? Number(item.contractWork) : Number(metric.planned) || 0); const forecastWork = metric.forecastWork ?? (Number(metric.planned) || 0); const actualWork = metric.actualWork ?? metric.completedActual ?? 0; const remainingWork = metric.remainingWork ?? Math.max(0, forecastWork - actualWork); const varianceWork = metric.varianceWork ?? forecastWork - budgetedWork; sum.planned += free ? 0 : metric.planned; sum.earned += metric.earned; sum.actual += metric.actual; sum.actualHours += metric.actualHours; sum.actualWork += actualWork; sum.budgetedWork += budgetedWork; sum.forecastWork += forecastWork; sum.remainingWork += remainingWork; sum.varianceWork += varianceWork; sum.variancePercent = sum.budgetedWork > 0 ? sum.varianceWork / sum.budgetedWork * 100 : null; if (metric.completedCount > 0) { sum.completedActual += Number(metric.completedActual) || 0; sum.completedActualHours += Number(metric.completedActualHours) || 0; sum.completedCount += metric.completedCount; } sum.weight += free ? 0 : Number(metric.weight) || 0; sum.laborCost = sum.laborCost == null || metric.laborCost == null ? null : sum.laborCost + metric.laborCost; sum.output = sum.output == null || metric.output == null ? null : sum.output + metric.output; result.set(id, sum); };
+    const add = (id, item, metric, free) => { const sum = result.get(id) || { planned: 0, earned: 0, actual: 0, actualHours: 0, completedActual: 0, completedActualHours: 0, completedCount: 0, actualWork: 0, budgetedWork: 0, forecastWork: 0, remainingWork: 0, varianceWork: 0, variancePercent: null, laborCost: 0, output: 0, weight: 0, levelWork: 0, planWork: 0 }; const hasContractWork = item.contractWork !== '' && item.contractWork != null && Number.isFinite(Number(item.contractWork)); const budgetedWork = metric.budgetedWork ?? (free ? 0 : hasContractWork ? Number(item.contractWork) : Number(metric.planned) || 0); const forecastWork = metric.forecastWork ?? (Number(metric.planned) || 0); const actualWork = metric.actualWork ?? metric.completedActual ?? 0; const remainingWork = metric.remainingWork ?? Math.max(0, forecastWork - actualWork); const varianceWork = metric.varianceWork ?? forecastWork - budgetedWork; sum.planned += free ? 0 : metric.planned; sum.earned += metric.earned; sum.actual += metric.actual; sum.actualHours += metric.actualHours; sum.actualWork += actualWork; sum.budgetedWork += budgetedWork; sum.forecastWork += forecastWork; sum.remainingWork += remainingWork; sum.varianceWork += varianceWork; sum.variancePercent = sum.budgetedWork > 0 ? sum.varianceWork / sum.budgetedWork * 100 : null; if (metric.completedCount > 0) { sum.completedActual += Number(metric.completedActual) || 0; sum.completedActualHours += Number(metric.completedActualHours) || 0; sum.completedCount += metric.completedCount; } sum.weight += free ? 0 : Number(metric.weight) || 0; sum.levelWork += Number(metric.levelWork) || 0; sum.planWork += Number(metric.planWork) || 0; sum.laborCost = sum.laborCost == null || metric.laborCost == null ? null : sum.laborCost + metric.laborCost; sum.output = sum.output == null || metric.output == null ? null : sum.output + metric.output; result.set(id, sum); };
     hierarchyGanttItems.forEach(item => { const metric = deliveryData?.taskMetrics[item.id]; if (!metric) return; const free = deliveryData.records[item.id]?.freeRework; add(`project-heading-${projectIdForItem(item)}`, item, metric, free); const seen = new Set([item.id]); let parent = byId.get(item.parentTaskId || item.parentGroupId); while (parent && !seen.has(parent.id)) { seen.add(parent.id); add(parent.id, item, metric, free); parent = byId.get(parent.parentTaskId || parent.parentGroupId); } });
     projects.forEach(project => {
       const projectMetric = result.get(`project-heading-${project.id}`);
@@ -1742,8 +1773,20 @@ export default function GanttPage() {
     rowMetricCache.set(item.id, value);
     return value;
   };
-  const groupPercent = useCallback(item => { if (item.isProjectHeader && item.projectId === selectedProjectId && deliveryData) return deliveryData.summary.completion; const metric = groupMetrics.get(item.id); return metric ? metric.planned ? metric.earned / metric.planned * 100 : 0 : null; }, [selectedProjectId, deliveryData, groupMetrics]);
+  const groupPercent = useCallback(item => { if (item.isProjectHeader && item.projectId === selectedProjectId && deliveryData) return deliveryData.summary.completion; const metric = groupMetrics.get(item.id); return metric ? metric.budgetedWork ? metric.levelWork / metric.budgetedWork * 100 : 0 : null; }, [selectedProjectId, deliveryData, groupMetrics]);
   const editDeliveryItem = item => { if (item.isProjectHeader) { setSelectedProjectId(item.projectId); setEditProjectForm({ name: item.title || '', startDate: item.startDate || '', endDate: item.endDate || '' }); setShowEditProjectModal(true); } else if (item.isGroup) openGroupEdit(item); else handleEditOpen(item); };
+  // Chênh đỏ (> 10%): Leader / Quản lý / Giám đốc phải chọn lý do (bảng chỉ tiêu G1). Lưu vào hồ sơ task, có nhật ký.
+  const VARIANCE_REASONS = ['Định mức thấp', 'CĐT thay đổi yêu cầu', 'Làm lại do lỗi nội bộ', 'Thiếu thông tin đầu vào', 'Độ phức tạp cao hơn dự kiến'];
+  const explainVariance = async item => {
+    const current = deliveryData?.records?.[item.id]?.varianceReason || '';
+    const list = VARIANCE_REASONS.map((reason, index) => `${index + 1}. ${reason}`).join('\n');
+    const answer = window.prompt(`Lý do Chênh đỏ của ${item.code ? `${item.code} ` : ''}${item.title}\nGõ số hoặc tự ghi lý do:\n${list}`, current);
+    if (answer == null) return;
+    const text = answer.trim();
+    const reason = /^\d+$/.test(text) ? VARIANCE_REASONS[Number(text) - 1] || '' : text;
+    if (!reason) { window.alert('Cần chọn hoặc ghi lý do.'); return; }
+    try { await delivery.mutate('varianceReason', { reason }, item.id); } catch (error) { window.alert(error.message); }
+  };
   const removeDeliveryItem = async item => { if (item.isProjectHeader) { if (await deleteProject(item.projectId)) setDetailItemId(null); } else if (await deleteGanttItem(item.id)) setDetailItemId(null); };
   const createDeliveryTask = (item, child = false) => {
     if (child && isTaskCompleted(item)) {
@@ -1773,6 +1816,7 @@ export default function GanttPage() {
       remove: removeDeliveryItem,
       saveWork: (item, id, patch) => item.isProjectHeader ? updateProject(item.projectId, patch) : updateGanttItem(id, patch),
       createTask: createDeliveryTask,
+      varianceReason: explainVariance,
     };
     chartActionsRef.current = { openDetail, assign: handleAssignmentsOpen, startDependencyDrag };
   });
@@ -1814,6 +1858,8 @@ export default function GanttPage() {
       {deliveryTab === 'gantt' && <div className="project-progress-switch" role="tablist" aria-label="Tiến độ và phân công">
         {progressSections.map(([key, label]) => <button type="button" role="tab" key={key} aria-selected={progressSection === key} className={progressSection === key ? 'active' : ''} onClick={() => setProgressSection(key)}>{label}</button>)}
       </div>}
+      {/* Nguồn gốc Công dự toán: báo giá + CR đã duyệt, cảnh báo CR đang chờ chưa cộng. */}
+      {deliveryTab === 'gantt' && progressSection === 'table' && selectedProjectId !== 'ALL' && deliveryData && <BudgetSourceBanner project={projects.find(item => item.id === selectedProjectId)} changes={deliveryData.changes || []} items={selectedProjectItems} taskMetrics={deliveryData.taskMetrics} />}
       {/* Ô chọn dự án luôn nằm dưới hàng mục con: Phân công (máy gán) đặt ở đây; Hồ sơ / Khách hàng / Chốt đặt trong trang con. */}
       {deliveryTab === 'gantt' && !projectPickerInToolbar && <div className="delivery-context-bar">{projectPicker}</div>}
       {/* THANH ĐIỀU KHIỂN & BỘ LỌC GANTT */}
@@ -2113,7 +2159,7 @@ export default function GanttPage() {
               
               {/* Danh Sách Các Hàng Công Việc (Khóa cứng 44px mỗi dòng) */}
               <div style={{ minHeight: `${chartBodyHeight}px` }}>
-                {filteredGanttItems.map((item, itemIndex) => <GanttTableRow key={item.id} actions={rowActionsRef} item={item} columns={currentColumns} height={rowHeights[itemIndex]} depth={groupDepthForItem(item)} record={deliveryData?.records[item.id]} metric={metricForRow(item)} aggregate={groupPercent(item)} employees={employees} collapsed={item.isProjectHeader ? collapsedProjectIds.has(item.projectId) : item.isGroup ? collapsedGroupIds.has(item.id) : collapsedTaskIds.has(item.id)} color={item.isGroup ? phaseColorForGroup(item) : item.color} readOnly={previewing || !canManageStructure} canAssign={!previewing && canManageAssignments} highlighted={item.id === linkTargetId} />)}
+                {filteredGanttItems.map((item, itemIndex) => <GanttTableRow key={item.id} actions={rowActionsRef} canExplainVariance={!previewing && reviewingRole(viewerRole)} item={item} columns={currentColumns} height={rowHeights[itemIndex]} depth={groupDepthForItem(item)} record={deliveryData?.records[item.id]} metric={metricForRow(item)} aggregate={groupPercent(item)} employees={employees} collapsed={item.isProjectHeader ? collapsedProjectIds.has(item.projectId) : item.isGroup ? collapsedGroupIds.has(item.id) : collapsedTaskIds.has(item.id)} color={item.isGroup ? phaseColorForGroup(item) : item.color} readOnly={previewing || !canManageStructure} canAssign={!previewing && canManageAssignments} highlighted={item.id === linkTargetId} />)}
               </div>
 
             </div>
@@ -2154,25 +2200,11 @@ export default function GanttPage() {
                 <GanttCalendarBackground days={calendarDays} pxPerDay={pxPerDay} height={chartBodyHeight} />
                 <defs>
                   {/* Mũi tên đầu đường phụ thuộc Finish-to-Start */}
-                  <marker
-                    id="arrowhead-default"
-                    markerWidth="10"
-                    markerHeight="10"
-                    refX="7"
-                    refY="5"
-                    orient="auto"
-                  >
-                    <polygon points="0 0, 10 5, 0 10" fill="#64748b" className="dark:fill-white" />
+                  <marker id="arrowhead-default" markerWidth="7" markerHeight="7" refX="6.5" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">
+                    <polygon points="0 0, 7 3.5, 0 7" fill="#94a3b8" className="dark:fill-slate-300" />
                   </marker>
-                  <marker
-                    id="arrowhead-active"
-                    markerWidth="10"
-                    markerHeight="10"
-                    refX="7"
-                    refY="5"
-                    orient="auto"
-                  >
-                    <polygon points="0 0, 10 5, 0 10" fill="#ef4444" className="dark:fill-white" />
+                  <marker id="arrowhead-active" markerWidth="7" markerHeight="7" refX="6.5" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">
+                    <polygon points="0 0, 7 3.5, 0 7" fill="#ef4444" />
                   </marker>
                   {/* Mũi tên đường nối riêng "Chỉ việc của tôi" */}
                   <marker id="arrowhead-personal" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse">
@@ -2315,9 +2347,9 @@ export default function GanttPage() {
                       key={`visible-${line.key}`}
                       d={line.path}
                       fill="none"
-                      stroke={isActive ? '#ef4444' : '#64748b'}
-                      strokeWidth={isActive ? 2.4 : 1.8}
-                      className={!isActive ? 'dark:stroke-white' : undefined}
+                      stroke={isActive ? '#ef4444' : '#94a3b8'}
+                      strokeWidth={isActive ? 1.8 : 1.2}
+                      className={!isActive ? 'dark:stroke-slate-300' : undefined}
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       markerEnd={line.type === 'dependency' ? (isActive ? 'url(#arrowhead-active)' : 'url(#arrowhead-default)') : undefined}
@@ -2354,11 +2386,11 @@ export default function GanttPage() {
                         key={`dependency-handle-${item.id}`}
                         cx={dependencyHandleX(coord)}
                         cy={coord.centerY}
-                        r="4.5"
+                        r="3"
                         fill="#ffffff"
-                        stroke="#861b36"
-                        strokeWidth="2"
-                        className="dark:fill-slate-900 dark:stroke-rose-300"
+                        stroke="#94a3b8"
+                        strokeWidth="1.5"
+                        className="dark:fill-slate-900 dark:stroke-slate-400"
                       />;
                     })}
                   </g>

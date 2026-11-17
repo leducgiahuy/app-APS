@@ -12,8 +12,10 @@ const PORT = process.env.PORT || 5000;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dist = path.join(__dirname, '../../frontend/dist');
 
-// Middleware cấu hình CORS và phân tích JSON
-app.use(cors());
+// CORS: web chạy cùng tên miền với API (backend phục vụ luôn frontend, Vite dev dùng proxy) nên mặc định
+// không cho trang web khác gọi API. Cần mở cho tên miền khác thì đặt APS_CORS_ORIGINS="https://a.vn,https://b.vn".
+const corsOrigins = String(process.env.APS_CORS_ORIGINS || '').split(',').map(origin => origin.trim()).filter(Boolean);
+app.use(cors({ origin: corsOrigins.length ? corsOrigins : false }));
 app.use(express.json({ limit: '15mb' }));
 
 // Gắn các đường dẫn API của hệ thống

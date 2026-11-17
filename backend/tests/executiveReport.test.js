@@ -10,7 +10,7 @@ const now = new Date('2026-10-13T10:00:00+07:00');
 test('executive uses recognized progress, approved hours, receipts, debts and cumulative cash; masks financial data by role', () => {
   const db = fixture();
   const admin = buildExecutiveReport(db, { role: 'admin' }, '2026-10', now);
-  assert.equal(admin.projects[0].completion, 60);
+  assert.equal(admin.projects[0].completion, 90, '60% có bằng chứng + xác nhận = đã nộp (mức G1 90)');
   assert.equal(admin.projects[0].efficiency, 1.2);
   assert.equal(admin.executive.collected, 10000000);
   assert.equal(admin.executive.onTime, 100);
@@ -27,7 +27,7 @@ test('executive uses recognized progress, approved hours, receipts, debts and cu
   const manager = buildExecutiveReport(db, { role: 'manager', email: 'manager@aps.vn' }, '2026-10', now);
   assert.equal(manager.projects.length, 2); assert.equal(manager.projects[0].financial, true); assert.equal(manager.projects[1].financial, false);
   delete db.delivery.projects.p.records.t.confirmedBy;
-  assert.equal(buildExecutiveReport(db, { role: 'admin' }, '2026-10', now).projects[0].completion, 40);
+  assert.equal(buildExecutiveReport(db, { role: 'admin' }, '2026-10', now).projects[0].completion, 90, 'G1 chỉ cần file bằng chứng: chưa xác nhận vẫn là đã nộp (90)');
 });
 test('locked production remains immutable; missing opening balance/rates remain unknown; late submission fails on-time rate', () => {
   const db = fixture();

@@ -185,15 +185,15 @@ async function pullServerAccounts() {
   return backendUsers;
 }
 
-/** Tài khoản cũ chỉ có ở trình duyệt / chưa có hồ sơ trên máy chủ: đẩy lên một lần (kèm mật khẩu nếu máy chủ chưa có). */
+/** Tài khoản đã có trên máy chủ nhưng chưa có hồ sơ: đẩy hồ sơ lên một lần. Trình duyệt không giữ mật khẩu nên không tạo tài khoản mới từ đây. */
 async function pushLocalAccounts(backendUsers) {
   let synced = 0;
   for (const user of getUsers().filter((entry) => entry.role === 'user')) {
     const existing = backendUsers.find((entry) => entry.email === user.email);
-    if (existing?.profileSavedAt) continue;
+    if (!existing || existing.profileSavedAt) continue;
     const expected = { ...backendAccount(user), sync: true };
     try {
-      await deliveryApi.saveUser(existing ? expected : { ...expected, password: user.password });
+      await deliveryApi.saveUser(expected);
       synced += 1;
     } catch (error) {
       // Máy chủ báo tài khoản đã bị xóa: bỏ bản cũ trên trình duyệt thay vì tạo lại.

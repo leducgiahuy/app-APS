@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown, ChevronRight, MessageCircle, Paperclip, MoreHorizontal, Pencil, UsersRound, Trash2, Plus } from 'lucide-react';
-import { deliveryLabel, defaultDeliveryRecord, formatCompactMoney, taskForecastWork, varianceTone, workComparison } from '../../utils/deliveryMetrics';
+import { deliveryLabel, defaultDeliveryRecord, formatCompactMoney, varianceTone } from '../../utils/deliveryMetrics';
 import { GanttEditableWorkCell } from './GanttWorkColumns';
 
 export const DELIVERY_COLUMNS = [
@@ -31,9 +31,11 @@ export const shortDateTime = value => value ? new Date(value).toLocaleString('vi
 const number = value => value == null ? '—' : Number(value).toLocaleString('vi-VN', { maximumFractionDigits: 1 });
 // Các cột công (Dự toán, Dự báo, Thực tế, Còn lại, Chênh lệch) hiện tới 2 chữ số — đúng số dùng để tính, nên nhẩm trên bảng
 // (VD Dự báo = Dự toán × Thực tế task trên ÷ Dự toán task trên) ra khớp, và hai cột đổi số cùng lúc khi Thực tế chạy.
+// Chữ trạng thái của dòng nhóm / dự án theo % tổng: 0% = đang tiến hành, đã chạy (> 0% và < 100%) = đang làm.
+const groupStatusLabel = percent => { const value = Number(percent) || 0; return value <= 0 ? ' · Đang tiến hành' : value < 100 ? ' · Đang làm' : ''; };
 const work = value => value == null || !Number.isFinite(Number(value)) ? '—' : Number(value).toLocaleString('vi-VN', { maximumFractionDigits: 2 });
 
-export default function DeliveryRow({ item, columns, height, depth = 0, record, metric, aggregate, employees, collapsed, onToggle, onOpen, onEdit, onAssign, onDelete, onSaveWork, onCreateTask, color, readOnly, canAssign = !readOnly, highlighted = false }) {
+export default function DeliveryRow({ item, columns, height, depth = 0, record, metric, aggregate, employees, collapsed, onToggle, onOpen, onEdit, onAssign, onDelete, onSaveWork, onCreateTask, onVarianceReason, color, readOnly, canAssign = !readOnly, highlighted = false }) {
   const [createMenu, setCreateMenu] = useState(null);
   const createButton = useRef(null);
   const menuRef = useRef(null);
@@ -52,16 +54,15 @@ export default function DeliveryRow({ item, columns, height, depth = 0, record, 
   const group = item.isGroup || item.isProjectHeader || item.hasTaskChildren;
   const people = item.assignees?.length ? item.assignees : item.assignee ? [{ employeeName: item.assignee }] : [];
   record = record || defaultDeliveryRecord(item);
-  const hasContractWork = item.contractWork !== '' && item.contractWork != null && Number.isFinite(Number(item.contractWork));
-  const comparisonFallback = metric ? workComparison(
-    record.freeRework || record.isChangeWork ? 0 : hasContractWork ? Number(item.contractWork) : metric.planned,
-    metric.actualWork ?? metric.completedActual ?? 0,
-    record.level,
-    metric.forecastWork ?? taskForecastWork({ planned: metric.planned, spent: metric.actual, level: record.level, completed: item.status === 'completed', completedActual: metric.completedActual })
-  ) : null;
-  const remainingWork = metric?.remainingWork ?? comparisonFallback?.remainingWork;
-  const varianceWork = metric?.varianceWork ?? comparisonFallback?.varianceWork;
-  const variancePercent = metric?.variancePercent ?? comparisonFallback?.variancePercent;
+  // Số công lấy thẳng từ computeDelivery (công thức G1); nhóm / dự án = tổng các task (groupMetrics ở GanttPage).
+  const remainingWork = metric?.remainingWork;
+  const varianceWork = metric?.varianceWork;
+  const variancePercent = metric?.variancePercent;
+  // Ô Thực tế: đỏ khi quá hạn (chưa xong mà qua ngày kết thúc) hoặc Thực tế > Dự toán; vàng khi đã dùng ≥ 80% Dự toán mà chưa nộp (cảnh báo sớm G1).
+  const todayDate = new Date();
+  const today = `${todayDate.getFullYear()}-${String(todayDate.getMonth() + 1).padStart(2, '0')}-${String(todayDate.getDate()).padStart(2, '0')}`;
+  const taskOverdue = Boolean(metric) && !group && item.status !== 'completed' && ((item.endDate && item.endDate < today) || Boolean(metric.alert?.overBudget));
+  const nearBudget = Boolean(metric) && !group && !taskOverdue && Boolean(metric.alert?.nearBudget);
   const label = deliveryLabel(record);
   const alert = metric?.alert || {};
   const rowClass = item.isProjectHeader ? 'project' : item.isGroup ? 'group' : `${record?.freeRework ? 'rework ' : ''}${item.parentTaskId ? 'child-task' : ''}`.trim();
@@ -73,28 +74,28 @@ export default function DeliveryRow({ item, columns, height, depth = 0, record, 
       if (column.key === 'title') content = <div className="delivery-row-title" style={{ paddingLeft: Math.min(32, depth * 10) }}>{group && <button type="button" onClick={event => { event.stopPropagation(); onToggle(); }} aria-label={`${collapsed ? 'Mở' : 'Thu'} ${item.title}`}>{collapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}</button>}<span className={item.parentTaskId ? 'delivery-child-task-title' : undefined} title={item.title}>{item.title}</span></div>;
       if (column.key === 'people') content = !group && <div className="delivery-people">{people.map((assignment, index) => { const employee = employees.find(person => person.id === assignment.employeeId); const name = employee?.name || assignment.employeeName || 'Chưa gán'; return <span key={index} title={name}><i>{name.slice(0, 1).toLocaleUpperCase('vi')}</i><span className="delivery-person-name">{name}</span></span>; })}{!people.length && canAssign && <button onClick={event => { event.stopPropagation(); onAssign(); }} disabled={readOnly}>+ Giao cho</button>}</div>;
       if (column.key === 'submission') content = !group && <div className={`delivery-due ${alert.overdue ? 'overdue' : alert.soon ? 'soon' : ''}`}><b>{shortDateTime(record?.dueAt)}</b>{record?.sentAt ? <small className="sent">Đã gửi {shortDateTime(record.sentAt)}</small> : alert.overdue ? <small>Quá hạn {Math.ceil(-alert.hours / 24)} ngày</small> : alert.soon ? <small>Còn {Math.floor(alert.hours / 24)} ngày {Math.max(0, Math.floor(alert.hours % 24))} giờ</small> : null}</div>;
-      if (column.key === 'status') content = group ? <strong className="delivery-group-percent">{aggregate == null ? '—' : `${number(aggregate)}%`}</strong> : <div className="delivery-status-cell"><span className={`delivery-status level-${record?.level || 0} ${record?.freeRework ? 'rework' : ''}`} title={`% ghi nhận: ${metric?.recognized ?? '—'}%`}>{record?.freeRework ? `Làm lại · ${record.changeId ? 'CR' : 'miễn phí'}` : `${record?.level ?? '—'}% · ${label}`}</span>{record?.level >= 60 && <Paperclip size={12} className={record.evidenceId ? 'has-proof' : 'missing-proof'} aria-label={record.evidenceId ? 'Có bằng chứng' : 'Thiếu bằng chứng'} />}{record?.level >= 60 && <small className={record.confirmedBy ? 'has-proof' : 'missing-proof'}>{record.confirmedBy ? '✓ XN' : '○ XN'}</small>}<button aria-label={`Thảo luận ${item.title}`} onClick={event => { event.stopPropagation(); onOpen('comments'); }}><MessageCircle size={13} /></button></div>;
+      if (column.key === 'status') content = group ? <strong className="delivery-group-percent">{aggregate == null ? '—' : `${number(aggregate)}%${groupStatusLabel(aggregate)}`}</strong> : <div className="delivery-status-cell"><span className={`delivery-status level-${record?.level || 0} ${record?.freeRework ? 'rework' : ''}`} title={`% ghi nhận: ${metric?.recognized ?? '—'}%`}>{record?.freeRework ? `Làm lại · ${record.changeId ? 'CR' : 'miễn phí'}` : `${record?.level ?? '—'}% · ${label}`}</span>{record?.level >= 60 && <Paperclip size={12} className={record.evidenceId ? 'has-proof' : 'missing-proof'} aria-label={record.evidenceId ? 'Có bằng chứng' : 'Thiếu bằng chứng'} />}{record?.level >= 60 && <small className={record.confirmedBy ? 'has-proof' : 'missing-proof'}>{record.confirmedBy ? '✓ XN' : '○ XN'}</small>}<button aria-label={`Thảo luận ${item.title}`} onClick={event => { event.stopPropagation(); onOpen('comments'); }}><MessageCircle size={13} /></button></div>;
       if (['startDate', 'endDate'].includes(column.key)) content = item[column.key]?.split('-').reverse().join('/') || '—';
       if (column.key === 'days') content = item.days ?? '—';
-      // Dự báo khi xong (taskForecastWork, nhóm / dự án = tổng các task): luôn Dự báo = Thực tế + Còn lại, Chênh lệch = Dự báo − Dự toán.
-      if (column.key === 'duration') content = work(metric?.forecastWork ?? comparisonFallback?.forecastWork);
+      // Dự báo khi xong theo mức G1 (máy tự tính); nhóm / dự án = tổng các task. Dự báo = Thực tế + Còn lại.
+      if (column.key === 'duration') content = work(metric?.forecastWork);
       if (column.key === 'weight') content = metric?.displayWeightPercent != null ? `${number(metric.displayWeightPercent)}%` : metric?.weight == null ? '—' : `${number(metric.weight * 100)}%`;
       // Thực tế = công đã làm, hiện ở mọi dòng (cả task đang làm): Thực tế + Còn lại = Dự báo.
       if (column.key === 'actualWork') {
-        const actual = metric?.actualWork ?? (metric?.completedCount > 0 ? metric?.completedActual : 0);
-        // Đồng hồ giờ công ty đang chạy cho task này (trong khung 8:00–17:30, trừ nghỉ trưa): hiện 2 chữ số và chấm xanh.
-        const running = !group && metric?.clockRunning;
-        const totalMinutes = Math.round((Number(metric?.actualWorkHours) || 0) * 60);
-        content = !metric ? '' : running
-          ? <span className="delivery-actual-running" title={`Đang chạy theo giờ công ty · ${Math.floor(totalMinutes / 60)} giờ ${totalMinutes % 60} phút (tự cập nhật)`}><i aria-hidden="true" />{Number(actual).toLocaleString('vi-VN', { maximumFractionDigits: 2 })}</span>
-          : work(actual);
+        // Thực tế (G1) = Σ giờ phiếu giờ đã duyệt ÷ 8.
+        const actual = metric?.actualWork ?? 0;
+        const hint = taskOverdue ? (metric?.alert?.overBudget ? 'Cảnh báo: Thực tế đã vượt Dự toán mà việc chưa xong' : 'Quá hạn') : nearBudget ? 'Cảnh báo sớm: đã dùng ≥ 80% Dự toán mà chưa nộp' : 'Σ giờ phiếu giờ đã duyệt ÷ 8';
+        content = !metric ? '' : taskOverdue ? <span className="delivery-actual-overdue" title={hint}>{work(actual)}</span> : nearBudget ? <span className="delivery-actual-near" title={hint}>{work(actual)}</span> : <span title={group ? undefined : hint}>{work(actual)}</span>;
       }
       if (column.key === 'remainingWork') content = work(remainingWork);
       if (column.key === 'varianceWork') {
-        const variance = varianceWork;
-        const percent = variancePercent;
-        const tone = varianceTone(variance, percent);
-        content = variance == null ? '—' : <span className={`delivery-work-variance ${tone}`} title="Chênh lệch = Dự báo - Dự toán">{variance > 0 ? '+' : ''}{work(variance)}{percent != null && Math.abs(variance) >= 0.05 ? ` (${percent > 0 ? '+' : ''}${number(percent)}%)` : ''}</span>;
+        // Chênh = Dự báo − Dự toán; màu: |chênh| < 1 công không màu, > 10% đỏ, > 5% vàng, còn lại xanh. Đỏ thì Leader phải chọn lý do.
+        const tone = varianceTone(varianceWork, variancePercent);
+        const reason = String(record?.varianceReason || '').trim();
+        const needReason = !group && tone === 'danger';
+        content = varianceWork == null ? '—' : <span className="delivery-variance-cell"><span className={`delivery-work-variance ${tone}`} title={`Chênh = Dự báo − Dự toán${reason ? ` · Lý do: ${reason}` : ''}`}>{varianceWork > 0 ? '+' : ''}{work(varianceWork)}{variancePercent != null && Math.abs(varianceWork) >= 0.05 ? ` (${variancePercent > 0 ? '+' : ''}${number(variancePercent)}%)` : ''}</span>{needReason && (reason
+          ? <small className="delivery-variance-reason" title={`Lý do chênh đỏ: ${reason}`}>{reason}</small>
+          : onVarianceReason ? <button type="button" className="delivery-variance-reason missing" onClick={event => { event.stopPropagation(); onVarianceReason(); }}>Chọn lý do</button> : <small className="delivery-variance-reason missing">Chưa có lý do</small>)}</span>;
       }
       if (column.key === 'output') content = formatCompactMoney(metric?.output);
       if (column.key === 'createdAt') content = item.createdAt ? new Date(item.createdAt).toLocaleDateString('vi-VN') : '—';

@@ -74,3 +74,35 @@
 
 
 .director-overview thead th{padding-top:15px;padding-bottom:15px;font-size:12.5px;font-weight:700;letter-spacing:.02em}
+
+/* Khung "Việc cần Giám đốc xử lý": chữ to và đậm hơn để dễ thấy. */
+.director-actions>header h2{font-size:17px;font-weight:800}
+.director-actions>header span{font-size:12px}
+.director-actions article{padding:12px 14px;font-size:15px;font-weight:650}
+.director-actions article strong{font-size:15px;font-weight:800}
+.director-actions article button{font-size:13px;font-weight:700}
+
+/* Khung duyệt đề nghị (dự án mới / ngân sách / đề nghị chi) ngay trên trang Tổng quan. */
+.director-review-backdrop{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(15,23,42,.45)}
+.director-review{width:min(520px,100%);max-height:calc(100vh - 32px);overflow:auto;border-radius:12px;background:#fff;color:#332f2e;box-shadow:0 20px 50px rgba(15,23,42,.3)}
+.director-review header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:16px 18px;border-bottom:1px solid #ebe7e1}
+.director-review h3{margin:0;font-size:16px;font-weight:800;line-height:1.35}
+.director-review header button{border:0;background:none;font-size:22px;line-height:1;cursor:pointer;color:#8b827c}
+.director-review dl{display:grid;grid-template-columns:120px minmax(0,1fr);gap:8px 12px;margin:0;padding:14px 18px;font-size:13px}
+.director-review dt{color:#8b827c}
+.director-review dd{margin:0;font-weight:600;overflow-wrap:anywhere}
+.director-review label{display:block;padding:0 18px 12px;font-size:12px;color:#615a56}
+.director-review textarea{display:block;width:100%;margin-top:6px;padding:8px;border:1px solid #d9d3cc;border-radius:8px;font:inherit;font-size:13px;resize:vertical}
+.director-review-warning{margin:0 18px 12px;padding:10px 12px;border-radius:8px;background:#fef3c7;color:#92400e;font-size:12.5px}
+.director-review-error{margin:0 18px 12px;color:#c62828;font-size:12.5px;font-weight:600}
+.director-review footer{display:flex;align-items:center;gap:8px;padding:12px 18px;border-top:1px solid #ebe7e1}
+.director-review footer span{flex:1}
+.director-review footer button{padding:7px 14px;border:1px solid #d9d3cc;border-radius:8px;background:#fff;font-weight:700;cursor:pointer}
+.director-review footer button.approve{border-color:#15803d;background:#16a34a;color:#fff}
+.director-review footer button.reject{border-color:#f1b5ae;color:#c62828;background:#fff5f4}
+.director-review footer button:disabled{opacity:.6;cursor:default}
+.dark .director-review{background:#1f2733;color:#eef0f3}
+.dark .director-review header,.dark .director-review footer{border-color:#39424e}
+.dark .director-review textarea,.dark .director-review footer button{background:#242d39;color:#eef0f3;border-color:#4a5665}
+.dark .director-review footer button.approve{background:#16a34a;border-color:#15803d;color:#fff}
+@media(max-width:600px){.director-review dl{grid-template-columns:1fr}.director-review footer{flex-wrap:wrap}}

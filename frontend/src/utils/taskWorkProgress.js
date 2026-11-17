@@ -53,7 +53,7 @@ export function taskWorkPace(task, { employees = [], viewerEmployeeId = '', now 
   // Dữ liệu cũ chưa tách giờ theo người: dùng tổng giờ đã chốt của task khi đang tính cho cả task.
   if (!entries.length && Number(task.actualWorkHours) > 0 && streams.length === all.length) worked += Number(task.actualWorkHours);
   const behind = expected - worked;
-  const tone = planned > 0 ? varianceTone(behind, behind / planned * 100) : '';
+  const tone = planned > 0 ? varianceTone(behind, behind / planned * 100, 0.05) : '';
   return {
     progress: percentOf(worked, planned),
     planPercent: percentOf(expected, planned),

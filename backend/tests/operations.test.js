@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import express from 'express';
 import { emptyOperations } from '../src/utils/operationsStore.js';
-import { operationsReport, vietnamDay, monday } from '../src/utils/operationsReports.js';
+import { operationsReport, vietnamDay, monday, addDate } from '../src/utils/operationsReports.js';
 import { hoursAnomalies, monthlyReviewSample } from '../src/utils/operationsAnomalies.js';
 import { computeDelivery } from '../../frontend/src/utils/deliveryMetrics.js';
 import { projectBlueprint } from '../src/utils/projectBlueprint.js';
@@ -17,6 +17,8 @@ const {applyDeliveryMutation}=await import('../src/controllers/deliveryControlle
 after(()=>{if(originalDbPath===undefined)delete process.env.APS_DB_PATH;else process.env.APS_DB_PATH=originalDbPath;fs.rmSync(isolatedDirectory,{recursive:true,force:true});});
 
 const day=vietnamDay(),week=monday(day),month=day.slice(0,7);
+// Mẫu dự án dài 2 ngày: dùng cuối tuần làm ngày kết thúc để test không lỗi khi chạy vào thứ Hai (day === week).
+const weekEnd=addDate(week,6);
 function fixture(){
  const data=()=>({revision:0,settings:{contractFee:100000000,hourlyRate:100000},records:{},timesheets:[],documents:[],changes:[],closes:[],receipts:[],expenses:[],milestones:[],evidence:[],comments:[],audit:[],history:[]});
  return {projects:[{id:'p',name:'Dự án thật',startDate:week,endDate:day},{id:'q',name:'Riêng'}],employees:['e','l','m'].map(id=>({id,name:id,team:'KT',grade:'G1'})),tasks:[],overtimes:[],ganttItems:[{id:'t',projectId:'p',title:'Thiết kế',startDate:week,endDate:day,assignees:[{employeeId:'e',estimatedHoursPerDay:8}]}],delivery:{users:[],sessions:[],projects:{p:data(),q:data()},templates:[]},operations:emptyOperations(),untouched:{text:'Giữ nguyên dữ liệu đã sửa'}};
@@ -34,7 +36,7 @@ test('operations field filtering, project roles and real anomaly calculations',(
 
 test('template preview scales effort, auto assigns overloaded staff and never mutates existing records',()=>{
  const db=fixture();db.employees[0].title='Kiến trúc sư';db.delivery.templates=[{id:'template',baseArea:100,items:[{id:'x',code:'A1',title:'Công việc mẫu',requiredPosition:'Kiến trúc sư',startOffset:0,endOffset:1,estimatedHours:40}],milestones:[{title:'Nghiệm thu',percent:20,conditions:[{taskId:'x',op:'>=',level:60}]}]}];
- const before=structuredClone(db),plan=projectBlueprint(db,{name:'Dự án mới',templateId:'template',startDate:week,endDate:day,area:200,contractFee:100000000},{email:'manager@aps.vn'});
+ const before=structuredClone(db),plan=projectBlueprint(db,{name:'Dự án mới',templateId:'template',startDate:week,endDate:weekEnd,area:200,contractFee:100000000},{email:'manager@aps.vn'});
  assert.deepEqual(db,before);assert.equal(plan.totalHours,80);assert.equal(plan.items[0].assignees[0].employeeId,'e');assert.equal(plan.items[0].autoAssigned,true);assert.equal(plan.allocations[0].overloaded,true);assert.equal(plan.lines.length,9);assert.equal(plan.milestones[0].conditions[0].taskId,plan.items[0].id);assert.equal(computeDelivery({...db,projects:[...db.projects,plan.project],ganttItems:plan.items},plan.project.id,{}).summary.totalPlanned,10);
  assert.throws(()=>projectBlueprint(db,{name:'Sai',templateId:'template',startDate:week,endDate:week},{email:'m'}),/ngắn hơn/);
 });
@@ -96,7 +98,7 @@ test('weekly hours, role approval, budget, payment and accounting imports persis
   assert.equal(r.data.matrix,undefined);assert.notEqual((await mutate('matrix',{rows:[]})).status,200);
   assert.equal((await call('/operations','PATCH',{action:'params',value:{limitA:1},revision:0},admin)).status,409);
   r=await mutate('template',{name:'Mẫu cấu hình',baseArea:100,items:[{id:'x',title:'Thiết kế từ mẫu',requiredPosition:'Kiến trúc sư',startOffset:0,endOffset:1,estimatedHours:16}]});assert.equal(r.status,200);const templateId=r.data.templates.find(row=>row.name==='Mẫu cấu hình').id;
-  const projectInput={name:'Dự án từ khung mới',code:'NEW-01',templateId,startDate:week,endDate:day,area:200,contractFee:200000000};
+  const projectInput={name:'Dự án từ khung mới',code:'NEW-01',templateId,startDate:week,endDate:weekEnd,area:200,contractFee:200000000};
   const fileBefore=fs.readFileSync(process.env.APS_DB_PATH,'utf8');assert.equal((await call('/project-preview','POST',projectInput,tokens.manager)).status,200);assert.equal(fs.readFileSync(process.env.APS_DB_PATH,'utf8'),fileBefore,'preview never writes source records');
   r=await mutate('projectCreate',projectInput,undefined,'manager',undefined);assert.equal(r.status,200);const created=r.data.createdProjectId;assert.ok(created);const approval=r.data.projectApprovals.find(row=>row.projectId===created);assert.equal((await mutate('projectDecision',{status:'approved'},approval.id,'manager',created)).status,403);assert.equal((await mutate('projectDecision',{status:'approved'},approval.id,'director',created)).status,200);
   const login=(await call('/session','POST',{email:'employee@aps.vn',password:'password1'})).data;assert.ok(login.expiresAt-Date.now()<=8*3600000);

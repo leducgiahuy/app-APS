@@ -3,7 +3,6 @@ import { getLevelLabel, normalizeLevel } from './accountOptions';
 const USERS_KEY = 'aps-users';
 const SESSION_KEY = 'aps-authenticated';
 const ACTIVITY_KEY = 'aps-activity-log';
-const AUTH_ATTEMPTS_KEY = 'aps-auth-attempts';
 const AUTH_SESSION_MS = 8 * 60 * 60 * 1000;
 const API_ROOT = '/api';
 const ACTIVITY_API = `${API_ROOT}/activity`;
@@ -12,7 +11,6 @@ const DEMO_USER = {
   email: 'demo@aps.vn',
   company: 'APS Việt Nam',
   phone: '',
-  password: 'APS@2026',
   role: 'admin',
   level: 'director',
   department: 'Ban Giám Đốc',
@@ -32,7 +30,15 @@ function pickOrgProfile(profile) {
 export function getUsers() {
   try {
     const savedUsers = JSON.parse(localStorage.getItem(USERS_KEY) || '[]');
-    const users = Array.isArray(savedUsers) ? savedUsers : [];
+    // Không giữ mật khẩu trong trình duyệt (server mới kiểm tra mật khẩu); xóa luôn mật khẩu do bản cũ đã lưu.
+    let cleaned = false;
+    const users = (Array.isArray(savedUsers) ? savedUsers : []).map((user) => {
+      if (!user || !('password' in user)) return user;
+      cleaned = true;
+      const { password: _password, ...rest } = user;
+      return rest;
+    });
+    if (cleaned) localStorage.setItem(USERS_KEY, JSON.stringify(users));
     const demoIndex = users.findIndex((user) => user.email === DEMO_USER.email);
     if (demoIndex < 0) {
       users.unshift(DEMO_USER);
@@ -61,25 +67,6 @@ export function findUser(email) {
   return getUsers().find((user) => user.email === normalizedEmail) || null;
 }
 
-/** Kiểm tra thông tin đăng nhập và trả về tài khoản khi email/mật khẩu khớp. */
-export function authenticateUser(email, password) {
-  const normalizedEmail = email.trim().toLowerCase();
-  let attempts = {};
-  try { attempts = JSON.parse(localStorage.getItem(AUTH_ATTEMPTS_KEY) || '{}'); } catch { localStorage.removeItem(AUTH_ATTEMPTS_KEY); }
-  const current = attempts[normalizedEmail];
-  if (current?.lockedUntil > Date.now()) return null;
-  const user = findUser(normalizedEmail);
-  if (user && user.password === password) {
-    delete attempts[normalizedEmail];
-    localStorage.setItem(AUTH_ATTEMPTS_KEY, JSON.stringify(attempts));
-    return user;
-  }
-  const count = (current?.lockedUntil && current.lockedUntil <= Date.now() ? 0 : current?.count || 0) + 1;
-  attempts[normalizedEmail] = { count, lockedUntil: count >= 5 ? Date.now() + 15 * 60 * 1000 : 0 };
-  localStorage.setItem(AUTH_ATTEMPTS_KEY, JSON.stringify(attempts));
-  return null;
-}
-
 /**
  * Đăng nhập qua máy chủ: backend là nơi giữ tài khoản và mật khẩu (đã mã hóa), nên tài khoản admin tạo
  * đăng nhập được trên mọi máy. Thành công thì lưu hồ sơ phiên vào trình duyệt này để các trang dùng như trước.
@@ -91,10 +78,12 @@ export async function authenticateWithServer(email, password) {
   try {
     response = await fetch(`${API_ROOT}/delivery/session`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: normalizedEmail, password }) });
   } catch {
-    const user = authenticateUser(normalizedEmail, password);
-    return user ? { user } : { error: 'Không kết nối được máy chủ và tài khoản không có trên trình duyệt này.' };
+    // Trình duyệt không lưu mật khẩu nên không đăng nhập offline được.
+    return { error: 'Không kết nối được máy chủ. Hãy kiểm tra mạng hoặc khởi động backend rồi thử lại.' };
   }
   const result = await response.json().catch(() => ({}));
+  // Backend tắt: proxy của Vite trả 5xx không có nội dung, không phải sai mật khẩu.
+  if (!response.ok && response.status >= 500 && !result.message) return { error: 'Không kết nối được máy chủ (backend chưa chạy). Hãy khởi động backend rồi thử lại.' };
   if (!response.ok) return { error: result.message || 'Thông tin đăng nhập chưa đúng.' };
   const { token, user: serverUser } = result.data || {};
   let employee = null;
@@ -102,7 +91,7 @@ export async function authenticateWithServer(email, password) {
     const employees = await fetch(`${API_ROOT}/employees`, { headers: { Authorization: `Bearer ${token}` } }).then((res) => res.ok ? res.json() : null);
     employee = employees?.data?.find((row) => row.id === serverUser?.employeeId) || null;
   } catch { /* Hồ sơ nhân sự chỉ để điền phòng ban/SĐT; thiếu vẫn đăng nhập được. */ }
-  return { user: cacheServerUser({ ...serverUser, email: normalizedEmail }, password, employee) };
+  return { user: cacheServerUser({ ...serverUser, email: normalizedEmail }, employee) };
 }
 
 /** Trường hồ sơ người dùng tự sửa (ngoài tên); phòng ban / chuyên môn / cấp bậc chỉ admin sửa. */
@@ -113,7 +102,7 @@ export const SELF_PROFILE_FIELDS = ['company', 'phone', 'avatarData'];
  * thì tên, công ty, SĐT, ảnh, phòng ban, chuyên môn đều lấy từ máy chủ, nên đóng/mở lại hay đổi máy vẫn thấy bản mới nhất.
  * Hồ sơ cũ chưa từng lưu lên máy chủ thì giữ bản trong trình duyệt (`needsUpload` để đẩy lên một lần).
  */
-function cacheServerUser(serverUser, password, employee) {
+function cacheServerUser(serverUser, employee) {
   const users = getUsers();
   const existing = users.find((user) => user.email === serverUser.email);
   const isAdmin = serverUser.role === 'admin';
@@ -123,7 +112,6 @@ function cacheServerUser(serverUser, password, employee) {
     ...existing,
     email: serverUser.email,
     name: (onServer ? serverUser.name : existing?.name || serverUser.name) || serverUser.email,
-    password: password ?? existing?.password ?? '',
     role: isAdmin ? 'admin' : 'user',
     employeeId: serverUser.employeeId || existing?.employeeId || '',
     level: isAdmin ? existing?.level || 'director' : normalizeLevel(serverUser.role),
@@ -142,7 +130,7 @@ function cacheServerUser(serverUser, password, employee) {
 /** Sự kiện phát ra khi hồ sơ trong trình duyệt vừa được làm mới từ máy chủ (Header, trang Tài khoản nghe để vẽ lại). */
 export const ACCOUNT_EVENT = 'aps-account-updated';
 
-/** Làm mới hồ sơ tài khoản trong trình duyệt từ bản ghi máy chủ (mật khẩu giữ nguyên); `add` thêm cả tài khoản chưa có. */
+/** Làm mới hồ sơ tài khoản trong trình duyệt từ bản ghi máy chủ; `add` thêm cả tài khoản chưa có. */
 export function applyServerProfile(serverUser, { add = false } = {}) {
   if (!serverUser?.email || (!add && !findUser(serverUser.email))) return null;
   return cacheServerUser(serverUser);
@@ -234,7 +222,7 @@ export function clearActivityLog(actorEmail) {
 export function createUser(fields, actorEmail) {
   const prepared = validateNewUser(fields, actorEmail);
   if (prepared.error) return prepared;
-  const { user } = prepared;
+  const { password: _password, ...user } = prepared.user;
   localStorage.setItem(USERS_KEY, JSON.stringify([...getUsers(), user]));
   recordActivity('user.create', `Tạo tài khoản user ${user.email} (${getLevelLabel(user.level)} · ${user.department}${user.specialty ? ` · ${user.specialty}` : ''}).`, actorEmail);
   return { user };
@@ -283,7 +271,8 @@ export function deleteUser(targetEmail, actorEmail) {
 export function restoreUser(account, email, employeeId, password, actorEmail) {
   if (findUser(actorEmail)?.role !== 'admin') return { error: 'Chỉ quản trị viên mới được khôi phục tài khoản.' };
   if (findUser(email)) return { error: 'Email này đang được dùng cho một tài khoản khác.' };
-  const user = { ...account, email, employeeId, password, role: 'user', ...pickOrgProfile(account || {}) };
+  const { password: _old, ...profile } = account || {};
+  const user = { ...profile, email, employeeId, role: 'user', ...pickOrgProfile(account || {}) };
   if (!user.department) user.department = 'Ban Quản Lý';
   localStorage.setItem(USERS_KEY, JSON.stringify([...getUsers(), user]));
   recordActivity('user.restore', `Admin khôi phục tài khoản ${email}.`, actorEmail);
@@ -344,27 +333,20 @@ export async function processAvatarFile(file) {
   return canvas.toDataURL('image/jpeg', 0.82);
 }
 
-/** Đổi mật khẩu sau khi xác nhận mật khẩu hiện tại của người dùng. */
-export function updateUserPassword(email, currentPassword, newPassword, actorEmail = email) {
-  if (email !== actorEmail) return false;
-  const users = getUsers();
-  const user = users.find((entry) => entry.email === email);
-  if (!user || user.password !== currentPassword) return false;
-  user.password = newPassword;
-  localStorage.setItem(USERS_KEY, JSON.stringify(users));
+/** Ghi nhật ký sau khi máy chủ đã đổi mật khẩu (máy chủ kiểm tra mật khẩu hiện tại; trình duyệt không lưu mật khẩu). */
+export function updateUserPassword(email, actorEmail = email) {
+  if (email !== actorEmail || !findUser(email)) return false;
   recordActivity('password.change', 'Người dùng tự đổi mật khẩu.', actorEmail);
   return true;
 }
 
 /** Đặt mật khẩu mới cho tài khoản user; chỉ tài khoản admin được phép thực hiện. */
-export function resetUserPassword(targetEmail, newPassword, actorEmail) {
+export function resetUserPassword(targetEmail, actorEmail) {
   const actor = findUser(actorEmail);
   if (actor?.role !== 'admin') return { error: 'Chỉ quản trị viên mới được cấp lại mật khẩu.' };
   const users = getUsers();
   const target = users.find((user) => user.email === targetEmail && user.role === 'user');
   if (!target) return { error: 'Không tìm thấy tài khoản user cần cấp lại mật khẩu.' };
-  target.password = newPassword;
-  localStorage.setItem(USERS_KEY, JSON.stringify(users));
   recordActivity('password.reset', `Admin cấp lại mật khẩu cho ${targetEmail}.`, actorEmail);
   return { success: true };
 }

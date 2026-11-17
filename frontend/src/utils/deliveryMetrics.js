@@ -1,8 +1,6 @@
 import { calculateAssignmentHours, calculatePlannedPersonDays, calculateUnassignedPlannedPersonDays } from './ganttEffort.js';
 import { datesInRange } from './assignmentCalendar.js';
 import { capacityWeight } from './workforceForecast.js';
-import { companyClockWorkHours } from './companyClockWork.js';
-import { compareWbsCodes } from './wbsStructure.js';
 
 export const DELIVERY_LEVELS = [0, 20, 40, 60, 80, 100];
 export const DELIVERY_LABELS = {
@@ -28,32 +26,47 @@ export const taskStatusWindowMessage = window => window.reason === 'completed'
   : window.reason === 'not_started'
     ? `Chưa tới ngày bắt đầu task (${window.startDate.split('-').reverse().join('/')}) nên chưa cập nhật được trạng thái.`
     : '';
+/**
+ * Mức trạng thái theo bảng chỉ tiêu G1 của Giám đốc: 0 chưa làm · 50 đang làm · 90 đã nộp · 100 xong.
+ * App giữ 6 mức 0/20/40/60/80/100 trên giao diện và quy đổi khi tính công (người dùng chốt 11/11/2026):
+ * - task hoàn thành hoặc 100% có file bằng chứng → 100 (xong);
+ * - 60% / 80% có file bằng chứng → 90 (đã nộp);
+ * - 20%, 40%, hoặc 60–100% chưa có file bằng chứng → 50 (đang làm);
+ * - 0% mà đã có giờ được duyệt → 50 (có giờ đầu tiên thì tự chuyển Đang làm); 0% chưa có giờ → 0.
+ * Bảng G1 chỉ đòi file bằng chứng cho mức 90 / 100, không đòi Leader xác nhận (người dùng chốt 12/11/2026).
+ * Task làm lại / phát sinh (không có Dự toán riêng) dùng mức đã chọn.
+ */
+export function specLevel(record = {}, { completed = false, actualWork = 0 } = {}) {
+  if (completed) return 100;
+  const outside = record.freeRework || record.isChangeWork;
+  const chosen = Number(record.level) || 0;
+  const level = outside || chosen < 60 || record.evidenceId ? chosen : 40;
+  if (level >= 100) return 100;
+  if (level >= 60) return 90;
+  if (level > 0 || Number(actualWork) > 0) return 50;
+  return 0;
+}
+/**
+ * Dự báo khi xong của một task theo mức G1 (máy tự tính, không ai sửa):
+ * 0 → dự toán · 50 → max(dự toán, 2 × thực tế) · 90 → thực tế + 10% dự toán · 100 → thực tế.
+ */
 export function forecastWork(budgetedWork, actualWork, level = 0) {
   const budgeted = Math.max(0, Number(budgetedWork) || 0);
   const actual = Math.max(0, Number(actualWork) || 0);
   const progress = Number(level) || 0;
   if (progress >= 100) return actual;
-  if (progress >= 60) return actual + budgeted * 0.1;
-  if (progress >= 20) return Math.max(budgeted, actual * 2);
+  if (progress >= 90) return actual + budgeted * 0.1;
+  if (progress >= 50) return Math.max(budgeted, actual * 2);
   return budgeted;
 }
-/**
- * Dự báo khi xong của một task = công thực tế + công còn lại theo mức trạng thái (dùng chung cho bảng Gantt, Tổng quan, báo cáo):
- * - đã hoàn thành: công thực tế đã ghi nhận lúc xong (không có giờ nào thì coi như đúng kế hoạch);
- * - chưa hoàn thành: công đã dùng (giờ đã duyệt) + công kế hoạch × (100% − mức trạng thái).
- * Công kế hoạch lấy theo lịch / phân công, nên task có lịch dài hơn dự toán báo vượt ngay từ khi chưa làm.
- */
-export function taskForecastWork({ planned = 0, spent = 0, level = 0, completed = false, completedActual = null } = {}) {
-  const plan = Math.max(0, Number(planned) || 0);
-  const progress = Math.min(100, Math.max(0, Number(level) || 0));
-  if (completed || progress >= 100) { const actual = Math.max(0, Number(completed ? completedActual ?? spent : spent) || 0); return actual > 0 ? actual : plan; }
-  return Math.max(0, Number(spent) || 0) + plan * (100 - progress) / 100;
-}
 
-/** Màu của Chênh lệch theo %: xanh ≤ 5% (kể cả dưới dự toán), vàng 5–10%, đỏ > 10%. Chênh quá nhỏ (|chênh| < 0,05 công) để trung tính. */
-export function varianceTone(varianceWork, variancePercent) {
+/**
+ * Màu của Chênh (G1): |chênh| < 1 công → không màu; % chênh > 10% đỏ; > 5% vàng; còn lại xanh.
+ * neutralBelow: ngưỡng không tô màu theo đơn vị của varianceWork (mặc định 1 công).
+ */
+export function varianceTone(varianceWork, variancePercent, neutralBelow = 1) {
   const variance = Number(varianceWork);
-  if (varianceWork == null || !Number.isFinite(variance) || Math.abs(variance) < 0.05) return '';
+  if (varianceWork == null || !Number.isFinite(variance) || Math.abs(variance) < neutralBelow) return '';
   const percent = Number(variancePercent);
   if (variancePercent == null || !Number.isFinite(percent)) return variance > 0 ? 'danger' : 'good';
   return percent > 10 ? 'danger' : percent > 5 ? 'warning' : 'good';
@@ -164,7 +177,7 @@ export function confirmBlockReason({ viewer = {}, item = {}, record = {}, assign
 /**
  * Điều kiện chọn mức trạng thái (dùng chung giao diện + máy chủ, người dùng chọn 06/11/2026):
  * - 20% · Đang làm: task đã giao người (ngày bắt đầu đã được taskStatusWindow kiểm tra); không cần giờ chấm công được duyệt —
- *   cột Thực tế chạy theo giờ công ty, kiểm chứng làm thật nằm ở 60%+ (bằng chứng + xác nhận) và Duyệt giờ;
+ *   kiểm chứng làm thật nằm ở 60%+ (bằng chứng + xác nhận) và Duyệt giờ;
  * - quay về 0%: luôn được (sửa khi chọn nhầm); Còn lại vẫn tính đúng theo Thực tế.
  * Trả về lý do chặn (chuỗi) hoặc '' nếu được chọn.
  */
@@ -204,51 +217,21 @@ export function sessionCandidates(db, items) {
   });
 }
 /**
- * Công còn lại của một task (Từ điển chỉ tiêu G1 "Công còn lại" — máy tự tính, không ai nhập / sửa), theo trạng thái có bằng chứng:
- * - xong (100% / task hoàn thành) → 0;
- * - đã nộp (60% Đã gửi, 80% Đã sửa — có bằng chứng và đã xác nhận) → 10% Dự toán (phần chỉnh sửa);
- * - đang làm (20%, 40%, hoặc 60–80% chưa đủ bằng chứng / xác nhận, hoặc còn 0% nhưng đã có giờ Thực tế)
- *   → max(Dự toán, 2 × Thực tế) − Thực tế;
- * - chưa làm (0% và chưa có giờ) → Dự toán.
- * Không tự đổi mức trạng thái đã lưu.
+ * Công còn lại của một task (G1, máy tự tính) = Dự báo − Thực tế, Dự báo theo mức G1 (specLevel, forecastWork).
+ * Task làm lại / phát sinh không có Dự toán riêng: Dự báo = Thực tế nên Còn lại = 0.
  */
 export function taskRemainingWork({ budget = 0, actual = 0, record = {}, completed = false } = {}) {
-  const plan = Math.max(0, Number(budget) || 0), spent = Math.max(0, Number(actual) || 0);
-  const outside = record.freeRework || record.isChangeWork;
-  // Task làm lại / phát sinh không có Dự toán riêng nên recognizedLevel = 0: dùng mức đã chọn.
-  const level = outside ? Number(record.level) || 0 : recognizedLevel(record);
-  if (completed || level >= 100) return 0;
-  if (level >= 60) return plan * 0.1;
-  if (level > 0 || spent > 0) return Math.max(plan, 2 * spent) - spent;
-  return plan;
+  const spent = Math.max(0, Number(actual) || 0);
+  if (record.freeRework || record.isChangeWork) return 0;
+  return Math.max(0, forecastWork(budget, spent, specLevel(record, { completed, actualWork: spent })) - spent);
 }
-/**
- * Dự báo theo chuỗi task (người dùng chọn 05/11/2026), một nguồn duy nhất cho bảng Gantt, Tổng quan và báo cáo:
- * - xếp các task lá của dự án theo thứ tự STT trên bảng (compareWbsCodes; nối liền cả dự án, qua cả mục / giai đoạn);
- * - task đầu tiên: Dự báo = 0 (chưa có task trên để áp công thức);
- * - task sau: Dự báo = Dự toán (task này) × Thực tế (task ngay trên) ÷ Dự toán (task ngay trên); task trên có Dự toán 0 → 0;
- * - Thực tế chạy liên tục theo giờ công ty nên Dự báo cũng chạy theo; task trên xong thì Thực tế của nó đứng yên → Dự báo đứng yên;
- * - Chênh lệch = Dự báo − Dự toán; Còn lại theo trạng thái (taskRemainingWork); nhóm / dự án = tổng các task;
- * - task làm lại miễn phí / phát sinh (không có Dự toán riêng) đứng ngoài chuỗi: Dự báo = Thực tế của chính nó.
- */
-export function applyChainForecast(items, records, taskMetrics) {
-  const outside = item => records[item.id]?.freeRework || records[item.id]?.isChangeWork;
-  const chain = items.map((item, index) => ({ item, index })).filter(({ item }) => !outside(item))
-    .sort((a, b) => compareWbsCodes(a.item.code, b.item.code) || String(a.item.startDate || '').localeCompare(String(b.item.startDate || '')) || a.index - b.index);
-  const remaining = (item, metric) => { metric.remainingWork = taskRemainingWork({ budget: metric.budgetedWork, actual: metric.actualWork, record: records[item.id], completed: item.status === 'completed' }); };
-  let previous = null;
-  for (const { item } of chain) {
-    const metric = taskMetrics[item.id];
-    const forecast = previous && previous.budgetedWork > 0 ? metric.budgetedWork * previous.actualWork / previous.budgetedWork : 0;
-    Object.assign(metric, workComparison(metric.budgetedWork, metric.actualWork, records[item.id]?.level, forecast));
-    remaining(item, metric);
-    previous = metric;
-  }
-  for (const item of items.filter(outside)) {
-    const metric = taskMetrics[item.id];
-    Object.assign(metric, workComparison(metric.budgetedWork, metric.actualWork, records[item.id]?.level, metric.actualWork));
-    remaining(item, metric);
-  }
+const dayNumber = key => Date.parse(`${String(key).slice(0, 10)}T00:00:00Z`) / 86400000;
+/** Phần thời gian đã qua của task trên Gantt: clamp((hôm nay − bắt đầu) / (kết thúc − bắt đầu), 0, 1). */
+export function elapsedShare(startDate, endDate, todayKey) {
+  const start = dayNumber(startDate), end = dayNumber(endDate), today = dayNumber(todayKey);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || !Number.isFinite(today)) return 0;
+  if (end <= start) return today >= start ? 1 : 0;
+  return Math.min(1, Math.max(0, (today - start) / (end - start)));
 }
 export function computeDelivery(db, projectId, data = {}, now = new Date()) {
   const items = projectDeliveryItems(db, projectId);
@@ -268,41 +251,44 @@ export function computeDelivery(db, projectId, data = {}, now = new Date()) {
     const rate = (db.operations?.params?.rateCard || []).filter(row => row.status === 'approved' && row.grade === grade && (!row.effectiveFrom || row.effectiveFrom <= entry.date)).toSorted((a,b) => (a.effectiveFrom || '').localeCompare(b.effectiveFrom || '')).at(-1);
     return rate?.amount ?? null;
   };
+  const todayKey = new Date(now.getTime() + 7 * 3600000).toISOString().slice(0, 10);
   const totalPlanned = items.reduce((sum, item) => sum + (records[item.id].freeRework || records[item.id].isChangeWork ? 0 : plannedDays(item)), 0);
   const taskMetrics = Object.fromEntries(items.map(item => {
     const record = records[item.id];
     const planned = record.freeRework || record.isChangeWork ? 0 : plannedDays(item);
     const entries = timesheets.filter(entry => entry.taskId === item.id && entry.status === 'approved');
     const actualHours = entries.reduce((sum, entry) => sum + Number(entry.hours), 0);
-    const trackedCompletionHours = Math.max(0, Number(item.actualWorkHours) || 0);
-    const completedActualHours = item.status === 'completed'
-      ? (trackedCompletionHours > 0 ? trackedCompletionHours : actualHours)
-      : null;
+    // Công thực tế (G1) = Σ giờ phiếu giờ ĐÃ DUYỆT ÷ 8 (người dùng chốt 11/11/2026 theo bảng của Giám đốc).
+    // Đồng hồ giờ công ty không còn dùng để tính công; giờ chỉ được tính khi Leader / Quản lý duyệt.
+    const completed = item.status === 'completed';
+    const completedActualHours = completed ? actualHours : null;
     const completedActual = completedActualHours == null ? null : completedActualHours / 8;
-    // Công đã làm (cột Thực tế) cho mọi task: xong → công chốt lúc xong; đang làm → giờ đã ghi nhận
-    // (giờ tự ghi khi làm task, không có thì giờ công đã duyệt). Dùng chung cho Dự báo nên luôn
-    // Dự báo = Thực tế + Còn lại ở mọi dòng.
-    // Cột Thực tế chạy theo giờ công ty × giờ/ngày phân công (companyClockWork.js), không cần ai vào ca;
-    // task đã xong dừng ở lúc hoàn thành. Giờ chấm công thật vẫn giữ ở `actual` / `completedActual` cho duyệt giờ, hiệu suất.
-    const clock = companyClockWorkHours(item, { linkedTask: (db.tasks || []).find(task => task.ganttId === item.id), now });
-    const clockRunning = clock.running;
-    const actualWorkHours = clock.hours;
+    const actualWorkHours = actualHours;
     const actualWork = actualWorkHours / 8;
-    if (!data.records?.[item.id] && record.level === 0 && actualHours > 0) record.level = 20;
+    // Có giờ đầu tiên (đã duyệt) mà task còn 0% → tự chuyển 20% · Đang làm (mức G1: 50).
+    if (record.level === 0 && !completed && actualHours > 0) record.level = 20;
+    const outside = record.freeRework || record.isChangeWork;
     const hasContractWork = item.contractWork !== '' && item.contractWork != null && Number.isFinite(Number(item.contractWork));
-    const budgetedWork = record.freeRework || record.isChangeWork ? 0 : hasContractWork ? Number(item.contractWork) : planned;
-    // Dự báo theo taskForecastWork; Còn lại = Dự báo − Thực tế (actualWork, hiện ở cả task đang làm),
-    // nên Dự báo = Thực tế + Còn lại. `actual` (giờ công đã duyệt) vẫn giữ cho hiệu suất chấm công.
-    const forecast = taskForecastWork({ planned, spent: actualWork, level: record.level, completed: item.status === 'completed', completedActual: item.status === 'completed' ? actualWork : completedActual });
-    const comparison = workComparison(budgetedWork, actualWork, record.level, forecast);
+    const budgetedWork = outside ? 0 : hasContractWork ? Number(item.contractWork) : planned;
+    // Dự báo theo mức G1 (0 / 50 / 90 / 100); Còn lại = Dự báo − Thực tế; Chênh = Dự báo − Dự toán.
+    // Task làm lại / phát sinh (không có Dự toán riêng): Dự báo = Thực tế.
+    const level = specLevel(record, { completed, actualWork });
+    const forecast = outside ? actualWork : forecastWork(budgetedWork, actualWork, level);
+    const comparison = workComparison(budgetedWork, actualWork, level, forecast);
     const recognized = recognizedLevel(record);
     const earned = planned * recognized / 100;
     const weight = record.freeRework ? 0 : Number.isFinite(Number(data.lockedWeights?.[item.id])) && data.lockedWeights?.[item.id] != null ? Number(data.lockedWeights[item.id]) : data.settings?.contractLocked ? 0 : totalPlanned ? planned / totalPlanned : 0;
     const output = data.settings?.contractFee == null ? null : Number(data.settings.contractFee) * weight * recognized / 100;
     const laborCost = entries.every(entry => rateForEntry(entry) != null) ? entries.reduce((sum, entry) => sum + entry.hours * rateForEntry(entry), 0) : null;
-    return [item.id, { planned, actual: actualHours / 8, actualHours, completedActual, completedActualHours, actualWork, actualWorkHours, clockRunning, completedCount: item.status === 'completed' ? 1 : 0, ...comparison, recognized, earned, weight, output, laborCost, alert: submissionAlert(record, now), assignments: (item.assignees || []).map(assignment => ({ ...assignment, plannedHours: calculateAssignmentHours(item, assignment) })) }];
+    // Cảnh báo sớm (G1): chưa xong mà Thực tế > Dự toán; hoặc đã dùng ≥ 80% Dự toán mà chưa nộp (mức < 90); hoặc quá hạn nộp.
+    const submission = submissionAlert(record, now);
+    const overBudget = !outside && budgetedWork > 0 && level < 100 && actualWork > budgetedWork;
+    const nearBudget = !outside && budgetedWork > 0 && level < 90 && actualWork >= 0.8 * budgetedWork;
+    const early = overBudget || nearBudget || submission.overdue;
+    const alert = { ...submission, overBudget, nearBudget, early, warning: submission.warning || early };
+    const varianceRed = varianceTone(comparison.varianceWork, comparison.variancePercent) === 'danger';
+    return [item.id, { planned, actual: actualHours / 8, actualHours, completedActual, completedActualHours, actualWork, actualWorkHours, completedCount: completed ? 1 : 0, ...comparison, level, levelWork: budgetedWork * level / 100, planWork: budgetedWork * elapsedShare(item.startDate, item.endDate, todayKey), varianceRed, varianceReasonMissing: varianceRed && !String(record.varianceReason || '').trim(), recognized, earned, weight, output, laborCost, alert, assignments: (item.assignees || []).map(assignment => ({ ...assignment, plannedHours: calculateAssignmentHours(item, assignment) })) }];
   }));
-  applyChainForecast(items, records, taskMetrics);
   const totalEarned = Object.values(taskMetrics).reduce((sum, item) => sum + item.earned, 0);
   const totalActual = Object.values(taskMetrics).reduce((sum, item) => sum + item.actual, 0);
   const totalCompletedActual = Object.values(taskMetrics).reduce((sum, item) => sum + (item.completedActual ?? 0), 0);
@@ -313,9 +299,11 @@ export function computeDelivery(db, projectId, data = {}, now = new Date()) {
   const today = new Date(now.getTime() + 7 * 3600000).toISOString().slice(0, 10);
   const workingDays = projectDays.reduce((sum, key) => sum + capacityWeight(key), 0);
   const elapsed = projectDays.filter(key => key <= today).reduce((sum, key) => sum + capacityWeight(key), 0);
-  const effortCompletion = totalPlanned ? totalEarned / totalPlanned * 100 : 0;
-  const completion = data.settings?.contractLocked ? Object.values(taskMetrics).reduce((sum, item) => sum + item.weight * item.recognized, 0) : effortCompletion;
-  const planPercent = workingDays ? Math.min(100, elapsed / workingDays * 100) : 0;
+  // % hoàn thành (G1) = Σ(Dự toán × mức) ÷ Σ Dự toán; % kế hoạch = Σ(Dự toán × % thời gian đã qua của việc trên Gantt) ÷ Σ Dự toán.
+  const metricList = Object.values(taskMetrics);
+  const totalBudget = metricList.reduce((sum, item) => sum + item.budgetedWork, 0);
+  const completion = totalBudget ? metricList.reduce((sum, item) => sum + item.levelWork, 0) / totalBudget * 100 : 0;
+  const planPercent = totalBudget ? metricList.reduce((sum, item) => sum + item.planWork, 0) / totalBudget * 100 : workingDays ? Math.min(100, elapsed / workingDays * 100) : 0;
   const fee = data.settings?.contractFee;
   const output = fee == null ? null : Object.values(taskMetrics).reduce((sum, item) => sum + item.output, 0);
   const month = today.slice(0, 7);
@@ -338,5 +326,5 @@ export function computeDelivery(db, projectId, data = {}, now = new Date()) {
   });
   const eligiblePayment = milestones.filter(entry => entry.met && !entry.requestedAt).reduce((sum, entry) => sum + Number(entry.amount), 0);
   const warnings = Object.values(taskMetrics).filter(item => item.alert.warning).length;
-  return { records, taskMetrics, timesheets, milestones, summary: { progressThisMonth, totalPlanned, totalEarned, totalActual, totalCompletedActual, totalActualWork, completion, planPercent, deviation: completion - planPercent, efficiency: totalActual ? totalEarned / totalActual : null, efficiencyWithoutRework: usefulActual ? totalEarned / usefulActual : null, warnings, soon: Object.values(taskMetrics).filter(item => item.alert.soon).length, overdue: Object.values(taskMetrics).filter(item => item.alert.overdue).length, stuck: Object.values(taskMetrics).filter(item => item.alert.stuck).length, output, monthlyOutput, laborCost, expenseCost, cost: laborCost == null ? null : laborCost + expenseCost, collected, eligiblePayment } };
+  return { records, taskMetrics, timesheets, milestones, summary: { progressThisMonth, totalPlanned, totalEarned, totalActual, totalCompletedActual, totalActualWork, completion, planPercent, deviation: completion - planPercent, efficiency: totalActual ? totalEarned / totalActual : null, efficiencyWithoutRework: usefulActual ? totalEarned / usefulActual : null, warnings, earlyWarnings: metricList.filter(item => item.alert.early).length, redTasks: metricList.filter(item => item.varianceRed).length, missingVarianceReasons: metricList.filter(item => item.varianceReasonMissing).length, soon: Object.values(taskMetrics).filter(item => item.alert.soon).length, overdue: Object.values(taskMetrics).filter(item => item.alert.overdue).length, stuck: Object.values(taskMetrics).filter(item => item.alert.stuck).length, output, monthlyOutput, laborCost, expenseCost, cost: laborCost == null ? null : laborCost + expenseCost, collected, eligiblePayment } };
 }

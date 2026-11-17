@@ -11,7 +11,10 @@ export const hasStoredAssignmentState = task => Boolean(task && (
 ));
 
 const DEPENDENCY_HANDLE_OFFSET = 6;
-export const dependencyHandleX = coord => Math.max(DEPENDENCY_HANDLE_OFFSET, coord.x - DEPENDENCY_HANDLE_OFFSET);
+// Chấm nối nằm ở cuối thanh (đầu đường nối Finish-to-Start), kéo từ đây thả vào task phía sau.
+export const dependencyHandleX = coord => Math.max(DEPENDENCY_HANDLE_OFFSET, coord.barEndX ?? coord.endX ?? (coord.x + coord.width));
+// Mép cuối phần thanh nhìn thấy (bỏ ngày nghỉ thì là ngày làm cuối cùng): nhãn người làm / nút Giao cho đặt sau mép này.
+const barEnd = coord => coord.barEndX ?? coord.endX;
 
 /**
  * Một thanh trên biểu đồ Gantt (task, hoặc thanh gộp của nhóm / dự án đang thu gọn).
@@ -304,9 +307,9 @@ function GanttTaskBar({ item, coord, linkedTask, tasksByGanttId, highlighted: is
               }
             }}
           >
-            <circle cx={coord.endX + 15} cy={coord.centerY} r="7" fill="none" stroke="#861b36" className="dark:stroke-rose-300" />
-            <path d={`M ${coord.endX + 12} ${coord.centerY} h 6 M ${coord.endX + 15} ${coord.centerY - 3} v 6`} fill="none" stroke="#861b36" strokeWidth="1.5" strokeLinecap="round" className="dark:stroke-rose-300" />
-            <text x={coord.endX + 27} y={coord.centerY + 4} fill={item.parentTaskId ? '#b45309' : '#861b36'} fontSize="11" fontWeight="700" className={item.parentTaskId ? undefined : 'dark:fill-rose-300'}>
+            <circle cx={barEnd(coord) + 15} cy={coord.centerY} r="7" fill="none" stroke="#861b36" className="dark:stroke-rose-300" />
+            <path d={`M ${barEnd(coord) + 12} ${coord.centerY} h 6 M ${barEnd(coord) + 15} ${coord.centerY - 3} v 6`} fill="none" stroke="#861b36" strokeWidth="1.5" strokeLinecap="round" className="dark:stroke-rose-300" />
+            <text x={barEnd(coord) + 27} y={coord.centerY + 4} fill={item.parentTaskId ? '#b45309' : '#861b36'} fontSize="11" fontWeight="700" className={item.parentTaskId ? undefined : 'dark:fill-rose-300'}>
               Giao cho
             </text>
             <title>Giao công việc cho nhân viên</title>
@@ -315,7 +318,7 @@ function GanttTaskBar({ item, coord, linkedTask, tasksByGanttId, highlighted: is
         {assignmentLabels.map((bar, index) => (
         <text
           key={`label-${bar.key}`}
-          x={coord.endX + 8}
+          x={barEnd(coord) + 8}
           y={bar.y}
           fill={taskTextColor}
           fontSize="11"
@@ -341,7 +344,7 @@ function GanttTaskBar({ item, coord, linkedTask, tasksByGanttId, highlighted: is
         {unassignedOvertime.map((contribution, contributionIndex) => (
           <text
             key={`overtime-${contribution.employeeId || contribution.employeeName}`}
-            x={coord.endX + 8}
+            x={barEnd(coord) + 8}
             y={coord.rowTop + 16 + assignmentLabels.length * 22 + contributionIndex * 18}
             fill="#d97706"
             fontSize="11"

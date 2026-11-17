@@ -103,10 +103,16 @@ const shown = (value, suffix = '') => value == null ? '—' : `${String(value).r
  * mức trạng thái + bằng chứng của task, hồ sơ pháp lý (nộp / yêu cầu bổ sung / kết quả) và văn bản chấp thuận đã tải lên.
  */
 function ReportsSection({ api }) {
-  const report = api.data?.quality;
-  if (!report) return <p className="company-report-muted">Đang tải số liệu báo cáo…</p>;
+  // Chọn "Tất cả dự án" (báo cáo tổng công ty) hoặc một dự án (báo cáo riêng dự án đó, qualityByProject).
+  const [projectId, setProjectId] = useState('ALL');
+  const projects = api.data?.projects || [];
+  const report = projectId === 'ALL' ? api.data?.quality : api.data?.qualityByProject?.[projectId];
+  if (!api.data?.quality) return <p className="company-report-muted">Đang tải số liệu báo cáo…</p>;
+  const picker = <div className="company-report-scope"><label>Báo cáo của<select value={projectId} onChange={event => setProjectId(event.target.value)}><option value="ALL">Tất cả dự án (tổng công ty)</option>{projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label></div>;
+  if (!report) return <>{picker}<p className="company-report-muted">Chưa có số liệu báo cáo cho dự án này.</p></>;
   const k = report.kpis;
   return <>
+    {picker}
     <Kpis items={[
       ['Đạt kiểm tra lần đầu', shown(k.firstPassRate, '%'), k.decided ? `${k.firstPass} / ${k.decided} lần phát hành đã có kết quả · mục tiêu ${k.firstPassTarget}%` : 'Chưa có hồ sơ nào được duyệt hoặc phải sửa trong 6 tháng', k.firstPassRate != null && k.firstPassRate < k.firstPassTarget ? 'warning' : ''],
       ['Góp ý / bổ sung mỗi hồ sơ', shown(k.feedbackPerIssue), k.legalFeedback ? `${shown(k.companyFaultShare, '%')} góp ý pháp lý do lỗi công ty` : `${k.feedbackCount} lượt góp ý / sửa trong ${k.issued} lần phát hành`, k.feedbackPerIssue >= 1 ? 'warning' : ''],

@@ -86,9 +86,9 @@ test('future data: several new projects follow start-date lock, attendance, comp
     const metricA = state.taskMetrics[a.gantt.id];
     assert.equal(metricA.planned, 3, '3 ngày × 8h = 3 công dự báo');
     assert.equal(metricA.budgetedWork, 2);
-    // Task đầu tiên của chuỗi Dự báo (applyChainForecast): Dự báo = 0 → Chênh lệch = 0 − 2.
-    assert.equal(metricA.forecastWork, 0);
-    assert.equal(metricA.varianceWork, -2, 'Chênh lệch = Dự báo − Dự toán');
+    // Chưa làm (mức G1 0): Dự báo = Dự toán → Chênh lệch 0.
+    assert.equal(metricA.forecastWork, 2);
+    assert.equal(metricA.varianceWork, 0, 'Chênh lệch = Dự báo − Dự toán');
 
     // ── Tua tới 03/03 08:30: đúng ngày bắt đầu task A ──
     mock.timers.setTime(at('2027-03-03', '08:30'));

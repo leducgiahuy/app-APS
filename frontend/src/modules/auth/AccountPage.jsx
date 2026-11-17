@@ -124,7 +124,7 @@ export default function AccountPage() {
     } catch (error) {
       return setNotice({ type: 'error', text: `Chưa cấp lại được mật khẩu (${error.message}).` });
     }
-    const result = resetUserPassword(targetEmail, password, currentUser.email);
+    const result = resetUserPassword(targetEmail, currentUser.email);
     if (result.error) return setNotice({ type: 'error', text: result.error });
     formElement.reset();
     setNotice({ type: 'success', text: 'Đã cấp mật khẩu mới. Hãy chuyển mật khẩu này cho user qua kênh riêng.' });
@@ -190,14 +190,13 @@ export default function AccountPage() {
     const newPassword = String(form.get('newPassword'));
     if (newPassword.length < 8) return setNotice({ type: 'error', text: 'Mật khẩu mới cần có ít nhất 8 ký tự.' });
     if (newPassword !== String(form.get('confirmPassword'))) return setNotice({ type: 'error', text: 'Mật khẩu xác nhận chưa khớp.' });
-    if (currentPassword !== currentUser.password) return setNotice({ type: 'error', text: 'Mật khẩu hiện tại chưa chính xác.' });
     // Đổi ở backend trước để mật khẩu đăng nhập hai nơi luôn khớp.
     try {
       await changeBackendPassword(currentPassword, newPassword);
     } catch (error) {
       return setNotice({ type: 'error', text: `Chưa đổi được mật khẩu (${error.message}).` });
     }
-    updateUserPassword(currentUser.email, currentPassword, newPassword, currentUser.email);
+    updateUserPassword(currentUser.email, currentUser.email);
     formElement.reset();
     setNotice({ type: 'success', text: 'Mật khẩu đã được đổi thành công.' });
   }
