@@ -4,7 +4,7 @@ import { createRoot } from 'react-dom/client';
 import App from '../src/App';
 import '../src/index.css';
 
-localStorage.setItem('aps-authenticated', 'demo@aps.vn');
+localStorage.setItem('aps-authenticated', JSON.stringify({ email: 'demo@aps.vn', token: 'mock', expiresAt: Date.now() + 1e8 }));
 const viewer = { email: 'demo@aps.vn', name: 'Quản trị', role: 'admin', employeeId: '' };
 const employees = [{ id: 'e1', name: 'Duy', code: 'NV-001', team: 'KT', title: 'Kỹ sư', standardHours: 8 }];
 window.fetch = async url => {

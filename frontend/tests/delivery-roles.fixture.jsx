@@ -6,7 +6,7 @@ import { computeDelivery } from '../src/utils/deliveryMetrics';
 import { deliveryView, maskDeliveryFinance } from '../src/utils/deliveryView';
 import '../src/index.css';
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
-localStorage.setItem('aps-authenticated','demo@aps.vn');
+localStorage.setItem('aps-authenticated', JSON.stringify({ email: 'demo@aps.vn', token: 'mock', expiresAt: Date.now() + 1e8 }));
 const role = new URLSearchParams(location.search).get('role') || 'employee';
 const viewer={email:`${role}@aps.vn`,name:role==='employee'?'Duy – Kiến trúc sư':role==='leader'?'Yến – Leader':'Khoa – Quản lý dự án',role,employeeId:role==='employee'?'e':role==='leader'?'l':'m'};
 const db={projects:[{id:'p',name:'NHÀ MÁY BETRAMEX – CÀNG LONG',startDate:'2026-10-01',endDate:'2027-06-07'}],employees:[{id:'e',name:'Duy',team:'Thiết kế'},{id:'l',name:'Yến',team:'Thiết kế'},{id:'x',name:'Lan',team:'Pháp lý'}],tasks:[],ganttItems:[{id:'g',projectId:'p',isGroup:true,title:'A. THIẾT KẾ XÂY DỰNG',startDate:'2026-10-01',endDate:'2026-10-31'},...['e','l','x'].map((employeeId,index)=>({id:`t${index}`,projectId:'p',parentGroupId:'g',code:`A1.${index+1}`,title:['Lập báo cáo nghiên cứu khả thi','Kiểm tra chéo hồ sơ','Công việc khác'][index],startDate:'2026-10-12',endDate:'2026-10-14',days:3,dependencies:[],assignees:[{employeeId,employeeName:dbName(employeeId),estimatedHoursPerDay:8}]}))]};

@@ -8,7 +8,7 @@ import { fiscalMonths, monthSnapshot } from '../src/utils/deliveryResources';
 import '../src/index.css';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
-localStorage.setItem('aps-authenticated','demo@aps.vn');
+localStorage.setItem('aps-authenticated', JSON.stringify({ email: 'demo@aps.vn', token: 'mock', expiresAt: Date.now() + 1e8 }));
 localStorage.removeItem('aps_delivery_columns_v1');
 if (new URLSearchParams(location.search).has('dark')) localStorage.setItem('aps_theme', 'dark');
 const db = { projects: [{ id:'proj-1', name:'NHÀ MÁY BETRAMEX – CÀNG LONG, VĨNH LONG',startDate:'2026-10-01',endDate:'2027-06-30'}], employees:[{id:'e',name:'Duy',code:'NV-001',team:'Thiết kế',standardHours:8},{id:'l',name:'Yến',code:'NV-002',team:'Thiết kế',standardHours:8}],tasks:[],ganttItems:[{id:'g',projectId:'proj-1',isGroup:true,title:'A. THIẾT KẾ XÂY DỰNG',startDate:'2026-10-01',endDate:'2027-01-31'},...Array.from({length:14},(_,index)=>({id:`t${index}`,code:`A1.${index+1}`,projectId:'proj-1',parentGroupId:'g',title:index===0?'Lập báo cáo nghiên cứu khả thi':`Công việc kiểm thử ${index+1}`,startDate:`2026-10-${String(12+index).padStart(2,'0')}`,endDate:`2026-10-${String(14+index).padStart(2,'0')}`,days:3,dependencies:index?[`t${index-1}`]:[],assignees:[{employeeId:'e',employeeName:'Duy',startDate:`2026-10-${String(12+index).padStart(2,'0')}`,endDate:`2026-10-${String(14+index).padStart(2,'0')}`,estimatedHoursPerDay:8}]}))]};

@@ -6,7 +6,7 @@ import { forecastMonths } from '../src/utils/workforceForecast';
 import '../src/index.css';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
-localStorage.setItem('aps-authenticated', 'demo@aps.vn');
+localStorage.setItem('aps-authenticated', JSON.stringify({ email: 'demo@aps.vn', token: 'mock', expiresAt: Date.now() + 1e8 }));
 const months = forecastMonths(new Date());
 const employee = { id: 'e', name: 'Thịnh', title: 'Kỹ sư MEP', code: 'NV-001', team: 'Ban Thiết Kế', standardHours: 8 };
 let plan = { demands: [{ id: 'd', position: 'Kỹ sư MEP', projectName: 'Dự án sắp ký', startDate: months[0].start, endDate: months[0].end, hours: 1200, probability: 100 }], settings: [], recruitments: [], taskRoles: [] };

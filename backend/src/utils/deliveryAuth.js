@@ -73,6 +73,18 @@ export function requireDeliveryUser(req, res, next) {
   return enforcePageAccess(req, res, next, db);
 }
 export const safeUser = ({ hash, salt, ...user }) => user;
+/** Mở lại web (F5): trình duyệt gửi mã phiên đã lưu để lấy lại tài khoản, không cần gửi mật khẩu. */
+export function deliverySessionInfo(req, res) {
+  const session = deliveryStore(readDb()).sessions.find(item => item.hash === req.deliverySessionHash);
+  return res.json({ success: true, data: { user: safeUser(req.deliveryCompanyUser), expiresAt: session?.expiresAt || 0 } });
+}
+/** Đăng xuất: hủy mã phiên trên máy chủ để mã còn lưu trên máy dùng chung không dùng lại được. */
+export function deliveryLogout(req, res) {
+  const db = readDb(); const store = deliveryStore(db);
+  store.sessions = store.sessions.filter(item => item.hash !== req.deliverySessionHash);
+  writeDb(db);
+  return res.json({ success: true });
+}
 export function deliveryUsers(req, res) {
   if (!['admin', 'director'].includes(req.deliveryUser.role)) return res.status(403).json({ message: 'Chỉ quản trị/giám đốc được cấp quyền.' });
   const db = readDb(); const store = deliveryStore(db);

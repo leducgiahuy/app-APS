@@ -5,7 +5,7 @@ import { normalizePageAccess } from '../src/utils/pageAccess';
 import { notifyPageAccessChanged } from '../src/context/PageAccessContext';
 import '../src/index.css';
 
-localStorage.setItem('aps-authenticated', 'demo@aps.vn');
+localStorage.setItem('aps-authenticated', JSON.stringify({ email: 'demo@aps.vn', token: 'mock', expiresAt: Date.now() + 1e8 }));
 const day = offset => { const d = new Date(); d.setDate(d.getDate() + offset); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 const employees = [{ id: 'e1', name: 'Duy', code: 'NV-001', team: 'KT', standardHours: 8 }];
 const ganttItems = [{ id: 't1', projectId: 'proj-1', code: 'A1', title: 'Thiết kế', startDate: day(-2), endDate: day(5), estimatedHoursPerDay: 8, status: 'not_started', assignees: [{ employeeId: 'e1', employeeName: 'Duy', startDate: day(-2), endDate: day(5), estimatedHoursPerDay: 8 }] }];

@@ -1,6 +1,6 @@
 import { getOperations, mutateOperations, previewProject, getOperationsNotifications } from '../controllers/operationsController.js';
 import express from 'express';
-import { deliveryChangePassword, deliveryLogin, deliveryUsers, requireDeliveryUser } from '../utils/deliveryAuth.js';
+import { deliveryChangePassword, deliveryLogin, deliveryLogout, deliverySessionInfo, deliveryUsers, requireDeliveryUser } from '../utils/deliveryAuth.js';
 import { getPageAccess } from '../utils/pageAccessGuard.js';
 import { deliveryReporting } from '../controllers/deliveryReportingController.js';
 import { executiveReport } from '../controllers/executiveController.js';
@@ -43,6 +43,8 @@ import { deleteAccount, listDeletedAccounts, purgeDeletedAccounts, restoreDelete
 
 const router = express.Router();
 router.post('/delivery/session', deliveryLogin);
+router.get('/delivery/session', requireDeliveryUser, deliverySessionInfo);
+router.delete('/delivery/session', requireDeliveryUser, deliveryLogout);
 router.get('/delivery/page-access', requireDeliveryUser, getPageAccess);
 router.post('/delivery/project-preview', requireDeliveryUser, previewProject);
 router.get('/delivery/notifications',requireDeliveryUser,getOperationsNotifications);

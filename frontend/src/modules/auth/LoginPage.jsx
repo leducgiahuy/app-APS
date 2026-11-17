@@ -22,10 +22,10 @@ export default function LoginPage() {
     event.preventDefault();
     const remember = new FormData(event.currentTarget).get('remember') === 'on';
     setSubmitting(true);
-    const { user, error } = await authenticateWithServer(email, password);
+    const { user, session, error } = await authenticateWithServer(email, password);
     setSubmitting(false);
     if (user) {
-      startAuthSession(remember, user.email);
+      startAuthSession(remember, user.email, session);
       window.location.assign('/');
       return;
     }

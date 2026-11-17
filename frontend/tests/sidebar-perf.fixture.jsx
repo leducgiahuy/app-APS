@@ -4,7 +4,7 @@ import App from '../src/App';
 import { computeDelivery } from '../src/utils/deliveryMetrics';
 import '../src/index.css';
 
-localStorage.setItem('aps-authenticated', 'demo@aps.vn');
+localStorage.setItem('aps-authenticated', JSON.stringify({ email: 'demo@aps.vn', token: 'mock', expiresAt: Date.now() + 1e8 }));
 
 const day = offset => { const d = new Date(2026, 9, 1 + offset); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 const employees = Array.from({ length: 12 }, (_, i) => ({ id: `e${i}`, name: `Nhân sự ${i + 1}`, code: `NV-${String(i + 1).padStart(3, '0')}`, team: 'Thiết kế', standardHours: 8 }));

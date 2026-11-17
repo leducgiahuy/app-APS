@@ -91,7 +91,7 @@ export async function authenticateWithServer(email, password) {
     const employees = await fetch(`${API_ROOT}/employees`, { headers: { Authorization: `Bearer ${token}` } }).then((res) => res.ok ? res.json() : null);
     employee = employees?.data?.find((row) => row.id === serverUser?.employeeId) || null;
   } catch { /* Hồ sơ nhân sự chỉ để điền phòng ban/SĐT; thiếu vẫn đăng nhập được. */ }
-  return { user: cacheServerUser({ ...serverUser, email: normalizedEmail }, employee) };
+  return { user: cacheServerUser({ ...serverUser, email: normalizedEmail }, employee), session: { token, expiresAt: result.data?.expiresAt } };
 }
 
 /** Trường hồ sơ người dùng tự sửa (ngoài tên); phòng ban / chuyên môn / cấp bậc chỉ admin sửa. */
@@ -351,24 +351,39 @@ export function resetUserPassword(targetEmail, actorEmail) {
   return { success: true };
 }
 
-/** Bắt đầu phiên đăng nhập; ghi nhớ vào localStorage hoặc chỉ lưu trong phiên tab. */
-export function startAuthSession(remember, email) {
+/**
+ * Bắt đầu phiên đăng nhập; ghi nhớ vào localStorage hoặc chỉ lưu trong phiên tab.
+ * Lưu mã phiên máy chủ cấp (không lưu mật khẩu); phiên hết hạn cùng lúc với mã phiên.
+ */
+export function startAuthSession(remember, email, serverSession = {}) {
   sessionStorage.removeItem(SESSION_KEY);
   localStorage.removeItem(SESSION_KEY);
-  (remember ? localStorage : sessionStorage).setItem(SESSION_KEY, JSON.stringify({ email: email.trim().toLowerCase(), expiresAt: Date.now() + AUTH_SESSION_MS }));
+  const expiresAt = Math.min(Date.now() + AUTH_SESSION_MS, Number(serverSession.expiresAt) || Infinity);
+  (remember ? localStorage : sessionStorage).setItem(SESSION_KEY, JSON.stringify({ email: email.trim().toLowerCase(), expiresAt, token: serverSession.token || '' }));
   recordActivity('auth.login', 'Đăng nhập thành công.', email);
 }
 
-/** Trả về email đang đăng nhập, hỗ trợ phiên cũ trước khi có quản lý tài khoản. */
-export function getCurrentUser() {
+/** Đọc phiên đang lưu; phiên cũ (chưa có mã phiên máy chủ) hoặc hết hạn bị bỏ để đăng nhập lại. */
+function readAuthSession() {
   const storage = sessionStorage.getItem(SESSION_KEY) ? sessionStorage : localStorage;
   const saved = storage.getItem(SESSION_KEY);
   if (!saved) return null;
-  let email, expiresAt;
-  try { ({ email, expiresAt } = JSON.parse(saved)); }
-  catch { email = saved === 'true' ? DEMO_USER.email : saved; expiresAt = Date.now() + AUTH_SESSION_MS; storage.setItem(SESSION_KEY, JSON.stringify({ email, expiresAt })); }
-  if (!email || !Number.isFinite(expiresAt) || expiresAt <= Date.now()) { storage.removeItem(SESSION_KEY); return null; }
-  return findUser(email);
+  let parsed = null;
+  try { parsed = JSON.parse(saved); } catch { /* phiên kiểu cũ */ }
+  const { email, expiresAt, token } = parsed || {};
+  if (!email || !token || !Number.isFinite(expiresAt) || expiresAt <= Date.now()) { storage.removeItem(SESSION_KEY); return null; }
+  return { email, expiresAt, token };
+}
+
+/** Trả về tài khoản đang đăng nhập (null khi chưa đăng nhập hoặc phiên đã hết hạn). */
+export function getCurrentUser() {
+  const saved = readAuthSession();
+  return saved ? findUser(saved.email) : null;
+}
+
+/** Mã phiên máy chủ của lần đăng nhập hiện tại (rỗng khi chưa đăng nhập). */
+export function getAuthToken() {
+  return readAuthSession()?.token || '';
 }
 
 /** Kiểm tra xem trình duyệt hiện tại có phiên gắn với một tài khoản hợp lệ không. */
@@ -379,6 +394,9 @@ export function hasAuthSession() {
 /** Kết thúc phiên ở cả hai nơi lưu để nút đăng xuất luôn đóng phiên hoàn toàn. */
 export function endAuthSession() {
   recordActivity('auth.logout', 'Đăng xuất khỏi hệ thống.');
+  // Hủy luôn mã phiên trên máy chủ (keepalive: vẫn gửi được khi trang chuyển sang /login ngay sau đó).
+  const token = getAuthToken();
+  if (token) fetch(`${API_ROOT}/delivery/session`, { method: 'DELETE', keepalive: true, headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
   sessionStorage.removeItem(SESSION_KEY);
   localStorage.removeItem(SESSION_KEY);
 }

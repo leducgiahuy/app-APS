@@ -1,4 +1,4 @@
-import { deliveryToken } from './modules/gantt/deliveryApi';
+import { deliveryToken, deliverySessionExpired } from './modules/gantt/deliveryApi';
 
 /**
  * API Client kết nối với Backend Express qua đường dẫn tương đối /api (cùng tên miền với giao diện)
@@ -19,6 +19,7 @@ async function fetchApi(endpoint, options = {}) {
       },
       ...options,
     });
+    if (res.status === 401) deliverySessionExpired();
     if (!res.ok) {
       const err = await res.json().catch(() => ({ message: 'Lỗi máy chủ' }));
       throw new Error(err.message || `Lỗi HTTP ${res.status}`);

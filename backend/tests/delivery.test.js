@@ -58,6 +58,14 @@ test('protected delivery API persists, enforces roles/confirmation/OT/revisions 
     assert.equal((await call('/p')).status, 401);
     assert.equal((await call('/session', 'POST', { email: 'demo@aps.vn', password: 'bad' })).status, 401);
     const admin = (await call('/session', 'POST', { email: 'demo@aps.vn', password: 'APS@2026' })).data.token;
+    // F5: lấy lại tài khoản bằng mã phiên đã lưu, không cần mật khẩu; mã sai thì 401.
+    const resumed = await call('/session', 'GET', undefined, admin);
+    assert.equal(resumed.status, 200); assert.equal(resumed.data.user.email, 'demo@aps.vn'); assert.equal(resumed.data.user.hash, undefined); assert.ok(resumed.data.expiresAt > Date.now());
+    assert.equal((await call('/session', 'GET', undefined, 'f'.repeat(64))).status, 401);
+    const spare = (await call('/session', 'POST', { email: 'demo@aps.vn', password: 'APS@2026' })).data.token;
+    assert.equal((await call('/session', 'DELETE', undefined, spare)).status, 200, 'đăng xuất hủy mã phiên');
+    assert.equal((await call('/session', 'GET', undefined, spare)).status, 401);
+    assert.equal((await call('/session', 'GET', undefined, admin)).status, 200, 'phiên khác vẫn giữ');
     for (const [email, role, employeeId] of [['worker@aps.vn', 'employee', 'e'], ['leader@aps.vn', 'leader', 'l']]) assert.equal((await call('/users', 'POST', { email, role, employeeId, name: email, password: 'password1' }, admin)).status, 200);
     const worker = (await call('/session', 'POST', { email: 'worker@aps.vn', password: 'password1' })).data.token;
     const leader = (await call('/session', 'POST', { email: 'leader@aps.vn', password: 'password1' })).data.token;
