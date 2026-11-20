@@ -20,6 +20,8 @@ const validDate=value=>typeof value==='string' && /^\d{4}-\d{2}-\d{2}$/.test(val
 const number=(value,max=1e15)=>{ensure(value!=='' && value!=null && Number.isFinite(Number(value)) && Number(value)>=0 && Number(value)<=max,'Giá trị số không hợp lệ.');return Number(value);};
 const money=value=>{const n=number(value);ensure(Number.isInteger(n),'Tiền phải là số nguyên đồng.');return n;};
 const self=(user,row)=>user.email===row.createdBy || Boolean(user.employeeId && row.employeeId===user.employeeId);
+// Chặn tự duyệt, trừ Quản trị (quyền cao nhất, người dùng chốt 20/11/2026).
+const selfBlocked=(user,row)=>user.role!=='admin'&&self(user,row);
 const requireRole=(user,roles)=>ensure(companyAdmin(user.role)||roles.includes(user.role),'Bạn không có quyền thực hiện thao tác này.',403);
 const permission=(ops,actor,key)=>ensure(ruleAllows(key,actor.role,normalizePageAccess(ops.pageAccess),'write'),'Vai trò trên dự án không được phép thực hiện chức năng này.',403);
 function dataFor(db,id){db.delivery ||= {projects:{}};db.delivery.projects ||= {};db.delivery.projects[id] ||= emptyDeliveryProject();return db.delivery.projects[id];}
@@ -41,7 +43,7 @@ function expenseFlow(actor,value,params,overBudget){
 }
 function approveStep(user,row,decision,reason){
  const step=row.steps.find(step=>step.status==='pending');ensure(step,'Luồng này đã kết thúc.');
- ensure(!self(user,row),'Không được tự duyệt đề nghị do mình lập.',403);
+ ensure(!selfBlocked(user,row),'Không được tự duyệt đề nghị do mình lập.',403);
  ensure(user.role==='admin'||step.role===user.role,'Chưa đến lượt vai trò của bạn.',403);
  ensure(decision==='approved'||decision==='rejected','Quyết định không hợp lệ.');
  if(decision==='rejected')ensure(text(reason),'Cần ghi lý do trả lại / từ chối.');
@@ -143,10 +145,10 @@ export function mutateOperations(req,res){
    if(existing)Object.assign(existing,updated);else data.timesheets.push(updated);recordProject(db,projectId);
   }else if(action==='unlockRequest'){
    requireRole(actor,['leader','manager']);ensure(text(value.reason),'Cần lý do mở khóa.');
-   const entry=allSheets(db).find(row=>row.id===value.entryId&&row.projectId===projectId);ensure(entry&&entry.status==='approved','Chỉ mở khóa giờ đã duyệt.');permission(ops,actor,'unlock');ensure(actor.role!=='leader'||canReviewSheet(db,actor,entry),'Chỉ đề xuất mở khóa giờ của nhóm mình.',403);
+   const entry=allSheets(db).find(row=>row.id===value.entryId&&row.projectId===projectId);ensure(entry&&entry.status==='approved','Chỉ mở khóa giờ đã duyệt.');permission(ops,actor,'unlock');ensure(actor.role!=='leader'||canReviewSheet(db,actor,entry),'Chỉ đề xuất mở khóa giờ của nhóm mình.',403);ensure(!ops.unlocks.some(row=>row.entryId===entry.id&&row.status==='pending'&&!row.deletedAt),'Dòng giờ này đã có yêu cầu mở khóa đang chờ duyệt.');
    changed={id:randomUUID(),projectId,entryId:entry.id,employeeId:entry.employeeId,reason:text(value.reason),status:'pending',createdBy:user.email,createdAt:at};ops.unlocks.push(changed);
   }else if(action==='unlockDecision'){
-   requireRole(actor,['manager']);const row=ops.unlocks.find(row=>row.id===id&&row.projectId===projectId);ensure(row&&row.status==='pending','Yêu cầu không chờ duyệt.');ensure(!self(user,row),'Không tự duyệt mở khóa.',403);
+   requireRole(actor,['manager']);const row=ops.unlocks.find(row=>row.id===id&&row.projectId===projectId);ensure(row&&row.status==='pending','Yêu cầu không chờ duyệt.');ensure(!selfBlocked(user,row),'Không tự duyệt mở khóa.',403);
    ensure(['approved','rejected'].includes(value.status),'Trạng thái không hợp lệ.');Object.assign(row,{status:value.status,...stamp(user)});
    if(value.status==='approved'){const data=dataFor(db,projectId),entry=data.timesheets.find(entry=>entry.id===row.entryId);ensure(entry,'Dòng giờ không còn tồn tại.');before=structuredClone(entry);Object.assign(entry,{status:'returned',locked:false,unlockId:id,reason:row.reason});recordProject(db,projectId);}
   }else if(action==='otRequest'){

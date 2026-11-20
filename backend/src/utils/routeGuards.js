@@ -74,7 +74,7 @@ export function guardUpdateTask(req, res, next) {
   const reopening = wasCompleted && body.status !== undefined && body.status !== 'completed';
   if (completing || reopening) {
     if (!perms.confirmWork) return deny(res, 'Chỉ Leader, QL cấp trung hoặc Giám đốc được xác nhận / mở lại task.');
-    if (own) return deny(res, 'Không tự xác nhận việc của mình; hãy nhờ cấp trên xác nhận.');
+    if (own && actor.role !== 'admin') return deny(res, 'Không tự xác nhận việc của mình; hãy nhờ cấp trên xác nhận.');
   }
   if (has(body, PLAN_KEYS) && !perms.assignTasks) return deny(res, 'Chỉ Leader được đổi kế hoạch (ngày, giờ dự kiến) của task.');
   if (has(body, ['status', 'progress', 'actualWorkloadNotes', 'speedStatus', 'notes']) && !(completing || reopening)) {
@@ -112,8 +112,9 @@ export function guardCreateOvertime(req, res, next) {
 export function guardReviewOvertime(req, res, next) {
   const overtime = (readDb().overtimes || []).find(row => row.id === req.params.id);
   if (!overtime) return next();
-  if (!accessFor(req)?.perms.approveOvertime) return deny(res, 'Chỉ Leader, QL cấp trung hoặc Giám đốc được duyệt làm thêm giờ.');
-  if (isOwnEmployee(req, overtime.employeeId)) return deny(res, 'Không tự duyệt phiếu làm thêm giờ của mình.');
+  const access = accessFor(req);
+  if (!access?.perms.approveOvertime) return deny(res, 'Chỉ Leader, QL cấp trung hoặc Giám đốc được duyệt làm thêm giờ.');
+  if (access.actor.role !== 'admin' && isOwnEmployee(req, overtime.employeeId)) return deny(res, 'Không tự duyệt phiếu làm thêm giờ của mình.');
   return next();
 }
 export function guardDeleteOvertime(req, res, next) {

@@ -168,7 +168,7 @@ export function requiredEvidenceKind(record = {}) {
 export function confirmBlockReason({ viewer = {}, item = {}, record = {}, assigneeRoles = [] } = {}) {
   const role = viewer.role;
   if (!reviewingRole(role)) return 'Chỉ Leader, Quản lý, Giám đốc hoặc Quản trị được xác nhận.';
-  if (viewer.employeeId && (item.assignees || []).some(assignment => assignment.employeeId === viewer.employeeId)) return 'Không được xác nhận việc do chính mình thực hiện.';
+  if (role !== 'admin' && viewer.employeeId && (item.assignees || []).some(assignment => assignment.employeeId === viewer.employeeId)) return 'Không được xác nhận việc do chính mình thực hiện.';
   if (viewer.email && viewer.email === record.submittedBy && !['director', 'admin'].includes(role)) return 'Bạn đã báo cáo mức này nên cần người khác xác nhận.';
   if (assigneeRoles.includes('manager') && !['director', 'admin'].includes(role)) return 'Việc của Quản lý cần Giám đốc hoặc Quản trị xác nhận.';
   if (assigneeRoles.includes('leader') && !managingRole(role)) return 'Việc của Leader cần Quản lý trở lên xác nhận.';

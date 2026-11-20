@@ -72,6 +72,9 @@ export default function TasksPage() {
   // Quyền theo ma trận: task "của mình" là task giao cho nhân sự gắn với tài khoản đang đăng nhập.
   const isOwnTask = task => Boolean(viewerEmployeeId) && (task.employeeId === viewerEmployeeId ||
     (Array.isArray(task.assignees) && task.assignees.some(row => row?.employeeId === viewerEmployeeId)));
+  // Quản trị là quyền cao nhất: xác nhận được cả việc của chính mình (người dùng chốt 20/11/2026).
+  const viewerIsAdmin = getCurrentUser()?.role === 'admin';
+  const blockedAsOwn = task => !viewerIsAdmin && isOwnTask(task);
   const canEditTaskProgress = task => permissions.updateProgress && (!permissions.updateOwnProgressOnly || isOwnTask(task));
   const otEmployees = permissions.registerOwnOvertimeOnly ? employees.filter(employee => employee.id === viewerEmployeeId) : employees;
   const pendingOvertimeCount = overtimes.filter(overtime => overtime.status === 'pending').length;
@@ -665,7 +668,7 @@ export default function TasksPage() {
                         >
                           {statusWindow.reason === 'completed' ? 'Hoàn thành' : 'Chưa tới ngày'}
                         </span>
-                      )) : task.status !== 'completed' && (canReviewWork && !isOwnTask(task) ? (
+                      )) : task.status !== 'completed' && (canReviewWork && !blockedAsOwn(task) ? (
                         <button
                           onClick={() => handleCompleteTask(task)}
                           className="ml-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-500 transition-colors"
@@ -677,7 +680,7 @@ export default function TasksPage() {
                           Chờ cấp trên xác nhận
                         </span>
                       ))}
-                      {!task.ganttId && task.status === 'completed' && canReviewWork && !isOwnTask(task) && (
+                      {!task.ganttId && task.status === 'completed' && canReviewWork && !blockedAsOwn(task) && (
                         <button
                           onClick={() => handleReopenTask(task)}
                           className="ml-1 px-2.5 py-1 rounded-lg text-xs font-semibold border border-amber-500/40 text-amber-700 hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-950/40 transition-colors"

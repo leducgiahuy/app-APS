@@ -44,7 +44,10 @@ export function sheetFlags(db,entry,all=allSheets(db)) {
  return flags;
 }
 export function canReviewSheet(db,actor,entry) {
- if(!actor || actor.employeeId===entry.employeeId || actor.email===entry.createdBy)return false;
+ if(!actor)return false;
+ // Quản trị là quyền cao nhất: duyệt được cả giờ của chính mình (người dùng chốt 20/11/2026).
+ if(actor.role==='admin')return true;
+ if(actor.employeeId===entry.employeeId || actor.email===entry.createdBy)return false;
  if(companyAdmin(actor.role))return true;
  const target=(db.operations?.members || []).find(row=>row.projectId===entry.projectId && row.employeeId===entry.employeeId && !row.deletedAt) || db.delivery?.users?.find(row=>row.employeeId===entry.employeeId && !row.disabled);
  const targetRole=target?.role || 'employee';

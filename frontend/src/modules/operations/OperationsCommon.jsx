@@ -39,6 +39,6 @@ export function Flow({steps=[]}){return <div className="operations-flow">{steps.
 export function Kpis({items}){return <div className="operations-kpis">{items.map(([label,value,detail,tone])=><article key={label} className={tone||''}><span>{label}</span><strong>{value}</strong>{detail&&<small>{detail}</small>}</article>)}</div>;}
 export function Decision({api,action,row,projectId}){
  const step=row.steps?.find(step=>step.status==='pending'),role=api.data.viewer.role;
- if(row.createdBy===api.data.viewer.email||!step||row.status!=='pending'||!(role===step.role||['admin','director'].includes(role)))return null;
+ if((row.createdBy===api.data.viewer.email&&role!=='admin')||!step||row.status!=='pending'||!(role===step.role||['admin','director'].includes(role)))return null;
  return <div className="operations-buttons"><button disabled={api.disabled} onClick={()=>api.open('Xử lý duyệt',[{key:'status',label:'Quyết định',type:'select',options:[{value:'approved',label:'Duyệt / Xác nhận'},{value:'rejected',label:'Trả lại / Từ chối'}]},{key:'reason',label:'Lý do / ghi chú',type:'textarea'},{key:'documentRef',label:'Mã / đường dẫn chứng từ (nếu có)'}],{status:'approved'},value=>api.mutate(action,value,row.id,projectId))}>Xử lý</button></div>;
 }

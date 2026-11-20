@@ -214,7 +214,7 @@ export default function DirectorOverviewPage() {
           <dt>Bước chờ duyệt</dt><dd>{review.step || 'Giám đốc duyệt'}</dd>
           <dt>Người lập</dt><dd>{review.createdBy || '—'}{review.createdAt ? ` · ${new Date(review.createdAt).toLocaleString('vi-VN')}` : ''}</dd>
         </dl>
-        {review.createdBy && review.createdBy === report?.viewer?.email && <p className="director-review-warning">Bạn là người lập đề nghị này nên không tự duyệt được. Cần tài khoản Giám đốc (hoặc một Quản trị khác) duyệt.</p>}
+        {review.createdBy && review.createdBy === report?.viewer?.email && report?.viewer?.role !== 'admin' && <p className="director-review-warning">Bạn là người lập đề nghị này nên không tự duyệt được. Cần tài khoản Giám đốc (hoặc một Quản trị khác) duyệt.</p>}
         <label>Lý do / ghi chú (bắt buộc khi từ chối)<textarea rows={3} value={reviewReason} onChange={event => setReviewReason(event.target.value)} disabled={reviewSaving} /></label>
         {reviewError && <p className="director-review-error" role="alert">{reviewError}</p>}
         <footer>
