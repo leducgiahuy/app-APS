@@ -4,32 +4,16 @@ import { calculateAssignmentHours } from '../../../frontend/src/utils/ganttEffor
 import { assignmentWorkingDayUnits, datesInRange, nonWorkingDay, workingDayWeight } from '../../../frontend/src/utils/assignmentCalendar.js';
 import { addDate } from './operationsReports.js';
 import { projectTemplates } from './defaultProjectTemplate.js';
-import { WBS_PHASE_PRESETS, cleanWbsCode, linkWbsItems, wbsLevel } from '../../../frontend/src/utils/wbsStructure.js';
+import { WBS_PHASE_PRESETS, cleanWbsCode, linkWbsItems, renumberNewCodes, wbsLevel } from '../../../frontend/src/utils/wbsStructure.js';
 import { EXTERNAL_DEPARTMENTS, employeeDepartments, taskDepartments } from '../../../frontend/src/utils/departmentCodes.js';
 const check=(ok,message)=>{if(!ok)throw new Error(message);};
 // Số ngày công của một ngày: thứ 2–6 = 1, thứ 7 = 0,5 (nghỉ chiều), Chủ nhật / lễ / Tết = 0 (lịch nghỉ trong vietnamCalendar.js).
 const workUnit=key=>nonWorkingDay(key)?0:workingDayWeight(key);
-/**
- * Việc mới ghi mã "MOI" trong file báo giá: đánh số tiếp theo mục đang đứng (người dùng chốt 24/11/2026).
- * VD sau C.1–C.3 (nhóm C) → C.4, C.5…; sau A4.16 → A4.17. Mục lấy theo dòng có mã thật gần nhất phía trên.
- */
-function numberNewCodes(rows){
- const isNew=code=>String(code||'').trim().toUpperCase()==='MOI';
- const used=new Map();let prefix='';
- const remember=code=>{const m=cleanWbsCode(code).match(/^(.*)\.(\d+)$/);if(m)used.set(m[1],Math.max(used.get(m[1])||0,Number(m[2])));};
- rows.forEach(row=>{if(!isNew(row.code))remember(row.code);});
- return rows.map(row=>{
-  const code=String(row.code||'').trim();
-  if(!isNew(code)){if(code){const level=wbsLevel(code),clean=cleanWbsCode(code);if(level==='phase'||level==='section')prefix=clean;else if(clean.includes('.'))prefix=clean.slice(0,clean.lastIndexOf('.'));}return row;}
-  if(!prefix)return row;
-  const next=(used.get(prefix)||0)+1;used.set(prefix,next);
-  return {...row,code:`${prefix}.${next}`};
- });
-}
+export { workUnit };
 /** Ngày gần nhất có làm việc, đi tới (step 1) hoặc lùi (step -1), không vượt [from, to]; không có thì ''. */
-function workingDayFrom(key,step,from,to){for(let day=key;day>=from&&day<=to;day=addDate(day,step))if(workUnit(day)>0)return day;return '';}
+export function workingDayFrom(key,step,from,to){for(let day=key;day>=from&&day<=to;day=addDate(day,step))if(workUnit(day)>0)return day;return '';}
 /** Đưa ngày bắt đầu / kết thúc của việc ra khỏi ngày nghỉ (bắt đầu lùi tới ngày làm kế tiếp, kết thúc lùi về ngày làm trước đó). */
-function snapToWorkingDays(item,projectStart,projectEnd){
+export function snapToWorkingDays(item,projectStart,projectEnd){
  let start=workingDayFrom(item.startDate,1,projectStart,item.endDate),end=start&&workingDayFrom(item.endDate,-1,start,projectEnd);
  if(!start){start=workingDayFrom(item.startDate,1,projectStart,projectEnd)||workingDayFrom(item.startDate,-1,projectStart,projectEnd);end=start;}
  if(start){item.startDate=start;item.endDate=end||start;}
@@ -53,7 +37,7 @@ const overlapHours=(task,assignment,startDate,endDate)=>{
  */
 function quoteItemsTemplate(db,input){
  check(Array.isArray(input.quoteItems)&&input.quoteItems.some(row=>!row.isGroup)&&input.quoteItems.length<=1000,'Bảng hạng mục trong file báo giá đang trống.');
- const rows=numberNewCodes(input.quoteItems);
+ const rows=renumberNewCodes(input.quoteItems);
  const positionOf=new Map(projectTemplates(db).flatMap(t=>t.items||[]).filter(t=>t.requiredPosition&&t.assignmentPosition).map(t=>[positionKey(t.requiredPosition),t.assignmentPosition]));
  const span=Math.round((Date.parse(input.endDate)-Date.parse(input.startDate))/86400000)+1;
  const items=rows.map((row,index)=>{
@@ -94,7 +78,21 @@ export function projectBlueprint(db,input,user){
  const template=input.templateId?projectTemplates(db).find(t=>t.id===input.templateId):input.quoteItems?quoteItemsTemplate(db,input):null;check(!input.templateId||template,'Mẫu dự án không tồn tại.');
  const area=nonnegative(input.area||0),fee=input.contractFee==null||input.contractFee===''?null:nonnegative(input.contractFee),scale=template?.baseArea>0&&area>0?area/template.baseArea:1,projectId=`proj-${randomUUID()}`;
  const project={id:projectId,name:input.name.trim(),code:String(input.code||'').trim(),description:String(input.description||'').trim(),location:String(input.location||'').trim(),client:String(input.client||'').trim(),area,manager:input.managerEmail||user.email,managerEmail:input.managerEmail||user.email,startDate:input.startDate,endDate:input.endDate,status:'planning',approvalStatus:'pending',createdBy:user.email,createdAt:new Date().toISOString(),progress:0,contractWork:null,templateId:template?.id||'',scope:input.scope||[],importFiles:{quoteFileName:String(input.quoteFileName||'').trim(),contractFileName:String(input.contractFileName||'').trim()}};
- const source=(template?.items||[]).filter(t=>!t.scopeKey||project.scope.includes(t.scopeKey));
+ // Bản sao: xem trước / tạo dự án không được sửa template đang lưu.
+ const source=renumberNewCodes((template?.items||[]).filter(t=>!t.scopeKey||project.scope.includes(t.scopeKey))).map(t=>({...t}));
+ // Template lưu từ file báo giá (fromQuote): xếp nối tiếp theo NGÀY CÔNG từ ngày bắt đầu dự án, bỏ Chủ nhật, chiều thứ 7, lễ / Tết
+ // (người dùng chốt 24/11/2026). Mỗi việc dài đủ số công của nó (tối thiểu 1 ngày công).
+ const leavesOfSource=source.filter(t=>!t.isGroup);
+ if(leavesOfSource.length&&leavesOfSource.every(t=>t.fromQuote)){
+  const offsetOf=key=>Math.round((Date.parse(`${key}T00:00:00Z`)-Date.parse(`${input.startDate}T00:00:00Z`))/86400000);
+  const nextWorking=key=>{let day=key;for(let guard=0;guard<400&&workUnit(day)===0;guard++)day=addDate(day,1);return day;};
+  let cursor=nextWorking(input.startDate);
+  leavesOfSource.forEach(t=>{
+   const need=Math.max(1,Math.ceil(Number(t.estimatedHours)/8||1));let day=cursor,units=workUnit(day);
+   for(let guard=0;guard<800&&units<need;guard++){day=addDate(day,1);units+=workUnit(day);}
+   t.startOffset=offsetOf(cursor);t.endOffset=offsetOf(day);cursor=nextWorking(addDate(day,1));
+  });
+ }
  const ids=new Map(source.map(t=>[t.id,`G-${randomUUID()}`]));
  const items=source.map(t=>{const startDate=addDate(input.startDate,Number(t.startOffset)||0),endDate=addDate(input.startDate,Math.max(Number(t.startOffset)||0,Number(t.endOffset)||0));const planned=t.fixedHours?Number(t.estimatedHours)||0:Number(t.estimatedHours)||calendarCapacity(startDate,endDate,Number(t.estimatedHoursPerDay)||8);return {...t,templateItemId:t.id,id:ids.get(t.id),projectId,parentGroupId:ids.get(t.parentGroupId)||'',parentTaskId:ids.get(t.parentTaskId)||'',dependencies:(t.dependencies||[]).map(id=>ids.get(id)).filter(Boolean),startDate,endDate,estimatedHours:planned*(t.scaleWithArea===false?1:scale),assignees:[],assignee:'',status:'not_started',createdAt:project.createdAt};});
  check(items.every(t=>t.startDate>=input.startDate&&t.endDate<=input.endDate),'Khoảng dự án ngắn hơn lịch của mẫu. Hãy kéo dài ngày kết thúc.');

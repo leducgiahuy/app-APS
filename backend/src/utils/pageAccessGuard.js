@@ -45,6 +45,7 @@ export function requiredPageAccess(method, path, body = {}) {
   if (path === '/delivery/operations') return reading ? null : OPERATIONS_ACTIONS[body?.action] ? write(OPERATIONS_ACTIONS[body.action]) : null;
   if (/^\/delivery\/(notifications|users|templates|profile|account-catalog)$/.test(path)) return null;
   if (/^\/delivery\/[^/]+\/evidence\/[^/]+$/.test(path)) return read(GANTT_SECTIONS);
+  if (/^\/delivery\/[^/]+\/calendar-fix$/.test(path)) return write(['gantt.progress']);
   if (/^\/delivery\/[^/]+\/evidence$/.test(path)) return write(['gantt.progress', 'gantt.legal']);
   if (/^\/delivery\/[^/]+$/.test(path)) return reading ? read([...GANTT_SECTIONS, 'director-overview.kpis']) : write(DELIVERY_ACTIONS[body?.action] || GANTT_SECTIONS);
   // Kế hoạch nhân lực = mục Quản Lý Nhân Sự → 6 tháng tới; sửa còn theo quy tắc QL lập / Giám đốc duyệt.

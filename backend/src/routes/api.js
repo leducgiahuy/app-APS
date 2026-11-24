@@ -4,6 +4,7 @@ import { deliveryChangePassword, deliveryLogin, deliveryLogout, deliverySessionI
 import { getPageAccess } from '../utils/pageAccessGuard.js';
 import { deliveryReporting } from '../controllers/deliveryReportingController.js';
 import { executiveReport } from '../controllers/executiveController.js';
+import { calendarFix } from '../controllers/calendarFixController.js';
 import { getDeliveryProject, updateDeliveryProject, uploadDeliveryEvidence, downloadDeliveryEvidence, deliveryTemplates } from '../controllers/deliveryController.js';
 import { getWorkforcePlan, updateWorkforcePlan } from '../controllers/workforceController.js';
 import {
@@ -46,6 +47,7 @@ router.post('/delivery/session', deliveryLogin);
 router.get('/delivery/session', requireDeliveryUser, deliverySessionInfo);
 router.delete('/delivery/session', requireDeliveryUser, deliveryLogout);
 router.get('/delivery/page-access', requireDeliveryUser, getPageAccess);
+router.post('/delivery/:projectId/calendar-fix', requireDeliveryUser, calendarFix);
 router.post('/delivery/project-preview', requireDeliveryUser, previewProject);
 router.get('/delivery/notifications',requireDeliveryUser,getOperationsNotifications);
 router.get('/delivery/operations', requireDeliveryUser, getOperations);

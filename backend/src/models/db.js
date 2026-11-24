@@ -115,6 +115,9 @@ export function readDb() {
 }
 
 // Lưu dữ liệu vào file db.json an toàn
+/** Đường dẫn file dữ liệu đang dùng (để sao lưu riêng trước thao tác lớn). */
+export const dbFilePath = () => DB_FILE;
+
 export function writeDb(data) {
   try {
     if (!data) return false;

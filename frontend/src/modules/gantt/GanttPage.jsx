@@ -11,7 +11,8 @@ import DeliveryDrawer from './DeliveryDrawer';
 import DeliveryResources from './DeliveryResources';
 import DeliveryChartOverlay from './DeliveryChartOverlay';
 import { deliveryApi } from './deliveryApi';
-import { reviewingRole, summarizeProjectWork } from '../../utils/deliveryMetrics';
+import { managingRole, reviewingRole, summarizeProjectWork } from '../../utils/deliveryMetrics';
+import CalendarFixDialog from './CalendarFixDialog';
 import './DeliveryPage.css';
 import GanttRowGrid from './GanttRowGrid';
 import GanttCalendarBackground from './GanttCalendarBackground';
@@ -465,6 +466,7 @@ export default function GanttPage() {
   const [groupMenuOpenId, setGroupMenuOpenId] = useState(null);
   const [groupCreateContext, setGroupCreateContext] = useState(null);
   const [showAddProjectModal, setShowAddProjectModal] = useState(false);
+  const [calendarFixOpen, setCalendarFixOpen] = useState(false);
   const [showEditProjectModal, setShowEditProjectModal] = useState(false);
   const [assignmentEditorItem, setAssignmentEditorItem] = useState(null);
   const [assignmentSubmission, setAssignmentSubmission] = useState({ dueAt: '', recipient: '' });
@@ -1877,6 +1879,8 @@ export default function GanttPage() {
           >
             + Dự Án Mới
           </button>
+          {/* Dự án đang chạy: đổi mã MOI + dời việc chưa bắt đầu khỏi ngày nghỉ (xem trước rồi mới áp dụng). */}
+          {selectedProjectId !== 'ALL' && !previewing && managingRole(viewerRole) && <button type="button" onClick={() => setCalendarFixOpen(true)} className="px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold transition-all">Sửa MOI &amp; ngày nghỉ</button>}
 
           <div className="relative" ref={createMenuRef} hidden={!canManageStructure}>
             <button
@@ -3207,6 +3211,7 @@ export default function GanttPage() {
         document.body
       )}
 
+      {calendarFixOpen && selectedProjectId !== 'ALL' && <CalendarFixDialog projectId={selectedProjectId} projectName={projects.find(project => project.id === selectedProjectId)?.name || ''} onClose={() => setCalendarFixOpen(false)} onApplied={async () => { await refreshAllData(); await delivery.refresh?.(); }} />}
       {showAddProjectModal && <ProjectWizard onClose={()=>setShowAddProjectModal(false)} onCreated={async id=>{await refreshAllData();setSelectedProjectId(id);setShowAddProjectModal(false);}}/>}
 
     </div>

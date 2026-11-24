@@ -200,3 +200,31 @@ export function compareWbsCodes(codeA, codeB) {
 
   return 0;
 }
+
+/**
+ * Việc mới ghi mã "MOI" (file báo giá): đánh số tiếp theo mục đang đứng (người dùng chốt 24/11/2026).
+ * VD sau C.1–C.3 (nhóm C) → C.4, C.5…; sau A4.16 → A4.17. Mục lấy theo dòng có mã thật gần nhất phía trên.
+ * Trả về mảng mới cùng thứ tự; dòng không phải MOI giữ nguyên (cùng đối tượng).
+ */
+export const isNewWbsCode = code => String(code || '').trim().toUpperCase() === 'MOI';
+export function renumberNewCodes(rows) {
+  const used = new Map();
+  let prefix = '';
+  const remember = code => { const match = cleanWbsCode(code).match(/^(.*)\.(\d+)$/); if (match) used.set(match[1], Math.max(used.get(match[1]) || 0, Number(match[2]))); };
+  rows.forEach(row => { if (!isNewWbsCode(row.code)) remember(row.code); });
+  return rows.map(row => {
+    const code = String(row.code || '').trim();
+    if (!isNewWbsCode(code)) {
+      if (code) {
+        const level = wbsLevel(code), clean = cleanWbsCode(code);
+        if (level === 'phase' || level === 'section') prefix = clean;
+        else if (clean.includes('.')) prefix = clean.slice(0, clean.lastIndexOf('.'));
+      }
+      return row;
+    }
+    if (!prefix) return row;
+    const next = (used.get(prefix) || 0) + 1;
+    used.set(prefix, next);
+    return { ...row, code: `${prefix}.${next}` };
+  });
+}

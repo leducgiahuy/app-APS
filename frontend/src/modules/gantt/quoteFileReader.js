@@ -10,6 +10,7 @@
  */
 
 import { QUOTE_DEPARTMENTS } from './quoteStandardItems';
+import { renumberNewCodes } from '../../utils/wbsStructure';
 
 /** Mã trường ở cột A → tên thuộc tính trong draft của form. */
 const FIELD_KEYS = {
@@ -189,12 +190,13 @@ export async function readQuoteInfo(file, { templates = [], managers = [] } = {}
  */
 export function quoteItemsToTemplateItems(items, positionOf = () => '') {
   let cursor = 0;
-  // Template chỉ lưu việc; dòng mục lớn (nhóm) của file không đưa vào.
-  return items.filter(item => !item.isGroup).map((item, index) => {
+  // Template chỉ lưu việc; dòng mục lớn (nhóm) của file không đưa vào. Việc ghi "MOI" được đánh số tiếp theo mục (C.3 → C.4…).
+  // fromQuote: khi tạo dự án, máy chủ xếp lại các việc này theo ngày công (bỏ Chủ nhật, chiều thứ 7, lễ / Tết).
+  return renumberNewCodes(items).filter(item => !item.isGroup).map((item, index) => {
     const startOffset = cursor;
     cursor += Math.max(1, Math.ceil(item.workDays));
     const id = `tpl-${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${index}`}`;
-    return { id, code: item.code, title: item.title, requiredPosition: item.department, assignmentPosition: positionOf(item.department) || item.department, startOffset, endOffset: cursor - 1, estimatedHours: item.workDays * 8, scaleWithArea: false };
+    return { id, code: item.code, title: item.title, requiredPosition: item.department, assignmentPosition: positionOf(item.department) || item.department, startOffset, endOffset: cursor - 1, estimatedHours: item.workDays * 8, scaleWithArea: false, fromQuote: true };
   }).map((item, index, all) => ({ ...item, dependencies: index ? [all[index - 1].id] : [] }));
 }
 
