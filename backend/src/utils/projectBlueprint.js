@@ -1,12 +1,39 @@
 import { randomUUID } from 'node:crypto';
 import { calendarCapacity, positionKey, employeePosition } from '../../../frontend/src/utils/workforceForecast.js';
 import { calculateAssignmentHours } from '../../../frontend/src/utils/ganttEffort.js';
-import { assignmentWorkingDayUnits } from '../../../frontend/src/utils/assignmentCalendar.js';
+import { assignmentWorkingDayUnits, datesInRange, nonWorkingDay, workingDayWeight } from '../../../frontend/src/utils/assignmentCalendar.js';
 import { addDate } from './operationsReports.js';
 import { projectTemplates } from './defaultProjectTemplate.js';
 import { WBS_PHASE_PRESETS, cleanWbsCode, linkWbsItems, wbsLevel } from '../../../frontend/src/utils/wbsStructure.js';
 import { EXTERNAL_DEPARTMENTS, employeeDepartments, taskDepartments } from '../../../frontend/src/utils/departmentCodes.js';
 const check=(ok,message)=>{if(!ok)throw new Error(message);};
+// Số ngày công của một ngày: thứ 2–6 = 1, thứ 7 = 0,5 (nghỉ chiều), Chủ nhật / lễ / Tết = 0 (lịch nghỉ trong vietnamCalendar.js).
+const workUnit=key=>nonWorkingDay(key)?0:workingDayWeight(key);
+/**
+ * Việc mới ghi mã "MOI" trong file báo giá: đánh số tiếp theo mục đang đứng (người dùng chốt 24/11/2026).
+ * VD sau C.1–C.3 (nhóm C) → C.4, C.5…; sau A4.16 → A4.17. Mục lấy theo dòng có mã thật gần nhất phía trên.
+ */
+function numberNewCodes(rows){
+ const isNew=code=>String(code||'').trim().toUpperCase()==='MOI';
+ const used=new Map();let prefix='';
+ const remember=code=>{const m=cleanWbsCode(code).match(/^(.*)\.(\d+)$/);if(m)used.set(m[1],Math.max(used.get(m[1])||0,Number(m[2])));};
+ rows.forEach(row=>{if(!isNew(row.code))remember(row.code);});
+ return rows.map(row=>{
+  const code=String(row.code||'').trim();
+  if(!isNew(code)){if(code){const level=wbsLevel(code),clean=cleanWbsCode(code);if(level==='phase'||level==='section')prefix=clean;else if(clean.includes('.'))prefix=clean.slice(0,clean.lastIndexOf('.'));}return row;}
+  if(!prefix)return row;
+  const next=(used.get(prefix)||0)+1;used.set(prefix,next);
+  return {...row,code:`${prefix}.${next}`};
+ });
+}
+/** Ngày gần nhất có làm việc, đi tới (step 1) hoặc lùi (step -1), không vượt [from, to]; không có thì ''. */
+function workingDayFrom(key,step,from,to){for(let day=key;day>=from&&day<=to;day=addDate(day,step))if(workUnit(day)>0)return day;return '';}
+/** Đưa ngày bắt đầu / kết thúc của việc ra khỏi ngày nghỉ (bắt đầu lùi tới ngày làm kế tiếp, kết thúc lùi về ngày làm trước đó). */
+function snapToWorkingDays(item,projectStart,projectEnd){
+ let start=workingDayFrom(item.startDate,1,projectStart,item.endDate),end=start&&workingDayFrom(item.endDate,-1,start,projectEnd);
+ if(!start){start=workingDayFrom(item.startDate,1,projectStart,projectEnd)||workingDayFrom(item.startDate,-1,projectStart,projectEnd);end=start;}
+ if(start){item.startDate=start;item.endDate=end||start;}
+}
 const nonnegative=value=>{const n=Number(value);check(Number.isFinite(n)&&n>=0,'Giá trị số phải không âm.');return n;};
 const date=value=>typeof value==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(value)&&Number.isFinite(Date.parse(value))&&new Date(value).toISOString().slice(0,10)===value;
 const overlapHours=(task,assignment,startDate,endDate)=>{
@@ -25,7 +52,8 @@ const overlapHours=(task,assignment,startDate,endDate)=>{
  *   bộ môn chưa từng xuất hiện trong template nào thì dùng chính tên bộ môn.
  */
 function quoteItemsTemplate(db,input){
- const rows=input.quoteItems;check(Array.isArray(rows)&&rows.some(row=>!row.isGroup)&&rows.length<=1000,'Bảng hạng mục trong file báo giá đang trống.');
+ check(Array.isArray(input.quoteItems)&&input.quoteItems.some(row=>!row.isGroup)&&input.quoteItems.length<=1000,'Bảng hạng mục trong file báo giá đang trống.');
+ const rows=numberNewCodes(input.quoteItems);
  const positionOf=new Map(projectTemplates(db).flatMap(t=>t.items||[]).filter(t=>t.requiredPosition&&t.assignmentPosition).map(t=>[positionKey(t.requiredPosition),t.assignmentPosition]));
  const span=Math.round((Date.parse(input.endDate)-Date.parse(input.startDate))/86400000)+1;
  const items=rows.map((row,index)=>{
@@ -37,10 +65,20 @@ function quoteItemsTemplate(db,input){
  // Xếp lịch task lá theo trọng số = số giờ; task chưa có công lấy trọng số trung bình để vẫn có khoảng ngày hợp lý (số giờ vẫn là 0).
  const leaves=items.filter(item=>!item.isGroup&&!parentTaskIds.has(item.id)),known=leaves.map(item=>item.estimatedHours).filter(value=>value>0);
  const average=known.length?known.reduce((sum,value)=>sum+value,0)/known.length:8,weights=leaves.map(item=>item.estimatedHours>0?item.estimatedHours:average),total=weights.reduce((sum,value)=>sum+value,0);
+ // Chia theo NGÀY CÔNG (người dùng chốt 24/11/2026): bỏ Chủ nhật, chiều thứ 7, lễ / Tết; giữ ngày kết thúc dự án.
+ // Mỗi việc nhận phần ngày công tỉ lệ với công dự toán, bắt đầu và kết thúc đều rơi vào ngày làm việc.
+ const days=datesInRange(input.startDate,input.endDate),ends=[];let units=0;
+ days.forEach(key=>{units+=workUnit(key);ends.push(units);});
+ const dayAt=(position,inclusive)=>{const index=ends.findIndex((end,i)=>workUnit(days[i])>0&&(inclusive?end>=position-1e-9:end>position+1e-9));return index<0?days.length-1:index;};
  let before=0;
  leaves.forEach((item,index)=>{
-  item.startOffset=total>0?Math.min(span-1,Math.floor(before/total*span)):0;before+=weights[index];
-  item.endOffset=total>0?Math.max(item.startOffset,Math.min(span-1,Math.ceil(before/total*span)-1)):span-1;
+  if(units>0&&total>0){
+   const from=before/total*units;before+=weights[index];const to=before/total*units;
+   item.startOffset=dayAt(from,false);item.endOffset=Math.max(item.startOffset,dayAt(to,true));
+  }else{
+   item.startOffset=total>0?Math.min(span-1,Math.floor(before/total*span)):0;before+=weights[index];
+   item.endOffset=total>0?Math.max(item.startOffset,Math.min(span-1,Math.ceil(before/total*span)-1)):span-1;
+  }
   if(index)item.dependencies=[leaves[index-1].id];
  });
  // Task cha rồi nhóm (từ dưới lên): ngày bao trùm dòng con; nhóm rỗng lấy ngày đầu dự án.
@@ -60,6 +98,8 @@ export function projectBlueprint(db,input,user){
  const ids=new Map(source.map(t=>[t.id,`G-${randomUUID()}`]));
  const items=source.map(t=>{const startDate=addDate(input.startDate,Number(t.startOffset)||0),endDate=addDate(input.startDate,Math.max(Number(t.startOffset)||0,Number(t.endOffset)||0));const planned=t.fixedHours?Number(t.estimatedHours)||0:Number(t.estimatedHours)||calendarCapacity(startDate,endDate,Number(t.estimatedHoursPerDay)||8);return {...t,templateItemId:t.id,id:ids.get(t.id),projectId,parentGroupId:ids.get(t.parentGroupId)||'',parentTaskId:ids.get(t.parentTaskId)||'',dependencies:(t.dependencies||[]).map(id=>ids.get(id)).filter(Boolean),startDate,endDate,estimatedHours:planned*(t.scaleWithArea===false?1:scale),assignees:[],assignee:'',status:'not_started',createdAt:project.createdAt};});
  check(items.every(t=>t.startDate>=input.startDate&&t.endDate<=input.endDate),'Khoảng dự án ngắn hơn lịch của mẫu. Hãy kéo dài ngày kết thúc.');
+ // Mẫu có ngày theo lịch: việc rơi vào Chủ nhật / lễ / Tết được đẩy sang ngày làm việc gần nhất trong khoảng dự án.
+ items.filter(t=>!t.isGroup).forEach(t=>snapToWorkingDays(t,input.startDate,input.endDate));
  const parentIds=new Set(items.map(t=>t.parentTaskId).filter(Boolean)),allocations=[];
  const employeeLoad=(employee,item)=>[...(db.ganttItems||[]),...items].filter(t=>!t.isGroup&&t.status!=='completed'&&t.endDate>=item.startDate&&t.startDate<=item.endDate).reduce((sum,t)=>sum+(t.assignees||[]).filter(a=>a.employeeId===employee.id).reduce((hours,a)=>hours+overlapHours(t,a,item.startDate,item.endDate),0),0);
  const activeEmployees=(db.employees||[]).filter(e=>e.status!=='inactive');
