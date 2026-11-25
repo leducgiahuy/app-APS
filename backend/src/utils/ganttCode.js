@@ -27,9 +27,18 @@ export function applyWbsCodeChange(db, item, rawCode) {
   if (!code) return 'Vui lòng nhập STT.';
   if (code.length > 30 || !/^[A-Z0-9]+(\.[A-Z0-9]+)*$/.test(code)) return 'STT chỉ gồm chữ, số và dấu chấm (VD: A, A1, A1.2, A1.2.1).';
   const oldCode = itemWbsCode(item);
-  if (code === oldCode) return '';
+  // Mục có STT ở tên khác mã đang lưu (VD tên "A2." nhưng code A3, task bên trong A3.x): coi cả hai là STT cũ
+  // để dòng con đổi theo. Mã tạm kiểu "GR3" không tính.
+  const storedCode = item.isGroup ? cleanWbsCode(item.code) : '';
+  const oldCodes = [...new Set([oldCode, /^[A-Z]\d*$/.test(storedCode) ? storedCode : ''].filter(Boolean))];
   const projectId = projectIdOf(db, item);
   const projectItems = (db.ganttItems || []).filter(candidate => projectIdOf(db, candidate) === projectId);
+  // Mục con (A1, B2…): task bên trong luôn mang mã mục ở đầu. Task lệch (VD mục A2 còn A3.1 sau khi đổi tên / kéo mục)
+  // được đưa về đúng mã mục, kể cả khi STT mục không đổi.
+  const sectionMember = candidate => item.isGroup && wbsLevel(code) === 'section' && !candidate.isGroup && candidate.parentGroupId === item.id;
+  const wrongHead = key => /^[A-Z]\d+\.\d/.test(key) && key.split('.')[0] !== code;
+  const misplaced = projectItems.filter(candidate => sectionMember(candidate) && wrongHead(cleanWbsCode(candidate.code)));
+  if (oldCodes.every(old => old === code) && !misplaced.length) return '';
 
   // Dòng con (mọi cấp): đi ngược lên cha (task cha trước, rồi nhóm) mà gặp dòng đang đổi.
   const byId = new Map(projectItems.map(candidate => [candidate.id, candidate]));
@@ -50,7 +59,12 @@ export function applyWbsCodeChange(db, item, rawCode) {
   const renamed = new Map([[item, code]]);
   for (const child of descendants) {
     const key = itemWbsCode(child);
-    if (oldCode && key.startsWith(oldCode) && /^[.\d]/.test(key.slice(oldCode.length))) renamed.set(child, code + key.slice(oldCode.length));
+    if (sectionMember(child)) {
+      if (wrongHead(key)) renamed.set(child, code + key.slice(key.split('.')[0].length));
+      continue;
+    }
+    const old = oldCodes.find(prefix => key.startsWith(prefix) && /^[.\d]/.test(key.slice(prefix.length)) && !key.startsWith(code + '.'));
+    if (old) renamed.set(child, code + key.slice(old.length));
   }
   const others = projectItems.filter(candidate => !renamed.has(candidate));
   for (const [row, next] of renamed) {

@@ -4,6 +4,7 @@ import { ChevronDown, ChevronRight, GripVertical, MessageCircle, Paperclip, More
 import { deliveryLabel, defaultDeliveryRecord, formatCompactMoney, varianceTone } from '../../utils/deliveryMetrics';
 import { GanttEditableWorkCell } from './GanttWorkColumns';
 import { itemWbsCode } from '../../utils/wbsStructure';
+import { datesInRange, workingDaysInRange } from '../../utils/assignmentCalendar';
 
 export const DELIVERY_COLUMNS = [
   { key: 'code', label: 'STT', width: 64 },
@@ -85,7 +86,7 @@ export default function DeliveryRow({ item, columns, height, depth = 0, record, 
       if (column.key === 'submission') content = !group && <div className={`delivery-due ${alert.overdue ? 'overdue' : alert.soon ? 'soon' : ''}`}><b>{shortDateTime(record?.dueAt)}</b>{record?.sentAt ? <small className="sent">Đã gửi {shortDateTime(record.sentAt)}</small> : alert.overdue ? <small>Quá hạn {Math.ceil(-alert.hours / 24)} ngày</small> : alert.soon ? <small>Còn {Math.floor(alert.hours / 24)} ngày {Math.max(0, Math.floor(alert.hours % 24))} giờ</small> : null}</div>;
       if (column.key === 'status') content = group ? <strong className="delivery-group-percent">{aggregate == null ? '—' : `${number(aggregate)}%${groupStatusLabel(aggregate)}`}</strong> : <div className="delivery-status-cell"><span className={`delivery-status level-${record?.level || 0} ${record?.freeRework ? 'rework' : ''}`} title={`% ghi nhận: ${metric?.recognized ?? '—'}%`}>{record?.freeRework ? `Làm lại · ${record.changeId ? 'CR' : 'miễn phí'}` : `${record?.level ?? '—'}% · ${label}`}</span>{record?.level >= 60 && <Paperclip size={12} className={record.evidenceId ? 'has-proof' : 'missing-proof'} aria-label={record.evidenceId ? 'Có bằng chứng' : 'Thiếu bằng chứng'} />}{record?.level >= 60 && <small className={record.confirmedBy ? 'has-proof' : 'missing-proof'}>{record.confirmedBy ? '✓ XN' : '○ XN'}</small>}<button aria-label={`Thảo luận ${item.title}`} onClick={event => { event.stopPropagation(); onOpen('comments'); }}><MessageCircle size={13} /></button></div>;
       if (['startDate', 'endDate'].includes(column.key)) content = item[column.key]?.split('-').reverse().join('/') || '—';
-      if (column.key === 'days') content = item.days ?? '—';
+      if (column.key === 'days') { const days = workingDaysInRange(item.startDate, item.endDate, item.workCalendar); content = days == null ? (item.days ?? '—') : <span title={`${days} ngày làm (bỏ Chủ nhật / lễ, thứ 7 = 0,5) · ${datesInRange(item.startDate, item.endDate).length} ngày lịch`}>{number(days)}</span>; }
       // Dự báo khi xong theo mức G1 (máy tự tính); nhóm / dự án = tổng các task. Dự báo = Thực tế + Còn lại.
       if (column.key === 'duration') content = work(metric?.forecastWork);
       if (column.key === 'weight') content = metric?.displayWeightPercent != null ? `${number(metric.displayWeightPercent)}%` : metric?.weight == null ? '—' : `${number(metric.weight * 100)}%`;

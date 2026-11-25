@@ -49,9 +49,29 @@ export function assignmentWorkingDayUnits(item, assignment) {
   return assignmentWorkingDates(item, assignment).reduce((sum, key) => sum + workingDayWeight(key), 0);
 }
 
+/**
+ * Số ngày làm thực tế của khoảng ngày (hiển thị cột "Ngày"): bỏ Chủ nhật / ngày lễ theo lịch dự án
+ * (trừ khi dự án chọn có làm các ngày đó), thứ 7 = 0,5. Trả về null nếu thiếu ngày.
+ */
+export function workingDaysInRange(start, end, policy = DEFAULT_WORK_CALENDAR) {
+  if (!start || !end) return null;
+  return datesInRange(start, end).reduce((sum, key) => sum + (nonWorkingDay(key, policy) ? 0 : workingDayWeight(key)), 0);
+}
+
 export function taskWorkingDates(item) {
   if (!item.assignees?.some(a => a.excludeNonWorkingDays === true)) return datesInRange(item.startDate, item.endDate);
   return [...new Set(item.assignees.flatMap(a => assignmentWorkingDates(item, a)))].sort();
+}
+
+/**
+ * Ngày vẽ thanh Gantt: bỏ ngày nghỉ theo lịch dự án (item.workCalendar — Chủ nhật / lễ trừ khi dự án bật làm)
+ * và ngày người làm đã bỏ. split = thanh phải đứt khúc (có ngày bị bỏ). Việc nằm trọn trong ngày nghỉ vẫn vẽ liền.
+ * Chỉ để hiển thị, không đổi cách tính giờ.
+ */
+export function ganttBarDates(item) {
+  const all = datesInRange(item.startDate, item.endDate);
+  const dates = taskWorkingDates(item).filter(key => !nonWorkingDay(key, item.workCalendar));
+  return dates.length && dates.length !== all.length ? { dates, split: true } : { dates: all, split: false };
 }
 
 export function assignmentCalendarConflicts(rows, policy = DEFAULT_WORK_CALENDAR) {

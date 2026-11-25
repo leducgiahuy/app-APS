@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import GanttExcludedDaysBar from './GanttExcludedDaysBar';
-import { assignmentWorkingDates } from '../../utils/assignmentCalendar';
+import { assignmentWorkingDates, ganttBarDates } from '../../utils/assignmentCalendar';
 import { hoursLabel } from '../../utils/workSchedule';
 import { formatDateVi, elapsedScheduleProgress, isTaskOverdue, taskDelayHours, formatDelayHours } from '../../utils/date';
 
@@ -160,6 +160,8 @@ function GanttTaskBar({ item, coord, linkedTask, tasksByGanttId, highlighted: is
       : overdue ? '#ef4444'
         : '#861b36';
   const fillColor = isHoliday ? 'url(#grad-amber)' : 'url(#grad-slate)';
+  // Thanh đứt khúc ở ngày nghỉ theo lịch dự án (Chủ nhật / lễ nếu dự án không bật làm) — chỉ hiển thị.
+  const splitBar = ganttBarDates({ ...item, assignees: itemAssignees }).split;
   const hasAssignments = Array.isArray(itemAssignees) && itemAssignees.length > 0;
   const hasLegacyAssignee = !taskHasAssignmentState && Boolean(item.assignee);
   const assignmentLabels = !isGroup && !isHoliday && (hasAssignments || hasLegacyAssignee)
@@ -224,7 +226,7 @@ function GanttTaskBar({ item, coord, linkedTask, tasksByGanttId, highlighted: is
         />
       )}
 
-      {!isGroup && !isHoliday && !itemAssignees?.some(a => a.excludeNonWorkingDays === true) && (
+      {!isGroup && !isHoliday && !splitBar && (
         <>
           <rect
             x={coord.x}
@@ -259,7 +261,7 @@ function GanttTaskBar({ item, coord, linkedTask, tasksByGanttId, highlighted: is
         </>
       )}
 
-      {!isGroup && !isHoliday && itemAssignees?.some(a => a.excludeNonWorkingDays === true) && <GanttExcludedDaysBar item={{ ...item, assignees: itemAssignees }} timelineStart={timelineStart} pxPerDay={pxPerDay} coord={coord} progress={progress} fillColor={fillColor} statusColor={statusColor} highlighted={isDependencyHighlighted} />}
+      {!isGroup && !isHoliday && splitBar && <GanttExcludedDaysBar item={{ ...item, assignees: itemAssignees }} timelineStart={timelineStart} pxPerDay={pxPerDay} coord={coord} progress={progress} fillColor={fillColor} statusColor={statusColor} highlighted={isDependencyHighlighted} />}
 
       {/* Nhãn trên thanh hoặc cạnh thanh: Tên người đảm nhận, thời gian, tăng ca */}
       {!isGroup && !isHoliday && isDependencyDropTarget && (

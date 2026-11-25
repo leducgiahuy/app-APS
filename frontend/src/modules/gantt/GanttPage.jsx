@@ -17,9 +17,9 @@ import './DeliveryPage.css';
 import GanttRowGrid from './GanttRowGrid';
 import GanttCalendarBackground from './GanttCalendarBackground';
 import { calendarColumns } from '../../utils/vietnamCalendar';
-import { assignmentCalendarConflicts, assignmentWorkingDates, taskWorkingDates } from '../../utils/assignmentCalendar';
+import { assignmentCalendarConflicts, assignmentWorkingDates, ganttBarDates } from '../../utils/assignmentCalendar';
 import { allocateTaskHierarchyWeightPercent } from '../../utils/ganttEffort';
-import { effectivePredecessorIds, effectiveSuccessorIds, linkChanges, sameStartLinkSource } from '../../utils/ganttLinks';
+import { effectivePredecessorIds, effectiveSuccessorIds, implicitPredecessorId, linkChanges, sameStartLinkSource } from '../../utils/ganttLinks';
 import GanttTaskBar, { dependencyHandleX, hasStoredAssignmentState } from './GanttTaskBar';
 import BudgetSourceBanner from './BudgetSourceBanner';
 import AssignmentCalendarConfirmation from './AssignmentCalendarConfirmation';
@@ -1064,8 +1064,9 @@ export default function GanttPage() {
       if (!dateTasks) {
         const linked = tasks.find(task => task.ganttId === item.id);
         const assignees = hasStoredAssignmentState(linked) && Array.isArray(linked.assignees) && linked.assignees.length ? linked.assignees : item.assignees;
-        if (assignees?.some(assignment => assignment.excludeNonWorkingDays === true)) {
-          const working = taskWorkingDates({ ...item, assignees });
+        const bar = ganttBarDates({ ...item, assignees });
+        if (bar.split) {
+          const working = bar.dates;
           if (working.length) {
             const dayOffset = key => (new Date(`${key}T00:00:00`) - timelineStart) / 86400000;
             barX = Math.max(0, dayOffset(working[0])) * pxPerDay;
@@ -1163,7 +1164,9 @@ export default function GanttPage() {
       if (item.isProjectHeader || item.isGroup) return;
       // Liên kết đặt tay, hoặc tự nối từ task đứng ngay trước (utils/ganttLinks.js — dùng chung với khung sửa task).
       effectivePredecessorIds(item, dependencyRows).forEach((depId) => {
-        const drawFromId = drawSourceFor(depId, item.id);
+        // Liên kết người dùng tự kéo / chọn (khác task liền trước) vẽ đúng từ task nguồn, không gom về task cuối cụm.
+        const userLink = Array.isArray(item.manualDependencies) && item.manualDependencies.includes(depId) && depId !== implicitPredecessorId(item, dependencyRows);
+        const drawFromId = userLink ? depId : drawSourceFor(depId, item.id);
         if (!drawFromId) return;
         const sourceId = visibleRepresentative(drawFromId, 'source');
         const targetId = visibleRepresentative(item.id, 'target');
@@ -1472,12 +1475,19 @@ export default function GanttPage() {
     setGroupMenuOpenId(null);
   };
 
+  // Mục có mã lưu khác STT trên tên (VD tên "A2." nhưng task bên trong vẫn A3.x): lưu lại thì đưa task về cùng STT.
+  const groupCodeMismatch = (group, code) => {
+    const stored = cleanWbsCode(group?.code);
+    if (/^[A-Z]\d*$/.test(stored) && stored !== code) return true;
+    // Mục con có task mang mã mục khác (VD mục A2 còn task A3.1).
+    return /^[A-Z]\d+$/.test(code) && hierarchyGanttItems.some(row => !row.isGroup && row.parentGroupId === group?.id && /^[A-Z]\d+\.\d/.test(cleanWbsCode(row.code)) && cleanWbsCode(row.code).split('.')[0] !== code);
+  };
   const handleGroupEditSubmit = async event => {
     event.preventDefault();
     const name = groupEditForm.title.trim();
     const code = cleanWbsCode(groupEditForm.code);
     if (!editingGroup || !name || !code || !groupEditForm.startDate || !groupEditForm.endDate || groupEditForm.endDate < groupEditForm.startDate) return;
-    const codeChanged = code !== itemWbsCode(editingGroup);
+    const codeChanged = code !== itemWbsCode(editingGroup) || groupCodeMismatch(editingGroup, code);
     const hadPrefix = stripGroupCode(editingGroup.title) !== String(editingGroup.title || '').trim();
     if (await updateGanttItem(editingGroup.id, {
       title: hadPrefix || codeChanged ? `${code}. ${name}` : name,
@@ -3127,9 +3137,9 @@ export default function GanttPage() {
                   />
                 </label>
               </div>
-              {cleanWbsCode(groupEditForm.code) !== itemWbsCode(editingGroup) && (
+              {(cleanWbsCode(groupEditForm.code) !== itemWbsCode(editingGroup) || groupCodeMismatch(editingGroup, cleanWbsCode(groupEditForm.code))) && (
                 <p className="-mt-2 text-[11px] text-slate-500 dark:text-slate-400">
-                  Các dòng con có STT bắt đầu bằng {itemWbsCode(editingGroup)} sẽ đổi theo sang {cleanWbsCode(groupEditForm.code) || '…'}.
+                  Các task trong mục sẽ đổi mã theo STT mục: {cleanWbsCode(groupEditForm.code) || '…'}.x (VD {cleanWbsCode(groupEditForm.code) || '…'}.1, {cleanWbsCode(groupEditForm.code) || '…'}.2).
                 </p>
               )}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

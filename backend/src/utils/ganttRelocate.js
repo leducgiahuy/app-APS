@@ -130,12 +130,14 @@ function renumberPhaseSections(db, phase, projectId) {
   // Tính hết rồi mới gán, để B3 → B2 không đụng task của B2 → B1.
   const plan = sections.map((section, index) => ({ section, old: itemWbsCode(section), next: `${key}${index + 1}`, members: membersOf(section) }));
   for (const { section, old, next, members } of plan) {
-    if (old === next) continue;
-    section.code = next;
-    section.title = `${next}. ${stripGroupCode(section.title)}`;
+    if (old !== next) {
+      section.code = next;
+      section.title = `${next}. ${stripGroupCode(section.title)}`;
+    }
+    // Task trong mục luôn mang mã mục ở đầu — đổi theo phần đầu thật của mã task (mục có tên lệch mã task, VD tên A2 mà task A3.x).
     for (const task of members) {
-      const code = cleanWbsCode(task.code);
-      if (old && (code === old || code.startsWith(`${old}.`))) setCode(db, task, next + code.slice(old.length));
+      const code = cleanWbsCode(task.code), head = code.split('.')[0];
+      if (/^[A-Z]\d+\.\d/.test(code) && head !== next) setCode(db, task, next + code.slice(head.length));
     }
   }
 }

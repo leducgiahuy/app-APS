@@ -1,7 +1,7 @@
-import { taskWorkingDates, workingDateSegments } from '../../utils/assignmentCalendar';
+import { ganttBarDates, workingDateSegments } from '../../utils/assignmentCalendar';
 
 export default function GanttExcludedDaysBar({ item, timelineStart, pxPerDay, coord, progress, fillColor, statusColor, highlighted }) {
-  const working = taskWorkingDates(item);
+  const working = ganttBarDates(item).dates;
   let remaining = working.length * progress / 100;
   return workingDateSegments(working).map(segment => {
     const x = (Date.parse(`${segment.startDate}T00:00:00Z`) - Date.UTC(timelineStart.getFullYear(), timelineStart.getMonth(), timelineStart.getDate())) / 86400000 * pxPerDay;
