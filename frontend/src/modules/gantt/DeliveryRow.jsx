@@ -51,7 +51,13 @@ export default function DeliveryRow({ item, columns, height, depth = 0, record, 
     window.addEventListener('resize', close);
     return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape); window.removeEventListener('scroll', close, true); window.removeEventListener('resize', close); };
   }, [createMenu]);
-  if (item.deliveryBand) return <div className={`delivery-band-label ${item.deliveryBand}`} style={{ height }}><strong>{item.deliveryBand === 'money' ? 'Tiền lũy kế dự án (tr)' : '◆ Mốc thanh toán hợp đồng'}</strong>{item.deliveryBand === 'money' && <small><i className="received">— Đã thu</i> · <i className="spent">— Chi phí đã bỏ ra</i> · <i className="earned">-- Sản lượng làm ra</i></small>}</div>;
+  // Dải Tiền lũy kế: có nút thu gọn / mở rộng (onToggle, collapsed) — chiều cao co giãn ở GanttPage (.delivery-money-band).
+  if (item.deliveryBand) return <div className={`delivery-band-label ${item.deliveryBand}${collapsed ? ' is-collapsed' : ''}`} style={{ height: onToggle ? '100%' : height }}>
+    {item.deliveryBand === 'money' && onToggle
+      ? <button type="button" className="delivery-band-toggle" onClick={onToggle} aria-expanded={!collapsed} title={collapsed ? 'Mở rộng dải tiền lũy kế' : 'Thu gọn dải tiền lũy kế'}><ChevronDown size={14} /><strong>Tiền lũy kế dự án (tr)</strong></button>
+      : <strong>{item.deliveryBand === 'money' ? 'Tiền lũy kế dự án (tr)' : '◆ Mốc thanh toán hợp đồng'}</strong>}
+    {item.deliveryBand === 'money' && <small><i className="received">— Đã thu</i> · <i className="spent">— Chi phí đã bỏ ra</i> · <i className="earned">-- Sản lượng làm ra</i></small>}
+  </div>;
   const group = item.isGroup || item.isProjectHeader || item.hasTaskChildren;
   const people = item.assignees?.length ? item.assignees : item.assignee ? [{ employeeName: item.assignee }] : [];
   record = record || defaultDeliveryRecord(item);

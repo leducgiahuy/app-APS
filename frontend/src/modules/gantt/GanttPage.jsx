@@ -86,6 +86,11 @@ const orderByDependencies = items => {
 };
 
 const GANTT_TABLE_MIN_WIDTH = 120;
+// Dải Tiền lũy kế dự án: cao khi mở / khi thu gọn (chỉ còn dòng tiêu đề).
+const MONEY_BAND_OPEN = 80;
+const MONEY_BAND_CLOSED = 30;
+const MONEY_BAND_PREF = 'aps_money_band_open';
+const MONEY_BAND_ITEM = { deliveryBand: 'money' };
 // Một dòng tên ở cột Người làm: 18px + 4px khoảng cách.
 const PERSON_LINE_HEIGHT = 22;
 // Giới hạn khi kéo đổi độ rộng một cột của bảng tiến độ.
@@ -1963,6 +1968,12 @@ export default function GanttPage() {
     if (target) await relocateGanttItem(draggedId, target.groupId, target.beforeId);
   };
 
+  // Dải Tiền lũy kế dự án: thu gọn / mở rộng có hiệu ứng (DeliveryPage.css .delivery-money-band); nhớ lựa chọn trên trình duyệt.
+  const [moneyBandOpen, setMoneyBandOpen] = useState(() => { try { return localStorage.getItem(MONEY_BAND_PREF) !== '0'; } catch { return true; } });
+  const toggleMoneyBand = useCallback(() => setMoneyBandOpen(open => {
+    try { localStorage.setItem(MONEY_BAND_PREF, open ? '0' : '1'); } catch { /* trình duyệt chặn lưu: vẫn thu / mở được */ }
+    return !open;
+  }), []);
   const rowActionsRef = useRef(null);
   const chartActionsRef = useRef(null);
   useLayoutEffect(() => {
@@ -2268,7 +2279,7 @@ export default function GanttPage() {
               </div>
 
 
-            {deliveryData?.permissions.financial && <DeliveryRow item={{ deliveryBand:'money' }} height={80} />}
+            {deliveryData?.permissions.financial && <div className={`delivery-money-band${moneyBandOpen ? ' is-open' : ''}`} style={{ height: moneyBandOpen ? MONEY_BAND_OPEN : MONEY_BAND_CLOSED }}><DeliveryRow item={MONEY_BAND_ITEM} height={MONEY_BAND_OPEN} collapsed={!moneyBandOpen} onToggle={toggleMoneyBand} /></div>}
           </div>
           <div className="flex-none" style={{ width: ganttWidth, display: tableMode === 'full' ? 'none' : undefined }}>
               {/* Header tháng/tuần dùng chung chiều cao với bảng bên trái. */}
@@ -2279,7 +2290,7 @@ export default function GanttPage() {
                 {timelineHeaderCells}
               </div>
 
-            {deliveryData?.permissions.financial && <svg width={ganttWidth} height={80}><DeliveryChartOverlay data={deliveryData} financial items={NO_ITEMS} coordinates={NO_COORDINATES} rowOffsets={NO_ITEMS} timelineStart={timelineStart} pxPerDay={pxPerDay} width={ganttWidth} height={80} now={currentTime} groupPercent={groupPercent} /></svg>}
+            {deliveryData?.permissions.financial && <div className={`delivery-money-band${moneyBandOpen ? ' is-open' : ''}`} style={{ height: moneyBandOpen ? MONEY_BAND_OPEN : MONEY_BAND_CLOSED }} onClick={moneyBandOpen ? undefined : toggleMoneyBand} title={moneyBandOpen ? undefined : 'Bấm để mở dải tiền lũy kế'}><svg width={ganttWidth} height={80}><DeliveryChartOverlay data={deliveryData} financial items={NO_ITEMS} coordinates={NO_COORDINATES} rowOffsets={NO_ITEMS} timelineStart={timelineStart} pxPerDay={pxPerDay} width={ganttWidth} height={80} now={currentTime} groupPercent={groupPercent} /></svg></div>}
           </div>
         </div>
       </div>}

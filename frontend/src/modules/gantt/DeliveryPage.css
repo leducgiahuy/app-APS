@@ -554,6 +554,49 @@
   font-size:var(--text-caption);
   white-space:normal
 }
+/* Dải Tiền lũy kế dự án thu gọn / mở rộng: hai nửa (bảng + biểu đồ) co giãn cùng chiều cao, nội dung mờ dần. */
+.delivery-money-band {
+  overflow:hidden;
+  transition:height .32s cubic-bezier(.2,.8,.2,1);
+}
+.delivery-money-band > svg,
+.delivery-money-band .delivery-band-label small {
+  transition:opacity .22s ease, transform .32s cubic-bezier(.2,.8,.2,1);
+}
+.delivery-money-band:not(.is-open) > svg,
+.delivery-money-band:not(.is-open) .delivery-band-label small {
+  opacity:0;
+  transform:translateY(-8px);
+  pointer-events:none;
+}
+.delivery-money-band:not(.is-open) { cursor:pointer; }
+/* Tiêu đề luôn ở trên cùng (không nhảy khi thu / mở), chú thích nằm dưới. */
+.delivery-money-band .delivery-band-label {
+  justify-content:flex-start;
+  padding-top:5px;
+}
+.delivery-band-toggle {
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  margin-left:-22px;
+  padding:2px 6px 2px 2px;
+  border-radius:6px;
+  color:inherit;
+  background:none;
+  border:0;
+  cursor:pointer;
+  text-align:left;
+}
+.delivery-band-toggle:hover { background:rgba(138, 28, 58, .07); }
+.delivery-band-toggle svg { flex:none; color:#8a1c3a; transition:transform .32s cubic-bezier(.2,.8,.2,1); }
+.delivery-band-label.is-collapsed .delivery-band-toggle svg { transform:rotate(-90deg); }
+@media (prefers-reduced-motion: reduce) {
+  .delivery-money-band,
+  .delivery-money-band > svg,
+  .delivery-money-band .delivery-band-label small,
+  .delivery-band-toggle svg { transition:none; }
+}
 .delivery-band-label i {
   font-style:normal
 }
