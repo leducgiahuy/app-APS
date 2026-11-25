@@ -9,9 +9,12 @@ const countInclusiveDays = (startDate, endDate) => {
     : 0;
 };
 
+/** Giờ/ngày đang dùng của một người: của phân công, không có (0 / trống) thì lấy theo task — một nguồn cho mọi phép tính giờ. */
+export const assignmentHoursPerDay = (item, assignment) => Number(assignment.estimatedHoursPerDay) ||
+  Number(item.estimatedHoursPerDay) || Number(item.estimatedHours) / (Number(item.days) || 1) || 8;
+
 export const calculateAssignmentHours = (item, assignment) => {
-  const hoursPerDay = Number(assignment.estimatedHoursPerDay) ||
-    Number(item.estimatedHoursPerDay) || Number(item.estimatedHours) / (Number(item.days) || 1) || 8;
+  const hoursPerDay = assignmentHoursPerDay(item, assignment);
   if (assignment.excludeNonWorkingDays === true) {
     return assignmentWorkingDayUnits(item, assignment) * hoursPerDay;
   }

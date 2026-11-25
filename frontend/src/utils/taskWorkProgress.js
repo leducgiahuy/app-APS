@@ -45,8 +45,8 @@ export function taskWorkPace(task, { employees = [], viewerEmployeeId = '', now 
     for (const key of assignmentWorkingDates(task, assignment)) {
       if (key < today) expected += daily * workingDayWeight(key);
       else if (key === today) {
-        const dayHours = dayWorkHours(key);
-        if (dayHours > 0) expected += daily * workingDayWeight(key) * Math.min(1, scheduledWorkHours(Date.parse(`${key}T00:00:00+07:00`), nowMs) / dayHours);
+        const dayHours = dayWorkHours(key, task.workCalendar);
+        if (dayHours > 0) expected += daily * workingDayWeight(key) * Math.min(1, scheduledWorkHours(Date.parse(`${key}T00:00:00+07:00`), nowMs, task.workCalendar) / dayHours);
       }
     }
   }

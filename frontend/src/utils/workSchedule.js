@@ -37,16 +37,21 @@ export function durationLabel(ms) {
   return hours ? `${hours} giờ${minutes ? ` ${minutes} phút` : ''}` : `${minutes} phút`;
 }
 
-/** Khung ca của một ngày, null nếu Chủ nhật / ngày lễ. */
-export function scheduleForDate(key) {
+/**
+ * Khung ca của một ngày, null nếu là ngày nghỉ. policy = lịch ngày nghỉ của dự án (assignmentCalendar.js WORK_CALENDARS):
+ * 'none' (mặc định, cũng là lịch chấm công) nghỉ Chủ nhật + lễ; 'sunday' làm Chủ nhật; 'all' làm cả lễ.
+ * Chủ nhật / lễ có làm dùng khung ngày thường (8 tiếng); lễ rơi vào thứ 7 vẫn theo khung thứ 7.
+ */
+export function scheduleForDate(key, policy = 'none') {
   const kind = vietnamCalendarDay(new Date(`${key}T12:00:00`)).kind;
-  if (kind === 'holiday' || kind === 'sunday') return null;
+  if (kind === 'holiday' && policy !== 'all') return null;
+  if (kind === 'sunday' && policy !== 'all' && policy !== 'sunday') return null;
   return new Date(`${key}T12:00:00Z`).getUTCDay() === 6 ? WORK_SCHEDULE.saturday : WORK_SCHEDULE.weekday;
 }
 
 /** Các khoảng giờ được tính công của một ngày (ms), đã bỏ nghỉ trưa. */
-export function workWindows(key) {
-  const schedule = scheduleForDate(key);
+export function workWindows(key, policy = 'none') {
+  const schedule = scheduleForDate(key, policy);
   if (!schedule) return [];
   const base = dayStartMs(key), at = minutes => base + minutes * MINUTE;
   return schedule.lunch
@@ -55,19 +60,19 @@ export function workWindows(key) {
 }
 
 /** Số ms làm việc thật trong khoảng [start, end]: chỉ phần nằm trong giờ ca, không tính nghỉ trưa, trước giờ vào hay sau giờ tan. */
-export function scheduledWorkMs(start, end) {
+export function scheduledWorkMs(start, end, policy = 'none') {
   const from = toMs(start), to = toMs(end);
   if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) return 0;
   let total = 0;
   for (let key = vnDateKey(from), last = vnDateKey(to); key <= last; key = nextKey(key)) {
-    for (const [windowStart, windowEnd] of workWindows(key)) total += Math.max(0, Math.min(to, windowEnd) - Math.max(from, windowStart));
+    for (const [windowStart, windowEnd] of workWindows(key, policy)) total += Math.max(0, Math.min(to, windowEnd) - Math.max(from, windowStart));
   }
   return total;
 }
-export const scheduledWorkHours = (start, end) => scheduledWorkMs(start, end) / 3600000;
+export const scheduledWorkHours = (start, end, policy = 'none') => scheduledWorkMs(start, end, policy) / 3600000;
 
 /** Tổng giờ làm của một ngày theo lịch (8 / 4 / 0). */
-export const dayWorkHours = key => workWindows(key).reduce((sum, [start, end]) => sum + (end - start), 0) / 3600000;
+export const dayWorkHours = (key, policy = 'none') => workWindows(key, policy).reduce((sum, [start, end]) => sum + (end - start), 0) / 3600000;
 /** Giờ tan ca (ms) của một ngày, null nếu không có ca. */
 export function shiftEndMs(key) { const schedule = scheduleForDate(key); return schedule ? dayStartMs(key) + schedule.end * MINUTE : null; }
 /** Khung nghỉ trưa (ms) của một ngày, null nếu ngày đó không nghỉ trưa. */

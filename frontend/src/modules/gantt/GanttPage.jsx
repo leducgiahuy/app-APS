@@ -19,6 +19,7 @@ import GanttCalendarBackground from './GanttCalendarBackground';
 import { calendarColumns } from '../../utils/vietnamCalendar';
 import { assignmentCalendarConflicts, assignmentWorkingDates, taskWorkingDates } from '../../utils/assignmentCalendar';
 import { allocateTaskHierarchyWeightPercent } from '../../utils/ganttEffort';
+import { effectivePredecessorIds, effectiveSuccessorIds, linkChanges } from '../../utils/ganttLinks';
 import GanttTaskBar, { dependencyHandleX, hasStoredAssignmentState } from './GanttTaskBar';
 import BudgetSourceBanner from './BudgetSourceBanner';
 import AssignmentCalendarConfirmation from './AssignmentCalendarConfirmation';
@@ -30,7 +31,7 @@ import ModalOverlay from '../../components/layout/ModalOverlay';
 import SearchableSelect from '../../components/SearchableSelect';
 import DateInput from '../../components/DateInput';
 import EmployeeCombobox from '../../components/EmployeeCombobox';
-import { WBS_PHASE_PRESETS, phasePresetFor } from '../../utils/wbsStructure';
+import { WBS_PHASE_PRESETS, cleanWbsCode, itemWbsCode, phasePresetFor, stripGroupCode } from '../../utils/wbsStructure';
 import {
   inferGanttGroupHierarchy,
   getGroupDescendantTasks
@@ -200,6 +201,10 @@ const GanttTableRow = memo(function GanttTableRow({ actions, ...props }) {
       onSaveWork={(id, patch) => actions.current.saveWork(item, id, patch)}
       onCreateTask={child => actions.current.createTask(item, child)}
       onVarianceReason={props.canExplainVariance ? () => actions.current.varianceReason(item) : undefined}
+      onDragHandleStart={event => actions.current.dragStart(item, event)}
+      onDragHandleEnd={() => actions.current.dragEnd()}
+      onRowDragOver={event => actions.current.dragOver(item, event)}
+      onRowDrop={event => actions.current.drop(item, event)}
     />
   );
 });
@@ -219,6 +224,7 @@ export default function GanttPage() {
     updateProject,
     deleteProject,
     updateGanttItem,
+    relocateGanttItem,
     refreshAllData,
     permissions: companyPermissions
   } = useApp();
@@ -462,7 +468,7 @@ export default function GanttPage() {
   const [showPhaseDateModal, setShowPhaseDateModal] = useState(false);
   const [phaseDateForm, setPhaseDateForm] = useState({ phase: null, projectId: '', itemId: '', startDate: today, endDate: today });
   const [editingGroup, setEditingGroup] = useState(null);
-  const [groupEditForm, setGroupEditForm] = useState({ title: '', startDate: '', endDate: '' });
+  const [groupEditForm, setGroupEditForm] = useState({ code: '', title: '', startDate: '', endDate: '' });
   const [groupMenuOpenId, setGroupMenuOpenId] = useState(null);
   const [groupCreateContext, setGroupCreateContext] = useState(null);
   const [showAddProjectModal, setShowAddProjectModal] = useState(false);
@@ -1146,24 +1152,10 @@ export default function GanttPage() {
       }
       return null;
     };
-    dependencyRows.forEach((item, toIndex) => {
-      if (item.isProjectHeader) return;
-      const suppressedDependencies = new Set(Array.isArray(item.suppressedDependencies) ? item.suppressedDependencies : []);
-      let deps = (Array.isArray(item.dependencies) ? [...item.dependencies] : [])
-        .filter(dependencyId => !suppressedDependencies.has(dependencyId));
-
-      // Nếu là công việc con và chưa có liên kết, tự động nối từ công việc đứng ngay trước đó
-      if (deps.length === 0 && !item.isGroup && toIndex > 0) {
-        for (let p = toIndex - 1; p >= 0; p--) {
-          const candidate = dependencyRows[p];
-          if (candidate && !candidate.isProjectHeader && !candidate.isGroup && candidate.projectId === item.projectId && candidate.parentTaskId === item.parentTaskId) {
-            if (!suppressedDependencies.has(candidate.id)) deps = [candidate.id];
-            break;
-          }
-        }
-      }
-
-      [...new Set(deps)].filter(depId => depId !== item.id).forEach((depId) => {
+    dependencyRows.forEach(item => {
+      if (item.isProjectHeader || item.isGroup) return;
+      // Liên kết đặt tay, hoặc tự nối từ task đứng ngay trước (utils/ganttLinks.js — dùng chung với khung sửa task).
+      effectivePredecessorIds(item, dependencyRows).forEach((depId) => {
         const sourceId = visibleRepresentative(depId, 'source');
         const targetId = visibleRepresentative(item.id, 'target');
         if (!sourceId || !targetId || sourceId === targetId) return;
@@ -1434,18 +1426,23 @@ export default function GanttPage() {
     }
   };
 
+  // STT và tên mục tách riêng: tên lưu là "STT. Tên" (VD "A1. KHẢO SÁT"), STT hiển thị lấy từ tiền tố này (itemWbsCode).
   const openGroupEdit = item => {
-    setGroupEditForm({ title: item.title, startDate: item.startDate || '', endDate: item.endDate || '' });
+    setGroupEditForm({ code: itemWbsCode(item), title: stripGroupCode(item.title), startDate: item.startDate || '', endDate: item.endDate || '' });
     setEditingGroup(item);
     setGroupMenuOpenId(null);
   };
 
   const handleGroupEditSubmit = async event => {
     event.preventDefault();
-    const title = groupEditForm.title.trim();
-    if (!editingGroup || !title || !groupEditForm.startDate || !groupEditForm.endDate || groupEditForm.endDate < groupEditForm.startDate) return;
+    const name = groupEditForm.title.trim();
+    const code = cleanWbsCode(groupEditForm.code);
+    if (!editingGroup || !name || !code || !groupEditForm.startDate || !groupEditForm.endDate || groupEditForm.endDate < groupEditForm.startDate) return;
+    const codeChanged = code !== itemWbsCode(editingGroup);
+    const hadPrefix = stripGroupCode(editingGroup.title) !== String(editingGroup.title || '').trim();
     if (await updateGanttItem(editingGroup.id, {
-      title,
+      title: hadPrefix || codeChanged ? `${code}. ${name}` : name,
+      ...(codeChanged ? { code } : {}),
       startDate: groupEditForm.startDate,
       endDate: groupEditForm.endDate
     })) setEditingGroup(null);
@@ -1626,8 +1623,21 @@ export default function GanttPage() {
     const days = inclusiveDays(item.startDate, item.endDate);
     const assignedEmployee = employees.find(employee => employee.name === item.assignee);
     const estimatedHours = Number(item.estimatedHoursPerDay) || (Number(item.estimatedHours) > 0 ? Number(item.estimatedHours) / days : Number(assignedEmployee?.standardHours) || 8);
-    setEditForm({ title: item.title || '', startDate: item.startDate, endDate: item.endDate, days, estimatedHours, estimatedHoursEdited: true });
+    // STT + liên kết FS đang có (đặt tay hoặc tự nối — cùng cách vẽ trên biểu đồ, utils/ganttLinks.js).
+    const row = dependencyRows.find(candidate => candidate.id === item.id) || item;
+    setEditForm({
+      title: item.title || '', startDate: item.startDate, endDate: item.endDate, days, estimatedHours, estimatedHoursEdited: true,
+      code: itemWbsCode(item),
+      predecessorId: effectivePredecessorIds(row, dependencyRows)[0] || '',
+      successorId: effectiveSuccessorIds(row, dependencyRows)[0] || '',
+    });
   };
+
+  // Task cùng dự án (trừ chính nó), theo thứ tự trên bảng — lựa chọn cho ô Công việc trước / sau.
+  const editLinkOptions = editingItem
+    ? dependencyRows.filter(row => !row.isGroup && !row.isProjectHeader && row.id !== editingItem.id && projectIdForItem(row) === projectIdForItem(editingItem))
+      .map(row => ({ value: row.id, code: row.code, title: row.title, label: `[${row.code}] ${row.title}`, searchText: ganttOptionSearchText(row) }))
+    : [];
 
   const handleEditSubmit = async (e) => {
     e.preventDefault();
@@ -1644,8 +1654,32 @@ export default function GanttPage() {
       window.alert('Vui lòng nhập tên công việc.');
       return;
     }
-    const success = await updateGanttItem(editingItem.id, { ...editForm, title: editForm.title.trim(), estimatedHoursPerDay: editForm.estimatedHours });
-    if (success) setEditingItem(null);
+    const code = cleanWbsCode(editForm.code);
+    if (!code) {
+      window.alert('Vui lòng nhập STT.');
+      return;
+    }
+    if (editForm.predecessorId && editForm.predecessorId === editForm.successorId) {
+      window.alert('Công việc trước và Công việc sau không được là cùng một task.');
+      return;
+    }
+    // Liên kết FS tính trên thứ tự hiện tại của bảng; task này gửi kèm trong cùng lần lưu, task trước / sau gửi riêng.
+    const row = dependencyRows.find(candidate => candidate.id === editingItem.id) || editingItem;
+    const links = linkChanges(row, dependencyRows, { predecessorId: editForm.predecessorId, successorId: editForm.successorId });
+    const ownLink = links.find(change => change.id === editingItem.id)?.patch || {};
+    const { predecessorId: _predecessorId, successorId: _successorId, code: _code, ...fields } = editForm;
+    const success = await updateGanttItem(editingItem.id, {
+      ...fields,
+      title: editForm.title.trim(),
+      estimatedHoursPerDay: editForm.estimatedHours,
+      ...(code !== itemWbsCode(editingItem) ? { code } : {}),
+      ...ownLink,
+    });
+    if (!success) return;
+    for (const change of links.filter(entry => entry.id !== editingItem.id)) {
+      if (!await updateGanttItem(change.id, change.patch)) return;
+    }
+    setEditingItem(null);
   };
 
   const isTaskCompleted = item => Boolean(item) && (
@@ -1713,7 +1747,7 @@ export default function GanttPage() {
       window.alert(`Khoảng thời gian đảm nhận phải nằm trong thời gian công việc (${formatDateVi(assignmentEditorItem.startDate)} → ${formatDateVi(assignmentEditorItem.endDate)}).`);
       return;
     }
-    const conflicts = assignmentCalendarConflicts(assignmentRows);
+    const conflicts = assignmentCalendarConflicts(assignmentRows, assignmentEditorItem.workCalendar);
     if (conflicts.length) {
       setAssignmentCalendarPrompt({ rows: assignmentRows.map(row => ({ ...row })), conflicts });
       return;
@@ -1807,6 +1841,69 @@ export default function GanttPage() {
   const showIT = false;
   const refreshDeliveryMetrics = delivery.refresh;
   // Dòng bảng và thanh Gantt được memo: thao tác của chúng đi qua ref, cập nhật sau mỗi lần vẽ, nên luôn gọi hàm mới nhất.
+  // ===== Kéo thả task sang mục khác / vào giữa hai task (máy chủ: utils/ganttRelocate.js) =====
+  // Chỉ task cấp mục (task con đi theo task cha). Thả lên dòng mục → cuối mục; nửa trên dòng task → trước task đó;
+  // nửa dưới → sau task đó (sau cả các task con của nó). Máy chủ nối lại FS, đánh số lại STT, giữ ngày.
+  const [dragTaskId, setDragTaskId] = useState(null);
+  const [dropHint, setDropHint] = useState(null);
+  const dragTaskRef = useRef(null);
+  const canDragTask = item => canManageStructure && !previewing && !item.isGroup && !item.isProjectHeader && !item.parentTaskId && Boolean(item.parentGroupId);
+  const rowById = id => dependencyRows.find(row => row.id === id);
+  const rootTaskOf = row => { let root = row; const seen = new Set(); while (root?.parentTaskId && !seen.has(root.id)) { seen.add(root.id); root = rowById(root.parentTaskId) || root; if (seen.has(root.id)) break; } return root; };
+  const nextTopSibling = (root, excludeId) => {
+    const index = dependencyRows.findIndex(row => row.id === root.id);
+    return dependencyRows.slice(index + 1).find(row => !row.isGroup && !row.isProjectHeader && !row.parentTaskId && row.id !== excludeId &&
+      row.parentGroupId === root.parentGroupId && projectIdForItem(row) === projectIdForItem(root)) || null;
+  };
+  // Dòng hiển thị cuối cùng của một task (chính nó hoặc task con cuối) — nơi vẽ vạch "thả sau".
+  const lastVisibleRowOf = root => {
+    const index = filteredGanttItems.findIndex(row => row.id === root.id);
+    let last = root;
+    for (let position = index + 1; position < filteredGanttItems.length; position += 1) {
+      const row = filteredGanttItems[position];
+      if (row.isGroup || row.isProjectHeader || !row.parentTaskId || rootTaskOf(row)?.id !== root.id) break;
+      last = row;
+    }
+    return last;
+  };
+  const dropTargetFor = (row, event) => {
+    const dragged = rowById(dragTaskRef.current);
+    if (!dragged || row.isProjectHeader || projectIdForItem(row) !== projectIdForItem(dragged)) return null;
+    if (row.isGroup) return { rowId: row.id, position: 'into', groupId: row.id, beforeId: '' };
+    const root = rootTaskOf(row);
+    if (!root || root.id === dragged.id || !root.parentGroupId) return null;
+    const rect = event.currentTarget.getBoundingClientRect();
+    if (!row.parentTaskId && event.clientY < rect.top + rect.height / 2) return { rowId: root.id, position: 'before', groupId: root.parentGroupId, beforeId: root.id };
+    return { rowId: lastVisibleRowOf(root).id, position: 'after', groupId: root.parentGroupId, beforeId: nextTopSibling(root, dragged.id)?.id || '' };
+  };
+  const startTaskDrag = (item, event) => {
+    event.stopPropagation();
+    if (!canDragTask(item)) { event.preventDefault(); return; }
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', item.id);
+    const rowElement = event.currentTarget.closest('.delivery-row');
+    if (rowElement) event.dataTransfer.setDragImage(rowElement, 24, 16);
+    dragTaskRef.current = item.id;
+    setDragTaskId(item.id);
+  };
+  const endTaskDrag = () => { dragTaskRef.current = null; setDragTaskId(null); setDropHint(null); };
+  const overTaskDrag = (row, event) => {
+    if (!dragTaskRef.current) return;
+    const target = dropTargetFor(row, event);
+    if (!target) { setDropHint(current => current ? null : current); return; }
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    setDropHint(current => current && current.rowId === target.rowId && current.position === target.position && current.beforeId === target.beforeId ? current : target);
+  };
+  const dropTaskDrag = async (row, event) => {
+    const draggedId = dragTaskRef.current;
+    if (!draggedId) return;
+    event.preventDefault();
+    const target = dropTargetFor(row, event);
+    endTaskDrag();
+    if (target) await relocateGanttItem(draggedId, target.groupId, target.beforeId);
+  };
+
   const rowActionsRef = useRef(null);
   const chartActionsRef = useRef(null);
   useLayoutEffect(() => {
@@ -1819,6 +1916,10 @@ export default function GanttPage() {
       saveWork: (item, id, patch) => item.isProjectHeader ? updateProject(item.projectId, patch) : updateGanttItem(id, patch),
       createTask: createDeliveryTask,
       varianceReason: explainVariance,
+      dragStart: startTaskDrag,
+      dragEnd: endTaskDrag,
+      dragOver: overTaskDrag,
+      drop: dropTaskDrag,
     };
     chartActionsRef.current = { openDetail, assign: handleAssignmentsOpen, startDependencyDrag };
   });
@@ -2163,7 +2264,7 @@ export default function GanttPage() {
               
               {/* Danh Sách Các Hàng Công Việc (Khóa cứng 44px mỗi dòng) */}
               <div style={{ minHeight: `${chartBodyHeight}px` }}>
-                {filteredGanttItems.map((item, itemIndex) => <GanttTableRow key={item.id} actions={rowActionsRef} canExplainVariance={!previewing && reviewingRole(viewerRole)} item={item} columns={currentColumns} height={rowHeights[itemIndex]} depth={groupDepthForItem(item)} record={deliveryData?.records[item.id]} metric={metricForRow(item)} aggregate={groupPercent(item)} employees={employees} collapsed={item.isProjectHeader ? collapsedProjectIds.has(item.projectId) : item.isGroup ? collapsedGroupIds.has(item.id) : collapsedTaskIds.has(item.id)} color={item.isGroup ? phaseColorForGroup(item) : item.color} readOnly={previewing || !canManageStructure} canAssign={!previewing && canManageAssignments} highlighted={item.id === linkTargetId} />)}
+                {filteredGanttItems.map((item, itemIndex) => <GanttTableRow key={item.id} actions={rowActionsRef} canExplainVariance={!previewing && reviewingRole(viewerRole)} item={item} columns={currentColumns} height={rowHeights[itemIndex]} depth={groupDepthForItem(item)} record={deliveryData?.records[item.id]} metric={metricForRow(item)} aggregate={groupPercent(item)} employees={employees} collapsed={item.isProjectHeader ? collapsedProjectIds.has(item.projectId) : item.isGroup ? collapsedGroupIds.has(item.id) : collapsedTaskIds.has(item.id)} color={item.isGroup ? phaseColorForGroup(item) : item.color} readOnly={previewing || !canManageStructure} canAssign={!previewing && canManageAssignments} highlighted={item.id === linkTargetId} canDrag={canDragTask(item)} dropHint={dropHint?.rowId === item.id ? dropHint.position : ''} dragging={dragTaskId === item.id} />)}
               </div>
 
             </div>
@@ -2445,7 +2546,7 @@ export default function GanttPage() {
 
       {editingItem && (
         <ModalOverlay>
-          <div className="w-full max-w-md p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4">
+          <div className="w-full max-w-xl p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <div>
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white">Chỉnh thời gian công việc</h3>
@@ -2455,17 +2556,32 @@ export default function GanttPage() {
             </div>
 
             <form onSubmit={handleEditSubmit} className="space-y-4">
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                Tên task
-                <input
-                  type="text"
-                  required
-                  maxLength={120}
-                  value={editForm.title}
-                  onChange={event => setEditForm(current => ({ ...current, title: event.target.value }))}
-                  className="mt-1 w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
-                />
-              </label>
+              <div className="grid grid-cols-[96px_1fr] gap-3">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  STT
+                  <input
+                    type="text"
+                    required
+                    maxLength={30}
+                    value={editForm.code || ''}
+                    onChange={event => setEditForm(current => ({ ...current, code: event.target.value.toUpperCase() }))}
+                    placeholder="VD: A1.2"
+                    title="STT không được trùng trong dự án. STT thuộc mục khác (VD A2.3) thì task chuyển sang mục đó; task con đổi theo."
+                    className="mt-1 w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold"
+                  />
+                </label>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Tên task
+                  <input
+                    type="text"
+                    required
+                    maxLength={120}
+                    value={editForm.title}
+                    onChange={event => setEditForm(current => ({ ...current, title: event.target.value }))}
+                    className="mt-1 w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
+                  />
+                </label>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                   Ngày bắt đầu
@@ -2517,6 +2633,33 @@ export default function GanttPage() {
                   className="mt-1 w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold"
                 />
               </label>
+              {/* Liên kết FS: hiện đúng đường nối đang vẽ (đặt tay hoặc tự nối), đổi ở đây thì biểu đồ nối lại theo. */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">Công việc trước (liên kết FS)</label>
+                  <SearchableSelect
+                    label="Công việc trước"
+                    value={editForm.predecessorId || ''}
+                    onChange={value => setEditForm(current => ({ ...current, predecessorId: value, successorId: current.successorId === value ? '' : current.successorId }))}
+                    options={[
+                      { value: '', label: '-- Không có liên kết FS --' },
+                      ...editLinkOptions.filter(option => option.value !== editForm.successorId)
+                    ]}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">Công việc sau (liên kết FS)</label>
+                  <SearchableSelect
+                    label="Công việc sau"
+                    value={editForm.successorId || ''}
+                    onChange={value => setEditForm(current => ({ ...current, successorId: value, predecessorId: current.predecessorId === value ? '' : current.predecessorId }))}
+                    options={[
+                      { value: '', label: '-- Không nối tới task sau --' },
+                      ...editLinkOptions.filter(option => option.value !== editForm.predecessorId)
+                    ]}
+                  />
+                </div>
+              </div>
               <div className="flex justify-end gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">
                 <button type="button" onClick={() => setEditingItem(null)} className="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">Hủy</button>
                 <button type="submit" className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs">Lưu thay đổi</button>
@@ -2887,18 +3030,38 @@ export default function GanttPage() {
               </button>
             </div>
             <form onSubmit={handleGroupEditSubmit} className="space-y-4">
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                Tên mục công việc *
-                <input
-                  autoFocus
-                  required
-                  type="text"
-                  maxLength={120}
-                  value={groupEditForm.title}
-                  onChange={event => setGroupEditForm(current => ({ ...current, title: event.target.value }))}
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800"
-                />
-              </label>
+              <div className="grid grid-cols-[110px_1fr] gap-3">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  STT *
+                  <input
+                    required
+                    type="text"
+                    maxLength={30}
+                    value={groupEditForm.code}
+                    onChange={event => setGroupEditForm(current => ({ ...current, code: event.target.value.toUpperCase() }))}
+                    placeholder="VD: A1"
+                    title="Đổi STT thì các dòng con đổi theo (A1 → A2: A1.1 → A2.1). STT không được trùng trong dự án."
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-bold dark:border-slate-700 dark:bg-slate-800"
+                  />
+                </label>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Tên mục công việc *
+                  <input
+                    autoFocus
+                    required
+                    type="text"
+                    maxLength={110}
+                    value={groupEditForm.title}
+                    onChange={event => setGroupEditForm(current => ({ ...current, title: event.target.value }))}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800"
+                  />
+                </label>
+              </div>
+              {cleanWbsCode(groupEditForm.code) !== itemWbsCode(editingGroup) && (
+                <p className="-mt-2 text-[11px] text-slate-500 dark:text-slate-400">
+                  Các dòng con có STT bắt đầu bằng {itemWbsCode(editingGroup)} sẽ đổi theo sang {cleanWbsCode(groupEditForm.code) || '…'}.
+                </p>
+              )}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                   Ngày bắt đầu *

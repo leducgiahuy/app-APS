@@ -61,6 +61,8 @@ export const api = {
   createGanttItem: (data) => fetchApi('/gantt', { method: 'POST', body: JSON.stringify(data) }),
   updateGanttItem: (id, data) => fetchApi(`/gantt/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   moveGanttItem: (id, direction) => fetchApi(`/gantt/${id}/move`, { method: 'PATCH', body: JSON.stringify({ direction }) }),
+  // Kéo thả task sang mục khác / vào giữa hai task: groupId = mục nhận, beforeId = task đứng sau chỗ thả ('' = cuối mục).
+  relocateGanttItem: (id, groupId, beforeId) => fetchApi(`/gantt/${id}/relocate`, { method: 'PATCH', body: JSON.stringify({ groupId, beforeId }) }),
   deleteGanttItem: (id) => fetchApi(`/gantt/${id}`, { method: 'DELETE' }),
 
   // === THỐNG KÊ & BÁO CÁO ===

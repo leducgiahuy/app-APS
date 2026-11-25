@@ -7,15 +7,32 @@ export function datesInRange(start, end) {
   return Array.from({ length: Math.floor((last - first) / 86400000) + 1 }, (_, i) => new Date(first + i * 86400000).toISOString().slice(0, 10));
 }
 
-export function nonWorkingDay(key) {
+/**
+ * Lịch ngày nghỉ của dự án (project.workCalendar, chọn ở "Sửa MOI & ngày nghỉ"; người dùng chốt 25/11/2026).
+ * Mỗi task mang bản sao item.workCalendar (normalizeAssignmentSchedules gắn theo dự án mỗi lần đọc / ghi).
+ * Chủ nhật / ngày lễ có làm thì tính như ngày thường (8 tiếng); lễ rơi vào thứ 7 vẫn nửa ngày.
+ */
+export const WORK_CALENDARS = {
+  all: 'Làm ngày lễ và ngày Chủ nhật',
+  sunday: 'Không làm ngày lễ, chỉ làm Chủ nhật',
+  none: 'Không làm ngày lễ và ngày Chủ nhật',
+};
+export const DEFAULT_WORK_CALENDAR = 'none';
+export const normalizeWorkCalendar = value => Object.prototype.hasOwnProperty.call(WORK_CALENDARS, value) ? value : DEFAULT_WORK_CALENDAR;
+
+/** Ngày nghỉ theo lịch của dự án: trả về thông tin ngày (lễ / Chủ nhật) nếu nghỉ, null nếu là ngày làm. */
+export function nonWorkingDay(key, policy = DEFAULT_WORK_CALENDAR) {
   const day = vietnamCalendarDay(new Date(`${key}T12:00:00`));
-  return day.kind === 'holiday' || day.kind === 'sunday' ? day : null;
+  const calendar = normalizeWorkCalendar(policy);
+  if (day.kind === 'holiday') return calendar === 'all' ? null : day;
+  if (day.kind === 'sunday') return calendar === 'none' ? day : null;
+  return null;
 }
 
 export function assignmentWorksOnDate(assignment, item, key) {
   const start = assignment.startDate || item.startDate;
   const end = assignment.endDate || item.endDate;
-  return (!start || start <= key) && (!end || end >= key) && !(assignment.excludeNonWorkingDays === true && nonWorkingDay(key));
+  return (!start || start <= key) && (!end || end >= key) && !(assignment.excludeNonWorkingDays === true && nonWorkingDay(key, item?.workCalendar));
 }
 
 export function assignmentWorkingDates(item, assignment) {
@@ -37,9 +54,9 @@ export function taskWorkingDates(item) {
   return [...new Set(item.assignees.flatMap(a => assignmentWorkingDates(item, a)))].sort();
 }
 
-export function assignmentCalendarConflicts(rows) {
+export function assignmentCalendarConflicts(rows, policy = DEFAULT_WORK_CALENDAR) {
   return [...new Set(rows.flatMap(row => datesInRange(row.startDate, row.endDate)))].sort()
-    .map(nonWorkingDay).filter(Boolean);
+    .map(key => nonWorkingDay(key, policy)).filter(Boolean);
 }
 
 export function workingDateSegments(keys) {
@@ -57,6 +74,15 @@ export function workingDateSegments(keys) {
 // Called on every database read/write so later date changes obey the saved choice.
 export function normalizeAssignmentSchedules(db) {
   let changed = false;
+  // Gắn lịch ngày nghỉ của dự án vào từng dòng (task mới thêm sau này cũng tự nhận) — trước khi tính giờ bên dưới.
+  const calendars = new Map((db.projects || []).map(project => [project.id, normalizeWorkCalendar(project.workCalendar)]));
+  const taskProject = new Map((db.tasks || []).filter(task => task.ganttId).map(task => [task.ganttId, task.projectId]));
+  for (const item of [...(db.ganttItems || []), ...(db.tasks || [])]) {
+    const projectId = item.projectId || taskProject.get(item.id);
+    if (!calendars.has(projectId)) continue;
+    const calendar = calendars.get(projectId);
+    if ((item.workCalendar || DEFAULT_WORK_CALENDAR) !== calendar) { item.workCalendar = calendar; changed = true; }
+  }
   for (const item of [...(db.ganttItems || []), ...(db.tasks || [])]) {
     if (item.isGroup || item.isProjectHeader) continue;
     const excluded = item.assignees?.some(a => a.excludeNonWorkingDays === true) || false;

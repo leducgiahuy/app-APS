@@ -34,6 +34,7 @@ import {
   createGanttItem,
   updateGanttItem,
   moveGanttItem,
+  relocateGanttItem,
   deleteGanttItem
 } from '../controllers/projectController.js';
 import { getStats } from '../controllers/statsController.js';
@@ -111,6 +112,8 @@ router.get('/gantt', getGanttItems);
 router.post('/gantt', guard.guardCreateGantt, createGanttItem);
 router.patch('/gantt/:id', guard.guardUpdateGantt, updateGanttItem);
 router.patch('/gantt/:id/move', guard.guardScheduleGantt, moveGanttItem);
+// Kéo thả task sang mục khác / vào giữa hai task (utils/ganttRelocate.js).
+router.patch('/gantt/:id/relocate', guard.guardScheduleGantt, relocateGanttItem);
 router.delete('/gantt/:id', guard.guardScheduleGantt, deleteGanttItem);
 
 // === PHÂN HỆ 4: THỐNG KÊ & BÁO CÁO ===

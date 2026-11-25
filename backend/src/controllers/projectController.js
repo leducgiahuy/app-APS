@@ -4,6 +4,8 @@ import { readDb, writeDb } from '../models/db.js';
 import { purgeProjectData } from '../utils/deletionCleanup.js';
 import { assignmentWorkingDates, normalizeAssignmentSchedules } from '../../../frontend/src/utils/assignmentCalendar.js';
 import { rescheduleGanttRange } from '../utils/ganttReschedule.js';
+import { applyWbsCodeChange } from '../utils/ganttCode.js';
+import { relocateGanttTask } from '../utils/ganttRelocate.js';
 import { parseWbsCode, compareWbsCodes as compareWbs } from '../../../frontend/src/utils/wbsStructure.js';
 
 /**
@@ -491,11 +493,16 @@ export function updateGanttItem(req, res) {
   const db = readDb();
   const { id } = req.params;
   normalizeGanttGroupHierarchy(db.ganttItems || [], db.tasks || []);
-  const { startDate, endDate, estimatedHoursPerDay, assignees, title, contractWork, ganttNote, dependencies, suppressedDependencies } = req.body;
+  const { startDate, endDate, estimatedHoursPerDay, assignees, title, contractWork, ganttNote, dependencies, suppressedDependencies, code } = req.body;
   const item = (db.ganttItems || []).find(ganttItem => ganttItem.id === id);
 
   if (!item) {
     return res.status(404).json({ success: false, message: 'Không tìm thấy hạng mục Gantt' });
+  }
+  // Đổi STT (khung Sửa thời gian / tên): kiểm tra trùng, đổi STT dòng con, chuyển mục theo STT, xếp lại vị trí — utils/ganttCode.js.
+  if (code !== undefined) {
+    const codeError = applyWbsCodeChange(db, item, code);
+    if (codeError) return res.status(400).json({ success: false, message: codeError });
   }
 
   const linkedTaskForCompletionLock = (db.tasks || []).find(task => task.ganttId === id) ||
@@ -1258,6 +1265,18 @@ export function moveGanttItem(req, res) {
     message: `Đã di chuyển công việc ${direction === 'up' ? 'lên trên' : 'xuống dưới'}`,
     data: db.ganttItems
   });
+}
+
+// Kéo thả task sang mục khác / vào giữa hai task: { groupId, beforeId } — nối lại FS, đánh số lại STT, giữ ngày.
+export function relocateGanttItem(req, res) {
+  const db = readDb();
+  normalizeGanttGroupHierarchy(db.ganttItems || [], db.tasks || []);
+  const error = relocateGanttTask(db, req.params.id, { groupId: req.body?.groupId, beforeId: req.body?.beforeId || '' });
+  if (error) return res.status(400).json({ success: false, message: error });
+  normalizeGanttDependencies(db.ganttItems || [], db.tasks || []);
+  if (!writeDb(db)) return res.status(500).json({ success: false, message: 'Không lưu được vị trí mới của task. Vui lòng thử lại.' });
+  const item = db.ganttItems.find(row => row.id === req.params.id);
+  return res.json({ success: true, message: `Đã chuyển task sang ${item?.code || 'vị trí mới'}`, data: item });
 }
 
 // Xóa công việc khỏi biểu đồ Gantt (đồng bộ xóa trong db.tasks)

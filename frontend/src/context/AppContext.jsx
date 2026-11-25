@@ -491,6 +491,21 @@ function AppStateProvider({ children }) {
   };
 
   // Hành động: Di chuyển công việc lên / xuống (Reorder)
+  // Kéo thả task (utils/ganttRelocate.js trên máy chủ): nối lại FS, đánh số lại STT, giữ ngày.
+  const relocateGanttItem = async (id, groupId, beforeId = '') => {
+    try {
+      const res = await api.relocateGanttItem(id, groupId, beforeId);
+      const title = ganttItems.find(item => item.id === id)?.title || id;
+      recordActivity('gantt.relocate', `Kéo task ${title} sang vị trí ${res.data?.code || 'mới'}.`);
+      showToast(res.message || 'Đã chuyển task');
+      await refreshAllData();
+      return true;
+    } catch (err) {
+      showToast(err.message || 'Không chuyển được task', 'error');
+      return false;
+    }
+  };
+
   const moveGanttItem = async (id, direction) => {
     try {
       const res = await api.moveGanttItem(id, direction);
@@ -590,6 +605,7 @@ function AppStateProvider({ children }) {
         addGanttItem,
         updateGanttItem,
         moveGanttItem,
+        relocateGanttItem,
         deleteGanttItem
       }}
     >

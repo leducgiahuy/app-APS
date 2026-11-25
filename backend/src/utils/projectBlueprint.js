@@ -8,10 +8,11 @@ import { WBS_PHASE_PRESETS, cleanWbsCode, linkWbsItems, renumberNewCodes, wbsLev
 import { EXTERNAL_DEPARTMENTS, employeeDepartments, taskDepartments } from '../../../frontend/src/utils/departmentCodes.js';
 const check=(ok,message)=>{if(!ok)throw new Error(message);};
 // Số ngày công của một ngày: thứ 2–6 = 1, thứ 7 = 0,5 (nghỉ chiều), Chủ nhật / lễ / Tết = 0 (lịch nghỉ trong vietnamCalendar.js).
-const workUnit=key=>nonWorkingDay(key)?0:workingDayWeight(key);
+// policy = lịch ngày nghỉ của dự án (assignmentCalendar.js WORK_CALENDARS); mặc định nghỉ Chủ nhật + lễ.
+const workUnit=(key,policy)=>nonWorkingDay(key,policy)?0:workingDayWeight(key);
 export { workUnit };
 /** Ngày gần nhất có làm việc, đi tới (step 1) hoặc lùi (step -1), không vượt [from, to]; không có thì ''. */
-export function workingDayFrom(key,step,from,to){for(let day=key;day>=from&&day<=to;day=addDate(day,step))if(workUnit(day)>0)return day;return '';}
+export function workingDayFrom(key,step,from,to,policy){for(let day=key;day>=from&&day<=to;day=addDate(day,step))if(workUnit(day,policy)>0)return day;return '';}
 /** Đưa ngày bắt đầu / kết thúc của việc ra khỏi ngày nghỉ (bắt đầu lùi tới ngày làm kế tiếp, kết thúc lùi về ngày làm trước đó). */
 export function snapToWorkingDays(item,projectStart,projectEnd){
  let start=workingDayFrom(item.startDate,1,projectStart,item.endDate),end=start&&workingDayFrom(item.endDate,-1,start,projectEnd);

@@ -228,3 +228,11 @@ export function renumberNewCodes(rows) {
     return { ...row, code: `${prefix}.${next}` };
   });
 }
+
+// STT hiển thị của một dòng Gantt (dùng chung giao diện + máy chủ): nhóm lấy tiền tố tên ("A1. KHẢO SÁT…" → A1),
+// không có tiền tố thì lấy code; task lấy code.
+const GROUP_CODE_PREFIX = /^\s*([A-Z]\d*)\s*\.\s*/i;
+export const stripGroupCode = title => String(title || '').replace(GROUP_CODE_PREFIX, '').trim();
+export const itemWbsCode = item => item?.isGroup
+  ? (String(item.title || '').match(GROUP_CODE_PREFIX)?.[1]?.toUpperCase() || cleanWbsCode(item.code))
+  : cleanWbsCode(item?.code);

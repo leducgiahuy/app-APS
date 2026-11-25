@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, ChevronRight, MessageCircle, Paperclip, MoreHorizontal, Pencil, UsersRound, Trash2, Plus } from 'lucide-react';
+import { ChevronDown, ChevronRight, GripVertical, MessageCircle, Paperclip, MoreHorizontal, Pencil, UsersRound, Trash2, Plus } from 'lucide-react';
 import { deliveryLabel, defaultDeliveryRecord, formatCompactMoney, varianceTone } from '../../utils/deliveryMetrics';
 import { GanttEditableWorkCell } from './GanttWorkColumns';
+import { itemWbsCode } from '../../utils/wbsStructure';
 
 export const DELIVERY_COLUMNS = [
   { key: 'code', label: 'STT', width: 64 },
@@ -35,7 +36,7 @@ const number = value => value == null ? '—' : Number(value).toLocaleString('vi
 const groupStatusLabel = percent => { const value = Number(percent) || 0; return value <= 0 ? ' · Đang tiến hành' : value < 100 ? ' · Đang làm' : ''; };
 const work = value => value == null || !Number.isFinite(Number(value)) ? '—' : Number(value).toLocaleString('vi-VN', { maximumFractionDigits: 2 });
 
-export default function DeliveryRow({ item, columns, height, depth = 0, record, metric, aggregate, employees, collapsed, onToggle, onOpen, onEdit, onAssign, onDelete, onSaveWork, onCreateTask, onVarianceReason, color, readOnly, canAssign = !readOnly, highlighted = false }) {
+export default function DeliveryRow({ item, columns, height, depth = 0, record, metric, aggregate, employees, collapsed, onToggle, onOpen, onEdit, onAssign, onDelete, onSaveWork, onCreateTask, onVarianceReason, color, readOnly, canAssign = !readOnly, highlighted = false, canDrag = false, dropHint = '', dragging = false, onDragHandleStart, onDragHandleEnd, onRowDragOver, onRowDrop }) {
   const [createMenu, setCreateMenu] = useState(null);
   const createButton = useRef(null);
   const menuRef = useRef(null);
@@ -66,10 +67,12 @@ export default function DeliveryRow({ item, columns, height, depth = 0, record, 
   const label = deliveryLabel(record);
   const alert = metric?.alert || {};
   const rowClass = item.isProjectHeader ? 'project' : item.isGroup ? 'group' : `${record?.freeRework ? 'rework ' : ''}${item.parentTaskId ? 'child-task' : ''}`.trim();
-  return <div data-gantt-row={item.id} className={`delivery-row ${rowClass}${highlighted ? ' is-link-target' : ''}`} style={{ height, borderLeftColor: color, '--delivery-row-accent': color || 'transparent', ...(item.isGroup && color ? { backgroundColor: `${color}14`, color } : {}) }} role="button" tabIndex={0} aria-label={`Xem chi tiết ${item.title}`} onClick={onOpen} onKeyDown={event => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); onOpen(); } }}>
+  // Kéo thả task (tay nắm ở ô STT): dropHint = before / after / into vẽ vạch báo chỗ thả (DeliveryPage.css).
+  return <div data-gantt-row={item.id} className={`delivery-row ${rowClass}${highlighted ? ' is-link-target' : ''}${dropHint ? ` drop-${dropHint}` : ''}${dragging ? ' is-dragging' : ''}`} onDragOver={onRowDragOver} onDrop={onRowDrop} style={{ height, borderLeftColor: color, '--delivery-row-accent': color || 'transparent', ...(item.isGroup && color ? { backgroundColor: `${color}14`, color } : {}) }} role="button" tabIndex={0} aria-label={`Xem chi tiết ${item.title}`} onClick={onOpen} onKeyDown={event => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); onOpen(); } }}>
     {columns.map(column => {
       let content;
-      if (column.key === 'code') content = item.isProjectHeader ? '' : item.isGroup ? item.title.match(/^[A-Z]\d*/)?.[0] || item.code : item.code || '';
+      if (column.key === 'code') content = item.isProjectHeader ? '' : itemWbsCode(item);
+      const dragHandle = column.key === 'code' && canDrag ? <span className="delivery-drag-handle" draggable title="Giữ và kéo để chuyển task sang mục khác hoặc vào giữa hai task" aria-label={`Kéo ${item.code || item.title}`} onClick={event => event.stopPropagation()} onDragStart={onDragHandleStart} onDragEnd={onDragHandleEnd}><GripVertical size={13} /></span> : null;
       if (column.key === 'code' && !item.isProjectHeader && !item.isGroup && !readOnly && onCreateTask) content = <div className={`delivery-task-code ${createMenu ? 'menu-open' : ''}`}><span>{content}</span><button ref={createButton} type="button" aria-label={`Tạo task tại ${item.code}`} aria-haspopup="menu" aria-expanded={Boolean(createMenu)} onClick={event => { event.stopPropagation(); const rect = event.currentTarget.getBoundingClientRect(); setCreateMenu(current => current ? null : { left: Math.max(8, Math.min(rect.left, window.innerWidth - 176)), top: Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - 96)) }); }}><Plus size={15} /></button>{createMenu && createPortal(<div ref={menuRef} role="menu" className="delivery-create-menu" style={{ left: createMenu.left, top: createMenu.top }} onClick={event => event.stopPropagation()}>{[[false, 'Tạo task'], [true, 'Tạo task con']].map(([child, label]) => <button type="button" role="menuitem" key={label} onClick={() => { setCreateMenu(null); onCreateTask(child); }}>{label}</button>)}</div>, document.body)}</div>;
       if (column.key === 'title') content = <div className="delivery-row-title" style={{ paddingLeft: Math.min(32, depth * 10) }}>{group && <button type="button" onClick={event => { event.stopPropagation(); onToggle(); }} aria-label={`${collapsed ? 'Mở' : 'Thu'} ${item.title}`}>{collapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}</button>}<span className={item.parentTaskId ? 'delivery-child-task-title' : undefined} title={item.title}>{item.title}</span></div>;
       if (column.key === 'people') content = !group && <div className="delivery-people">{people.map((assignment, index) => { const employee = employees.find(person => person.id === assignment.employeeId); const name = employee?.name || assignment.employeeName || 'Chưa gán'; return <span key={index} title={name}><i>{name.slice(0, 1).toLocaleUpperCase('vi')}</i><span className="delivery-person-name">{name}</span></span>; })}{!people.length && canAssign && <button onClick={event => { event.stopPropagation(); onAssign(); }} disabled={readOnly}>+ Giao cho</button>}</div>;
@@ -107,7 +110,7 @@ export default function DeliveryRow({ item, columns, height, depth = 0, record, 
         ? <span title={item.contractWork != null && item.contractWork !== '' ? `Tổng Dự toán các task · công hợp đồng gốc ${work(item.contractWork)}` : 'Tổng Dự toán các task'}>{work(metric?.budgetedWork)}</span>
         : item.isGroup || group ? work(metric?.budgetedWork) : readOnly ? work(item.contractWork ?? metric?.budgetedWork) : <div onClick={event => event.stopPropagation()}><GanttEditableWorkCell item={item} field="contractWork" type="number" onSave={onSaveWork} placeholder={!item.isProjectHeader && metric?.budgetedWork != null ? number(metric.budgetedWork) : ''} /></div>;
       if (column.key === 'actions' && !readOnly) content = <div className="delivery-row-actions" onClick={event => event.stopPropagation()}><button onClick={onEdit} disabled={readOnly} title="Chỉnh sửa"><Pencil size={13} /></button>{!group && canAssign && <button onClick={onAssign} disabled={readOnly} title="Phân công"><UsersRound size={13} /></button>}<button onClick={onDelete} disabled={readOnly} title="Xóa"><Trash2 size={13} /></button></div>;
-      return <div className={`delivery-cell delivery-column ${column.alignLeft ? 'delivery-column-left' : 'delivery-column-center'} ${column.key}`} key={column.key} style={{ width: column.width, minWidth: column.width }}>{content}{column.key === 'status' && group && <button onClick={event => { event.stopPropagation(); onOpen(); }} aria-label={`Tùy chọn ${item.title}`}><MoreHorizontal size={13} /></button>}</div>;
+      return <div className={`delivery-cell delivery-column ${column.alignLeft ? 'delivery-column-left' : 'delivery-column-center'} ${column.key}`} key={column.key} style={{ width: column.width, minWidth: column.width }}>{dragHandle}{content}{column.key === 'status' && group && <button onClick={event => { event.stopPropagation(); onOpen(); }} aria-label={`Tùy chọn ${item.title}`}><MoreHorizontal size={13} /></button>}</div>;
     })}
   </div>;
 }
