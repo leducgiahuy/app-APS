@@ -60,3 +60,46 @@ export function linkChanges(item, rows, { predecessorId = '', successorId = '' }
   }
   return changes;
 }
+
+/**
+ * Gom đường nối khi vẽ (chỉ hiển thị, không đổi liên kết lưu trong dữ liệu):
+ * các task liền nhau trong bảng (cùng dự án, cùng nhóm, cùng task cha) BẮT ĐẦU CÙNG MỘT NGÀY là một "cụm".
+ * - Đường nối giữa hai task trong cùng cụm: không vẽ.
+ * - Đường nối từ một task trong cụm sang task bắt đầu ngày khác: vẽ từ task CUỐI cụm (task đại diện).
+ * Trả về hàm (sourceId, targetId) → id nguồn để vẽ, hoặc null nếu bỏ đường đó;
+ * kèm .blocks (các cụm) và .blockHead(id) (task đầu cụm của id, hoặc null).
+ */
+export function sameStartLinkSource(rows) {
+  const lastOf = new Map(), blockOf = new Map(), byId = new Map(), blocks = [];
+  let block = [];
+  const sameBlock = (a, b) => a.startDate && a.startDate === b.startDate && a.projectId === b.projectId
+    && (a.parentGroupId || '') === (b.parentGroupId || '') && (a.parentTaskId || '') === (b.parentTaskId || '');
+  const close = () => {
+    if (block.length > 1) {
+      blocks.push(block.map(row => row.id));
+      block.forEach(row => { lastOf.set(row.id, block.at(-1).id); blockOf.set(row.id, block[0].id); });
+    }
+    block = [];
+  };
+  rows.forEach(row => {
+    if (!isTaskRow(row)) { close(); return; }
+    byId.set(row.id, row);
+    // Task con của task khác chen giữa không cắt cụm của task cha.
+    const head = block[0];
+    if (head && !head.parentTaskId && row.parentTaskId) return;
+    if (!head || !sameBlock(head, row)) close();
+    block.push(row);
+  });
+  close();
+  const drawSource = (sourceId, targetId) => {
+    if (!blockOf.has(sourceId)) return sourceId;
+    if (blockOf.get(sourceId) === blockOf.get(targetId)) return null;
+    const target = byId.get(targetId);
+    if (target && target.startDate === byId.get(sourceId)?.startDate) return sourceId;
+    return lastOf.get(sourceId);
+  };
+  // Danh sách cụm (mảng id theo thứ tự bảng) để vẽ một đường dọc chung rẽ mũi tên vào từng task.
+  drawSource.blocks = blocks;
+  drawSource.blockHead = id => blockOf.get(id) || null;
+  return drawSource;
+}

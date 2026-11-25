@@ -19,7 +19,7 @@ import GanttCalendarBackground from './GanttCalendarBackground';
 import { calendarColumns } from '../../utils/vietnamCalendar';
 import { assignmentCalendarConflicts, assignmentWorkingDates, taskWorkingDates } from '../../utils/assignmentCalendar';
 import { allocateTaskHierarchyWeightPercent } from '../../utils/ganttEffort';
-import { effectivePredecessorIds, effectiveSuccessorIds, linkChanges } from '../../utils/ganttLinks';
+import { effectivePredecessorIds, effectiveSuccessorIds, linkChanges, sameStartLinkSource } from '../../utils/ganttLinks';
 import GanttTaskBar, { dependencyHandleX, hasStoredAssignmentState } from './GanttTaskBar';
 import BudgetSourceBanner from './BudgetSourceBanner';
 import AssignmentCalendarConfirmation from './AssignmentCalendarConfirmation';
@@ -1152,16 +1152,22 @@ export default function GanttPage() {
       }
       return null;
     };
+    // Task bắt đầu cùng ngày: không nối với nhau, chỉ task cuối cụm nối sang task ngày khác (chỉ vẽ, không đổi dữ liệu).
+    const drawSourceFor = sameStartLinkSource(dependencyRows);
     dependencyRows.forEach(item => {
       if (item.isProjectHeader || item.isGroup) return;
       // Liên kết đặt tay, hoặc tự nối từ task đứng ngay trước (utils/ganttLinks.js — dùng chung với khung sửa task).
       effectivePredecessorIds(item, dependencyRows).forEach((depId) => {
-        const sourceId = visibleRepresentative(depId, 'source');
+        const drawFromId = drawSourceFor(depId, item.id);
+        if (!drawFromId) return;
+        const sourceId = visibleRepresentative(drawFromId, 'source');
         const targetId = visibleRepresentative(item.id, 'target');
         if (!sourceId || !targetId || sourceId === targetId) return;
         const from = taskCoordinates[sourceId];
         const to = taskCoordinates[targetId];
         if (!from || !to) return;
+        // Nhiều task trong cùng cụm cùng nối tới một task: chỉ vẽ một đường.
+        if ([...edges.values()].some(edge => edge.sourceId === sourceId && edge.targetId === targetId)) return;
         const key = `${sourceId}->${targetId}:${depId}->${item.id}`;
         edges.set(key, { key, from, to, sourceId, targetId, dependencySourceId: depId, dependencyTargetId: item.id });
       });
@@ -1191,6 +1197,7 @@ export default function GanttPage() {
             candidate.endDate <= source.endDate);
         if (!hasIntermediateTaskInsideRange) continue;
         if ((Array.isArray(target.suppressedDependencies) ? target.suppressedDependencies : []).includes(source.id)) continue;
+        if (!drawSourceFor(source.id, target.id)) continue;
 
         const sourceId = visibleRepresentative(source.id, 'source');
         const targetId = visibleRepresentative(target.id, 'target');
@@ -1203,7 +1210,34 @@ export default function GanttPage() {
       }
     });
 
-    return [...edges.values()].map(({ key, from, to, sourceId, targetId, dependencySourceId, dependencyTargetId }) => {
+    // Cụm task cùng ngày bắt đầu: một đường dọc chung ở trước đầu các thanh, rẽ mũi tên vào từng task.
+    const trunkLines = [], trunkOf = new Map();
+    drawSourceFor.blocks.forEach(ids => {
+      const shown = [...new Set(ids.map(id => visibleRepresentative(id, 'target')).filter(id => id && taskCoordinates[id]))];
+      if (shown.length < 2) return;
+      const coords = shown.map(id => taskCoordinates[id]);
+      const trunkX = Math.max(Math.min(...coords.map(coord => coord.barX ?? coord.x)) - DEPENDENCY_ARROW_TARGET_OFFSET, 0);
+      const topY = coords[0].centerY, bottomY = coords.at(-1).centerY;
+      trunkOf.set(shown[0], { x: trunkX, y: topY });
+      trunkLines.push({ key: `trunk-${shown[0]}`, path: `M ${trunkX} ${topY} V ${bottomY}`, type: 'trunk', sourceId: shown[0], targetId: shown.at(-1) });
+      shown.forEach((id, index) => {
+        const coord = coords[index];
+        trunkLines.push({ key: `branch-${id}`, path: `M ${trunkX} ${coord.centerY} H ${Math.max((coord.barX ?? coord.x) - 1, trunkX)}`, type: 'branch', sourceId: shown[0], targetId: id });
+      });
+    });
+
+    return [...[...edges.values()].map(({ key, from, to, sourceId, targetId, dependencySourceId, dependencyTargetId }) => {
+      // Đường đi vào task đầu cụm: chỉ nối tới đường dọc chung (mũi tên do nhánh của cụm vẽ).
+      const trunk = drawSourceFor.blockHead(dependencyTargetId) === dependencyTargetId ? trunkOf.get(targetId) : null;
+      if (trunk) {
+        const startX = dependencyHandleX(from);
+        const goingDown = trunk.y >= from.centerY;
+        const startY = goingDown ? from.centerY + 3 : from.centerY - 3;
+        const path = trunk.x - startX >= 8
+          ? `M ${startX} ${startY} V ${trunk.y} H ${trunk.x}`
+          : `M ${startX} ${startY} V ${goingDown ? to.y - 4 : to.y + to.height + 4} H ${trunk.x} V ${trunk.y}`;
+        return { key, path, type: 'feed', sourceId, targetId, dependencySourceId, dependencyTargetId };
+      }
       // Đường nối kiểu Finish-to-Start: từ cuối thanh task trước đi thẳng xuống (hoặc lên) tới dòng task sau,
       // rồi rẽ phải vào đầu thanh task sau. Task sau bắt đầu sớm hơn cuối task trước thì vòng qua mép trên
       // dòng task sau, lùi ra trước đầu thanh rồi mới rẽ vào, để mũi tên luôn chỉ sang phải vào đầu thanh.
@@ -1232,7 +1266,7 @@ export default function GanttPage() {
         dependencySourceId,
         dependencyTargetId
       };
-    });
+    }), ...trunkLines];
   }, [dependencyRows, hierarchyGanttItems, collapsedGroupIds, collapsedTaskIds, taskCoordinates]);
 
   // "Chỉ việc của tôi": đường nối riêng theo thứ tự việc của người xem (không phải phụ thuộc của dự án, không lưu lại).
@@ -2394,12 +2428,12 @@ export default function GanttPage() {
                       onContextMenu={event => {
                         event.preventDefault();
                         event.stopPropagation();
-                        if (!canManageStructure || previewing) return;
+                        if (!canManageStructure || previewing || !line.dependencySourceId) return;
                         setHoveredDependencyKey(line.key);
                         setDependencyMenu({ x: event.clientX, y: event.clientY, line });
                       }}
                     >
-                      <title>{line.type === 'trunk' ? 'Nhánh chung của liên kết FS' : 'Công việc trước → công việc sau (Finish-to-Start)'}</title>
+                      <title>{line.type === 'trunk' || line.type === 'branch' ? 'Các việc bắt đầu cùng ngày' : 'Công việc trước → công việc sau (Finish-to-Start)'}</title>
                     </path>
                   );
                 })}
@@ -2482,7 +2516,7 @@ export default function GanttPage() {
                       className={!isActive ? 'dark:stroke-slate-300' : undefined}
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      markerEnd={line.type === 'dependency' ? (isActive ? 'url(#arrowhead-active)' : 'url(#arrowhead-default)') : undefined}
+                      markerEnd={line.type === 'dependency' || line.type === 'branch' ? (isActive ? 'url(#arrowhead-active)' : 'url(#arrowhead-default)') : undefined}
                       opacity="0.95"
                       style={{ transition: 'stroke 0.2s ease, stroke-width 0.2s ease' }}
                     />;
