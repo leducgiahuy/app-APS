@@ -18,11 +18,11 @@ const byId = (db, id) => db.ganttItems.find(item => item.id === id);
 
 test('đổi STT task: cập nhật task Công việc, xếp lại vị trí, dòng con đổi theo', () => {
   const db = seed();
+  // A1.2 → a1.5: chuyển xuống cuối mục rồi cả mục đánh số lại liền (người dùng chốt 25/11/2026).
   assert.equal(applyWbsCodeChange(db, byId(db, 't12'), 'a1.5'), '');
-  assert.equal(byId(db, 't12').code, 'A1.5', 'chuẩn hoá chữ hoa');
-  assert.equal(db.tasks.find(task => task.ganttId === 't12').code, 'A1.5', 'task ở trang Công việc cùng STT');
-  assert.equal(byId(db, 't121').code, 'A1.5.1', 'task con đổi theo tiền tố');
-  assert.deepEqual(order(db).filter(code => /^A1\.\d$/.test(code)), ['A1.1', 'A1.3', 'A1.5'], 'xếp lại theo STT mới');
+  assert.deepEqual(['t11', 't13', 't12', 't121'].map(id => byId(db, id).code), ['A1.1', 'A1.2', 'A1.3', 'A1.3.1'], 'đánh số lại liền, task con đổi theo');
+  assert.equal(db.tasks.find(task => task.ganttId === 't12').code, 'A1.3', 'task ở trang Công việc cùng STT');
+  assert.deepEqual(order(db).filter(code => /^A1\.\d$/.test(code)), ['A1.1', 'A1.2', 'A1.3'], 'xếp lại theo STT mới');
 });
 
 test('đổi STT sang mục khác đang có: chuyển task (và task con) sang mục đó', () => {
@@ -50,9 +50,15 @@ test('đổi STT mục: tên mục đổi tiền tố, mọi dòng con đổi th
   assert.equal(byId(db, 't22').code, 'B2.2');
 });
 
-test('STT trùng hoặc sai dạng bị từ chối, không sửa dữ liệu', () => {
+test('task đổi sang STT đang có trong mục: chèn vào vị trí đó, các task sau lùi số (C.5 → C.1)', () => {
   const db = seed();
-  assert.match(applyWbsCodeChange(db, byId(db, 't11'), 'A1.3'), /đã có trong dự án/);
+  assert.equal(applyWbsCodeChange(db, byId(db, 't13'), 'A1.1'), '');
+  assert.deepEqual(['t13', 't11', 't12', 't121'].map(id => byId(db, id).code), ['A1.1', 'A1.2', 'A1.3', 'A1.3.1']);
+  assert.deepEqual(order(db).filter(code => /^A1\.\d$/.test(code)), ['A1.1', 'A1.2', 'A1.3']);
+});
+
+test('STT sai dạng / mục trùng bị từ chối, không sửa dữ liệu', () => {
+  const db = seed();
   assert.match(applyWbsCodeChange(db, byId(db, 't11'), 'A1#3'), /chỉ gồm/);
   assert.match(applyWbsCodeChange(db, byId(db, 't11'), ''), /nhập STT/);
   assert.equal(applyWbsCodeChange(db, byId(db, 't11'), 'A1.9'), '', 'trùng STT ở dự án khác thì không sao');

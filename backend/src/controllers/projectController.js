@@ -560,7 +560,9 @@ export function updateGanttItem(req, res) {
     if (!Array.isArray(dependencies)) {
       return res.status(400).json({ success: false, message: 'Danh sách liên kết Gantt không hợp lệ' });
     }
-    normalizedDependencies = [...new Set(dependencies.filter(Boolean))];
+    // Liên kết hỏng trong dữ liệu cũ (tới mục nhóm hoặc dòng đã xóa) bỏ đi thay vì chặn cả lần lưu.
+    const stale = dependencyId => { const row = (db.ganttItems || []).find(candidate => candidate.id === dependencyId); return !row || row.isGroup; };
+    normalizedDependencies = [...new Set(dependencies.filter(Boolean))].filter(dependencyId => !stale(dependencyId));
     const taskForGantt = ganttId => (db.tasks || []).find(task => task.ganttId === ganttId);
     const projectIdForGantt = ganttItem => ganttItem?.projectId || taskForGantt(ganttItem?.id)?.projectId || 'proj-1';
     const projectTasks = (db.ganttItems || []).filter(candidate => !candidate.isGroup && projectIdForGantt(candidate) === itemProjectId);

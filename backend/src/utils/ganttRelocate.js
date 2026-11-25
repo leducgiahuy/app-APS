@@ -20,7 +20,7 @@ function setCode(db, item, code) {
 }
 
 /** Đánh số lại task cấp mục của một mục theo thứ tự trong danh sách; task con đổi theo tiền tố. */
-function renumberGroup(db, group, projectId) {
+export function renumberGroup(db, group, projectId) {
   const key = itemWbsCode(group);
   if (!/^[A-Z]\d*$/.test(key)) return;
   const items = db.ganttItems.filter(item => projectIdOf(db, item) === projectId);

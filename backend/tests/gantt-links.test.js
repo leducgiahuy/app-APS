@@ -48,3 +48,13 @@ test('đổi Công việc sau: task sau cũ bỏ liên kết, task sau mới gi�
     { id: 'c', patch: { suppressedDependencies: ['b'] } },
   ], 'bỏ task sau');
 });
+
+test('liên kết hỏng tới mục nhóm / dòng đã xóa bị bỏ qua (VD C.5 nối với mục B)', () => {
+  const list = [
+    { id: 'B', isGroup: true, projectId: 'p' },
+    { id: 'b1', projectId: 'p' },
+    { id: 'C', isGroup: true, projectId: 'p' },
+    { id: 'c5', projectId: 'p', dependencies: ['B', 'b1', 'gone'] },
+  ];
+  assert.deepEqual(effectivePredecessorIds(list[3], list), ['b1']);
+});

@@ -42,3 +42,11 @@ test('mục A2 còn task A3.x (sau khi kéo mục): lưu lại STT A2 thì task 
   const code = id => db.ganttItems.find(item => item.id === id).code;
   assert.deepEqual(['x1', 'x2', 'x3', 'y1'].map(code), ['A2.1', 'A2.2', 'MOI', 'A3.1']);
 });
+
+test('mục C có C.5…C.8: đổi C.5 thành C.1 thì cả mục thành C.1…C.4', async () => {
+  const { applyWbsCodeChange: change } = await import('../src/utils/ganttCode.js');
+  const t = (id, code) => ({ id, projectId: 'p', code, title: id, parentGroupId: 'C' });
+  const db = { tasks: [], ganttItems: [{ id: 'C', projectId: 'p', isGroup: true, code: 'C', title: 'C. PHÁT HÀNH', parentGroupId: '' }, t('c5', 'C.5'), t('c6', 'C.6'), t('c7', 'C.7'), t('c8', 'C.8')] };
+  assert.equal(change(db, db.ganttItems[1], 'C.1'), '');
+  assert.deepEqual(db.ganttItems.slice(1).map(item => item.code), ['C.1', 'C.2', 'C.3', 'C.4']);
+});

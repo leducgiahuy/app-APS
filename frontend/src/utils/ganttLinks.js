@@ -20,7 +20,9 @@ export function implicitPredecessorId(item, rows) {
 export function effectivePredecessorIds(item, rows) {
   if (!isTaskRow(item)) return [];
   const suppressed = new Set(Array.isArray(item.suppressedDependencies) ? item.suppressedDependencies : []);
-  const explicit = [...new Set(Array.isArray(item.dependencies) ? item.dependencies : [])].filter(id => id && id !== item.id && !suppressed.has(id));
+  // Chỉ nối giữa các task: bỏ liên kết hỏng tới mục nhóm hoặc dòng không còn trong bảng (dữ liệu cũ).
+  const taskIds = new Set(rows.filter(isTaskRow).map(row => row.id));
+  const explicit = [...new Set(Array.isArray(item.dependencies) ? item.dependencies : [])].filter(id => id && id !== item.id && !suppressed.has(id) && taskIds.has(id));
   if (explicit.length) return explicit;
   const implicit = implicitPredecessorId(item, rows);
   return implicit && !suppressed.has(implicit) ? [implicit] : [];

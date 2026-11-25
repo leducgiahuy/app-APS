@@ -1,5 +1,7 @@
 import { cleanWbsCode, compareWbsCodes, itemWbsCode, stripGroupCode, wbsLevel } from '../../../frontend/src/utils/wbsStructure.js';
 
+import { renumberGroup } from './ganttRelocate.js';
+
 export { itemWbsCode, stripGroupCode };
 
 /**
@@ -66,7 +68,11 @@ export function applyWbsCodeChange(db, item, rawCode) {
     const old = oldCodes.find(prefix => key.startsWith(prefix) && /^[.\d]/.test(key.slice(prefix.length)) && !key.startsWith(code + '.'));
     if (old) renamed.set(child, code + key.slice(old.length));
   }
-  const others = projectItems.filter(candidate => !renamed.has(candidate));
+  // Task cấp mục (không phải task con): sau khi đổi, cả mục được đánh số lại liền (C.1, C.2…), nên trùng STT với task
+  // cấp mục khác nghĩa là "chèn vào vị trí đó" — task đang mang số đó lùi xuống sau.
+  const topTask = !item.isGroup && !item.parentTaskId;
+  const insertsAt = candidate => topTask && !candidate.isGroup && !candidate.parentTaskId && itemWbsCode(candidate) === code;
+  const others = projectItems.filter(candidate => !renamed.has(candidate) && !insertsAt(candidate));
   for (const [row, next] of renamed) {
     if (others.some(candidate => itemWbsCode(candidate) === next)) {
       return row === item ? `STT "${next}" đã có trong dự án. Hãy chọn STT khác.` : `Đổi STT sẽ làm dòng con thành "${next}", trùng với dòng đang có. Hãy chọn STT khác.`;
@@ -77,6 +83,7 @@ export function applyWbsCodeChange(db, item, rawCode) {
   const allowed = candidate => candidate && candidate !== item && !descendants.has(candidate);
   const groupWith = key => projectItems.find(candidate => candidate.isGroup && allowed(candidate) && itemWbsCode(candidate) === key);
   const level = wbsLevel(code);
+  const oldGroupId = item.parentGroupId || '';
   if (item.isGroup) {
     if (level === 'section') { const phase = groupWith(code[0]); if (phase) item.parentGroupId = phase.id; }
     if (level === 'phase') item.parentGroupId = '';
@@ -101,9 +108,15 @@ export function applyWbsCodeChange(db, item, rawCode) {
   const siblings = list.filter(candidate => candidate !== item && projectIdOf(db, candidate) === projectId &&
     (candidate.parentGroupId || '') === (item.parentGroupId || '') && (candidate.parentTaskId || '') === (item.parentTaskId || ''));
   list.splice(list.indexOf(item), 1);
-  const before = siblings.find(sibling => compareWbsCodes(code, itemWbsCode(sibling)) < 0);
+  const before = siblings.find(sibling => compareWbsCodes(code, itemWbsCode(sibling)) < (topTask ? 1 : 0));
   const lastSibling = siblings.at(-1);
   const index = before ? list.indexOf(before) : lastSibling ? list.indexOf(lastSibling) + 1 : list.length;
   list.splice(index, 0, item);
+
+  // Đánh số lại liền các task cấp mục trong mục mới (và mục cũ nếu task chuyển mục); task con đổi theo tiền tố.
+  if (topTask) {
+    const groupIds = [...new Set([item.parentGroupId || '', oldGroupId].filter(Boolean))];
+    for (const groupId of groupIds) { const group = byId.get(groupId); if (group?.isGroup) renumberGroup(db, group, projectId); }
+  }
   return '';
 }
