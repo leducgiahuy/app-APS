@@ -1,4 +1,4 @@
-import { cleanWbsCode, itemWbsCode, spanParentDates } from '../../../frontend/src/utils/wbsStructure.js';
+import { cleanWbsCode, itemWbsCode, spanParentDates, stripGroupCode } from '../../../frontend/src/utils/wbsStructure.js';
 
 /**
  * Kéo thả một task sang mục khác / vào giữa hai task (người dùng chốt 25/11/2026) — một nguồn duy nhất, gọi qua
@@ -108,4 +108,97 @@ export function relocateGanttTask(db, itemId, { groupId, beforeId = '' } = {}) {
   const parents = [...new Set([...ancestors(sourceGroup), ...ancestors(group)].filter(Boolean))];
   spanParentDates(items.filter(row => projectIdOf(db, row) === projectId), parents);
   return '';
+}
+
+/**
+ * Kéo thả MỤC CON (B2, A1…) đổi vị trí trong giai đoạn hoặc sang giai đoạn khác (người dùng chốt 25/11/2026),
+ * gọi qua cùng PATCH /api/gantt/:id/relocate { groupId: giai đoạn nhận, beforeId: mục con đứng ngay sau chỗ thả }.
+ * - Giai đoạn lớn (A, B, C) không kéo: chữ cái gắn với màu / tên giai đoạn.
+ * - Cả khối (mục + mọi task bên trong) đi cùng; ngày / giờ giữ nguyên.
+ * - Đánh số lại mục con liền từ 1 trong giai đoạn cũ và mới (B1, B2…); task bên trong đổi tiền tố theo (B4.1 → B1.1).
+ * - Nối FS: task ngoài khối đang nối từ task trong khối thì nối từ task trước khối; task đầu của mục đứng sau chỗ thả
+ *   đang nối từ mục khác thì nối từ task cuối của khối. Liên kết tự nối của bảng đi theo thứ tự mới.
+ */
+const phaseKey = group => itemWbsCode(group);
+
+function renumberPhaseSections(db, phase, projectId) {
+  const key = phaseKey(phase);
+  if (!/^[A-Z]$/.test(key)) return;
+  const items = db.ganttItems.filter(item => projectIdOf(db, item) === projectId);
+  const sections = items.filter(item => item.isGroup && item.parentGroupId === phase.id);
+  const membersOf = section => items.filter(item => !item.isGroup && item.parentGroupId === section.id);
+  // Tính hết rồi mới gán, để B3 → B2 không đụng task của B2 → B1.
+  const plan = sections.map((section, index) => ({ section, old: itemWbsCode(section), next: `${key}${index + 1}`, members: membersOf(section) }));
+  for (const { section, old, next, members } of plan) {
+    if (old === next) continue;
+    section.code = next;
+    section.title = `${next}. ${stripGroupCode(section.title)}`;
+    for (const task of members) {
+      const code = cleanWbsCode(task.code);
+      if (old && (code === old || code.startsWith(`${old}.`))) setCode(db, task, next + code.slice(old.length));
+    }
+  }
+}
+
+export function relocateGanttSection(db, sectionId, { groupId, beforeId = '' } = {}) {
+  const items = db.ganttItems || [];
+  const byId = new Map(items.map(item => [item.id, item]));
+  const section = byId.get(sectionId);
+  if (!section?.isGroup) return 'Không tìm thấy mục công việc.';
+  if (!section.parentGroupId) return 'Giai đoạn lớn (A, B, C…) giữ nguyên vị trí; chỉ kéo được mục con.';
+  const projectId = projectIdOf(db, section);
+  const phase = byId.get(groupId);
+  if (!phase?.isGroup || phase.parentGroupId || projectIdOf(db, phase) !== projectId) return 'Chỉ thả mục vào giai đoạn của cùng dự án.';
+  const before = beforeId ? byId.get(beforeId) : null;
+  if (beforeId && (!before?.isGroup || before.parentGroupId !== phase.id)) return 'Vị trí thả không hợp lệ.';
+  if (before === section) return '';
+  const siblingsIn = id => items.filter(item => item.isGroup && item.parentGroupId === id && projectIdOf(db, item) === projectId);
+  const targetSiblings = siblingsIn(phase.id).filter(item => item !== section);
+  const insertAt = before ? targetSiblings.indexOf(before) : targetSiblings.length;
+  if (section.parentGroupId === phase.id && siblingsIn(phase.id).indexOf(section) === insertAt) return '';
+  const sourcePhase = byId.get(section.parentGroupId);
+
+  // Khối di chuyển: mọi task thuộc mục (kể cả task con).
+  const block = new Set(items.filter(item => !item.isGroup && item.parentGroupId === section.id));
+  const blockTasks = items.filter(item => block.has(item));
+  const outside = id => !block.has(byId.get(id));
+  const externalPredecessors = [...new Set(blockTasks.flatMap(task => (task.dependencies || []).filter(outside)))];
+  // 1. Rời chỗ cũ: task ngoài khối nối từ task trong khối → nối từ task trước khối.
+  for (const row of items) {
+    if (row.isGroup || block.has(row) || projectIdOf(db, row) !== projectId || !Array.isArray(row.dependencies)) continue;
+    if (row.dependencies.some(id => block.has(byId.get(id)))) {
+      row.dependencies = [...new Set([...row.dependencies.filter(outside), ...externalPredecessors.filter(id => id !== row.id)])];
+      if (Array.isArray(row.manualDependencies)) row.manualDependencies = row.manualDependencies.filter(outside);
+    }
+  }
+  // Task trong khối bỏ liên kết ra ngoài: task đầu khối tự nối từ dòng đứng trước ở chỗ mới.
+  for (const task of blockTasks) {
+    if (Array.isArray(task.dependencies)) task.dependencies = task.dependencies.filter(id => !outside(id));
+    if (Array.isArray(task.manualDependencies)) task.manualDependencies = task.manualDependencies.filter(id => !outside(id));
+  }
+  // 2. Vào chỗ mới: task đầu của mục đứng sau đang nối từ mục khác → nối từ task cuối của khối.
+  const lastBlockTask = blockTasks.filter(task => !task.parentTaskId).at(-1);
+  const firstAfter = before ? items.find(item => !item.isGroup && !item.parentTaskId && item.parentGroupId === before.id) : null;
+  if (firstAfter && lastBlockTask && Array.isArray(firstAfter.dependencies)) {
+    const external = firstAfter.dependencies.filter(id => byId.get(id)?.parentGroupId !== before.id);
+    if (external.length) firstAfter.dependencies = [...new Set([...firstAfter.dependencies.filter(id => !external.includes(id)), lastBlockTask.id])];
+  }
+
+  // 3. Đổi giai đoạn chứa + vị trí trong danh sách.
+  section.parentGroupId = phase.id;
+  items.splice(items.indexOf(section), 1);
+  const anchor = before || targetSiblings.at(-1);
+  items.splice(anchor ? items.indexOf(anchor) + (before ? 0 : 1) : items.indexOf(phase) + 1, 0, section);
+
+  // 4. Đánh số lại mục con của giai đoạn cũ và mới; 5. giai đoạn bao trùm lại ngày.
+  if (sourcePhase && sourcePhase !== phase) renumberPhaseSections(db, sourcePhase, projectId);
+  renumberPhaseSections(db, phase, projectId);
+  spanParentDates(items.filter(item => projectIdOf(db, item) === projectId), [sourcePhase, phase].filter((row, index, list) => row && list.indexOf(row) === index));
+  return '';
+}
+
+/** Một cửa cho kéo thả: mục con → relocateGanttSection, task → relocateGanttTask. */
+export function relocateGanttRow(db, id, target) {
+  const item = (db.ganttItems || []).find(row => row.id === id);
+  return item?.isGroup ? relocateGanttSection(db, id, target) : relocateGanttTask(db, id, target);
 }

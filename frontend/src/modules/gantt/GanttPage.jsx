@@ -1847,7 +1847,8 @@ export default function GanttPage() {
   const [dragTaskId, setDragTaskId] = useState(null);
   const [dropHint, setDropHint] = useState(null);
   const dragTaskRef = useRef(null);
-  const canDragTask = item => canManageStructure && !previewing && !item.isGroup && !item.isProjectHeader && !item.parentTaskId && Boolean(item.parentGroupId);
+  // Kéo được: task cấp mục, và mục con (B2, A1…). Giai đoạn lớn A/B/C giữ nguyên (chữ cái gắn màu / tên giai đoạn).
+  const canDragTask = item => canManageStructure && !previewing && !item.isProjectHeader && Boolean(item.parentGroupId) && (item.isGroup || !item.parentTaskId);
   const rowById = id => dependencyRows.find(row => row.id === id);
   const rootTaskOf = row => { let root = row; const seen = new Set(); while (root?.parentTaskId && !seen.has(root.id)) { seen.add(root.id); root = rowById(root.parentTaskId) || root; if (seen.has(root.id)) break; } return root; };
   const nextTopSibling = (root, excludeId) => {
@@ -1866,9 +1867,33 @@ export default function GanttPage() {
     }
     return last;
   };
+  // Kéo MỤC CON: thả lên giai đoạn → cuối giai đoạn; nửa trên dòng mục con → trước mục đó; nửa dưới / dòng task của mục → sau cả mục.
+  const lastVisibleRowOfSection = section => {
+    const index = filteredGanttItems.findIndex(row => row.id === section.id);
+    let last = section;
+    for (let position = index + 1; position < filteredGanttItems.length; position += 1) {
+      const row = filteredGanttItems[position];
+      if (row.isGroup || row.isProjectHeader || row.parentGroupId !== section.id) break;
+      last = row;
+    }
+    return last;
+  };
+  const nextSiblingSection = (section, excludeId) => {
+    const index = dependencyRows.findIndex(row => row.id === section.id);
+    return dependencyRows.slice(index + 1).find(row => row.isGroup && row.id !== excludeId && row.parentGroupId === section.parentGroupId) || null;
+  };
+  const sectionDropTarget = (dragged, row, event) => {
+    if (row.isGroup && !row.parentGroupId) return { rowId: row.id, position: 'into', groupId: row.id, beforeId: '' };
+    const section = row.isGroup ? row : rowById(rootTaskOf(row)?.parentGroupId);
+    if (!section?.isGroup || !section.parentGroupId || section.id === dragged.id) return null;
+    const rect = event.currentTarget.getBoundingClientRect();
+    if (row.isGroup && event.clientY < rect.top + rect.height / 2) return { rowId: section.id, position: 'before', groupId: section.parentGroupId, beforeId: section.id };
+    return { rowId: lastVisibleRowOfSection(section).id, position: 'after', groupId: section.parentGroupId, beforeId: nextSiblingSection(section, dragged.id)?.id || '' };
+  };
   const dropTargetFor = (row, event) => {
     const dragged = rowById(dragTaskRef.current);
     if (!dragged || row.isProjectHeader || projectIdForItem(row) !== projectIdForItem(dragged)) return null;
+    if (dragged.isGroup) return sectionDropTarget(dragged, row, event);
     if (row.isGroup) return { rowId: row.id, position: 'into', groupId: row.id, beforeId: '' };
     const root = rootTaskOf(row);
     if (!root || root.id === dragged.id || !root.parentGroupId) return null;
